@@ -475,6 +475,174 @@ the preset, probes, and only then writes settings.
 
 ---
 
+### Task 6: Single-container mode
+
+**Files:**
+- Modify: `docker/supervisor/doccum.conf`, `Dockerfile`, `compose.yaml`, `app/Livewire/Setup/FirstRun.php`
+- Test: verification is a real `docker run`, plus a Pest test for the restart notice.
+
+**Interfaces:**
+- `DOCCUM_EMBEDDED_STORAGE`, `DOCCUM_RUN_WORKERS`, `DOCCUM_RUN_SCHEDULER` — all default `true` in the image.
+
+The target is `docker run ghcr.io/<org>/doccum` with everything working
+immediately: web, both queue workers, the scheduler and object storage in one
+container. Compose stops being required and becomes the way to scale workers
+out, not the way to get started.
+
+This works because the compose worker services override `command:`, which
+replaces supervisor entirely — serversideup's entrypoint still `exec`s whatever
+it is given. So one image serves both shapes with no branching in the image.
+
+- [ ] **Step 1: Supervise the workers and scheduler**
+
+Add three programs to `docker/supervisor/doccum.conf`, each gated the same way
+the MinIO program is:
+
+```ini
+[program:worker]
+command=php /var/www/html/artisan queue:work --queue=default --tries=3 --max-time=3600
+autostart=%(ENV_DOCCUM_RUN_WORKERS)s
+autorestart=true
+stdout_logfile=/dev/fd/1
+stdout_logfile_maxbytes=0
+redirect_stderr=true
+priority=20
+
+[program:worker-ingest]
+command=php /var/www/html/artisan queue:work --queue=ingest --tries=2 --timeout=900 --max-time=3600
+autostart=%(ENV_DOCCUM_RUN_WORKERS)s
+autorestart=true
+stdout_logfile=/dev/fd/1
+stdout_logfile_maxbytes=0
+redirect_stderr=true
+priority=20
+
+[program:scheduler]
+command=php /var/www/html/artisan schedule:work
+autostart=%(ENV_DOCCUM_RUN_SCHEDULER)s
+autorestart=true
+stdout_logfile=/dev/fd/1
+stdout_logfile_maxbytes=0
+redirect_stderr=true
+priority=20
+```
+
+- [ ] **Step 2: Default everything on in the image**
+
+```dockerfile
+ENV DOCCUM_EMBEDDED_STORAGE=true \
+    DOCCUM_RUN_WORKERS=true \
+    DOCCUM_RUN_SCHEDULER=true
+```
+
+A plain `docker run` therefore gets the whole application. Compose's `app`
+service sets `DOCCUM_RUN_WORKERS=false` and `DOCCUM_RUN_SCHEDULER=false`,
+because dedicated containers run them there.
+
+- [ ] **Step 3: Restart workers when the installer changes the database**
+
+Supervised workers hold a connection built from the configuration present when
+they started. If the installer repoints the database, they keep talking to the
+bootstrap SQLite until something restarts them — quietly wrong, which is worse
+than loudly broken.
+
+After a successful `saveDatabase()` that actually changed the connection, run
+`supervisorctl -c /etc/supervisor/conf.d/doccum.conf restart worker worker-ingest scheduler`
+when that binary is present; otherwise flash a notice telling the operator to
+restart the container. Never fail the install because the restart failed — say
+what happened.
+
+- [ ] **Step 4: Verify with a real `docker run`, no compose**
+
+```bash
+docker build -t doccum:local .
+docker volume rm -f doccum-solo 2>/dev/null || true
+docker run -d --name doccum-solo -v doccum-solo:/data -p 8099:8080 doccum:local
+sleep 35
+docker exec doccum-solo supervisorctl -c /etc/supervisor/conf.d/doccum.conf status
+curl -s -o /dev/null -w 'root: %{http_code} -> %{redirect_url}\n' http://localhost:8099/
+curl -s -o /dev/null -w 'setup: %{http_code}\n' http://localhost:8099/setup
+docker exec doccum-solo php artisan migrate:status | tail -3
+docker rm -f doccum-solo && docker volume rm -f doccum-solo
+```
+
+Expected: five programs RUNNING, `/` redirecting to `/setup`, `/setup` returning
+200, migrations already applied. Nothing configured, nothing mounted but one
+volume.
+
+- [ ] **Step 5: Commit**
+
+---
+
+### Task 7: Publish the image
+
+**Files:**
+- Create: `.github/workflows/release.yml`
+- Modify: `README.md`
+
+- [ ] **Step 1: Write the workflow**
+
+Build multi-arch on a version tag and push to GHCR. Both the base image and the
+pinned MinIO image publish `linux/amd64` and `linux/arm64` (verified), and
+`COPY --from` resolves per platform under buildx, so the MinIO binary matches
+the target architecture automatically.
+
+```yaml
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+```
+
+- [ ] **Step 2: Lead the README with the one-liner**
+
+```bash
+docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/<org>/doccum
+```
+
+Then open `http://localhost:8080` and complete the setup screen. Document the
+compose file as the route for scaling workers out or using a dedicated database
+or object store — not as the way to get started.
+
+- [ ] **Step 3: Commit**
+
+---
+
 ## Done when
 
 - `docker compose up` on a clean checkout yields ONE app container plus workers, with working object storage and no MinIO service.
@@ -483,4 +651,6 @@ the preset, probes, and only then writes settings.
 - R2, Spaces, Wasabi, B2, plain S3 and a custom endpoint are selectable, each with the right endpoint, region and addressing style.
 - Azure Blob works through its own driver.
 - A rebuild produces the same MinIO binary (release tag pinned).
+- `docker run -v doccum:/data -p 8080:8080 <image>` gives a complete, working instance with no compose file, no configuration and nothing else mounted.
+- The published image is multi-arch (amd64 and arm64) and the MinIO binary matches the target architecture.
 - `php artisan test` green; the stack boots clean from empty volumes.
