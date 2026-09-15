@@ -7,8 +7,10 @@ namespace App\Services;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Support\ObjectKey;
+use Aws\S3\Exception\S3Exception;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Filesystem\FilesystemManager;
+use RuntimeException;
 
 /**
  * The only code in doccum that touches the object store.
@@ -19,6 +21,8 @@ use Illuminate\Filesystem\FilesystemManager;
  */
 class DocumentStorage
 {
+    private bool $bucketEnsured = false;
+
     public function __construct(private readonly FilesystemManager $filesystem) {}
 
     public function putVersion(File $file, int $versionNumber, string $sourcePath, string $originalName): string
@@ -68,9 +72,60 @@ class DocumentStorage
         return $this->filesystem->disk(config('doccum.storage.disk'));
     }
 
+    /**
+     * Creates the configured bucket if it does not already exist.
+     *
+     * Idempotent and memoised per process: one HEAD request pays for every
+     * put() in the same request/job lifecycle. Creating the bucket lazily,
+     * here rather than at boot, avoids an ordering problem -- the entrypoint
+     * runs before supervisor starts MinIO, so nothing can provision a bucket
+     * at container start.
+     *
+     * A no-op for any disk that is not S3-compatible (including a faked disk
+     * in tests), since only the AWS SDK's client exposes headBucket/createBucket.
+     */
+    public function ensureBucket(): void
+    {
+        if ($this->bucketEnsured) {
+            return;
+        }
+
+        $this->bucketEnsured = true;
+
+        $disk = $this->disk();
+
+        if (! method_exists($disk, 'getClient')) {
+            return;
+        }
+
+        $bucket = (string) config('filesystems.disks.'.config('doccum.storage.disk').'.bucket');
+
+        if ($bucket === '') {
+            return;
+        }
+
+        $client = $disk->getClient();
+
+        try {
+            $client->headBucket(['Bucket' => $bucket]);
+        } catch (S3Exception $e) {
+            if ((int) $e->getStatusCode() !== 404) {
+                throw $e;
+            }
+
+            $client->createBucket(['Bucket' => $bucket]);
+        }
+    }
+
     private function put(string $key, string $sourcePath): void
     {
+        $this->ensureBucket();
+
         $stream = fopen($sourcePath, 'rb');
+
+        if ($stream === false) {
+            throw new RuntimeException("Unable to open {$sourcePath} for reading.");
+        }
 
         try {
             // Streamed rather than read into memory: an OCR-sized scan should

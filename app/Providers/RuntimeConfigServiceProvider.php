@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Exceptions\RuntimeConfigUnreadable;
 use App\Services\Settings;
+use App\Support\EmbeddedStorage;
 use App\Support\RuntimeConfig;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
@@ -91,6 +92,12 @@ class RuntimeConfigServiceProvider extends ServiceProvider
             return;
         }
 
+        // Increasing precedence: embedded credentials first, so an operator
+        // who configures nothing still gets working storage, then any
+        // storage.* setting -- a remote provider always overrides the
+        // embedded default.
+        $this->applyEmbeddedStorage();
+
         $settings = $this->app->make(Settings::class);
 
         foreach (['endpoint', 'key', 'secret', 'bucket', 'region'] as $key) {
@@ -100,5 +107,18 @@ class RuntimeConfigServiceProvider extends ServiceProvider
                 config()->set("filesystems.disks.documents.{$key}", $value);
             }
         }
+    }
+
+    private function applyEmbeddedStorage(): void
+    {
+        $credentials = EmbeddedStorage::credentials();
+
+        if ($credentials === null) {
+            return;
+        }
+
+        config()->set('filesystems.disks.documents.key', $credentials['key']);
+        config()->set('filesystems.disks.documents.secret', $credentials['secret']);
+        config()->set('filesystems.disks.documents.endpoint', config('doccum.storage.endpoint'));
     }
 }
