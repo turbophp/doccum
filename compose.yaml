@@ -21,7 +21,6 @@ x-app: &app
     AWS_SECRET_ACCESS_KEY: doccum-secret
     AWS_DEFAULT_REGION: us-east-1
     AWS_BUCKET: doccum
-    AWS_ENDPOINT: http://minio:9000
   volumes:
     # Mounted at /data, NOT at /var/www/html/database -- a volume there would
     # shadow database/migrations and every migration would silently vanish.
@@ -36,6 +35,10 @@ services:
     environment:
       <<: *app-env
       AUTORUN_ENABLED: "true"
+      # This is the only container that runs MinIO -- see docker/supervisor/doccum.conf.
+      # It reaches its own MinIO at the config default (127.0.0.1:9000), so no
+      # AWS_ENDPOINT override is needed here.
+      DOCCUM_EMBEDDED_STORAGE: "true"
     ports:
       - "8080:8080"
 
@@ -44,6 +47,10 @@ services:
     environment:
       <<: *app-env
       AUTORUN_ENABLED: "false"
+      # Workers share this image but must never start their own MinIO against
+      # the same data directory -- they reach the app container's instead.
+      DOCCUM_EMBEDDED_STORAGE: "false"
+      AWS_ENDPOINT: http://app:9000
     command: ["php", "artisan", "queue:work", "--queue=default", "--tries=3", "--max-time=3600"]
     # The base image's healthcheck curls HTTP, which a worker never serves, so
     # it would report unhealthy forever. Check the worker process instead.
@@ -59,6 +66,8 @@ services:
     environment:
       <<: *app-env
       AUTORUN_ENABLED: "false"
+      DOCCUM_EMBEDDED_STORAGE: "false"
+      AWS_ENDPOINT: http://app:9000
     command: ["php", "artisan", "queue:work", "--queue=ingest", "--tries=2", "--timeout=900", "--max-time=3600"]
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'queue:work --queue=ingest' > /dev/null || exit 1"]
@@ -72,6 +81,8 @@ services:
     environment:
       <<: *app-env
       AUTORUN_ENABLED: "false"
+      DOCCUM_EMBEDDED_STORAGE: "false"
+      AWS_ENDPOINT: http://app:9000
     command: ["php", "artisan", "schedule:work"]
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'schedule:work' > /dev/null || exit 1"]
@@ -80,8 +91,12 @@ services:
       retries: 3
       start_period: 20s
 
+  # Opt-in, standalone MinIO for anyone who wants storage outside the app
+  # container (e.g. pointing multiple installs at one bucket). The default
+  # stack does not start these -- embedded storage runs inside `app` instead.
   minio:
     image: quay.io/minio/minio:latest
+    profiles: ["storage"]
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: doccum
@@ -96,6 +111,7 @@ services:
   # Retries until MinIO answers, so it needs no ordering constraint either.
   minio-init:
     image: quay.io/minio/mc:latest
+    profiles: ["storage"]
     entrypoint: >
       /bin/sh -c "
       until mc alias set local http://minio:9000 doccum doccum-secret; do sleep 1; done;
