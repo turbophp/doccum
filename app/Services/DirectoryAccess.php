@@ -93,6 +93,23 @@ class DirectoryAccess
             ->all();
     }
 
+    /**
+     * Drop the memoised answers.
+     *
+     * The memoisation above is only safe while nothing has changed what a grant
+     * means. Because this service is a singleton, a caller that resolves access,
+     * then writes a grant, then resolves again would otherwise get the stale
+     * answer -- a correctness hole in the one component the whole authorisation
+     * story rests on. Invalidation is wired to grant writes AND to directory
+     * writes, because subtree membership is derived from the materialised path,
+     * so moving a directory changes who can reach it.
+     */
+    public function flush(): void
+    {
+        $this->levels = [];
+        $this->viewable = [];
+    }
+
     private function grantsFor(User $user): Builder
     {
         $roleIds = $user->roles->pluck('id')->all();

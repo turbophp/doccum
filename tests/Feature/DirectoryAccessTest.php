@@ -111,3 +111,47 @@ it('returns every directory id for an admin', function () {
 it('returns an empty list for a user with no grants', function () {
     expect(app(DirectoryAccess::class)->viewableDirectoryIds($this->user))->toBe([]);
 });
+
+it('sees a grant written after an earlier resolution', function () {
+    $access = app(DirectoryAccess::class);
+
+    expect($access->levelFor($this->user, $this->leaf))->toBeNull();
+
+    grant($this->root, $this->user, AccessLevel::Edit);
+
+    expect($access->levelFor($this->user, $this->leaf))->toBe(AccessLevel::Edit);
+});
+
+it('sees a grant revoked after an earlier resolution', function () {
+    $access = app(DirectoryAccess::class);
+    $granted = grant($this->root, $this->user, AccessLevel::Edit);
+
+    expect($access->levelFor($this->user, $this->leaf))->toBe(AccessLevel::Edit);
+
+    $granted->delete();
+
+    expect($access->levelFor($this->user, $this->leaf))->toBeNull();
+});
+
+it('sees a level raised after an earlier resolution', function () {
+    $access = app(DirectoryAccess::class);
+    grant($this->root, $this->user, AccessLevel::View);
+
+    expect($access->can($this->user, $this->leaf, AccessLevel::Manage))->toBeFalse();
+
+    DirectoryGrant::query()->delete();
+    grant($this->root, $this->user, AccessLevel::Manage);
+
+    expect($access->can($this->user, $this->leaf, AccessLevel::Manage))->toBeTrue();
+});
+
+it('sees a directory moved out of a granted subtree', function () {
+    $access = app(DirectoryAccess::class);
+    grant($this->root, $this->user, AccessLevel::Edit);
+
+    expect($access->levelFor($this->user, $this->leaf))->toBe(AccessLevel::Edit);
+
+    app(App\Actions\Directories\MoveDirectory::class)->handle($this->leaf->fresh(), $this->elsewhere->fresh());
+
+    expect($access->levelFor($this->user, $this->leaf->fresh()))->toBeNull();
+});

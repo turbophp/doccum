@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Models\Directory;
+use App\Models\DirectoryGrant;
 use App\Models\File;
 use App\Models\User;
 use App\Services\DirectoryAccess;
@@ -34,5 +35,18 @@ class DoccumServiceProvider extends ServiceProvider
             'directory' => Directory::class,
             'file' => File::class,
         ]);
+
+        // The memoisation in DirectoryAccess is only safe while nothing has
+        // changed what a grant means. Because that service is a singleton, a
+        // request that resolves access, writes a grant, then resolves again
+        // would otherwise get the stale answer. Subtree membership is derived
+        // from the materialised path, so a directory move invalidates access
+        // answers just as much as a grant does. See DirectoryAccess::flush().
+        $flushAccess = static fn (): null => tap(null, fn () => app(DirectoryAccess::class)->flush());
+
+        DirectoryGrant::saved($flushAccess);
+        DirectoryGrant::deleted($flushAccess);
+        Directory::saved($flushAccess);
+        Directory::deleted($flushAccess);
     }
 }
