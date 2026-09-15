@@ -1,0 +1,107 @@
+name: doccum
+
+x-app: &app
+  build:
+    context: .
+    args:
+      WITH_OFFICE: "false"
+  environment: &app-env
+    APP_ENV: production
+    APP_DEBUG: "false"
+    APP_URL: http://localhost:8080
+    DB_CONNECTION: sqlite
+    DB_DATABASE: /data/doccum.sqlite
+    # Queue, cache and sessions on database/file drivers: the default stack
+    # needs no Redis container at all.
+    QUEUE_CONNECTION: database
+    CACHE_STORE: database
+    SESSION_DRIVER: database
+    FILESYSTEM_DISK: documents
+    AWS_ACCESS_KEY_ID: doccum
+    AWS_SECRET_ACCESS_KEY: doccum-secret
+    AWS_DEFAULT_REGION: us-east-1
+    AWS_BUCKET: doccum
+    AWS_ENDPOINT: http://minio:9000
+  volumes:
+    # Mounted at /data, NOT at /var/www/html/database -- a volume there would
+    # shadow database/migrations and every migration would silently vanish.
+    - db:/data
+  restart: unless-stopped
+
+services:
+  # Only this service runs the boot automation, so four containers never race
+  # to migrate the same SQLite file.
+  app:
+    <<: *app
+    environment:
+      <<: *app-env
+      AUTORUN_ENABLED: "true"
+    ports:
+      - "8080:8080"
+
+  worker:
+    <<: *app
+    environment:
+      <<: *app-env
+      AUTORUN_ENABLED: "false"
+    command: ["php", "artisan", "queue:work", "--queue=default", "--tries=3", "--max-time=3600"]
+
+  worker-ingest:
+    <<: *app
+    environment:
+      <<: *app-env
+      AUTORUN_ENABLED: "false"
+    command: ["php", "artisan", "queue:work", "--queue=ingest", "--tries=2", "--timeout=900", "--max-time=3600"]
+
+  scheduler:
+    <<: *app
+    environment:
+      <<: *app-env
+      AUTORUN_ENABLED: "false"
+    command: ["php", "artisan", "schedule:work"]
+
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: doccum
+      MINIO_ROOT_PASSWORD: doccum-secret
+    volumes:
+      - minio:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    restart: unless-stopped
+
+  # Retries until MinIO answers, so it needs no ordering constraint either.
+  minio-init:
+    image: quay.io/minio/mc:latest
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 doccum doccum-secret; do sleep 1; done;
+      mc mb --ignore-existing local/doccum;
+      exit 0;
+      "
+    restart: "no"
+
+  postgres:
+    image: postgres:17-alpine
+    profiles: ["db"]
+    environment:
+      POSTGRES_DB: doccum
+      POSTGRES_USER: doccum
+      POSTGRES_PASSWORD: doccum
+    volumes:
+      - pg:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    profiles: ["cache"]
+    volumes:
+      - redis:/data
+
+volumes:
+  db:
+  minio:
+  pg:
+  redis:
