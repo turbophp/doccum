@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Models\User;
+use App\Providers\RuntimeConfigServiceProvider;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,6 +21,14 @@ class RequireInstanceSetup
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // A present-but-unreadable runtime config means a configured instance,
+        // not a fresh one -- serving the installer here would offer to
+        // reinstall over live data. Checked before anything else so it applies
+        // to every route, setup included.
+        if (RuntimeConfigServiceProvider::hasError()) {
+            abort(503, RuntimeConfigServiceProvider::error());
+        }
+
         $hasUsers = User::query()->exists();
 
         if (! $hasUsers && ! $request->routeIs('setup')) {
