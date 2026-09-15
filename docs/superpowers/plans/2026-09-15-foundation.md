@@ -181,11 +181,24 @@ return [
     // Defaults for operator-editable settings. Rows in the `settings` table
     // override these at runtime; see app/Services/Settings.php. An empty
     // settings table must leave the application fully functional.
+    //
+    // NESTED, not flat dotted keys. Arr::get() tests the full path as one
+    // literal key, then explodes on "." and walks segment by segment — it
+    // never recombines segments. So a literal 'auth.public_signup' key is
+    // unreachable via config('doccum.settings.auth.public_signup').
+    // Settings::get('auth.public_signup') resolves against this nesting,
+    // while `settings` table rows keep the flat dotted key as their `key`.
     'settings' => [
-        'instance.name' => 'doccum',
-        'auth.public_signup' => false,
-        'auth.default_role' => 'member',
-        'directories.auto_home' => true,
+        'instance' => [
+            'name' => 'doccum',
+        ],
+        'auth' => [
+            'public_signup' => false,
+            'default_role' => 'member',
+        ],
+        'directories' => [
+            'auto_home' => true,
+        ],
     ],
 
     'storage' => [
