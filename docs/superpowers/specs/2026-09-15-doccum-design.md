@@ -569,21 +569,31 @@ first-run screen is a three-step installer — database, storage, then the admin
 account, in that order so migrations and the admin land in the database the
 operator chose.
 
-**Runtime overrides live in an encrypted file on the data volume**, by default
-`/data/runtime.json` (`DOCCUM_RUNTIME_CONFIG` overrides the path), mode `0600`,
-excluded from the image. It cannot live under `storage/`: that directory is
-baked into the container image, not mounted, so credentials written there would
+Configuration is split between two stores by what each can bootstrap.
+
+**The encrypted file holds only the database connection** — the one genuine
+chicken-and-egg problem. By default `/data/runtime.json`
+(`DOCCUM_RUNTIME_CONFIG` overrides the path), mode `0600`, excluded from the
+image. It cannot live under `storage/`: that directory is baked into the
+container image rather than mounted, so credentials written there would
 disappear on the next rebuild.
+
+**Everything else lives in the `settings` table**, storage credentials included,
+with secrets encrypted at rest through `Settings::setSecret()`. Nothing resolves
+a disk during boot, so storage configuration can safely come from the database.
+This keeps the file minimal, gives operator settings one source of truth, and
+means a database backup carries the storage configuration with it.
 
 The payload is encrypted with `APP_KEY`. This is defence in depth, not a
 security boundary — `APP_KEY` is persisted on the same volume, so anyone who can
 read the volume can read both. What it does prevent is credentials appearing in
 plaintext inside a backup, a support bundle, a copied file, or a log.
 
-`RuntimeConfigServiceProvider` is registered first and applies the overrides in
-`register()`, before anything resolves a database connection or a disk. It reads
-the file directly, with no container dependencies, because the credentials it
-carries are the ones the container would otherwise need.
+`RuntimeConfigServiceProvider` is registered first. It applies the database
+override in `register()`, before anything resolves a connection, reading the
+file directly with no container dependencies — because the credentials it
+carries are the ones the container would otherwise need. Storage settings are
+applied in `boot()`, once the database is available.
 
 **Precedence: the runtime file wins over environment variables.** Compose values
 are a starting point; a choice made in the installer is the operator's decision
@@ -599,6 +609,30 @@ the app does not fall back to environment defaults.** It serves an explicit
 error and refuses to re-run the installer. Falling back would present an empty
 database that looks like a fresh install, inviting an operator to reinstall over
 live data.
+
+### Attaching to an existing instance
+
+Because everything except the database connection lives in the database,
+pointing a new container at an existing doccum database restores the whole
+instance — storage credentials, instance name, users, roles, grants — with no
+further configuration. Moving a deployment is giving the installer the database
+credentials.
+
+Two things make that safe rather than surprising.
+
+**The installer detects a populated database** and switches from install to
+attach: it runs pending migrations (the upgrade path), then goes straight to the
+login screen. It does not offer to create an admin, and it never overwrites
+existing settings. Treating a populated database as a fresh install is how an
+installer destroys a live deployment.
+
+**`APP_KEY` must come with the database.** Secrets in `settings` are encrypted
+with it, as are Fortify's two-factor secrets, and a fresh container generates a
+new key when `/data/.env` is absent. A `instance.key_check` canary is written at
+install time; on attach, failure to decrypt it means the key does not match, and
+the installer says so plainly and refuses rather than presenting a
+half-functional instance. Recovering means supplying the original `APP_KEY`
+through the environment or restoring `/data/.env`.
 
 `doccum:config:show` prints the effective runtime configuration with secrets
 masked; `doccum:config:reset` removes the file and returns the instance to its

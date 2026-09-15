@@ -5,6 +5,10 @@ declare(strict_types=1);
 return [
     'version' => env('DOCCUM_VERSION', '0.1.0'),
 
+    // Never under storage/: that path lives inside the container image, not on
+    // the data volume, so anything written there is lost on the next rebuild.
+    'runtime_config_path' => env('DOCCUM_RUNTIME_CONFIG', '/data/runtime.json'),
+
     // Defaults for operator-editable settings. Rows in the `settings` table
     // override these at runtime; see app/Services/Settings.php. An empty
     // settings table must leave the application fully functional.

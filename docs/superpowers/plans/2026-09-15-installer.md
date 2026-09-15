@@ -4,7 +4,7 @@
 
 **Goal:** Let an operator configure database and object storage through the browser on first run, so `docker compose up` needs no file editing at all.
 
-**Architecture:** An encrypted JSON file on the data volume holds runtime overrides. A service provider registered ahead of all others applies them in `register()` — before anything resolves a connection or a disk — reading the file directly with no container dependencies, because the credentials it carries are exactly what the container would otherwise need.
+**Architecture:** Two stores, split by what each is able to bootstrap. The encrypted file on the data volume holds **only the database connection** — the one genuine chicken-and-egg — and is applied in `register()`, before any connection resolves. Everything else, storage credentials included, lives in the `settings` table and is applied in `boot()`, because nothing resolves a disk during boot and the database is available by then. That keeps the file minimal, gives operator settings a single source of truth, and means a database backup carries the storage configuration with it.
 
 **Tech Stack:** Laravel 13, Livewire 4, Pest 5.
 
@@ -273,7 +273,7 @@ In `config/doccum.php`:
 - Test: `tests/Feature/RuntimeConfigProviderTest.php`
 
 **Interfaces:**
-- Produces: database and `documents` disk config taken from the runtime file when present; `RuntimeConfigServiceProvider::hasError(): bool` and `::error(): ?string` for the guard in Task 5.
+- Produces: database and `documents` disk config taken from the runtime file when present; `RuntimeConfigServiceProvider::hasError(): bool` and `::error(): ?string` for the guard in Task 6.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -320,18 +320,12 @@ it('overrides the database connection', function () {
         ->and(config('database.connections.pgsql.database'))->toBe('doccum');
 });
 
-it('overrides the documents disk', function () {
-    RuntimeConfig::write([
-        'storage' => [
-            'endpoint' => 'https://s3.example.com',
-            'key' => 'AKIA',
-            'secret' => 'shh',
-            'bucket' => 'papers',
-            'region' => 'eu-west-1',
-        ],
-    ]);
+it('overrides the documents disk from settings', function () {
+    app(App\Services\Settings::class)->set('storage.endpoint', 'https://s3.example.com');
+    app(App\Services\Settings::class)->set('storage.bucket', 'papers');
+    app(App\Services\Settings::class)->set('storage.region', 'eu-west-1');
 
-    (new RuntimeConfigServiceProvider(app()))->applyOverrides();
+    (new RuntimeConfigServiceProvider(app()))->boot();
 
     expect(config('filesystems.disks.documents.endpoint'))->toBe('https://s3.example.com')
         ->and(config('filesystems.disks.documents.bucket'))->toBe('papers')
@@ -340,9 +334,9 @@ it('overrides the documents disk', function () {
 
 it('beats an environment value', function () {
     config()->set('filesystems.disks.documents.bucket', 'from-env');
-    RuntimeConfig::write(['storage' => ['bucket' => 'from-installer']]);
+    app(App\Services\Settings::class)->set('storage.bucket', 'from-installer');
 
-    (new RuntimeConfigServiceProvider(app()))->applyOverrides();
+    (new RuntimeConfigServiceProvider(app()))->boot();
 
     expect(config('filesystems.disks.documents.bucket'))->toBe('from-installer');
 });
@@ -363,7 +357,7 @@ it('does not fall back to environment config when unreadable', function () {
     (new RuntimeConfigServiceProvider(app()))->applyOverrides();
 
     // The value is untouched, but the error flag is what stops the app being
-    // treated as a fresh install. See the guard in Task 5.
+    // treated as a fresh install. See the guard in Task 6.
     expect(RuntimeConfigServiceProvider::hasError())->toBeTrue();
 });
 ```
@@ -423,7 +417,7 @@ class RuntimeConfigServiceProvider extends ServiceProvider
         } catch (RuntimeConfigUnreadable $e) {
             // Never fall back to environment defaults here: an empty database
             // would look like a fresh install and invite a reinstall over live
-            // data. Task 5's guard turns this into a readable page.
+            // data. Task 6's guard turns this into a readable page.
             self::$error = $e->getMessage();
 
             return;
@@ -434,7 +428,6 @@ class RuntimeConfigServiceProvider extends ServiceProvider
         }
 
         $this->applyDatabase($config['database'] ?? []);
-        $this->applyStorage($config['storage'] ?? []);
     }
 
     /** @param  array<string, mixed>  $database */
@@ -454,12 +447,27 @@ class RuntimeConfigServiceProvider extends ServiceProvider
         }
     }
 
-    /** @param  array<string, mixed>  $storage */
-    private function applyStorage(array $storage): void
+    /**
+     * Storage configuration comes from the settings table, not the file.
+     *
+     * Applied in boot() rather than register() because it needs the database --
+     * which is safe, since nothing resolves a disk during boot. The file stays
+     * limited to the one thing that genuinely cannot be read from the database:
+     * how to reach the database.
+     */
+    public function boot(): void
     {
+        if (self::hasError() || ! Schema::hasTable('settings')) {
+            return;
+        }
+
+        $settings = $this->app->make(Settings::class);
+
         foreach (['endpoint', 'key', 'secret', 'bucket', 'region'] as $key) {
-            if (array_key_exists($key, $storage)) {
-                config()->set("filesystems.disks.documents.{$key}", $storage[$key]);
+            $value = $settings->get("storage.{$key}");
+
+            if ($value !== null) {
+                config()->set("filesystems.disks.documents.{$key}", $value);
             }
         }
     }
@@ -485,7 +493,108 @@ Read the existing file and preserve every provider already listed.
 
 ---
 
-### Task 3: Connection probes
+### Task 3: Encrypted settings values
+
+**Files:**
+- Modify: `app/Services/Settings.php`, `app/Models/Setting.php`
+- Test: `tests/Feature/EncryptedSettingsTest.php`
+
+**Interfaces:**
+- `Settings::setSecret(string $key, string $value, ?int $userId = null): void`
+- `Settings::get()` transparently decrypts a secret value
+- `Settings::isSecret(string $key): bool`
+
+Storage credentials live in the `settings` table rather than the runtime file,
+so they need encryption at rest there. Only values written through `setSecret`
+are encrypted, so ordinary settings stay queryable and readable.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use App\Models\Setting;
+use App\Services\Settings;
+
+it('round trips a secret', function () {
+    app(Settings::class)->setSecret('storage.secret', 'a-very-secret-value');
+
+    expect(app(Settings::class)->get('storage.secret'))->toBe('a-very-secret-value');
+});
+
+it('does not store a secret in plaintext', function () {
+    app(Settings::class)->setSecret('storage.secret', 'a-very-secret-value');
+
+    $raw = Setting::where('key', 'storage.secret')->value('value');
+
+    expect(json_encode($raw))->not->toContain('a-very-secret-value');
+});
+
+it('marks which keys are secret', function () {
+    app(Settings::class)->setSecret('storage.secret', 'x');
+    app(Settings::class)->set('instance.name', 'Acme');
+
+    expect(app(Settings::class)->isSecret('storage.secret'))->toBeTrue()
+        ->and(app(Settings::class)->isSecret('instance.name'))->toBeFalse();
+});
+
+it('leaves ordinary settings readable', function () {
+    app(Settings::class)->set('instance.name', 'Acme');
+
+    expect(Setting::where('key', 'instance.name')->value('value'))->toBe('Acme');
+});
+
+it('still falls back to config for an unset secret', function () {
+    expect(app(Settings::class)->get('storage.secret', 'fallback'))->toBe('fallback');
+});
+```
+
+- [ ] **Step 2: Run and watch it fail**
+
+- [ ] **Step 3: Extend the service**
+
+Store a secret as an envelope the reader can recognise, so decryption is driven
+by the stored value rather than by a hardcoded list of key names:
+
+```php
+    private const SECRET_MARKER = '__encrypted';
+
+    public function setSecret(string $key, string $value, ?int $userId = null): void
+    {
+        $this->set($key, [self::SECRET_MARKER => Crypt::encryptString($value)], $userId);
+    }
+
+    public function isSecret(string $key): bool
+    {
+        $stored = $this->all();
+
+        return is_array($stored[$key] ?? null) && array_key_exists(self::SECRET_MARKER, $stored[$key]);
+    }
+```
+
+And in `get()`, before returning a stored value, unwrap the envelope:
+
+```php
+        if (array_key_exists($key, $stored)) {
+            $value = $stored[$key];
+
+            if (is_array($value) && array_key_exists(self::SECRET_MARKER, $value)) {
+                return Crypt::decryptString($value[self::SECRET_MARKER]);
+            }
+
+            return $value;
+        }
+```
+
+Keep the existing config fallback untouched.
+
+- [ ] **Step 4: Run focused, then full suite. Commit.**
+
+---
+
+### Task 4: Connection probes
 
 **Files:**
 - Create: `app/Services/ConnectionProbe.php`
@@ -687,7 +796,7 @@ service and has no life of its own.
 
 ---
 
-### Task 4: The installer wizard
+### Task 5: The installer wizard
 
 **Files:**
 - Modify: `app/Livewire/Setup/FirstRun.php`, `resources/views/livewire/setup/first-run.blade.php`
@@ -788,7 +897,7 @@ it('creates the admin on the final step', function () {
     expect(User::firstOrFail()->hasRole('admin'))->toBeTrue();
 });
 
-it('never writes a secret into the runtime file in plaintext', function () {
+it('never writes a storage secret into the runtime file at all', function () {
     Storage::fake('documents');
 
     Livewire::test(FirstRun::class)
@@ -799,9 +908,12 @@ it('never writes a secret into the runtime file in plaintext', function () {
         ->set('s3_bucket', 'doccum')
         ->call('saveStorage');
 
+    // Storage credentials belong in the settings table, not the file.
     if (RuntimeConfig::exists()) {
         expect(file_get_contents($this->file))->not->toContain('a-very-secret-string');
     }
+
+    expect(app(App\Services\Settings::class)->get('storage.secret'))->toBe('a-very-secret-string');
 });
 ```
 
@@ -810,11 +922,15 @@ it('never writes a secret into the runtime file in plaintext', function () {
 - [ ] **Step 3: Extend the component**
 
 Keep the existing admin logic in `submit()` untouched; add the two earlier steps
-around it. On `saveDatabase()`: probe, and only on success merge into
-`RuntimeConfig`, apply to live config, purge the connection, and run
+around it. On `saveDatabase()`: probe, and only on success write the `database` block to
+`RuntimeConfig`, apply it to live config, purge the connection, and run
 `Artisan::call('migrate', ['--force' => true])` so the chosen database has the
-schema before the admin is written. On a probe failure, `addError` on the
-relevant field and do not advance. `skipStorage()` advances without writing.
+schema before anything is written into it. On a probe failure, `addError` on the
+relevant field and do not advance.
+
+On `saveStorage()`: probe, then write each value through `Settings` — using
+`setSecret()` for `storage.secret` and plain `set()` for the rest. Storage never
+touches the runtime file. `skipStorage()` advances without writing anything.
 
 - [ ] **Step 4: Extend the view**
 
@@ -827,7 +943,7 @@ replacing it.
 
 ---
 
-### Task 5: The lockout guard and config commands
+### Task 6: The lockout guard and config commands
 
 **Files:**
 - Create: `app/Console/Commands/ConfigShow.php`, `app/Console/Commands/ConfigReset.php`
@@ -912,12 +1028,350 @@ could not be cleared.
 
 ---
 
+### Task 7: Attaching to an existing instance
+
+**Files:**
+- Modify: `app/Livewire/Setup/FirstRun.php`, `app/Services/ConnectionProbe.php`
+- Test: `tests/Feature/InstallerAttachTest.php`
+
+**Interfaces:**
+- `ConnectionProbe::inspect(array $config): InstanceState` — `fresh`, `populated`, or `key_mismatch`
+- The wizard skips storage and admin when attaching.
+
+The dangerous case this exists to prevent: an operator points the installer at a
+live database and is offered a "create your admin account" form. Migrations are
+idempotent, but creating a second admin and overwriting `instance.*` settings on
+a running deployment is not.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use App\Livewire\Setup\FirstRun;
+use App\Models\User;
+use App\Services\Settings;
+use Livewire\Livewire;
+
+beforeEach(function () {
+    $this->file = sys_get_temp_dir().'/doccum-runtime-'.uniqid().'.json';
+    config()->set('doccum.runtime_config_path', $this->file);
+    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+});
+
+afterEach(fn () => @unlink($this->file));
+
+it('treats a database with no users as a fresh install', function () {
+    Livewire::test(FirstRun::class)
+        ->set('db_connection', 'sqlite')
+        ->set('db_database', config('database.connections.sqlite.database'))
+        ->call('saveDatabase')
+        ->assertSet('attaching', false)
+        ->assertSet('step', 2);
+});
+
+it('detects a populated database and skips straight past setup', function () {
+    User::factory()->create();
+    app(Settings::class)->set('instance.key_check', encrypt('doccum'));
+
+    Livewire::test(FirstRun::class)
+        ->set('db_connection', 'sqlite')
+        ->set('db_database', config('database.connections.sqlite.database'))
+        ->call('saveDatabase')
+        ->assertSet('attaching', true)
+        ->assertRedirect(route('login'));
+});
+
+it('never offers to create an admin when attaching', function () {
+    User::factory()->create();
+    app(Settings::class)->set('instance.key_check', encrypt('doccum'));
+
+    Livewire::test(FirstRun::class)
+        ->set('db_connection', 'sqlite')
+        ->set('db_database', config('database.connections.sqlite.database'))
+        ->call('saveDatabase');
+
+    expect(User::count())->toBe(1);
+});
+
+it('refuses to attach when APP_KEY does not match', function () {
+    User::factory()->create();
+    // A canary this APP_KEY cannot decrypt.
+    app(Settings::class)->set('instance.key_check', 'eyJpdiI6ImJvZ3VzIiwidmFsdWUiOiJib2d1cyJ9');
+
+    Livewire::test(FirstRun::class)
+        ->set('db_connection', 'sqlite')
+        ->set('db_database', config('database.connections.sqlite.database'))
+        ->call('saveDatabase')
+        ->assertHasErrors('db_connection');
+
+    expect(app(Settings::class)->get('instance.key_check'))->not->toBeNull();
+});
+
+it('writes a key canary on a fresh install', function () {
+    Livewire::test(FirstRun::class)
+        ->set('step', 3)
+        ->set('instance_name', 'Acme')
+        ->set('name', 'Ada')
+        ->set('username', 'ada')
+        ->set('email', 'ada@example.com')
+        ->set('password', 'password-please')
+        ->set('password_confirmation', 'password-please')
+        ->call('submit');
+
+    expect(decrypt(app(Settings::class)->get('instance.key_check')))->toBe('doccum');
+});
+```
+
+- [ ] **Step 2: Run and watch it fail**
+
+- [ ] **Step 3: Implement detection**
+
+`inspect()` runs entirely on the **temporary connection the probe already
+opened** — `DB::connection($name)->getSchemaBuilder()->hasTable('users')`, then a
+direct query for the `instance.key_check` row through that same connection. It
+must never switch `database.default` first, and must never run migrations
+first. Both would act on a database before knowing whether it is ours: a wrong
+credential would poison the running request, and migrating would create doccum
+tables inside somebody else's database.
+
+It reports `fresh` when the `users` table is absent or empty. When populated, it
+reads `instance.key_check` and attempts to decrypt it: success is `populated`,
+failure is `key_mismatch`.
+
+`saveDatabase()` therefore runs in this order, and the order is the point:
+
+1. Probe the connection. On failure, `addError` and stop — nothing written.
+2. `inspect()` on that same temporary connection, before anything is persisted
+   or switched.
+3. On `key_mismatch`: `addError` on `db_connection` explaining the database
+   belongs to an instance encrypted with a different `APP_KEY` and that the
+   original key must be restored. Write nothing, migrate nothing, switch
+   nothing.
+4. Otherwise write the `database` block to `RuntimeConfig`, apply it to live
+   config, purge the connection, and migrate.
+5. On `populated`, set `attaching = true` and redirect to login. On `fresh`,
+   advance to the storage step.
+
+`submit()` writes `instance.key_check` as `encrypt('doccum')` alongside the
+other instance settings.
+
+- [ ] **Step 4: Run focused, then full suite. Commit.**
+
+---
+
+### Task 8: Embedded storage by default
+
+**Files:**
+- Modify: `config/filesystems.php`, `app/Services/DocumentStorage.php`, `app/Providers/RuntimeConfigServiceProvider.php`, `app/Livewire/Setup/FirstRun.php` + view, `compose.yaml`
+- Create: `app/Http/Controllers/FileStreamController.php`
+- Test: `tests/Feature/EmbeddedStorageTest.php`
+
+**Interfaces:**
+- `documents` disk defaults to the `local` driver rooted on the data volume.
+- `Settings` key `storage.driver` — `local` or `s3`.
+- Route `files.stream` — signed, authenticated, streams one version.
+
+Both database and storage default to embedded, and remote is something an
+operator opts into. That takes MinIO out of the default stack entirely: a plain
+`docker compose up` is the app and its workers, nothing else.
+
+The wrinkle is that presigned URLs are an S3 feature. Rather than branch
+everywhere, `DocumentStorage::temporaryUrl()` keeps one signature and asks the
+disk: S3 signs its own URL, and embedded storage gets a short-lived signed route
+that streams the bytes. Callers cannot tell the difference.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use App\Enums\AccessLevel;
+use App\Models\Directory;
+use App\Models\DirectoryGrant;
+use App\Models\File;
+use App\Models\User;
+use App\Services\DocumentStorage;
+use Illuminate\Support\Facades\Storage;
+
+beforeEach(function () {
+    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+    Storage::fake('documents');
+    $this->owner = User::factory()->create();
+    $this->dir = Directory::factory()->create();
+});
+
+function embeddedUpload(string $contents = 'the contents'): File
+{
+    $path = tempnam(sys_get_temp_dir(), 'doccum');
+    file_put_contents($path, $contents);
+
+    return app(App\Actions\Files\StoreFileVersion::class)
+        ->handle(test()->owner, test()->dir, $path, 'Report.pdf', 'application/pdf');
+}
+
+it('defaults the documents disk to a local driver', function () {
+    expect(config('filesystems.disks.documents.driver'))->toBe('local');
+});
+
+it('signs an application route when the disk cannot sign its own', function () {
+    $file = embeddedUpload();
+
+    $url = app(DocumentStorage::class)->temporaryUrl($file->currentVersion);
+
+    expect($url)->toContain('/files/stream/')
+        ->and($url)->toContain('signature=');
+});
+
+it('streams the bytes to an authorised user', function () {
+    $file = embeddedUpload('the contents');
+    $reader = User::factory()->create();
+    DirectoryGrant::create([
+        'directory_id' => $this->dir->id, 'grantee_type' => 'user',
+        'grantee_id' => $reader->id, 'level' => AccessLevel::View,
+    ]);
+
+    $url = app(DocumentStorage::class)->temporaryUrl($file->currentVersion);
+
+    $response = $this->actingAs($reader)->get($url);
+    $response->assertOk();
+
+    expect($response->streamedContent())->toBe('the contents');
+});
+
+it('refuses a signed url to someone without access', function () {
+    $file = embeddedUpload();
+    $url = app(DocumentStorage::class)->temporaryUrl($file->currentVersion);
+
+    $this->actingAs(User::factory()->create())->get($url)->assertForbidden();
+});
+
+it('refuses an unsigned or tampered url', function () {
+    $file = embeddedUpload();
+    $reader = User::factory()->create();
+    DirectoryGrant::create([
+        'directory_id' => $this->dir->id, 'grantee_type' => 'user',
+        'grantee_id' => $reader->id, 'level' => AccessLevel::View,
+    ]);
+
+    $this->actingAs($reader)
+        ->get(route('files.stream', ['version' => $file->currentVersion->id]))
+        ->assertForbidden();
+});
+
+it('refuses an expired url', function () {
+    $file = embeddedUpload();
+    $reader = User::factory()->create();
+    DirectoryGrant::create([
+        'directory_id' => $this->dir->id, 'grantee_type' => 'user',
+        'grantee_id' => $reader->id, 'level' => AccessLevel::View,
+    ]);
+
+    $url = app(DocumentStorage::class)->temporaryUrl($file->currentVersion, 5);
+
+    $this->travel(6)->minutes();
+
+    $this->actingAs($reader)->get($url)->assertForbidden();
+});
+```
+
+The last three matter: a signed URL is a bearer token in a query string, so the
+route re-checks the policy rather than trusting the signature alone. Signature
+plus authorisation, not signature instead of it.
+
+- [ ] **Step 2: Run and watch it fail**
+
+- [ ] **Step 3: Default the disk to local**
+
+In `config/filesystems.php`, the `documents` disk becomes driver-configurable.
+The S3 keys stay present and are simply ignored by the local driver:
+
+```php
+'documents' => [
+    'driver' => env('DOCCUM_STORAGE_DRIVER', 'local'),
+    // On the data volume, not inside the image: anything under storage/ is
+    // lost on the next rebuild.
+    'root' => env('DOCCUM_STORAGE_ROOT', '/data/files'),
+    'key' => env('AWS_ACCESS_KEY_ID'),
+    'secret' => env('AWS_SECRET_ACCESS_KEY'),
+    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'bucket' => env('AWS_BUCKET', 'doccum'),
+    'endpoint' => env('AWS_ENDPOINT'),
+    'use_path_style_endpoint' => true,
+    'throw' => true,
+],
+```
+
+- [ ] **Step 4: Branch in `DocumentStorage::temporaryUrl()`**
+
+```php
+    public function temporaryUrl(FileVersion $version, int $minutes = 5): string
+    {
+        $expires = now()->addMinutes($minutes);
+        $disk = $this->disk();
+
+        if ($disk->providesTemporaryUrls()) {
+            return $disk->temporaryUrl($version->object_key, $expires);
+        }
+
+        // Embedded storage has no signing mechanism of its own, so the
+        // application signs a short-lived route and streams the object. The
+        // caller sees one interface either way.
+        return URL::temporarySignedRoute('files.stream', $expires, ['version' => $version->getKey()]);
+    }
+```
+
+- [ ] **Step 5: Write the streaming controller and route**
+
+```php
+    public function __invoke(FileVersion $version): StreamedResponse
+    {
+        $this->authorize('download', $version->file);
+
+        return $this->storage->disk()->response($version->object_key, $version->file->name);
+    }
+```
+
+```php
+Route::get('/files/stream/{version}', App\Http\Controllers\FileStreamController::class)
+    ->middleware(['auth', 'signed'])
+    ->name('files.stream');
+```
+
+- [ ] **Step 6: Apply `storage.driver` from settings**
+
+`RuntimeConfigServiceProvider::boot()` reads `storage.driver` alongside the other
+storage keys and sets `filesystems.disks.documents.driver`.
+
+- [ ] **Step 7: Offer embedded or remote in the wizard**
+
+The storage step gains a choice: **Embedded** (default, no fields, writes
+`storage.driver = local`) or **Remote S3-compatible** (the existing fields,
+writes `storage.driver = s3` plus the credentials, probed first as now).
+
+- [ ] **Step 8: Move MinIO behind a profile**
+
+In `compose.yaml`, add `profiles: ["storage"]` to `minio` and `minio-init`, and
+drop the `AWS_*` defaults from the app environment. The default stack becomes
+the app and its three workers. Update the services table comment to match.
+
+- [ ] **Step 9: Run focused, then full suite. Commit.**
+
+---
+
 ## Done when
 
 - A fresh `docker compose up` offers database, storage, then admin, and needs no file edited anywhere.
 - Each step probes for real before saving; a bad credential fails at the form.
-- The runtime file is encrypted, `0600`, on the data volume, and never contains a secret in plaintext.
+- The runtime file is encrypted, `0600`, on the data volume, and holds ONLY the database block.
+- Storage credentials live in the `settings` table with the secret encrypted at rest.
 - No probe failure or exception message ever echoes a password or secret.
 - A present-but-unreadable config serves a 503 explaining `APP_KEY` and refuses to reinstall.
 - `doccum:config:show` masks secrets; `doccum:config:reset` clears even a corrupt file.
+- Pointing the installer at an existing doccum database restores the instance without touching its data, and never offers to create a second admin.
+- A mismatched `APP_KEY` is reported plainly instead of yielding a half-working instance.
 - `php artisan test` green; the container boots clean from empty volumes.
