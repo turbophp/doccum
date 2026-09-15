@@ -115,7 +115,9 @@ class ConnectionProbe
         if (! isset($config['disk'])) {
             config()->set("filesystems.disks.{$disk}", array_merge(
                 config('filesystems.disks.documents', []),
-                array_intersect_key($config, array_flip(['endpoint', 'key', 'secret', 'bucket', 'region'])),
+                array_intersect_key($config, array_flip([
+                    'endpoint', 'key', 'secret', 'bucket', 'region', 'use_path_style_endpoint',
+                ])),
             ));
         }
 

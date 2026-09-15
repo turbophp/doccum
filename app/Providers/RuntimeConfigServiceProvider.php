@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Enums\StorageProvider;
 use App\Exceptions\RuntimeConfigUnreadable;
 use App\Services\Settings;
 use App\Support\EmbeddedStorage;
@@ -121,10 +122,12 @@ class RuntimeConfigServiceProvider extends ServiceProvider
         }
 
         // Increasing precedence: embedded credentials first, so an operator
-        // who configures nothing still gets working storage, then any
-        // storage.* setting -- a remote provider always overrides the
-        // embedded default.
+        // who configures nothing still gets working storage, then the chosen
+        // provider's preset, then any explicit storage.* setting -- a preset
+        // is a default, not a cage, so an explicit value always wins.
         $settings = $this->app->make(Settings::class);
+
+        $this->applyStorageProviderPreset($settings);
 
         foreach (['endpoint', 'key', 'secret', 'bucket', 'region'] as $key) {
             $value = $settings->get("storage.{$key}");
@@ -133,6 +136,48 @@ class RuntimeConfigServiceProvider extends ServiceProvider
                 config()->set("filesystems.disks.documents.{$key}", $value);
             }
         }
+    }
+
+    /**
+     * Derives endpoint, region, and addressing style from the operator's
+     * chosen storage.provider preset. Left entirely alone when no provider is
+     * stored (a fresh install with the embedded default) or the stored value
+     * does not name a known provider -- tryFrom(), never from(), so a stray
+     * value is ignored rather than crashing boot().
+     */
+    private function applyStorageProviderPreset(Settings $settings): void
+    {
+        $providerValue = $settings->get('storage.provider');
+
+        if ($providerValue === null) {
+            return;
+        }
+
+        $provider = StorageProvider::tryFrom((string) $providerValue);
+
+        if ($provider === null) {
+            return;
+        }
+
+        $account = $settings->get('storage.account');
+        $region = $settings->get('storage.region');
+
+        $endpoint = $provider->endpointFor(
+            $account !== null ? (string) $account : null,
+            $region !== null ? (string) $region : null,
+        );
+
+        if ($endpoint !== null) {
+            config()->set('filesystems.disks.documents.endpoint', $endpoint);
+        }
+
+        $defaultRegion = $provider->defaultRegion();
+
+        if ($defaultRegion !== null) {
+            config()->set('filesystems.disks.documents.region', $defaultRegion);
+        }
+
+        config()->set('filesystems.disks.documents.use_path_style_endpoint', $provider->usesPathStyle());
     }
 
     private function applyEmbeddedStorage(): void
