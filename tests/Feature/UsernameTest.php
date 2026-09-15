@@ -3,7 +3,17 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use App\Services\Settings;
 use Illuminate\Database\QueryException;
+
+beforeEach(function () {
+    app(Settings::class)->set('auth.public_signup', true);
+
+    // An instance with no users at all redirects every route to the
+    // first-run setup screen; the tests below that hit the register routes
+    // need an instance that already has its first (admin) user.
+    User::factory()->create();
+});
 
 it('stores a username on a user', function () {
     $user = User::factory()->create(['username' => 'ada']);

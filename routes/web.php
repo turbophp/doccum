@@ -1,6 +1,9 @@
 <?php
 
+use App\Livewire\Setup\FirstRun;
 use Illuminate\Support\Facades\Route;
+
+Route::livewire('/setup', FirstRun::class)->name('setup');
 
 Route::view('/', 'welcome')->name('home');
 

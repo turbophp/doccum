@@ -2,11 +2,14 @@
 
 namespace App\Actions\Fortify;
 
+use App\Actions\Users\CreateHomeDirectory;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\User;
+use App\Services\Settings;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
+use Spatie\Permission\Models\Role;
 
 class CreateNewUser implements CreatesNewUsers
 {
@@ -25,11 +28,21 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $this->passwordRules(),
         ])->validate();
 
-        return User::create([
+        $user = User::create([
             'name' => $input['name'],
             'username' => $input['username'],
             'email' => $input['email'],
             'password' => $input['password'],
         ]);
+
+        $role = app(Settings::class)->get('auth.default_role');
+
+        if (is_string($role) && Role::where('name', $role)->exists()) {
+            $user->assignRole($role);
+        }
+
+        app(CreateHomeDirectory::class)->handle($user);
+
+        return $user;
     }
 }

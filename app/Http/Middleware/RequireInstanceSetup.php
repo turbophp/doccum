@@ -1,0 +1,35 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Middleware;
+
+use App\Models\User;
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+/**
+ * While the instance has no users at all, every web route leads to the one-time
+ * setup screen; once one exists, that screen is gone for good.
+ *
+ * This is why doccum ships no default credentials: there is never a moment
+ * where a known username and password would work.
+ */
+class RequireInstanceSetup
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        $hasUsers = User::query()->exists();
+
+        if (! $hasUsers && ! $request->routeIs('setup')) {
+            return redirect()->route('setup');
+        }
+
+        if ($hasUsers && $request->routeIs('setup')) {
+            abort(404);
+        }
+
+        return $next($request);
+    }
+}
