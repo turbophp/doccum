@@ -1129,15 +1129,31 @@ it('writes a key canary on a fresh install', function () {
 
 - [ ] **Step 3: Implement detection**
 
-`inspect()` connects, and reports `fresh` when the `users` table is absent or
-empty. When it is populated it reads `instance.key_check` and attempts to
-decrypt it: success is `populated`, failure is `key_mismatch`.
+`inspect()` runs entirely on the **temporary connection the probe already
+opened** — `DB::connection($name)->getSchemaBuilder()->hasTable('users')`, then a
+direct query for the `instance.key_check` row through that same connection. It
+must never switch `database.default` first, and must never run migrations
+first. Both would act on a database before knowing whether it is ours: a wrong
+credential would poison the running request, and migrating would create doccum
+tables inside somebody else's database.
 
-In `saveDatabase()`, after a successful probe and migration: on `populated`, set
-`attaching = true` and redirect to login. On `key_mismatch`, `addError` on
-`db_connection` explaining that the database belongs to an instance encrypted
-with a different `APP_KEY`, and that the original key must be restored — and
-write nothing.
+It reports `fresh` when the `users` table is absent or empty. When populated, it
+reads `instance.key_check` and attempts to decrypt it: success is `populated`,
+failure is `key_mismatch`.
+
+`saveDatabase()` therefore runs in this order, and the order is the point:
+
+1. Probe the connection. On failure, `addError` and stop — nothing written.
+2. `inspect()` on that same temporary connection, before anything is persisted
+   or switched.
+3. On `key_mismatch`: `addError` on `db_connection` explaining the database
+   belongs to an instance encrypted with a different `APP_KEY` and that the
+   original key must be restored. Write nothing, migrate nothing, switch
+   nothing.
+4. Otherwise write the `database` block to `RuntimeConfig`, apply it to live
+   config, purge the connection, and migrate.
+5. On `populated`, set `attaching = true` and redirect to login. On `fresh`,
+   advance to the storage step.
 
 `submit()` writes `instance.key_check` as `encrypt('doccum')` alongside the
 other instance settings.
