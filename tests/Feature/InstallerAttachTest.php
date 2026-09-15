@@ -174,3 +174,24 @@ it('writes a key canary on a fresh install', function () {
 
     expect(decrypt(app(Settings::class)->get('instance.key_check')))->toBe('doccum');
 });
+
+it('refuses to create an admin when the instance already has users', function () {
+    // The real safety property: not "the wizard redirects", but "submit cannot
+    // mint a second admin". Livewire calls bypass the /setup route guard, so
+    // this must hold at the component.
+    User::factory()->create(['username' => 'existing']);
+
+    Livewire::test(FirstRun::class)
+        ->set('step', 3)
+        ->set('instance_name', 'Hostile Takeover')
+        ->set('name', 'Mallory')
+        ->set('username', 'mallory')
+        ->set('email', 'mallory@example.com')
+        ->set('password', 'password-please')
+        ->set('password_confirmation', 'password-please')
+        ->call('submit')
+        ->assertNotFound();
+
+    expect(User::count())->toBe(1)
+        ->and(User::where('username', 'mallory')->exists())->toBeFalse();
+});

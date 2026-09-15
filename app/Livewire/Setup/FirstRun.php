@@ -227,6 +227,13 @@ class FirstRun extends Component
 
     public function submit(): Redirector|RedirectResponse
     {
+        // Defence in depth. RequireInstanceSetup 404s the /setup ROUTE once a
+        // user exists, but Livewire method calls arrive at /livewire/update and
+        // pass straight through that check -- so without this, a direct call
+        // could still mint a second admin on an instance that already has one,
+        // which is precisely the attach-mode danger.
+        abort_if(User::query()->exists(), 404);
+
         $validated = $this->validate([
             'instance_name' => ['required', 'string', 'max:191'],
             'name' => $this->nameRules(),
