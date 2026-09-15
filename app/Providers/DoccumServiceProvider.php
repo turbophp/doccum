@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Models\Directory;
 use App\Models\File;
 use App\Models\User;
+use App\Services\DirectoryAccess;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\Models\Role;
@@ -22,7 +23,7 @@ class DoccumServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        //
+        $this->app->singleton(DirectoryAccess::class);
     }
 
     public function boot(): void
