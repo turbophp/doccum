@@ -9,6 +9,8 @@ use App\Models\User;
 use App\Services\DirectoryAccess;
 use App\Services\Settings;
 
+beforeEach(fn () => app(Settings::class)->set('auth.public_signup', true));
+
 it('creates a home directory named for the username', function () {
     $user = User::factory()->create(['username' => 'ada']);
 

@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use App\Services\Settings;
 use Illuminate\Database\QueryException;
+
+beforeEach(fn () => app(Settings::class)->set('auth.public_signup', true));
 
 it('stores a username on a user', function () {
     $user = User::factory()->create(['username' => 'ada']);
