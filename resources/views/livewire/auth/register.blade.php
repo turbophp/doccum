@@ -19,6 +19,18 @@
                 :placeholder="__('Full name')"
             />
 
+            <!-- Username -->
+            <flux:input
+                name="username"
+                :label="__('Username')"
+                :value="old('username')"
+                type="text"
+                required
+                autocomplete="username"
+                :placeholder="__('username')"
+                :description="__('Lowercase letters, numbers, dots, dashes and underscores. Names your personal folder.')"
+            />
+
             <!-- Email Address -->
             <flux:input
                 name="email"
