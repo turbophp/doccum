@@ -8,8 +8,11 @@ use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
 use App\Models\User;
+use App\Policies\DirectoryPolicy;
+use App\Policies\FilePolicy;
 use App\Services\DirectoryAccess;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\Models\Role;
 
@@ -48,5 +51,8 @@ class DoccumServiceProvider extends ServiceProvider
         DirectoryGrant::deleted($flushAccess);
         Directory::saved($flushAccess);
         Directory::deleted($flushAccess);
+
+        Gate::policy(Directory::class, DirectoryPolicy::class);
+        Gate::policy(File::class, FilePolicy::class);
     }
 }
