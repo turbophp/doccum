@@ -569,21 +569,31 @@ first-run screen is a three-step installer — database, storage, then the admin
 account, in that order so migrations and the admin land in the database the
 operator chose.
 
-**Runtime overrides live in an encrypted file on the data volume**, by default
-`/data/runtime.json` (`DOCCUM_RUNTIME_CONFIG` overrides the path), mode `0600`,
-excluded from the image. It cannot live under `storage/`: that directory is
-baked into the container image, not mounted, so credentials written there would
+Configuration is split between two stores by what each can bootstrap.
+
+**The encrypted file holds only the database connection** — the one genuine
+chicken-and-egg problem. By default `/data/runtime.json`
+(`DOCCUM_RUNTIME_CONFIG` overrides the path), mode `0600`, excluded from the
+image. It cannot live under `storage/`: that directory is baked into the
+container image rather than mounted, so credentials written there would
 disappear on the next rebuild.
+
+**Everything else lives in the `settings` table**, storage credentials included,
+with secrets encrypted at rest through `Settings::setSecret()`. Nothing resolves
+a disk during boot, so storage configuration can safely come from the database.
+This keeps the file minimal, gives operator settings one source of truth, and
+means a database backup carries the storage configuration with it.
 
 The payload is encrypted with `APP_KEY`. This is defence in depth, not a
 security boundary — `APP_KEY` is persisted on the same volume, so anyone who can
 read the volume can read both. What it does prevent is credentials appearing in
 plaintext inside a backup, a support bundle, a copied file, or a log.
 
-`RuntimeConfigServiceProvider` is registered first and applies the overrides in
-`register()`, before anything resolves a database connection or a disk. It reads
-the file directly, with no container dependencies, because the credentials it
-carries are the ones the container would otherwise need.
+`RuntimeConfigServiceProvider` is registered first. It applies the database
+override in `register()`, before anything resolves a connection, reading the
+file directly with no container dependencies — because the credentials it
+carries are the ones the container would otherwise need. Storage settings are
+applied in `boot()`, once the database is available.
 
 **Precedence: the runtime file wins over environment variables.** Compose values
 are a starting point; a choice made in the installer is the operator's decision
