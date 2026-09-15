@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use App\Support\Redact;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -26,6 +28,22 @@ final readonly class ProbeResult
 }
 
 /**
+ * Whether a database the installer is about to attach to already belongs to a
+ * doccum instance.
+ *
+ * `Populated` and `KeyMismatch` are both "not fresh" -- they differ only in
+ * whether this APP_KEY can prove it. Anything that isn't provably fresh or
+ * provably ours is treated as KeyMismatch: a users table that exists for some
+ * other reason is exactly the case attaching must refuse, not tiptoe around.
+ */
+enum InstanceState
+{
+    case Fresh;
+    case Populated;
+    case KeyMismatch;
+}
+
+/**
  * Probes a database or storage configuration before it is trusted, so a typo
  * fails at the installer form instead of at first use, when the operator has
  * gone. See spec §10a.
@@ -39,27 +57,54 @@ class ConnectionProbe
     /** @param  array<string, mixed>  $config */
     public function database(array $config): ProbeResult
     {
-        $name = 'doccum_probe_'.Str::random(8);
-        $connection = (string) ($config['connection'] ?? 'sqlite');
-
-        $settings = array_merge(
-            config("database.connections.{$connection}", []),
-            array_intersect_key($config, array_flip(['host', 'port', 'database', 'username', 'password'])),
-            ['driver' => $connection],
-        );
-
-        config()->set("database.connections.{$name}", $settings);
-
-        try {
+        return $this->withTemporaryConnection($config, function (string $name) {
             DB::connection($name)->getPdo();
 
             return ProbeResult::ok();
-        } catch (Throwable $e) {
-            return ProbeResult::failed($this->scrub($e->getMessage(), $config));
-        } finally {
-            DB::purge($name);
-            config()->set("database.connections.{$name}", null);
-        }
+        }, fn (Throwable $e) => ProbeResult::failed($this->scrub($e->getMessage(), $config)));
+    }
+
+    /**
+     * Determines whether the database at $config already belongs to a doccum
+     * instance, entirely through a disposable connection of its own.
+     *
+     * Never switches database.default and never migrates: both would act on
+     * the database before its identity is known, which is exactly the mistake
+     * this method exists to prevent the caller from making. See plan Task 7.
+     *
+     * @param  array<string, mixed>  $config
+     */
+    public function inspect(array $config): InstanceState
+    {
+        return $this->withTemporaryConnection($config, function (string $name) {
+            if (! Schema::connection($name)->hasTable('users')) {
+                return InstanceState::Fresh;
+            }
+
+            if (! DB::connection($name)->table('users')->exists()) {
+                return InstanceState::Fresh;
+            }
+
+            if (! Schema::connection($name)->hasTable('settings')) {
+                return InstanceState::KeyMismatch;
+            }
+
+            $keyCheck = DB::connection($name)->table('settings')
+                ->where('key', 'instance.key_check')
+                ->value('value');
+
+            if ($keyCheck === null) {
+                return InstanceState::KeyMismatch;
+            }
+
+            try {
+                Crypt::decryptString((string) json_decode((string) $keyCheck, true));
+
+                return InstanceState::Populated;
+            } catch (Throwable) {
+                return InstanceState::KeyMismatch;
+            }
+        }, fn (Throwable $e): InstanceState => InstanceState::KeyMismatch);
     }
 
     /** @param  array<string, mixed>  $config */
@@ -85,6 +130,46 @@ class ConnectionProbe
             return ProbeResult::ok();
         } catch (Throwable $e) {
             return ProbeResult::failed($this->scrub($e->getMessage(), $config));
+        }
+    }
+
+    /**
+     * Builds a throwaway named connection from $config, hands its name to
+     * $callback, and always purges it afterward -- whether $callback returns
+     * normally or the connection attempt itself throws.
+     *
+     * Shared by database() and inspect() so both act through a connection that
+     * is never database.default and is never left registered: exactly the
+     * property that makes it safe to probe or inspect an unproven database
+     * mid-request.
+     *
+     * @template T
+     *
+     * @param  array<string, mixed>  $config
+     * @param  callable(string): T  $callback
+     * @param  callable(Throwable): T  $onFailure
+     * @return T
+     */
+    private function withTemporaryConnection(array $config, callable $callback, callable $onFailure): mixed
+    {
+        $name = 'doccum_probe_'.Str::random(8);
+        $connection = (string) ($config['connection'] ?? 'sqlite');
+
+        $settings = array_merge(
+            config("database.connections.{$connection}", []),
+            array_intersect_key($config, array_flip(['host', 'port', 'database', 'username', 'password'])),
+            ['driver' => $connection],
+        );
+
+        config()->set("database.connections.{$name}", $settings);
+
+        try {
+            return $callback($name);
+        } catch (Throwable $e) {
+            return $onFailure($e);
+        } finally {
+            DB::purge($name);
+            config()->set("database.connections.{$name}", null);
         }
     }
 

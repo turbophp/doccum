@@ -9,6 +9,7 @@ use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\User;
 use App\Services\ConnectionProbe;
+use App\Services\InstanceState;
 use App\Services\Settings;
 use App\Support\RuntimeConfig;
 use Illuminate\Http\RedirectResponse;
@@ -40,6 +41,13 @@ class FirstRun extends Component
 
     /** 1 = database, 2 = storage, 3 = admin. */
     public int $step = 1;
+
+    /**
+     * True once saveDatabase() has recognised the database as an already-
+     * populated doccum instance rather than a fresh one. Storage and admin
+     * creation must never be reachable once this is true -- see saveDatabase().
+     */
+    public bool $attaching = false;
 
     // -- Step 1: database ------------------------------------------------
 
@@ -114,15 +122,29 @@ class FirstRun extends Component
     }
 
     /**
-     * Probe, then -- and only on success -- persist the database block to the
-     * runtime file, apply it to live config, purge the stale connection, and
-     * migrate so the chosen database has the schema before anything else
-     * touches it.
+     * Probe, inspect, and only then -- if the database is either provably
+     * empty or provably an already-encrypted doccum instance -- persist the
+     * database block to the runtime file, apply it to live config, purge the
+     * stale connection, and migrate.
      *
-     * The ordering is deliberate and load-bearing: switching database.default
-     * before the probe succeeds would poison the running request with a
-     * connection nobody has validated, and migrating before that would create
-     * doccum's tables inside whatever the operator typed in, valid or not.
+     * The ordering is deliberate and load-bearing, and must not be rearranged:
+     *
+     *   1. Probe the connection. On failure, addError and stop -- nothing
+     *      written.
+     *   2. inspect() on that SAME kind of temporary probe connection, before
+     *      anything is persisted, switched or migrated.
+     *   3. On key_mismatch: addError, write nothing, migrate nothing, switch
+     *      nothing.
+     *   4. Only then write the runtime file, apply to live config, purge, and
+     *      migrate.
+     *   5. On populated, set attaching = true and redirect to login -- never
+     *      to the storage or admin steps, since a populated database must
+     *      never be offered an admin-creation form. On fresh, advance to the
+     *      storage step.
+     *
+     * Switching database.default before knowing the database is ours would
+     * poison the running request with an unvalidated connection; migrating
+     * first would create doccum's tables inside a stranger's database.
      */
     public function saveDatabase(): void
     {
@@ -139,7 +161,25 @@ class FirstRun extends Component
             return;
         }
 
+        $state = app(ConnectionProbe::class)->inspect($config);
+
+        if ($state === InstanceState::KeyMismatch) {
+            $this->addError('db_connection', __(
+                'This database belongs to a doccum instance encrypted with a different APP_KEY. '
+                .'Restore the original APP_KEY to attach to it.'
+            ));
+
+            return;
+        }
+
         $this->applyDatabase($config, $connection);
+
+        if ($state === InstanceState::Populated) {
+            $this->attaching = true;
+            $this->redirect(route('login'));
+
+            return;
+        }
 
         $this->step = 2;
     }
@@ -204,7 +244,15 @@ class FirstRun extends Component
 
         $user->assignRole('admin');
 
-        app(Settings::class)->set('instance.name', $validated['instance_name'], $user->id);
+        $settings = app(Settings::class);
+        $settings->set('instance.name', $validated['instance_name'], $user->id);
+
+        // A canary only this APP_KEY can decrypt. Lets a later installer run
+        // recognise this exact database as an already-configured doccum
+        // instance -- and refuse to attach if APP_KEY has since changed,
+        // rather than yield a half-working instance. See ConnectionProbe::inspect().
+        $settings->set('instance.key_check', encrypt('doccum'), $user->id);
+
         app(CreateHomeDirectory::class)->handle($user);
 
         Auth::login($user);
