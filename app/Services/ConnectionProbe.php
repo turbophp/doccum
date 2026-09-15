@@ -6,6 +6,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Support\Redact;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -95,13 +96,11 @@ class ConnectionProbe
      */
     private function scrub(string $message, array $config): string
     {
-        foreach (['password', 'secret', 'key'] as $field) {
-            $value = $config[$field] ?? null;
-
-            if (is_string($value) && $value !== '') {
-                $message = str_replace($value, '[redacted]', $message);
-            }
-        }
+        $message = Redact::secrets($message, [
+            $config['password'] ?? null,
+            $config['secret'] ?? null,
+            $config['key'] ?? null,
+        ]);
 
         return Str::limit($message, 300);
     }
