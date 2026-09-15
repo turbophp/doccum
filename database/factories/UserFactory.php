@@ -58,4 +58,17 @@ class UserFactory extends Factory
             'two_factor_confirmed_at' => now(),
         ]);
     }
+
+    /**
+     * Give the created user a home directory.
+     *
+     * Deliberately explicit rather than a model observer: see the design note
+     * on App\Actions\Users\CreateHomeDirectory.
+     */
+    public function withHome(): static
+    {
+        return $this->afterCreating(function (User $user): void {
+            app(\App\Actions\Users\CreateHomeDirectory::class)->handle($user);
+        });
+    }
 }
