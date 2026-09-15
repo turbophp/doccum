@@ -22,6 +22,11 @@ class PasswordResetTest extends TestCase
 
     public function test_reset_password_link_screen_can_be_rendered(): void
     {
+        // An instance with no users at all redirects every route to the
+        // first-run setup screen; create one so this exercises a "normal"
+        // guest visit to the reset-link screen instead.
+        User::factory()->create();
+
         $response = $this->get(route('password.request'));
 
         $response->assertOk();

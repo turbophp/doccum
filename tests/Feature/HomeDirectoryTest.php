@@ -58,6 +58,11 @@ it('does nothing when auto home is disabled', function () {
 it('creates a home when a user registers', function () {
     $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
 
+    // An instance with no users at all redirects every route to the
+    // first-run setup screen; the self-service register page only makes
+    // sense once an instance already has its first (admin) user.
+    User::factory()->create();
+
     $this->post(route('register.store'), [
         'name' => 'Ada Lovelace',
         'username' => 'ada',

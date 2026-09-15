@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Models\User;
 use App\Services\Settings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Fortify\Features;
@@ -18,6 +19,11 @@ class RegistrationTest extends TestCase
         $this->skipUnlessFortifyHas(Features::registration());
 
         app(Settings::class)->set('auth.public_signup', true);
+
+        // An instance with no users at all redirects every route to the
+        // first-run setup screen; the self-service register page only makes
+        // sense once an instance already has its first (admin) user.
+        User::factory()->create();
     }
 
     public function test_registration_screen_can_be_rendered(): void

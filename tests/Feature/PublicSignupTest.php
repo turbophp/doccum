@@ -2,9 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Models\User;
 use App\Services\Settings;
 
-beforeEach(fn () => $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class));
+beforeEach(function () {
+    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+
+    // An instance with no users at all redirects every route to the
+    // first-run setup screen; the public signup toggle only matters once an
+    // instance already has its first (admin) user.
+    User::factory()->create();
+});
 
 it('hides the register page by default', function () {
     $this->get(route('register'))->assertNotFound();
