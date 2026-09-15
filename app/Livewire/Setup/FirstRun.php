@@ -7,6 +7,7 @@ namespace App\Livewire\Setup;
 use App\Actions\Users\CreateHomeDirectory;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
+use App\Enums\StorageProvider;
 use App\Models\User;
 use App\Services\ConnectionProbe;
 use App\Services\InstanceState;
@@ -65,7 +66,15 @@ class FirstRun extends Component
 
     // -- Step 2: storage --------------------------------------------------
 
+    /**
+     * Defaults to Embedded so an operator who never touches this step still
+     * gets a fully working, zero-configuration install -- see plan Task 5.
+     */
+    public string $storage_provider = StorageProvider::Embedded->value;
+
     public string $s3_endpoint = '';
+
+    public string $s3_account = '';
 
     public string $s3_key = '';
 
@@ -118,6 +127,38 @@ class FirstRun extends Component
 
         if (! $result->ok) {
             $this->addError('s3_endpoint', $result->message ?? __('Could not reach that storage location.'));
+        }
+    }
+
+    /**
+     * Derives the endpoint (and, where the provider fixes one, the region)
+     * from the chosen storage_provider preset -- see App\Enums\StorageProvider.
+     *
+     * A preset is a default, not a cage: a provider with no fixed endpoint
+     * (plain S3, Custom) leaves s3_endpoint exactly as the operator typed it,
+     * since endpointFor() returns null for those and nothing is overwritten.
+     */
+    public function previewEndpoint(): void
+    {
+        $provider = StorageProvider::tryFrom($this->storage_provider);
+
+        if ($provider === null) {
+            return;
+        }
+
+        $endpoint = $provider->endpointFor(
+            $this->s3_account !== '' ? $this->s3_account : null,
+            $this->s3_region !== '' ? $this->s3_region : null,
+        );
+
+        if ($endpoint !== null) {
+            $this->s3_endpoint = $endpoint;
+        }
+
+        $defaultRegion = $provider->defaultRegion();
+
+        if ($defaultRegion !== null) {
+            $this->s3_region = $defaultRegion;
         }
     }
 
@@ -185,6 +226,24 @@ class FirstRun extends Component
     }
 
     /**
+     * Choosing Embedded with no credential fields touched hides every field
+     * in the view and needs no probe -- there is nothing to get wrong. Any
+     * other provider, OR Embedded with legacy s3_* fields still populated
+     * (an operator pointed at a self-hosted MinIO before this preset existed),
+     * falls through to the normal probe-then-write path below.
+     */
+    private function isEmbeddedWithNoOverrides(): bool
+    {
+        return $this->storage_provider === StorageProvider::Embedded->value
+            && $this->s3_endpoint === ''
+            && $this->s3_account === ''
+            && $this->s3_key === ''
+            && $this->s3_secret === ''
+            && $this->s3_bucket === ''
+            && $this->s3_region === '';
+    }
+
+    /**
      * Probe, then write each value through Settings -- setSecret() for the
      * access secret, plain set() for the rest. Storage never touches the
      * runtime file: only the database connection belongs there.
@@ -193,9 +252,28 @@ class FirstRun extends Component
     {
         $this->resetErrorBag('s3_endpoint');
 
-        $config = $this->storageConfig();
+        if ($this->isEmbeddedWithNoOverrides()) {
+            app(Settings::class)->set('storage.provider', StorageProvider::Embedded->value);
 
-        $probe = app(ConnectionProbe::class)->storage($config);
+            $this->step = 3;
+
+            return;
+        }
+
+        $this->previewEndpoint();
+
+        $config = $this->storageConfig();
+        $provider = StorageProvider::tryFrom($this->storage_provider);
+
+        // The addressing style a chosen provider needs is derived, not typed
+        // by the operator, so it rides along on the probe without ever being
+        // written to Settings -- RuntimeConfigServiceProvider re-derives it
+        // from storage.provider on every boot instead (see plan Task 3).
+        $probeConfig = $provider !== null
+            ? $config + ['use_path_style_endpoint' => $provider->usesPathStyle()]
+            : $config;
+
+        $probe = app(ConnectionProbe::class)->storage($probeConfig);
 
         if (! $probe->ok) {
             $this->addError('s3_endpoint', $probe->message ?? __('Could not reach that storage location.'));
@@ -284,7 +362,9 @@ class FirstRun extends Component
     private function storageConfig(): array
     {
         return array_filter([
+            'provider' => $this->storage_provider,
             'endpoint' => $this->s3_endpoint,
+            'account' => $this->s3_account,
             'key' => $this->s3_key,
             'secret' => $this->s3_secret,
             'bucket' => $this->s3_bucket,
