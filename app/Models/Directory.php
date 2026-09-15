@@ -1,0 +1,116 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+
+/**
+ * A node in the document tree.
+ *
+ * `path` is a materialised path of ancestor ids ("/1/5/9/"). It is maintained
+ * here rather than by callers so that no code path can create a node carrying a
+ * stale path. See spec §4.
+ */
+#[Fillable(['parent_id', 'name', 'home_user_id', 'created_by'])]
+class Directory extends Model
+{
+    use HasFactory;
+    use SoftDeletes;
+
+    protected function casts(): array
+    {
+        return ['depth' => 'integer'];
+    }
+
+    protected static function booted(): void
+    {
+        static::created(static fn (Directory $directory) => $directory->syncPath());
+    }
+
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
+    public function homeUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'home_user_id');
+    }
+
+    /**
+     * Recompute this node's path and depth from its parent.
+     *
+     * Runs after insert because the path contains this row's own id, which does
+     * not exist before then. saveQuietly avoids re-firing model events.
+     */
+    public function syncPath(): void
+    {
+        $parentPath = $this->parent_id
+            ? (string) self::query()->whereKey($this->parent_id)->value('path')
+            : '/';
+
+        $path = $parentPath.$this->getKey().'/';
+
+        $this->forceFill([
+            'path' => $path,
+            'depth' => self::depthFor($path),
+        ])->saveQuietly();
+    }
+
+    /** Every node beneath this one, excluding itself. */
+    public function descendants(): Builder
+    {
+        return static::query()
+            ->where('path', 'like', $this->path.'%')
+            ->whereKeyNot($this->getKey());
+    }
+
+    /**
+     * This node's id preceded by every ancestor id, root first.
+     *
+     * The search projection indexes this as `ancestor_ids` and the access
+     * resolver expands grants against it, so the shape here is load-bearing for
+     * both. See spec §5 and §8.
+     *
+     * @return array<int, int>
+     */
+    public function ancestorIds(): array
+    {
+        return array_values(array_map(
+            'intval',
+            array_filter(
+                explode('/', trim($this->path, '/')),
+                static fn (string $segment): bool => $segment !== '',
+            ),
+        ));
+    }
+
+    public function isDescendantOf(self $other): bool
+    {
+        return $this->isNot($other) && str_starts_with($this->path, $other->path);
+    }
+
+    /** This node and everything beneath it. */
+    public function scopeInSubtreeOf(Builder $query, self $root): Builder
+    {
+        return $query->where('path', 'like', $root->path.'%');
+    }
+
+    public static function depthFor(string $path): int
+    {
+        return substr_count($path, '/') - 2;
+    }
+}

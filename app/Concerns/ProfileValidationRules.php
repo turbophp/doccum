@@ -48,4 +48,28 @@ trait ProfileValidationRules
                 : Rule::unique(User::class)->ignore($userId),
         ];
     }
+
+    /**
+     * Get the validation rules used to validate usernames.
+     *
+     * Deliberately NOT included in profileRules(): the profile update form does
+     * not submit a username, and adding a required rule there would break it.
+     * A username namespaces the user's home directory, so its character set is
+     * constrained to what is safe as a directory name. See spec §4.
+     *
+     * @return array<int, ValidationRule|array<mixed>|string>
+     */
+    protected function usernameRules(?int $userId = null): array
+    {
+        return [
+            'required',
+            'string',
+            'min:2',
+            'max:64',
+            'regex:/^[a-z0-9._-]+$/',
+            $userId === null
+                ? Rule::unique(User::class)
+                : Rule::unique(User::class)->ignore($userId),
+        ];
+    }
 }
