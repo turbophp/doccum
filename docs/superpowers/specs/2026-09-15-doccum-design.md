@@ -610,6 +610,30 @@ error and refuses to re-run the installer. Falling back would present an empty
 database that looks like a fresh install, inviting an operator to reinstall over
 live data.
 
+### Attaching to an existing instance
+
+Because everything except the database connection lives in the database,
+pointing a new container at an existing doccum database restores the whole
+instance — storage credentials, instance name, users, roles, grants — with no
+further configuration. Moving a deployment is giving the installer the database
+credentials.
+
+Two things make that safe rather than surprising.
+
+**The installer detects a populated database** and switches from install to
+attach: it runs pending migrations (the upgrade path), then goes straight to the
+login screen. It does not offer to create an admin, and it never overwrites
+existing settings. Treating a populated database as a fresh install is how an
+installer destroys a live deployment.
+
+**`APP_KEY` must come with the database.** Secrets in `settings` are encrypted
+with it, as are Fortify's two-factor secrets, and a fresh container generates a
+new key when `/data/.env` is absent. A `instance.key_check` canary is written at
+install time; on attach, failure to decrypt it means the key does not match, and
+the installer says so plainly and refuses rather than presenting a
+half-functional instance. Recovering means supplying the original `APP_KEY`
+through the environment or restoring `/data/.env`.
+
 `doccum:config:show` prints the effective runtime configuration with secrets
 masked; `doccum:config:reset` removes the file and returns the instance to its
 environment configuration.

@@ -1028,6 +1028,124 @@ could not be cleared.
 
 ---
 
+### Task 7: Attaching to an existing instance
+
+**Files:**
+- Modify: `app/Livewire/Setup/FirstRun.php`, `app/Services/ConnectionProbe.php`
+- Test: `tests/Feature/InstallerAttachTest.php`
+
+**Interfaces:**
+- `ConnectionProbe::inspect(array $config): InstanceState` — `fresh`, `populated`, or `key_mismatch`
+- The wizard skips storage and admin when attaching.
+
+The dangerous case this exists to prevent: an operator points the installer at a
+live database and is offered a "create your admin account" form. Migrations are
+idempotent, but creating a second admin and overwriting `instance.*` settings on
+a running deployment is not.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use App\Livewire\Setup\FirstRun;
+use App\Models\User;
+use App\Services\Settings;
+use Livewire\Livewire;
+
+beforeEach(function () {
+    $this->file = sys_get_temp_dir().'/doccum-runtime-'.uniqid().'.json';
+    config()->set('doccum.runtime_config_path', $this->file);
+    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+});
+
+afterEach(fn () => @unlink($this->file));
+
+it('treats a database with no users as a fresh install', function () {
+    Livewire::test(FirstRun::class)
+        ->set('db_connection', 'sqlite')
+        ->set('db_database', config('database.connections.sqlite.database'))
+        ->call('saveDatabase')
+        ->assertSet('attaching', false)
+        ->assertSet('step', 2);
+});
+
+it('detects a populated database and skips straight past setup', function () {
+    User::factory()->create();
+    app(Settings::class)->set('instance.key_check', encrypt('doccum'));
+
+    Livewire::test(FirstRun::class)
+        ->set('db_connection', 'sqlite')
+        ->set('db_database', config('database.connections.sqlite.database'))
+        ->call('saveDatabase')
+        ->assertSet('attaching', true)
+        ->assertRedirect(route('login'));
+});
+
+it('never offers to create an admin when attaching', function () {
+    User::factory()->create();
+    app(Settings::class)->set('instance.key_check', encrypt('doccum'));
+
+    Livewire::test(FirstRun::class)
+        ->set('db_connection', 'sqlite')
+        ->set('db_database', config('database.connections.sqlite.database'))
+        ->call('saveDatabase');
+
+    expect(User::count())->toBe(1);
+});
+
+it('refuses to attach when APP_KEY does not match', function () {
+    User::factory()->create();
+    // A canary this APP_KEY cannot decrypt.
+    app(Settings::class)->set('instance.key_check', 'eyJpdiI6ImJvZ3VzIiwidmFsdWUiOiJib2d1cyJ9');
+
+    Livewire::test(FirstRun::class)
+        ->set('db_connection', 'sqlite')
+        ->set('db_database', config('database.connections.sqlite.database'))
+        ->call('saveDatabase')
+        ->assertHasErrors('db_connection');
+
+    expect(app(Settings::class)->get('instance.key_check'))->not->toBeNull();
+});
+
+it('writes a key canary on a fresh install', function () {
+    Livewire::test(FirstRun::class)
+        ->set('step', 3)
+        ->set('instance_name', 'Acme')
+        ->set('name', 'Ada')
+        ->set('username', 'ada')
+        ->set('email', 'ada@example.com')
+        ->set('password', 'password-please')
+        ->set('password_confirmation', 'password-please')
+        ->call('submit');
+
+    expect(decrypt(app(Settings::class)->get('instance.key_check')))->toBe('doccum');
+});
+```
+
+- [ ] **Step 2: Run and watch it fail**
+
+- [ ] **Step 3: Implement detection**
+
+`inspect()` connects, and reports `fresh` when the `users` table is absent or
+empty. When it is populated it reads `instance.key_check` and attempts to
+decrypt it: success is `populated`, failure is `key_mismatch`.
+
+In `saveDatabase()`, after a successful probe and migration: on `populated`, set
+`attaching = true` and redirect to login. On `key_mismatch`, `addError` on
+`db_connection` explaining that the database belongs to an instance encrypted
+with a different `APP_KEY`, and that the original key must be restored — and
+write nothing.
+
+`submit()` writes `instance.key_check` as `encrypt('doccum')` alongside the
+other instance settings.
+
+- [ ] **Step 4: Run focused, then full suite. Commit.**
+
+---
+
 ## Done when
 
 - A fresh `docker compose up` offers database, storage, then admin, and needs no file edited anywhere.
@@ -1037,4 +1155,6 @@ could not be cleared.
 - No probe failure or exception message ever echoes a password or secret.
 - A present-but-unreadable config serves a 503 explaining `APP_KEY` and refuses to reinstall.
 - `doccum:config:show` masks secrets; `doccum:config:reset` clears even a corrupt file.
+- Pointing the installer at an existing doccum database restores the instance without touching its data, and never offers to create a second admin.
+- A mismatched `APP_KEY` is reported plainly instead of yielding a half-working instance.
 - `php artisan test` green; the container boots clean from empty volumes.
