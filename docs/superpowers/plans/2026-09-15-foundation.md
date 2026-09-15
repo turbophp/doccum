@@ -836,7 +836,7 @@ If `userName()` produces characters outside `[a-z0-9._-]`, normalise it:
 
 Add `use Illuminate\Support\Str;` to the factory's imports if it is not already there.
 
-- [ ] **Step 6: Run the tests**
+- [ ] **Step 6: Run the focused tests**
 
 ```bash
 php artisan test --filter=UsernameTest
@@ -844,11 +844,153 @@ php artisan test --filter=UsernameTest
 
 Expected: PASS, 3 tests.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Make registration supply a username**
+
+A required column with no default breaks the starter kit's registration flow:
+`CreateNewUser` builds the user from `name`, `email`, `password` only, so
+`php artisan test` now fails `RegistrationTest`. The spec requires a username at
+signup (§10), so registration is where this gets fixed.
+
+Add `usernameRules()` to `app/Concerns/ProfileValidationRules.php`:
+
+```php
+    /**
+     * Get the validation rules used to validate usernames.
+     *
+     * Deliberately NOT included in profileRules(): the profile update form does
+     * not submit a username, and adding a required rule there would break it.
+     * A username namespaces the user's home directory, so its character set is
+     * constrained to what is safe as a directory name. See spec §4.
+     *
+     * @return array<int, ValidationRule|array<mixed>|string>
+     */
+    protected function usernameRules(?int $userId = null): array
+    {
+        return [
+            'required',
+            'string',
+            'min:2',
+            'max:64',
+            'regex:/^[a-z0-9._-]+$/',
+            $userId === null
+                ? Rule::unique(User::class)
+                : Rule::unique(User::class)->ignore($userId),
+        ];
+    }
+```
+
+Wire it into `app/Actions/Fortify/CreateNewUser.php`:
+
+```php
+        Validator::make($input, [
+            ...$this->profileRules(),
+            'username' => $this->usernameRules(),
+            'password' => $this->passwordRules(),
+        ])->validate();
+
+        return User::create([
+            'name' => $input['name'],
+            'username' => $input['username'],
+            'email' => $input['email'],
+            'password' => $input['password'],
+        ]);
+```
+
+Add the field to `resources/views/livewire/auth/register.blade.php`, directly
+after the Name input:
+
+```blade
+            <!-- Username -->
+            <flux:input
+                name="username"
+                :label="__('Username')"
+                :value="old('username')"
+                type="text"
+                required
+                autocomplete="username"
+                :placeholder="__('username')"
+                :description="__('Lowercase letters, numbers, dots, dashes and underscores. Names your personal folder.')"
+            />
+```
+
+- [ ] **Step 8: Cover registration with tests**
+
+Update the starter kit's `tests/Feature/Auth/RegistrationTest.php` so its
+registration payload includes a `username`, then add to
+`tests/Feature/UsernameTest.php`:
+
+```php
+it('requires a username to register', function () {
+    $response = $this->post(route('register.store'), [
+        'name' => 'Ada Lovelace',
+        'email' => 'ada@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+    ]);
+
+    $response->assertSessionHasErrors('username');
+    expect(User::where('email', 'ada@example.com')->exists())->toBeFalse();
+});
+
+it('rejects a username that is already taken', function () {
+    User::factory()->create(['username' => 'ada']);
+
+    $response = $this->post(route('register.store'), [
+        'name' => 'Someone Else',
+        'username' => 'ada',
+        'email' => 'else@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+    ]);
+
+    $response->assertSessionHasErrors('username');
+});
+
+it('rejects a username with characters that are unsafe in a folder name', function () {
+    $response = $this->post(route('register.store'), [
+        'name' => 'Ada Lovelace',
+        'username' => 'Ada Lovelace!',
+        'email' => 'ada@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+    ]);
+
+    $response->assertSessionHasErrors('username');
+});
+
+it('registers a user with a valid username', function () {
+    $response = $this->post(route('register.store'), [
+        'name' => 'Ada Lovelace',
+        'username' => 'ada.lovelace',
+        'email' => 'ada@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+    ]);
+
+    $response->assertSessionHasNoErrors();
+    expect(User::where('email', 'ada@example.com')->value('username'))->toBe('ada.lovelace');
+});
+```
+
+Match the existing `RegistrationTest` payload's field names exactly (including
+whether it sends `password_confirmation`) rather than assuming.
+
+- [ ] **Step 9: Run the full suite**
 
 ```bash
-git add database/migrations app/Models/User.php database/factories/UserFactory.php tests/Feature/UsernameTest.php
-git commit -m "feat: add required unique username to users"
+php artisan test
+```
+
+Expected: PASS, with no failures in `RegistrationTest`.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add database/migrations app/Models/User.php database/factories/UserFactory.php \
+        app/Concerns/ProfileValidationRules.php app/Actions/Fortify/CreateNewUser.php \
+        resources/views/livewire/auth/register.blade.php \
+        tests/Feature/UsernameTest.php tests/Feature/Auth/RegistrationTest.php
+git commit -m "feat: add required unique username to users and registration"
 ```
 
 ---
