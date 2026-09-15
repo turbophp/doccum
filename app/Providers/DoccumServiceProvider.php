@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Models\Directory;
+use App\Models\File;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\ServiceProvider;
+use Spatie\Permission\Models\Role;
 
 /**
  * The single registration point for doccum.
@@ -22,6 +27,11 @@ class DoccumServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        //
+        Relation::enforceMorphMap([
+            'user' => User::class,
+            'role' => Role::class,
+            'directory' => Directory::class,
+            'file' => File::class,
+        ]);
     }
 }
