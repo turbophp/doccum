@@ -83,3 +83,17 @@ it('does not fall back to environment config when unreadable', function () {
     // treated as a fresh install. See the guard in Task 6.
     expect(RuntimeConfigServiceProvider::hasError())->toBeTrue();
 });
+
+it('boots without a reachable database', function () {
+    // An image build runs `composer dump-autoload`, which fires
+    // package:discover with no database present at all. Throwing here fails
+    // the build -- and CI always builds cold.
+    config()->set('database.connections.broken', [
+        'driver' => 'sqlite',
+        'database' => '/nonexistent/dir/no.sqlite',
+    ]);
+    config()->set('database.default', 'broken');
+
+    expect(fn () => (new RuntimeConfigServiceProvider(app()))->boot())
+        ->not->toThrow(Illuminate\Database\QueryException::class);
+});

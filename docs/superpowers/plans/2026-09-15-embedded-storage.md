@@ -164,7 +164,11 @@ is the app plus its workers. Port 9000 is **not** published.
 ```bash
 docker compose down -v && docker compose up -d --build && sleep 30
 docker compose exec -T app supervisorctl -c /etc/supervisor/conf.d/doccum.conf status
-docker compose exec -T worker sh -c 'pgrep -f "minio server" && echo "LEAK: worker is running minio" || echo "worker correctly has no minio"'
+# pgrep -x, matching the process NAME. `pgrep -f "minio server"` is a false
+# positive: -f matches full argv, and the checking shell's own argv contains
+# that very string, so it reports a leak in every container including ones
+# with no MinIO at all.
+docker compose exec -T worker sh -c 'pgrep -x minio >/dev/null && echo "LEAK: worker is running minio" || echo "worker correctly has no minio"'
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:9000 || echo "correctly not published to host"
 ```
 
