@@ -7,6 +7,7 @@ use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\User;
 use App\Services\DirectoryAccess;
+use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
@@ -154,4 +155,18 @@ it('sees a directory moved out of a granted subtree', function () {
     app(App\Actions\Directories\MoveDirectory::class)->handle($this->leaf->fresh(), $this->elsewhere->fresh());
 
     expect($access->levelFor($this->user, $this->leaf->fresh()))->toBeNull();
+});
+
+it('caches a denial instead of re-querying it', function () {
+    $access = app(DirectoryAccess::class);
+
+    // Warm it: this one legitimately queries.
+    expect($access->levelFor($this->user, $this->leaf))->toBeNull();
+
+    DB::enableQueryLog();
+    $access->levelFor($this->user, $this->leaf);
+    $queries = collect(DB::getQueryLog())->pluck('query');
+    DB::disableQueryLog();
+
+    expect($queries->filter(fn (string $q): bool => str_contains($q, 'directory_access')))->toBeEmpty();
 });

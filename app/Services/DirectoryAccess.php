@@ -33,7 +33,15 @@ class DirectoryAccess
     {
         $key = $user->getKey().':'.$directory->getKey();
 
-        return $this->levels[$key] ??= $this->resolve($user, $directory);
+        // array_key_exists, not ??=: a denial resolves to null, and ??= treats a
+        // null-valued entry as absent, so every "no access" answer would be
+        // recomputed on every call. Listings are mostly denials for most users,
+        // so that is the common path, not the rare one.
+        if (! array_key_exists($key, $this->levels)) {
+            $this->levels[$key] = $this->resolve($user, $directory);
+        }
+
+        return $this->levels[$key];
     }
 
     public function can(User $user, Directory $directory, AccessLevel $required): bool

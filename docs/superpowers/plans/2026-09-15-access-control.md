@@ -550,6 +550,50 @@ it('returns every directory id for an admin', function () {
 it('returns an empty list for a user with no grants', function () {
     expect(app(DirectoryAccess::class)->viewableDirectoryIds($this->user))->toBe([]);
 });
+
+it('sees a grant written after an earlier resolution', function () {
+    $access = app(DirectoryAccess::class);
+
+    expect($access->levelFor($this->user, $this->leaf))->toBeNull();
+
+    grant($this->root, $this->user, AccessLevel::Edit);
+
+    expect($access->levelFor($this->user, $this->leaf))->toBe(AccessLevel::Edit);
+});
+
+it('sees a grant revoked after an earlier resolution', function () {
+    $access = app(DirectoryAccess::class);
+    $granted = grant($this->root, $this->user, AccessLevel::Edit);
+
+    expect($access->levelFor($this->user, $this->leaf))->toBe(AccessLevel::Edit);
+
+    $granted->delete();
+
+    expect($access->levelFor($this->user, $this->leaf))->toBeNull();
+});
+
+it('sees a level raised after an earlier resolution', function () {
+    $access = app(DirectoryAccess::class);
+    grant($this->root, $this->user, AccessLevel::View);
+
+    expect($access->can($this->user, $this->leaf, AccessLevel::Manage))->toBeFalse();
+
+    DirectoryGrant::query()->delete();
+    grant($this->root, $this->user, AccessLevel::Manage);
+
+    expect($access->can($this->user, $this->leaf, AccessLevel::Manage))->toBeTrue();
+});
+
+it('sees a directory moved out of a granted subtree', function () {
+    $access = app(DirectoryAccess::class);
+    grant($this->root, $this->user, AccessLevel::Edit);
+
+    expect($access->levelFor($this->user, $this->leaf))->toBe(AccessLevel::Edit);
+
+    app(App\Actions\Directories\MoveDirectory::class)->handle($this->leaf->fresh(), $this->elsewhere->fresh());
+
+    expect($access->levelFor($this->user, $this->leaf->fresh()))->toBeNull();
+});
 ```
 
 - [ ] **Step 2: Run it and watch it fail**
@@ -652,6 +696,23 @@ class DirectoryAccess
             ->all();
     }
 
+    /**
+     * Drop the memoised answers.
+     *
+     * The memoisation above is only safe while nothing has changed what a grant
+     * means. Because this service is a singleton, a caller that resolves access,
+     * then writes a grant, then resolves again would otherwise get the stale
+     * answer -- a correctness hole in the one component the whole authorisation
+     * story rests on. Invalidation is wired to grant writes AND to directory
+     * writes, because subtree membership is derived from the materialised path,
+     * so moving a directory changes who can reach it.
+     */
+    public function flush(): void
+    {
+        $this->levels = [];
+        $this->viewable = [];
+    }
+
     private function grantsFor(User $user): Builder
     {
         $roleIds = $user->roles->pluck('id')->all();
@@ -673,6 +734,24 @@ memoisation actually holds for a request:
 ```php
 $this->app->singleton(DirectoryAccess::class);
 ```
+
+Then wire invalidation in `DoccumServiceProvider::boot()`. Without this the
+singleton returns stale answers for the rest of the request after any grant
+change — see the `flush()` docblock:
+
+```php
+$flushAccess = static fn (): null => tap(null, fn () => app(DirectoryAccess::class)->flush());
+
+DirectoryGrant::saved($flushAccess);
+DirectoryGrant::deleted($flushAccess);
+// Subtree membership comes from the materialised path, so a move changes
+// who can reach a directory just as much as a grant does.
+Directory::saved($flushAccess);
+Directory::deleted($flushAccess);
+```
+
+If `tap` reads awkwardly, a plain closure calling `app(DirectoryAccess::class)->flush()`
+is equivalent — the point is that all four events clear the memo.
 
 - [ ] **Step 4: Run the focused test, then the full suite**
 
