@@ -562,6 +562,48 @@ However a user arrives, they get a home directory named for their username and
 exists without exposing anything shared. The Files sidebar pins **Home** above
 the shared tree.
 
+## 10a. First-run installer
+
+doccum configures itself through the browser rather than through files. The
+first-run screen is a three-step installer — database, storage, then the admin
+account, in that order so migrations and the admin land in the database the
+operator chose.
+
+**Runtime overrides live in an encrypted file on the data volume**, by default
+`/data/runtime.json` (`DOCCUM_RUNTIME_CONFIG` overrides the path), mode `0600`,
+excluded from the image. It cannot live under `storage/`: that directory is
+baked into the container image, not mounted, so credentials written there would
+disappear on the next rebuild.
+
+The payload is encrypted with `APP_KEY`. This is defence in depth, not a
+security boundary — `APP_KEY` is persisted on the same volume, so anyone who can
+read the volume can read both. What it does prevent is credentials appearing in
+plaintext inside a backup, a support bundle, a copied file, or a log.
+
+`RuntimeConfigServiceProvider` is registered first and applies the overrides in
+`register()`, before anything resolves a database connection or a disk. It reads
+the file directly, with no container dependencies, because the credentials it
+carries are the ones the container would otherwise need.
+
+**Precedence: the runtime file wins over environment variables.** Compose values
+are a starting point; a choice made in the installer is the operator's decision
+and must survive. Settings shows which values are runtime-managed and how to
+clear them.
+
+Each step probes before it saves — a real connection for the database, a real
+PUT and DELETE for storage — so a bad credential fails at the form rather than
+at first use.
+
+**If the file exists but cannot be decrypted or its database cannot be reached,
+the app does not fall back to environment defaults.** It serves an explicit
+error and refuses to re-run the installer. Falling back would present an empty
+database that looks like a fresh install, inviting an operator to reinstall over
+live data.
+
+`doccum:config:show` prints the effective runtime configuration with secrets
+masked; `doccum:config:reset` removes the file and returns the instance to its
+environment configuration.
+
 ## 11. API
 
 Laravel Sanctum v4 personal access tokens. All routes under `/api/v1`, guarded by
