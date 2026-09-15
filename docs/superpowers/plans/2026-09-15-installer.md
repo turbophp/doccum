@@ -1162,6 +1162,207 @@ other instance settings.
 
 ---
 
+### Task 8: Embedded storage by default
+
+**Files:**
+- Modify: `config/filesystems.php`, `app/Services/DocumentStorage.php`, `app/Providers/RuntimeConfigServiceProvider.php`, `app/Livewire/Setup/FirstRun.php` + view, `compose.yaml`
+- Create: `app/Http/Controllers/FileStreamController.php`
+- Test: `tests/Feature/EmbeddedStorageTest.php`
+
+**Interfaces:**
+- `documents` disk defaults to the `local` driver rooted on the data volume.
+- `Settings` key `storage.driver` — `local` or `s3`.
+- Route `files.stream` — signed, authenticated, streams one version.
+
+Both database and storage default to embedded, and remote is something an
+operator opts into. That takes MinIO out of the default stack entirely: a plain
+`docker compose up` is the app and its workers, nothing else.
+
+The wrinkle is that presigned URLs are an S3 feature. Rather than branch
+everywhere, `DocumentStorage::temporaryUrl()` keeps one signature and asks the
+disk: S3 signs its own URL, and embedded storage gets a short-lived signed route
+that streams the bytes. Callers cannot tell the difference.
+
+- [ ] **Step 1: Write the failing test**
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use App\Enums\AccessLevel;
+use App\Models\Directory;
+use App\Models\DirectoryGrant;
+use App\Models\File;
+use App\Models\User;
+use App\Services\DocumentStorage;
+use Illuminate\Support\Facades\Storage;
+
+beforeEach(function () {
+    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+    Storage::fake('documents');
+    $this->owner = User::factory()->create();
+    $this->dir = Directory::factory()->create();
+});
+
+function embeddedUpload(string $contents = 'the contents'): File
+{
+    $path = tempnam(sys_get_temp_dir(), 'doccum');
+    file_put_contents($path, $contents);
+
+    return app(App\Actions\Files\StoreFileVersion::class)
+        ->handle(test()->owner, test()->dir, $path, 'Report.pdf', 'application/pdf');
+}
+
+it('defaults the documents disk to a local driver', function () {
+    expect(config('filesystems.disks.documents.driver'))->toBe('local');
+});
+
+it('signs an application route when the disk cannot sign its own', function () {
+    $file = embeddedUpload();
+
+    $url = app(DocumentStorage::class)->temporaryUrl($file->currentVersion);
+
+    expect($url)->toContain('/files/stream/')
+        ->and($url)->toContain('signature=');
+});
+
+it('streams the bytes to an authorised user', function () {
+    $file = embeddedUpload('the contents');
+    $reader = User::factory()->create();
+    DirectoryGrant::create([
+        'directory_id' => $this->dir->id, 'grantee_type' => 'user',
+        'grantee_id' => $reader->id, 'level' => AccessLevel::View,
+    ]);
+
+    $url = app(DocumentStorage::class)->temporaryUrl($file->currentVersion);
+
+    $response = $this->actingAs($reader)->get($url);
+    $response->assertOk();
+
+    expect($response->streamedContent())->toBe('the contents');
+});
+
+it('refuses a signed url to someone without access', function () {
+    $file = embeddedUpload();
+    $url = app(DocumentStorage::class)->temporaryUrl($file->currentVersion);
+
+    $this->actingAs(User::factory()->create())->get($url)->assertForbidden();
+});
+
+it('refuses an unsigned or tampered url', function () {
+    $file = embeddedUpload();
+    $reader = User::factory()->create();
+    DirectoryGrant::create([
+        'directory_id' => $this->dir->id, 'grantee_type' => 'user',
+        'grantee_id' => $reader->id, 'level' => AccessLevel::View,
+    ]);
+
+    $this->actingAs($reader)
+        ->get(route('files.stream', ['version' => $file->currentVersion->id]))
+        ->assertForbidden();
+});
+
+it('refuses an expired url', function () {
+    $file = embeddedUpload();
+    $reader = User::factory()->create();
+    DirectoryGrant::create([
+        'directory_id' => $this->dir->id, 'grantee_type' => 'user',
+        'grantee_id' => $reader->id, 'level' => AccessLevel::View,
+    ]);
+
+    $url = app(DocumentStorage::class)->temporaryUrl($file->currentVersion, 5);
+
+    $this->travel(6)->minutes();
+
+    $this->actingAs($reader)->get($url)->assertForbidden();
+});
+```
+
+The last three matter: a signed URL is a bearer token in a query string, so the
+route re-checks the policy rather than trusting the signature alone. Signature
+plus authorisation, not signature instead of it.
+
+- [ ] **Step 2: Run and watch it fail**
+
+- [ ] **Step 3: Default the disk to local**
+
+In `config/filesystems.php`, the `documents` disk becomes driver-configurable.
+The S3 keys stay present and are simply ignored by the local driver:
+
+```php
+'documents' => [
+    'driver' => env('DOCCUM_STORAGE_DRIVER', 'local'),
+    // On the data volume, not inside the image: anything under storage/ is
+    // lost on the next rebuild.
+    'root' => env('DOCCUM_STORAGE_ROOT', '/data/files'),
+    'key' => env('AWS_ACCESS_KEY_ID'),
+    'secret' => env('AWS_SECRET_ACCESS_KEY'),
+    'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
+    'bucket' => env('AWS_BUCKET', 'doccum'),
+    'endpoint' => env('AWS_ENDPOINT'),
+    'use_path_style_endpoint' => true,
+    'throw' => true,
+],
+```
+
+- [ ] **Step 4: Branch in `DocumentStorage::temporaryUrl()`**
+
+```php
+    public function temporaryUrl(FileVersion $version, int $minutes = 5): string
+    {
+        $expires = now()->addMinutes($minutes);
+        $disk = $this->disk();
+
+        if ($disk->providesTemporaryUrls()) {
+            return $disk->temporaryUrl($version->object_key, $expires);
+        }
+
+        // Embedded storage has no signing mechanism of its own, so the
+        // application signs a short-lived route and streams the object. The
+        // caller sees one interface either way.
+        return URL::temporarySignedRoute('files.stream', $expires, ['version' => $version->getKey()]);
+    }
+```
+
+- [ ] **Step 5: Write the streaming controller and route**
+
+```php
+    public function __invoke(FileVersion $version): StreamedResponse
+    {
+        $this->authorize('download', $version->file);
+
+        return $this->storage->disk()->response($version->object_key, $version->file->name);
+    }
+```
+
+```php
+Route::get('/files/stream/{version}', App\Http\Controllers\FileStreamController::class)
+    ->middleware(['auth', 'signed'])
+    ->name('files.stream');
+```
+
+- [ ] **Step 6: Apply `storage.driver` from settings**
+
+`RuntimeConfigServiceProvider::boot()` reads `storage.driver` alongside the other
+storage keys and sets `filesystems.disks.documents.driver`.
+
+- [ ] **Step 7: Offer embedded or remote in the wizard**
+
+The storage step gains a choice: **Embedded** (default, no fields, writes
+`storage.driver = local`) or **Remote S3-compatible** (the existing fields,
+writes `storage.driver = s3` plus the credentials, probed first as now).
+
+- [ ] **Step 8: Move MinIO behind a profile**
+
+In `compose.yaml`, add `profiles: ["storage"]` to `minio` and `minio-init`, and
+drop the `AWS_*` defaults from the app environment. The default stack becomes
+the app and its three workers. Update the services table comment to match.
+
+- [ ] **Step 9: Run focused, then full suite. Commit.**
+
+---
+
 ## Done when
 
 - A fresh `docker compose up` offers database, storage, then admin, and needs no file edited anywhere.
