@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Actions\Directories;
 
 use App\Exceptions\CannotMoveDirectoryIntoItself;
+use App\Jobs\ReindexSearchDocument;
 use App\Models\Directory;
+use App\Models\File;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class MoveDirectory
@@ -42,6 +45,36 @@ class MoveDirectory
             );
         });
 
-        return $directory->refresh();
+        $directory = $directory->refresh();
+
+        // Rewritten with raw SQL above rather than through Eloquent, so no
+        // model event fired for a single descendant -- reindexing the whole
+        // subtree here, after the transaction has returned, is the only
+        // thing that keeps every descendant's ancestor_ids (what access
+        // filtering runs against) from going stale.
+        $this->reindexSubtree($directory);
+
+        return $directory;
+    }
+
+    private function reindexSubtree(Directory $root): void
+    {
+        $directories = (new Collection([$root]))->concat($root->descendants()->get());
+
+        foreach ($directories as $node) {
+            ReindexSearchDocument::dispatch($node);
+
+            foreach ($node->properties as $property) {
+                ReindexSearchDocument::dispatch($property);
+            }
+
+            foreach (File::query()->where('directory_id', $node->getKey())->get() as $file) {
+                ReindexSearchDocument::dispatch($file);
+
+                foreach ($file->properties as $property) {
+                    ReindexSearchDocument::dispatch($property);
+                }
+            }
+        }
     }
 }

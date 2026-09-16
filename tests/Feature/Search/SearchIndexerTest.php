@@ -86,15 +86,21 @@ it('replaces rather than duplicating when reindexed', function () {
     $this->child->update(['name' => 'Renamed']);
     app(SearchIndexer::class)->index($this->child->fresh());
 
-    expect(SearchDocument::count())->toBe(1)
-        ->and(SearchDocument::first()->title)->toBe('Renamed');
+    // Scoped to this subject on purpose: the property under test is "one row
+    // per subject", not "one row in the table". Asserting the whole table
+    // would break the moment anything else is legitimately indexed.
+    $rows = SearchDocument::where('subject_type', 'directory')->where('subject_id', $this->child->id);
+
+    expect($rows->count())->toBe(1)
+        ->and($rows->first()->title)->toBe('Renamed');
 });
 
 it('forgets a subject', function () {
     app(SearchIndexer::class)->index($this->child);
     app(SearchIndexer::class)->forget($this->child);
 
-    expect(SearchDocument::count())->toBe(0);
+    expect(SearchDocument::where('subject_type', 'directory')->where('subject_id', $this->child->id)->exists())
+        ->toBeFalse();
 });
 
 it('carries the period so results can be scoped to a year', function () {
