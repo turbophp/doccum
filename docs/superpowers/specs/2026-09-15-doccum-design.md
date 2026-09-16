@@ -467,6 +467,54 @@ driver, so deferring the engine choice costs nothing and no result can leak a
 document the user cannot reach. `period_year`, `mime`, and `extension` are
 carried for filtering and for the eventual faceted UI.
 
+## 7a. OCR providers
+
+**OCR quality is the ceiling on search quality.** Text that came out of a scan
+wrong does not merely fail to match a keyword — it produces a confident
+embedding of something the document never said, which is worse than no result,
+because it cannot be told apart from a real one. So OCR is a seam too.
+
+| Provider | Where it runs | Cost |
+|---|---|---|
+| Tesseract (default) | bundled in the image | ~50 MB, already present, CPU-cheap, offline |
+| Vision model | the bundled `llama.cpp` runtime | **optional dependency**: the model is fetched on first use, not shipped |
+| Azure Document Intelligence, AWS Textract, Google Document AI, Mistral OCR | remote API | a key and an egress path |
+
+Tesseract stays the default because it is small, deterministic, offline and
+already installed. It is good on clean scans and weak on complex layouts,
+rotation and handwriting — which is exactly when a vision model earns its
+keep.
+
+### One runtime, two roles
+
+The `llama.cpp` server bundled for embeddings (§8a) also serves multimodal
+models through `--mmproj`, so enabling vision OCR adds a model rather than
+another runtime.
+
+The asymmetry that decides the packaging: an embedding model is tens of
+megabytes and runs on any host, while a useful vision model is one to two
+gigabytes and wants gigabytes of RAM. Baking that into the image would triple
+its size and break small installs for a capability most will not turn on. So
+**vision OCR models are an optional dependency**: downloaded on first enable
+into `/data/models` on the data volume, where they survive image rebuilds and
+can be removed by deleting a file.
+
+Practical note for the build: `llama-server` is dynamically linked against the
+shared objects beside it, so bundling copies the whole `/app` directory from
+`ghcr.io/ggml-org/llama.cpp` — unlike MinIO's single static binary.
+
+### Strategy selection
+
+The existing extractor chain (§7) is unchanged for anything with a text layer:
+a PDF that already contains text is never OCR'd, whichever provider is
+configured. The provider applies only where OCR actually happens — scans and
+images — so switching to a vision model costs nothing on the majority of
+documents.
+
+Re-running OCR on already-ingested documents is `doccum:extract:redo`, which
+re-queues extraction and, when embeddings are enabled, the embedding that
+depends on it.
+
 ## 8a. Semantic search
 
 Keyword search finds documents that use the words you typed. Semantic search
