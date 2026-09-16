@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Search;
 
 use App\Models\SearchDocument;
+use App\Services\SearchIndexer;
 use Illuminate\Support\Collection;
 
 /**
@@ -26,7 +27,7 @@ interface SearchIndex
      * fallback -- there is nothing separate to drop, and the row's own
      * deletion is what removes it.
      *
-     * "No longer searchable" is {@see \App\Services\SearchIndexer::forget()},
+     * "No longer searchable" is {@see SearchIndexer::forget()},
      * which calls this and then deletes the row, in that order. Callers want
      * that one; this is the half of it an implementation owns.
      */
