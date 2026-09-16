@@ -79,9 +79,14 @@ it('scopes to a period when asked', function () {
 
 it('forgets a removed document', function () {
     $file = indexFile('Lease.pdf', 'tenant');
-    app(SearchIndex::class)->forget(
-        SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->firstOrFail()
-    );
+
+    // Through SearchIndexer, not SearchIndex::forget() directly. Dropping the
+    // FTS5 row alone is enough to make a document unfindable on SQLite, and
+    // that is an implementation detail of FTS5: the LIKE fallback searches
+    // the projection row itself, so nothing disappears until the row does.
+    // Asserting the former was asserting SQLite's internals; what callers
+    // are owed is "no longer searchable", and SearchIndexer is what owes it.
+    app(SearchIndexer::class)->forget($file);
 
     expect(app(SearchIndex::class)->search('tenant', $this->visible))->toBeEmpty();
 });

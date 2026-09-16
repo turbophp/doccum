@@ -109,12 +109,25 @@ function attachTargetDatabase(?string $keyCheckValue): string
 }
 
 it('treats a database with no users as a fresh install', function () {
-    Livewire::test(FirstRun::class)
-        ->set('db_connection', 'sqlite')
-        ->set('db_database', config('database.connections.sqlite.database'))
-        ->call('saveDatabase')
-        ->assertSet('attaching', false)
-        ->assertSet('step', 2);
+    // A real, empty sqlite file rather than
+    // config('database.connections.sqlite.database'). That config value is
+    // env('DB_DATABASE'), the very variable the CI matrix sets to a schema
+    // name on its postgres and mysql legs -- where it resolves to something
+    // that is not a path at all. The test means "a reachable, empty
+    // database", so it has to build one rather than borrow the suite's.
+    $path = sys_get_temp_dir().'/doccum-fresh-'.uniqid().'.sqlite';
+    touch($path);
+
+    try {
+        Livewire::test(FirstRun::class)
+            ->set('db_connection', 'sqlite')
+            ->set('db_database', $path)
+            ->call('saveDatabase')
+            ->assertSet('attaching', false)
+            ->assertSet('step', 2);
+    } finally {
+        @unlink($path);
+    }
 });
 
 it('detects a populated database and skips straight past setup', function () {

@@ -8,12 +8,20 @@ use App\Support\RuntimeConfig;
 use Illuminate\Database\QueryException;
 
 beforeEach(function () {
+    $this->originalDefaultConnection = config('database.default');
     $this->file = sys_get_temp_dir().'/doccum-runtime-'.uniqid().'.json';
     config()->set('doccum.runtime_config_path', $this->file);
 });
 
 afterEach(function () {
-    config()->set('database.default', 'sqlite');
+    // Restored to whatever the suite was actually running on, not pinned to
+    // sqlite. These tests repoint database.default on purpose, and
+    // RefreshDatabase resolves that key lazily at rollback time (see
+    // CLAUDE.md), so hardcoding it sends the rollback at the wrong
+    // connection: on a postgres or mysql run the real transaction is never
+    // closed, and the next test waits on the row locks it still holds until
+    // the server gives up on it.
+    config()->set('database.default', $this->originalDefaultConnection);
     @unlink($this->file);
 });
 
