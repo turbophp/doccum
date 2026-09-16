@@ -126,3 +126,47 @@ it('extracts from a genuine pdf', function () {
 
     @unlink($path);
 })->group('integration');
+
+it('trusts a short text layer when the document declares fonts', function () {
+    // A one-line memo has little text but is not a scan. Counting characters
+    // cannot tell them apart; declared fonts can.
+    ProcessRunner::fake([
+        'pdftotext' => ['output' => 'Approved. -- A.L.'],
+        'pdffonts' => ['output' => "name  type  emb\n----  ----  ---\nHelvetica  Type 1  no\n"],
+        'tesseract' => ['output' => 'should not be used'],
+    ]);
+
+    $result = app(PdfExtractor::class)->extract($this->path, 'application/pdf');
+
+    expect($result->extractor)->toBe('pdftotext')
+        ->and($result->text)->toContain('Approved');
+
+    expect(fn () => app(ProcessRunner::class)->assertRan('tesseract'))
+        ->toThrow(AssertionFailedError::class);
+});
+
+it('still ocrs a scan that declares no fonts', function () {
+    ProcessRunner::fake([
+        'pdftotext' => ['output' => 'f'],                       // a stray artefact
+        'pdffonts' => ['output' => "name  type  emb\n----  ----  ---\n"],  // header only
+        'pdftoppm' => ['output' => ''],
+        'tesseract' => ['output' => 'text recovered by ocr'],
+    ]);
+
+    $result = app(PdfExtractor::class)->extract($this->path, 'application/pdf');
+
+    expect($result->extractor)->toBe('ocr');
+    app(ProcessRunner::class)->assertRan('tesseract');
+});
+
+it('ocrs an empty text layer even when fonts are declared', function () {
+    // Fonts present but no text at all still means nothing to index.
+    ProcessRunner::fake([
+        'pdftotext' => ['output' => "   \n  "],
+        'pdffonts' => ['output' => "name  type  emb\n----  ----  ---\nHelvetica  Type 1  no\n"],
+        'pdftoppm' => ['output' => ''],
+        'tesseract' => ['output' => 'recovered'],
+    ]);
+
+    expect(app(PdfExtractor::class)->extract($this->path, 'application/pdf')->extractor)->toBe('ocr');
+});
