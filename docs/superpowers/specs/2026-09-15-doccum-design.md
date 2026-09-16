@@ -503,6 +503,38 @@ Practical note for the build: `llama-server` is dynamically linked against the
 shared objects beside it, so bundling copies the whole `/app` directory from
 `ghcr.io/ggml-org/llama.cpp` — unlike MinIO's single static binary.
 
+### Choosing a model for the hardware
+
+Models are chosen by the operator, not fixed by doccum — but a bare list of
+names is a trap. The difference between a model that runs and one that gets the
+ingest worker OOM-killed mid-document is a number most people will not look up,
+and the failure is ugly: a half-processed document and a worker that restarts
+into the same wall.
+
+So the picker is **hardware-aware**. A `HardwareProfile` service reads what the
+container may actually use — `/sys/fs/cgroup/memory.max` under cgroup v2, the
+v1 equivalent, falling back to `MemTotal` when unlimited — plus `cpu.max` and
+core count, and grades every candidate:
+
+| Grade | Meaning |
+|---|---|
+| Recommended | fits comfortably in available memory on this host |
+| Slow here | fits, but with few cores expect minutes per page |
+| Needs more memory | would not load; selectable only with an explicit override |
+
+The catalogue records, for each model: disk size, working memory, quality tier,
+licence, and where it comes from. Entries cover both roles — a bigger or
+multilingual embedding model is the same kind of choice as a vision OCR model.
+
+**Available memory matters more than total.** A 16 GB host with 2 GB free will
+not run a 3 GB model, and reporting "16 GB" would be a lie of omission, so the
+picker shows both.
+
+With Ollama as the provider the operator may name any model Ollama can pull;
+doccum shows its guidance for catalogue entries it recognises and stays quiet
+rather than guessing about the rest. With the bundled runtime the catalogue is
+the list, because doccum has to know the download URL and the projector file.
+
 ### Strategy selection
 
 The existing extractor chain (§7) is unchanged for anything with a text layer:
