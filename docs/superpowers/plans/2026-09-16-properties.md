@@ -1,14 +1,14 @@
-# doccum Attributes Implementation Plan
+# doccum Properties Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Governed, typed metadata on directories and files — admin-defined attributes with real data types, validated on write, ready for the search projection to flatten.
+**Goal:** Governed, typed metadata on directories and files — admin-defined properties with real data types, validated on write, ready for the search projection to flatten.
 
-**Architecture:** An `AttributeDefinition` declares a key, a data type and what it applies to. An `Attribute` stores one value for one definition on one directory or file, in a column matching the type — so numeric ranges and date ordering work in SQL rather than by string comparison. A single enum owns the mapping from data type to column, cast and validation rules, so adding a type is one change in one place.
+**Architecture:** An `PropertyDefinition` declares a key, a data type and what it applies to. An `Property` stores one value for one definition on one directory or file, in a column matching the type — so numeric ranges and date ordering work in SQL rather than by string comparison. A single enum owns the mapping from data type to column, cast and validation rules, so adding a type is one change in one place.
 
 **Tech Stack:** Laravel 13, Livewire 4, Flux UI, Pest 5.
 
-**Spec:** `docs/superpowers/specs/2026-09-15-doccum-design.md` §4 (attribute_definitions, attributes), §5 (access control), §10 (surface)
+**Spec:** `docs/superpowers/specs/2026-09-15-doccum-design.md` §4 (property_definitions, properties), §5 (access control), §10 (surface)
 
 **Previous plans:** foundation, access-control, storage, installer, embedded-storage — all merged.
 
@@ -30,26 +30,26 @@
 
 | Path | Responsibility |
 |---|---|
-| `app/Enums/AttributeDataType.php` | The single source of truth mapping a type to its column, cast and rules. |
-| `app/Models/AttributeDefinition.php` | What an attribute is: key, label, type, options, applies-to. |
-| `app/Models/Attribute.php` | One value for one definition on one directory or file. |
-| `app/Actions/Attributes/SetAttributes.php` | Validates and writes a set of values for one subject. |
-| `app/Policies/AttributeDefinitionPolicy.php` | Who may manage definitions. |
-| `app/Livewire/Admin/AttributeDefinitions.php` | Definition CRUD. |
-| `app/Livewire/Files/AttributePanel.php` | Editing values on a directory or file. |
+| `app/Enums/PropertyDataType.php` | The single source of truth mapping a type to its column, cast and rules. |
+| `app/Models/PropertyDefinition.php` | What an property is: key, label, type, options, applies-to. |
+| `app/Models/Property.php` | One value for one definition on one directory or file. |
+| `app/Actions/Properties/SetProperties.php` | Validates and writes a set of values for one subject. |
+| `app/Policies/PropertyDefinitionPolicy.php` | Who may manage definitions. |
+| `app/Livewire/Admin/PropertyDefinitions.php` | Definition CRUD. |
+| `app/Livewire/Files/PropertyPanel.php` | Editing values on a directory or file. |
 
 ---
 
 ### Task 1: The data type enum
 
 **Files:**
-- Create: `app/Enums/AttributeDataType.php`
-- Test: `tests/Unit/AttributeDataTypeTest.php`
+- Create: `app/Enums/PropertyDataType.php`
+- Test: `tests/Unit/PropertyDataTypeTest.php`
 
 **Interfaces:**
-- `AttributeDataType` — `String_`, `Text`, `Number`, `Date`, `Boolean`, `Select`
+- `PropertyDataType` — `String_`, `Text`, `Number`, `Date`, `Boolean`, `Select`
 - `column(): string` — which value column stores it
-- `rules(AttributeDefinition $definition): array` — validation for a value of this type
+- `rules(PropertyDefinition $definition): array` — validation for a value of this type
 - `cast(mixed $value): mixed` — normalise an input to what the column stores
 - `label(): string`
 
@@ -63,48 +63,48 @@ models and views.
 
 declare(strict_types=1);
 
-use App\Enums\AttributeDataType;
+use App\Enums\PropertyDataType;
 
 it('maps every type to a value column', function () {
-    expect(AttributeDataType::String_->column())->toBe('value_string')
-        ->and(AttributeDataType::Text->column())->toBe('value_string')
-        ->and(AttributeDataType::Select->column())->toBe('value_string')
-        ->and(AttributeDataType::Number->column())->toBe('value_number')
-        ->and(AttributeDataType::Date->column())->toBe('value_date')
-        ->and(AttributeDataType::Boolean->column())->toBe('value_boolean');
+    expect(PropertyDataType::String_->column())->toBe('value_string')
+        ->and(PropertyDataType::Text->column())->toBe('value_string')
+        ->and(PropertyDataType::Select->column())->toBe('value_string')
+        ->and(PropertyDataType::Number->column())->toBe('value_number')
+        ->and(PropertyDataType::Date->column())->toBe('value_date')
+        ->and(PropertyDataType::Boolean->column())->toBe('value_boolean');
 });
 
 it('covers every case, so a new type cannot be forgotten', function () {
-    foreach (AttributeDataType::cases() as $type) {
+    foreach (PropertyDataType::cases() as $type) {
         expect($type->column())->toBeString()->not->toBeEmpty()
             ->and($type->label())->toBeString()->not->toBeEmpty();
     }
 });
 
 it('normalises a number', function () {
-    expect(AttributeDataType::Number->cast('12.50'))->toBe(12.5)
-        ->and(AttributeDataType::Number->cast(''))->toBeNull();
+    expect(PropertyDataType::Number->cast('12.50'))->toBe(12.5)
+        ->and(PropertyDataType::Number->cast(''))->toBeNull();
 });
 
 it('normalises a boolean', function () {
-    expect(AttributeDataType::Boolean->cast('1'))->toBeTrue()
-        ->and(AttributeDataType::Boolean->cast('0'))->toBeFalse()
-        ->and(AttributeDataType::Boolean->cast(''))->toBeNull();
+    expect(PropertyDataType::Boolean->cast('1'))->toBeTrue()
+        ->and(PropertyDataType::Boolean->cast('0'))->toBeFalse()
+        ->and(PropertyDataType::Boolean->cast(''))->toBeNull();
 });
 
 it('normalises a date to a storable string', function () {
-    expect(AttributeDataType::Date->cast('2024-03-17'))->toBe('2024-03-17')
-        ->and(AttributeDataType::Date->cast(''))->toBeNull();
+    expect(PropertyDataType::Date->cast('2024-03-17'))->toBe('2024-03-17')
+        ->and(PropertyDataType::Date->cast(''))->toBeNull();
 });
 
 it('trims a string and treats blank as absent', function () {
-    expect(AttributeDataType::String_->cast('  hello  '))->toBe('hello')
-        ->and(AttributeDataType::String_->cast('   '))->toBeNull();
+    expect(PropertyDataType::String_->cast('  hello  '))->toBe('hello')
+        ->and(PropertyDataType::String_->cast('   '))->toBeNull();
 });
 ```
 
 Blank meaning "absent" rather than "empty string" matters: a cleared field must
-remove the attribute, not store an empty value that then satisfies a required
+remove the property, not store an empty value that then satisfies a required
 rule.
 
 - [ ] **Step 2: Run and watch it fail**
@@ -118,7 +118,7 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
-use App\Models\AttributeDefinition;
+use App\Models\PropertyDefinition;
 use Illuminate\Validation\Rule;
 
 /**
@@ -128,7 +128,7 @@ use Illuminate\Validation\Rule;
  * and date ordering are SQL comparisons instead of string comparisons. See
  * spec §4.
  */
-enum AttributeDataType: string
+enum PropertyDataType: string
 {
     case String_ = 'string';
     case Text = 'text';
@@ -160,7 +160,7 @@ enum AttributeDataType: string
     }
 
     /**
-     * An empty input means the attribute is absent, not that it holds an empty
+     * An empty input means the property is absent, not that it holds an empty
      * value -- otherwise clearing a field would still satisfy a required rule.
      */
     public function cast(mixed $value): mixed
@@ -178,7 +178,7 @@ enum AttributeDataType: string
     }
 
     /** @return array<int, mixed> */
-    public function rules(AttributeDefinition $definition): array
+    public function rules(PropertyDefinition $definition): array
     {
         $rules = $definition->is_required ? ['required'] : ['nullable'];
 
@@ -198,14 +198,14 @@ enum AttributeDataType: string
 
 ---
 
-### Task 2: Attribute definitions
+### Task 2: Property definitions
 
 **Files:**
-- Create: migration, `app/Models/AttributeDefinition.php`, `database/factories/AttributeDefinitionFactory.php`
-- Test: `tests/Feature/AttributeDefinitionTest.php`
+- Create: migration, `app/Models/PropertyDefinition.php`, `database/factories/PropertyDefinitionFactory.php`
+- Test: `tests/Feature/PropertyDefinitionTest.php`
 
 **Interfaces:**
-- `AttributeDefinition` with `key`, `label`, `data_type`, `options`, `is_required`, `applies_to`, `sort_order`
+- `PropertyDefinition` with `key`, `label`, `data_type`, `options`, `is_required`, `applies_to`, `sort_order`
 - `scopeFor(Builder, string $type)` — definitions applying to `directory` or `file`
 - `AppliesTo` enum: `Directory`, `File`, `Both`
 
@@ -217,33 +217,33 @@ enum AttributeDataType: string
 declare(strict_types=1);
 
 use App\Enums\AppliesTo;
-use App\Enums\AttributeDataType;
-use App\Models\AttributeDefinition;
+use App\Enums\PropertyDataType;
+use App\Models\PropertyDefinition;
 use Illuminate\Database\QueryException;
 
 it('stores a definition with its type', function () {
-    $definition = AttributeDefinition::create([
+    $definition = PropertyDefinition::create([
         'key' => 'invoice_no',
         'label' => 'Invoice number',
-        'data_type' => AttributeDataType::String_,
+        'data_type' => PropertyDataType::String_,
         'applies_to' => AppliesTo::File,
     ]);
 
-    expect($definition->fresh()->data_type)->toBe(AttributeDataType::String_)
+    expect($definition->fresh()->data_type)->toBe(PropertyDataType::String_)
         ->and($definition->fresh()->applies_to)->toBe(AppliesTo::File)
         ->and($definition->fresh()->is_required)->toBeFalse();
 });
 
 it('refuses a duplicate key', function () {
-    AttributeDefinition::factory()->create(['key' => 'invoice_no']);
+    PropertyDefinition::factory()->create(['key' => 'invoice_no']);
 
-    expect(fn () => AttributeDefinition::factory()->create(['key' => 'invoice_no']))
+    expect(fn () => PropertyDefinition::factory()->create(['key' => 'invoice_no']))
         ->toThrow(QueryException::class);
 });
 
 it('stores select options as a list', function () {
-    $definition = AttributeDefinition::factory()->create([
-        'data_type' => AttributeDataType::Select,
+    $definition = PropertyDefinition::factory()->create([
+        'data_type' => PropertyDataType::Select,
         'options' => ['draft', 'final', 'signed'],
     ]);
 
@@ -251,19 +251,19 @@ it('stores select options as a list', function () {
 });
 
 it('scopes definitions to what they apply to', function () {
-    AttributeDefinition::factory()->create(['key' => 'a', 'applies_to' => AppliesTo::File]);
-    AttributeDefinition::factory()->create(['key' => 'b', 'applies_to' => AppliesTo::Directory]);
-    AttributeDefinition::factory()->create(['key' => 'c', 'applies_to' => AppliesTo::Both]);
+    PropertyDefinition::factory()->create(['key' => 'a', 'applies_to' => AppliesTo::File]);
+    PropertyDefinition::factory()->create(['key' => 'b', 'applies_to' => AppliesTo::Directory]);
+    PropertyDefinition::factory()->create(['key' => 'c', 'applies_to' => AppliesTo::Both]);
 
-    expect(AttributeDefinition::query()->for('file')->pluck('key')->all())->toEqualCanonicalizing(['a', 'c'])
-        ->and(AttributeDefinition::query()->for('directory')->pluck('key')->all())->toEqualCanonicalizing(['b', 'c']);
+    expect(PropertyDefinition::query()->for('file')->pluck('key')->all())->toEqualCanonicalizing(['a', 'c'])
+        ->and(PropertyDefinition::query()->for('directory')->pluck('key')->all())->toEqualCanonicalizing(['b', 'c']);
 });
 
 it('orders by sort order then label', function () {
-    AttributeDefinition::factory()->create(['key' => 'z', 'label' => 'Zebra', 'sort_order' => 0]);
-    AttributeDefinition::factory()->create(['key' => 'a', 'label' => 'Apple', 'sort_order' => 10]);
+    PropertyDefinition::factory()->create(['key' => 'z', 'label' => 'Zebra', 'sort_order' => 0]);
+    PropertyDefinition::factory()->create(['key' => 'a', 'label' => 'Apple', 'sort_order' => 10]);
 
-    expect(AttributeDefinition::query()->ordered()->pluck('key')->all())->toBe(['z', 'a']);
+    expect(PropertyDefinition::query()->ordered()->pluck('key')->all())->toBe(['z', 'a']);
 });
 ```
 
@@ -294,7 +294,7 @@ enum AppliesTo: string
 - [ ] **Step 4: Write the migration**
 
 ```php
-Schema::create('attribute_definitions', function (Blueprint $table) {
+Schema::create('property_definitions', function (Blueprint $table) {
     $table->id();
     $table->string('key', 64)->unique();
     $table->string('label', 191);
@@ -311,9 +311,9 @@ Schema::create('attribute_definitions', function (Blueprint $table) {
 
 - [ ] **Step 5: Write the model and factory**
 
-Cast `data_type` to `AttributeDataType`, `applies_to` to `AppliesTo`, `options`
+Cast `data_type` to `PropertyDataType`, `applies_to` to `AppliesTo`, `options`
 to `array`, `is_required` to `boolean`. Mirror the database defaults in
-`$attributes` so a new instance reports `false` rather than `null` for
+`$properties` so a new instance reports `false` rather than `null` for
 `is_required` — the same trap `File` hit with `legal_hold`.
 
 Scopes:
@@ -334,17 +334,17 @@ Scopes:
 
 ---
 
-### Task 3: Attribute values
+### Task 3: Property values
 
 **Files:**
-- Create: migration, `app/Models/Attribute.php`, `database/factories/AttributeFactory.php`
+- Create: migration, `app/Models/Property.php`, `database/factories/PropertyFactory.php`
 - Modify: `app/Models/Directory.php`, `app/Models/File.php` (relations), `DoccumServiceProvider` (morph map entries already exist for `directory` and `file`)
-- Test: `tests/Feature/AttributeTest.php`
+- Test: `tests/Feature/PropertyTest.php`
 
 **Interfaces:**
-- `Attribute` with `attribute_definition_id`, morph `attributable`, and the four typed value columns
-- `Attribute::$value` — reads and writes the column its definition dictates
-- `Directory::attributes()` / `File::attributes()`
+- `Property` with `property_definition_id`, morph `subject`, and the four typed value columns
+- `Property::$value` — reads and writes the column its definition dictates
+- `Directory::properties()` / `File::properties()`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -353,97 +353,97 @@ Scopes:
 
 declare(strict_types=1);
 
-use App\Enums\AttributeDataType;
-use App\Models\Attribute;
-use App\Models\AttributeDefinition;
+use App\Enums\PropertyDataType;
+use App\Models\Property;
+use App\Models\PropertyDefinition;
 use App\Models\Directory;
 use App\Models\File;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 it('stores a string in the string column', function () {
-    $definition = AttributeDefinition::factory()->create(['data_type' => AttributeDataType::String_]);
+    $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::String_]);
     $file = File::factory()->create();
 
-    $attribute = Attribute::for($file, $definition)->setValue('ACME-001');
+    $property = Property::for($file, $definition)->setValue('ACME-001');
 
-    expect($attribute->fresh()->value)->toBe('ACME-001')
-        ->and(DB::table('attributes')->value('value_string'))->toBe('ACME-001')
-        ->and(DB::table('attributes')->value('value_number'))->toBeNull();
+    expect($property->fresh()->value)->toBe('ACME-001')
+        ->and(DB::table('properties')->value('value_string'))->toBe('ACME-001')
+        ->and(DB::table('properties')->value('value_number'))->toBeNull();
 });
 
 it('stores a number in the number column so ranges work in sql', function () {
-    $definition = AttributeDefinition::factory()->create(['data_type' => AttributeDataType::Number]);
+    $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::Number]);
     $file = File::factory()->create();
 
-    Attribute::for($file, $definition)->setValue('1500.75');
+    Property::for($file, $definition)->setValue('1500.75');
 
-    expect(DB::table('attributes')->value('value_number'))->toEqual(1500.75)
-        ->and(Attribute::query()->where('value_number', '>', 1000)->count())->toBe(1)
-        ->and(Attribute::query()->where('value_number', '>', 2000)->count())->toBe(0);
+    expect(DB::table('properties')->value('value_number'))->toEqual(1500.75)
+        ->and(Property::query()->where('value_number', '>', 1000)->count())->toBe(1)
+        ->and(Property::query()->where('value_number', '>', 2000)->count())->toBe(0);
 });
 
 it('stores a date in the date column so ordering works', function () {
-    $definition = AttributeDefinition::factory()->create(['data_type' => AttributeDataType::Date]);
+    $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::Date]);
 
-    Attribute::for(File::factory()->create(), $definition)->setValue('2024-03-17');
-    Attribute::for(File::factory()->create(), $definition)->setValue('2023-01-05');
+    Property::for(File::factory()->create(), $definition)->setValue('2024-03-17');
+    Property::for(File::factory()->create(), $definition)->setValue('2023-01-05');
 
-    expect(Attribute::query()->orderBy('value_date')->pluck('value_date')->first())
+    expect(Property::query()->orderBy('value_date')->pluck('value_date')->first())
         ->toStartWith('2023-01-05');
 });
 
 it('stores a boolean', function () {
-    $definition = AttributeDefinition::factory()->create(['data_type' => AttributeDataType::Boolean]);
+    $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::Boolean]);
 
-    $attribute = Attribute::for(File::factory()->create(), $definition)->setValue('1');
+    $property = Property::for(File::factory()->create(), $definition)->setValue('1');
 
-    expect($attribute->fresh()->value)->toBeTrue();
+    expect($property->fresh()->value)->toBeTrue();
 });
 
 it('attaches to a directory as well as a file', function () {
-    $definition = AttributeDefinition::factory()->create(['data_type' => AttributeDataType::String_]);
+    $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::String_]);
     $directory = Directory::factory()->create();
 
-    Attribute::for($directory, $definition)->setValue('archived');
+    Property::for($directory, $definition)->setValue('archived');
 
-    expect($directory->fresh()->attributes()->count())->toBe(1)
-        ->and(DB::table('attributes')->value('attributable_type'))->toBe('directory');
+    expect($directory->fresh()->properties()->count())->toBe(1)
+        ->and(DB::table('properties')->value('subject_type'))->toBe('directory');
 });
 
 it('holds one value per definition per subject', function () {
-    $definition = AttributeDefinition::factory()->create(['data_type' => AttributeDataType::String_]);
+    $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::String_]);
     $file = File::factory()->create();
 
-    Attribute::for($file, $definition)->setValue('first');
+    Property::for($file, $definition)->setValue('first');
 
-    expect(fn () => Attribute::create([
-        'attribute_definition_id' => $definition->id,
-        'attributable_type' => 'file',
-        'attributable_id' => $file->id,
+    expect(fn () => Property::create([
+        'property_definition_id' => $definition->id,
+        'subject_type' => 'file',
+        'subject_id' => $file->id,
         'value_string' => 'second',
     ]))->toThrow(QueryException::class);
 });
 
 it('overwrites rather than duplicating', function () {
-    $definition = AttributeDefinition::factory()->create(['data_type' => AttributeDataType::String_]);
+    $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::String_]);
     $file = File::factory()->create();
 
-    Attribute::for($file, $definition)->setValue('first');
-    Attribute::for($file, $definition)->setValue('second');
+    Property::for($file, $definition)->setValue('first');
+    Property::for($file, $definition)->setValue('second');
 
-    expect(Attribute::count())->toBe(1)
-        ->and(Attribute::first()->value)->toBe('second');
+    expect(Property::count())->toBe(1)
+        ->and(Property::first()->value)->toBe('second');
 });
 
 it('goes away with its file', function () {
-    $definition = AttributeDefinition::factory()->create(['data_type' => AttributeDataType::String_]);
+    $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::String_]);
     $file = File::factory()->create();
-    Attribute::for($file, $definition)->setValue('x');
+    Property::for($file, $definition)->setValue('x');
 
     $file->forceDelete();
 
-    expect(Attribute::count())->toBe(0);
+    expect(Property::count())->toBe(0);
 });
 ```
 
@@ -456,35 +456,35 @@ design has quietly been lost.
 - [ ] **Step 3: Write the migration**
 
 ```php
-Schema::create('attributes', function (Blueprint $table) {
+Schema::create('properties', function (Blueprint $table) {
     $table->id();
-    $table->foreignId('attribute_definition_id')->constrained()->cascadeOnDelete();
-    $table->string('attributable_type', 32);
-    $table->unsignedBigInteger('attributable_id');
+    $table->foreignId('property_definition_id')->constrained()->cascadeOnDelete();
+    $table->string('subject_type', 32);
+    $table->unsignedBigInteger('subject_id');
     $table->string('value_string', 1024)->nullable();
     $table->decimal('value_number', 20, 6)->nullable();
     $table->date('value_date')->nullable();
     $table->boolean('value_boolean')->nullable();
     $table->timestamps();
 
-    $table->unique(['attribute_definition_id', 'attributable_type', 'attributable_id'], 'attributes_unique_per_subject');
-    $table->index(['attributable_type', 'attributable_id']);
-    $table->index(['attribute_definition_id', 'value_string']);
-    $table->index(['attribute_definition_id', 'value_number']);
-    $table->index(['attribute_definition_id', 'value_date']);
+    $table->unique(['property_definition_id', 'subject_type', 'subject_id'], 'properties_unique_per_subject');
+    $table->index(['subject_type', 'subject_id']);
+    $table->index(['property_definition_id', 'value_string']);
+    $table->index(['property_definition_id', 'value_number']);
+    $table->index(['property_definition_id', 'value_date']);
 });
 ```
 
 - [ ] **Step 4: Write the model**
 
 ```php
-    /** Resolve, or prepare, the single attribute for this subject and definition. */
-    public static function for(Model $subject, AttributeDefinition $definition): self
+    /** Resolve, or prepare, the single property for this subject and definition. */
+    public static function for(Model $subject, PropertyDefinition $definition): self
     {
         return static::firstOrNew([
-            'attribute_definition_id' => $definition->getKey(),
-            'attributable_type' => $subject->getMorphClass(),
-            'attributable_id' => $subject->getKey(),
+            'property_definition_id' => $definition->getKey(),
+            'subject_type' => $subject->getMorphClass(),
+            'subject_id' => $subject->getKey(),
         ]);
     }
 
@@ -507,7 +507,7 @@ Schema::create('attributes', function (Blueprint $table) {
         return $this;
     }
 
-    public function getValueAttribute(): mixed
+    public function getValueProperty(): mixed
     {
         return $this->{$this->definition->data_type->column()};
     }
@@ -518,15 +518,15 @@ Schema::create('attributes', function (Blueprint $table) {
 `Directory` and `File` each gain:
 
 ```php
-    public function attributes(): MorphMany
+    public function properties(): MorphMany
     {
-        return $this->morphMany(Attribute::class, 'attributable');
+        return $this->morphMany(Property::class, 'subject');
     }
 ```
 
-Deleting a file must remove its attributes. Eloquent's `morphMany` does not
+Deleting a file must remove its properties. Eloquent's `morphMany` does not
 cascade in the database, and the morph columns cannot carry a foreign key, so
-add a `forceDeleted` hook on both models that deletes their attributes — there
+add a `forceDeleted` hook on both models that deletes their properties — there
 is a test for it.
 
 - [ ] **Step 6: Run focused, then full suite. Commit.**
@@ -536,13 +536,13 @@ is a test for it.
 ### Task 4: Writing values safely
 
 **Files:**
-- Create: `app/Actions/Attributes/SetAttributes.php`, `app/Exceptions/UnknownAttribute.php`
-- Test: `tests/Feature/SetAttributesTest.php`
+- Create: `app/Actions/Properties/SetProperties.php`, `app/Exceptions/UnknownProperty.php`
+- Test: `tests/Feature/SetPropertiesTest.php`
 
 **Interfaces:**
-- `SetAttributes::handle(Model $subject, array $values): void` — keys are definition keys
+- `SetProperties::handle(Model $subject, array $values): void` — keys are definition keys
 
-Validation is driven by the definitions, so a required attribute cannot be
+Validation is driven by the definitions, so a required property cannot be
 skipped and a select cannot hold a value outside its options, whatever the UI
 sends.
 
@@ -553,96 +553,96 @@ sends.
 
 declare(strict_types=1);
 
-use App\Actions\Attributes\SetAttributes;
+use App\Actions\Properties\SetProperties;
 use App\Enums\AppliesTo;
-use App\Enums\AttributeDataType;
-use App\Exceptions\UnknownAttribute;
-use App\Models\Attribute;
-use App\Models\AttributeDefinition;
+use App\Enums\PropertyDataType;
+use App\Exceptions\UnknownProperty;
+use App\Models\Property;
+use App\Models\PropertyDefinition;
 use App\Models\Directory;
 use App\Models\File;
 use Illuminate\Validation\ValidationException;
 
 beforeEach(function () {
     $this->file = File::factory()->create();
-    $this->invoice = AttributeDefinition::factory()->create([
-        'key' => 'invoice_no', 'data_type' => AttributeDataType::String_, 'applies_to' => AppliesTo::File,
+    $this->invoice = PropertyDefinition::factory()->create([
+        'key' => 'invoice_no', 'data_type' => PropertyDataType::String_, 'applies_to' => AppliesTo::File,
     ]);
-    $this->amount = AttributeDefinition::factory()->create([
-        'key' => 'amount', 'data_type' => AttributeDataType::Number, 'applies_to' => AppliesTo::File,
+    $this->amount = PropertyDefinition::factory()->create([
+        'key' => 'amount', 'data_type' => PropertyDataType::Number, 'applies_to' => AppliesTo::File,
     ]);
-    $this->status = AttributeDefinition::factory()->create([
-        'key' => 'status', 'data_type' => AttributeDataType::Select,
+    $this->status = PropertyDefinition::factory()->create([
+        'key' => 'status', 'data_type' => PropertyDataType::Select,
         'options' => ['draft', 'final'], 'applies_to' => AppliesTo::File,
     ]);
 });
 
 it('writes several values at once', function () {
-    app(SetAttributes::class)->handle($this->file, [
+    app(SetProperties::class)->handle($this->file, [
         'invoice_no' => 'ACME-001',
         'amount' => '1500.75',
         'status' => 'final',
     ]);
 
-    expect(Attribute::count())->toBe(3)
-        ->and($this->file->attributes()->count())->toBe(3);
+    expect(Property::count())->toBe(3)
+        ->and($this->file->properties()->count())->toBe(3);
 });
 
 it('rejects a select value outside its options', function () {
-    expect(fn () => app(SetAttributes::class)->handle($this->file, ['status' => 'shredded']))
+    expect(fn () => app(SetProperties::class)->handle($this->file, ['status' => 'shredded']))
         ->toThrow(ValidationException::class);
 
-    expect(Attribute::count())->toBe(0);
+    expect(Property::count())->toBe(0);
 });
 
 it('rejects a non-numeric number', function () {
-    expect(fn () => app(SetAttributes::class)->handle($this->file, ['amount' => 'lots']))
+    expect(fn () => app(SetProperties::class)->handle($this->file, ['amount' => 'lots']))
         ->toThrow(ValidationException::class);
 });
 
 it('rejects an unknown key rather than ignoring it', function () {
-    expect(fn () => app(SetAttributes::class)->handle($this->file, ['nonsense' => 'x']))
-        ->toThrow(UnknownAttribute::class);
+    expect(fn () => app(SetProperties::class)->handle($this->file, ['nonsense' => 'x']))
+        ->toThrow(UnknownProperty::class);
 });
 
 it('refuses a definition that does not apply to this subject', function () {
-    $directoryOnly = AttributeDefinition::factory()->create([
-        'key' => 'retention', 'data_type' => AttributeDataType::String_, 'applies_to' => AppliesTo::Directory,
+    $directoryOnly = PropertyDefinition::factory()->create([
+        'key' => 'retention', 'data_type' => PropertyDataType::String_, 'applies_to' => AppliesTo::Directory,
     ]);
 
-    expect(fn () => app(SetAttributes::class)->handle($this->file, ['retention' => '7y']))
-        ->toThrow(UnknownAttribute::class);
+    expect(fn () => app(SetProperties::class)->handle($this->file, ['retention' => '7y']))
+        ->toThrow(UnknownProperty::class);
 
     // ...and accepts it on the subject it does apply to.
-    app(SetAttributes::class)->handle(Directory::factory()->create(), ['retention' => '7y']);
-    expect(Attribute::count())->toBe(1);
+    app(SetProperties::class)->handle(Directory::factory()->create(), ['retention' => '7y']);
+    expect(Property::count())->toBe(1);
 });
 
-it('enforces a required attribute', function () {
+it('enforces a required property', function () {
     $this->invoice->update(['is_required' => true]);
 
-    expect(fn () => app(SetAttributes::class)->handle($this->file, ['invoice_no' => '']))
+    expect(fn () => app(SetProperties::class)->handle($this->file, ['invoice_no' => '']))
         ->toThrow(ValidationException::class);
 });
 
-it('removes an attribute when its value is cleared', function () {
-    app(SetAttributes::class)->handle($this->file, ['invoice_no' => 'ACME-001']);
-    expect(Attribute::count())->toBe(1);
+it('removes an property when its value is cleared', function () {
+    app(SetProperties::class)->handle($this->file, ['invoice_no' => 'ACME-001']);
+    expect(Property::count())->toBe(1);
 
-    app(SetAttributes::class)->handle($this->file, ['invoice_no' => '']);
+    app(SetProperties::class)->handle($this->file, ['invoice_no' => '']);
 
-    expect(Attribute::count())->toBe(0);
+    expect(Property::count())->toBe(0);
 });
 
 it('writes nothing at all when one value is invalid', function () {
-    expect(fn () => app(SetAttributes::class)->handle($this->file, [
+    expect(fn () => app(SetProperties::class)->handle($this->file, [
         'invoice_no' => 'ACME-001',
         'amount' => 'lots',
     ]))->toThrow(ValidationException::class);
 
     // A partial write would leave the subject in a state the operator never
     // asked for and did not see.
-    expect(Attribute::count())->toBe(0);
+    expect(Property::count())->toBe(0);
 });
 ```
 
@@ -652,8 +652,8 @@ it('writes nothing at all when one value is invalid', function () {
 
 Validate every value against its definition's rules first, collecting all
 errors, then write inside a transaction so the all-or-nothing test holds.
-Clearing a value deletes the attribute rather than storing null, so "has this
-attribute" is a row's existence rather than a column check.
+Clearing a value deletes the property rather than storing null, so "has this
+property" is a row's existence rather than a column check.
 
 - [ ] **Step 4: Run focused, then full suite. Commit.**
 
@@ -662,13 +662,13 @@ attribute" is a row's existence rather than a column check.
 ### Task 5: Managing definitions and editing values
 
 **Files:**
-- Create: `app/Policies/AttributeDefinitionPolicy.php`, `app/Livewire/Admin/AttributeDefinitions.php` + view, `app/Livewire/Files/AttributePanel.php` + view
+- Create: `app/Policies/PropertyDefinitionPolicy.php`, `app/Livewire/Admin/PropertyDefinitions.php` + view, `app/Livewire/Files/PropertyPanel.php` + view
 - Modify: `routes/web.php`, `DoccumServiceProvider`, the browser view
-- Test: `tests/Feature/AttributeDefinitionAdminTest.php`, `tests/Feature/AttributePanelTest.php`
+- Test: `tests/Feature/PropertyDefinitionAdminTest.php`, `tests/Feature/PropertyPanelTest.php`
 
 **Interfaces:**
-- Route `admin.attributes` → definition CRUD, gated by the `attributes.manage` permission
-- `AttributePanel` mounted with a directory or file, gated by `update` on that subject
+- Route `admin.properties` → definition CRUD, gated by the `properties.manage` permission
+- `PropertyPanel` mounted with a directory or file, gated by `update` on that subject
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -677,8 +677,8 @@ attribute" is a row's existence rather than a column check.
 
 declare(strict_types=1);
 
-use App\Livewire\Admin\AttributeDefinitions;
-use App\Models\AttributeDefinition;
+use App\Livewire\Admin\PropertyDefinitions;
+use App\Models\PropertyDefinition;
 use App\Models\User;
 use Livewire\Livewire;
 
@@ -692,27 +692,27 @@ beforeEach(function () {
 
 it('lets an admin create a definition', function () {
     Livewire::actingAs($this->admin)
-        ->test(AttributeDefinitions::class)
+        ->test(PropertyDefinitions::class)
         ->set('key', 'invoice_no')
         ->set('label', 'Invoice number')
         ->set('data_type', 'string')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(AttributeDefinition::where('key', 'invoice_no')->exists())->toBeTrue();
+    expect(PropertyDefinition::where('key', 'invoice_no')->exists())->toBeTrue();
 });
 
 it('refuses a member', function () {
     Livewire::actingAs($this->member)
-        ->test(AttributeDefinitions::class)
+        ->test(PropertyDefinitions::class)
         ->assertForbidden();
 });
 
 it('rejects a duplicate key with a validation error, not an exception', function () {
-    AttributeDefinition::factory()->create(['key' => 'invoice_no']);
+    PropertyDefinition::factory()->create(['key' => 'invoice_no']);
 
     Livewire::actingAs($this->admin)
-        ->test(AttributeDefinitions::class)
+        ->test(PropertyDefinitions::class)
         ->set('key', 'invoice_no')
         ->set('label', 'Invoice number')
         ->set('data_type', 'string')
@@ -722,7 +722,7 @@ it('rejects a duplicate key with a validation error, not an exception', function
 
 it('requires options for a select', function () {
     Livewire::actingAs($this->admin)
-        ->test(AttributeDefinitions::class)
+        ->test(PropertyDefinitions::class)
         ->set('key', 'status')
         ->set('label', 'Status')
         ->set('data_type', 'select')
@@ -733,14 +733,14 @@ it('requires options for a select', function () {
 
 it('normalises a key to the allowed character set', function () {
     Livewire::actingAs($this->admin)
-        ->test(AttributeDefinitions::class)
+        ->test(PropertyDefinitions::class)
         ->set('key', 'Invoice Number!')
         ->set('label', 'Invoice number')
         ->set('data_type', 'string')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(AttributeDefinition::first()->key)->toBe('invoice_number');
+    expect(PropertyDefinition::first()->key)->toBe('invoice_number');
 });
 ```
 
@@ -752,9 +752,9 @@ And for the panel:
 declare(strict_types=1);
 
 use App\Enums\AccessLevel;
-use App\Enums\AttributeDataType;
-use App\Livewire\Files\AttributePanel;
-use App\Models\AttributeDefinition;
+use App\Enums\PropertyDataType;
+use App\Livewire\Files\PropertyPanel;
+use App\Models\PropertyDefinition;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
@@ -765,8 +765,8 @@ beforeEach(function () {
     $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
     $this->dir = Directory::factory()->create();
     $this->file = File::factory()->for($this->dir, 'directory')->create();
-    $this->definition = AttributeDefinition::factory()->create([
-        'key' => 'invoice_no', 'data_type' => AttributeDataType::String_,
+    $this->definition = PropertyDefinition::factory()->create([
+        'key' => 'invoice_no', 'data_type' => PropertyDataType::String_,
     ]);
     $this->user = User::factory()->create();
     $this->user->assignRole('member');
@@ -782,7 +782,7 @@ function allowOn(Directory $dir, User $user, AccessLevel $level): void
 
 it('refuses someone with no access to the file', function () {
     Livewire::actingAs($this->user)
-        ->test(AttributePanel::class, ['subject' => $this->file])
+        ->test(PropertyPanel::class, ['subject' => $this->file])
         ->assertForbidden();
 });
 
@@ -790,7 +790,7 @@ it('refuses editing with only view access', function () {
     allowOn($this->dir, $this->user, AccessLevel::View);
 
     Livewire::actingAs($this->user)
-        ->test(AttributePanel::class, ['subject' => $this->file])
+        ->test(PropertyPanel::class, ['subject' => $this->file])
         ->set('values.invoice_no', 'ACME-001')
         ->call('save')
         ->assertForbidden();
@@ -800,23 +800,23 @@ it('saves with edit access', function () {
     allowOn($this->dir, $this->user, AccessLevel::Edit);
 
     Livewire::actingAs($this->user)
-        ->test(AttributePanel::class, ['subject' => $this->file])
+        ->test(PropertyPanel::class, ['subject' => $this->file])
         ->set('values.invoice_no', 'ACME-001')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect($this->file->attributes()->count())->toBe(1);
+    expect($this->file->properties()->count())->toBe(1);
 });
 
 it('shows only definitions that apply to the subject', function () {
-    AttributeDefinition::factory()->create([
+    PropertyDefinition::factory()->create([
         'key' => 'retention', 'label' => 'Retention period',
-        'data_type' => AttributeDataType::String_, 'applies_to' => App\Enums\AppliesTo::Directory,
+        'data_type' => PropertyDataType::String_, 'applies_to' => App\Enums\AppliesTo::Directory,
     ]);
     allowOn($this->dir, $this->user, AccessLevel::Edit);
 
     Livewire::actingAs($this->user)
-        ->test(AttributePanel::class, ['subject' => $this->file])
+        ->test(PropertyPanel::class, ['subject' => $this->file])
         ->assertSee('invoice_no')
         ->assertDontSee('Retention period');
 });
@@ -826,7 +826,7 @@ it('shows only definitions that apply to the subject', function () {
 
 - [ ] **Step 3: Write the policy**
 
-`AttributeDefinitionPolicy` gates everything on the `attributes.manage`
+`PropertyDefinitionPolicy` gates everything on the `properties.manage`
 permission. Register it in `DoccumServiceProvider::boot()` alongside the others.
 
 - [ ] **Step 4: Write the admin component**
@@ -834,14 +834,14 @@ permission. Register it in `DoccumServiceProvider::boot()` alongside the others.
 Full-page Livewire via `Route::livewire()` and `#[Layout('layouts::app')]` —
 this project's idiom. `mount()` authorises `viewAny`. Keys are slugified to
 `[a-z0-9_]`; select options are entered one per line and split on save. Any
-select that a definition-type change would strand is why `Attribute::setValue`
+select that a definition-type change would strand is why `Property::setValue`
 clears all four columns.
 
-- [ ] **Step 5: Write the attribute panel**
+- [ ] **Step 5: Write the property panel**
 
 Mounted with a `Directory` or `File`. `mount()` authorises `view` on the
-subject; `save()` authorises `update` and then delegates to `SetAttributes`,
-turning `UnknownAttribute` and `ValidationException` into field errors. Render
+subject; `save()` authorises `update` and then delegates to `SetProperties`,
+turning `UnknownProperty` and `ValidationException` into field errors. Render
 one control per applicable definition, chosen by data type.
 
 - [ ] **Step 6: Show it in the browser**
@@ -854,9 +854,9 @@ Add the panel to the file browser's detail area for the selected item.
 
 ## Done when
 
-- An admin defines attributes with real types; a member cannot.
+- An admin defines properties with real types; a member cannot.
 - Values land in the column their type dictates, so a number range and a date sort are SQL comparisons.
 - A value outside a select's options, a non-numeric number, a missing required value, or a definition that does not apply to the subject are all refused — and an invalid set writes nothing at all.
-- Clearing a value removes the attribute rather than storing an empty one.
+- Clearing a value removes the property rather than storing an empty one.
 - Editing requires `edit` on the containing directory; viewing requires `view`.
 - `php artisan test` green; the container still boots clean from empty volumes.

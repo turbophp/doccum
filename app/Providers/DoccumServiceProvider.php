@@ -7,9 +7,11 @@ namespace App\Providers;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
+use App\Models\PropertyDefinition;
 use App\Models\User;
 use App\Policies\DirectoryPolicy;
 use App\Policies\FilePolicy;
+use App\Policies\PropertyDefinitionPolicy;
 use App\Services\DirectoryAccess;
 use AzureOss\Storage\Blob\BlobServiceClient;
 use AzureOss\Storage\BlobFlysystem\AzureBlobStorageAdapter;
@@ -59,6 +61,7 @@ class DoccumServiceProvider extends ServiceProvider
 
         Gate::policy(Directory::class, DirectoryPolicy::class);
         Gate::policy(File::class, FilePolicy::class);
+        Gate::policy(PropertyDefinition::class, PropertyDefinitionPolicy::class);
 
         $this->registerAzureDriver();
     }

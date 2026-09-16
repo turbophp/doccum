@@ -47,7 +47,7 @@ a remote service through environment variables alone.
 |---|---|---|
 | Search scope | Metadata + extracted text + OCR | Documents must be findable by content, not just filename. |
 | Search engine | Laravel Scout, engine deferred | Code against Scout's interface; ship on the database driver, adopt Typesense/Meilisearch once there is real data to tune against. |
-| Attributes | Admin-defined definitions, typed values | Validation, consistent filters, working range/date sorting. |
+| Properties | Admin-defined definitions, typed values | Validation, consistent filters, working range/date sorting. |
 | Access control | Spatie roles + per-directory ACL with subtree inheritance | Capability and location are separate questions. |
 | File lifecycle | Versions + soft-delete trash | Standard DMS expectation; overwrites recoverable. |
 | UI | Laravel 13 + Livewire 4 starter kit + Flux UI (free) | Auth scaffolding and component library out of the box. |
@@ -57,7 +57,7 @@ a remote service through environment variables alone.
 | Signup | Operator setting, default off; username required | Safe by default for a self-hosted install. |
 | Home directories | One per user, named for the username, owner holds `manage` | Personal space with no second permission concept. |
 | Default access | Home directory only | A new account can reach nothing shared until granted. |
-| Attribute search | Own index entries + flattened into parents | Both "find the invoice" and "where is this attribute used". |
+| Property search | Own index entries + flattened into parents | Both "find the invoice" and "where is this property used". |
 | Container runtime | FrankenPHP via `serversideup/php` | No nginx sidecar; boot automation already in the image. |
 | First-run admin | First-run setup screen | No default credentials ever exist on disk. |
 | Shell | Full-width Dropbox-style, topbar nav | No sidebar chrome above the fold; lowercase wordmark + version pill left, Home/Files/Settings/My Account right. |
@@ -77,9 +77,9 @@ users ──┬─ spatie: roles, permissions, model_has_roles, role_has_permiss
 
 directories ── self-referencing tree (parent_id + materialised path)
     └── files ── file_versions ── file_texts
-attribute_definitions ── attributes (morph: Directory | File)
+property_definitions ── properties (morph: Directory | File)
 archive_periods
-search_documents (projection: Directory | File | Attribute)
+search_documents (projection: Directory | File | Property)
 ```
 
 Layers:
@@ -222,7 +222,7 @@ Unique `(file_id, version_number)`.
 
 Kept off `files` so directory listings never drag megabytes of OCR text.
 
-### `attribute_definitions`
+### `property_definitions`
 
 | Column | Type | Notes |
 |---|---|---|
@@ -236,14 +236,14 @@ Kept off `files` so directory listings never drag megabytes of OCR text.
 | sort_order | unsigned int default 0 | |
 | timestamps | | |
 
-### `attributes`
+### `properties`
 
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint pk | |
-| attribute_definition_id | bigint fk | |
-| attributable_type | string | Directory or File |
-| attributable_id | bigint | |
+| property_definition_id | bigint fk | |
+| subject_type | string | Directory or File |
+| subject_id | bigint | |
 | value_string | string(1024) null | string, text, select |
 | value_number | decimal(20,6) null | number |
 | value_date | date null | date |
@@ -254,9 +254,9 @@ Exactly one value column is populated, chosen by the definition's `data_type`.
 Typed columns rather than a single stringly-typed `value` so numeric ranges and
 date ordering work in SQL.
 
-Index `(attributable_type, attributable_id)`, and
-`(attribute_definition_id, value_string)` for lookup by value.
-Unique `(attribute_definition_id, attributable_type, attributable_id)`.
+Index `(subject_type, subject_id)`, and
+`(property_definition_id, value_string)` for lookup by value.
+Unique `(property_definition_id, subject_type, subject_id)`.
 
 ### `directory_access`
 
@@ -320,7 +320,7 @@ Two independent layers; **both** must pass.
 
 **Layer 1 — Spatie roles/permissions.** What kind of action may this person ever
 perform? Permissions include `files.upload`, `files.delete`, `files.restore`,
-`directories.create`, `directories.manage`, `attributes.manage`,
+`directories.create`, `directories.manage`, `properties.manage`,
 `users.manage`, `periods.manage`, and `directories.view-all` (admin bypass of
 layer 2).
 
@@ -328,7 +328,7 @@ layer 2).
 `view` < `edit` < `manage`:
 
 - **view** — list the directory, see its files, download them.
-- **edit** — upload, rename, set attributes, soft-delete files.
+- **edit** — upload, rename, set properties, soft-delete files.
 - **manage** — grant/revoke access, move or delete the directory itself.
 
 A grant on a directory applies to its **entire subtree**. Files inherit their
@@ -416,8 +416,8 @@ Failures are recorded in `file_texts.error` and are retryable without re-upload.
 
 Laravel Scout's database engine resolves every key returned by
 `toSearchableArray()` through `qualifyColumn()` — each key must be a real column
-on the model's own table. Extracted text lives in `file_texts` and attribute
-values live in `attributes`, so making `File` directly `Searchable` would
+on the model's own table. Extracted text lives in `file_texts` and property
+values live in `properties`, so making `File` directly `Searchable` would
 generate SQL against columns that do not exist, and the zero-config default
 would fail immediately.
 
@@ -426,10 +426,10 @@ All search therefore runs against one projection table, `search_documents`:
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint pk | |
-| searchable_type | string | Directory, File, or Attribute |
+| searchable_type | string | Directory, File, or Property |
 | searchable_id | bigint | |
-| title | string(512) | name, or attribute label |
-| body | longtext | extracted text + flattened attribute values |
+| title | string(512) | name, or property label |
+| body | longtext | extracted text + flattened property values |
 | directory_id | bigint null indexed | owning directory |
 | ancestor_ids | json | self + every ancestor directory id |
 | period_year | smallint null | |
@@ -445,16 +445,16 @@ Unique `(searchable_type, searchable_id)`.
 `body` are real columns, so the database engine works out of the box; on MySQL
 and Postgres they can be marked `#[SearchUsingFullText]` for native full-text.
 
-This satisfies the requirement that directories, files, and attributes all be
+This satisfies the requirement that directories, files, and properties all be
 searchable — each gets its own rows — while keeping **one** index instead of
 three to hold in sync, and it makes ranked cross-entity results possible at all.
-Attribute values are written twice on purpose: flattened into the owning file's
+Property values are written twice on purpose: flattened into the owning file's
 or directory's `body` (so searching "Acme" returns the invoice), and as their own
-rows (so admin can answer "where is this attribute used?").
+rows (so admin can answer "where is this property used?").
 
 ### Maintenance
 
-Model observers on `Directory`, `File`, and `Attribute`, plus the `ExtractText`
+Model observers on `Directory`, `File`, and `Property`, plus the `ExtractText`
 job, dispatch `ReindexSearchDocument`. Moving a directory reindexes its subtree's
 `ancestor_ids`. Deleting cascades to the projection and removes the Scout entry.
 
@@ -733,7 +733,7 @@ Three guards, because purge is the only irreversible operation in the system:
 3. Automatic purging is **off by default**. The scheduler reports candidates;
    actual deletion requires an explicit config flag.
 
-Purging cascades to `file_versions`, `file_texts`, `attributes`, and
+Purging cascades to `file_versions`, `file_texts`, `properties`, and
 `search_documents`. Directories survive — a purged year leaves its folder
 structure standing and empty.
 
@@ -764,7 +764,7 @@ The Files view is a three-pane Dropbox layout:
 - **Centre pane** — breadcrumb above a dense row-per-item list: mime icon, name,
   owner, modified, size. Multi-select with shift/ctrl, bulk move/delete, column
   sorting, drag-and-drop upload anywhere on the pane.
-- **Right panel** — opens on selection: attributes, version history, download,
+- **Right panel** — opens on selection: properties, version history, download,
   replace. Collapsible; hidden when nothing is selected.
 
 ### Destinations
@@ -772,10 +772,10 @@ The Files view is a three-pane Dropbox layout:
 - **Home** — dashboard: recent files, recent activity, storage consumed by
   period, quick search entry.
 - **Files** — the browser above. Default landing after login.
-- **Search** — results across directories, files, and attributes with a content
-  snippet, filtered by type, mime, period, and attribute values. Reached from
+- **Search** — results across directories, files, and properties with a content
+  snippet, filtered by type, mime, period, and property values. Reached from
   the topbar search field and from Home.
-- **Settings** — users and role assignment, roles and permissions, attribute
+- **Settings** — users and role assignment, roles and permissions, property
   definitions, archive periods, instance settings. Each section gated by its
   Spatie permission.
 - **My Account** — profile, password, sessions.
@@ -896,7 +896,7 @@ A token's effective rights are the **intersection** of three things:
 A token can therefore never exceed its owner, and revoking a user's role
 immediately narrows every token they hold. Abilities are coarse scopes:
 `directories:read`, `directories:write`, `files:read`, `files:write`,
-`files:delete`, `attributes:read`, `attributes:write`, `search`.
+`files:delete`, `properties:read`, `properties:write`, `search`.
 
 Because policies are shared with the UI, an API response can never expose a
 document the same user would not see when browsing.
@@ -907,7 +907,7 @@ exactly once, on creation.
 
 ### Surface
 
-Content operations only. Admin — users, roles, attribute definitions, archive
+Content operations only. Admin — users, roles, property definitions, archive
 periods — stays UI-only, so no token can reach `purge`.
 
 ```
@@ -928,9 +928,9 @@ GET    /api/v1/files/{id}/versions
 POST   /api/v1/files/{id}/versions/upload-url
 GET    /api/v1/files/{id}/text                 extraction status + text
 
-GET    /api/v1/attribute-definitions           read-only
-PUT    /api/v1/directories/{id}/attributes
-PUT    /api/v1/files/{id}/attributes
+GET    /api/v1/property-definitions           read-only
+PUT    /api/v1/directories/{id}/properties
+PUT    /api/v1/files/{id}/properties
 
 GET    /api/v1/search                          ?q=&type=&mime=&period=&attr[key]=
 
@@ -1091,7 +1091,7 @@ routes, so an API change that outruns its documentation fails CI.
 3. Access control — `DirectoryAccess`, policies, Spatie roles and seeded
    permissions, first-run setup screen.
 4. Storage — upload, versions, presigned download, trash and restore.
-5. Attributes — definitions admin, typed values, inline editing.
+5. Properties — definitions admin, typed values, inline editing.
 6. Extraction — strategies, `ExtractText` job, OCR fallback.
 7. Search — `search_documents` projection, indexer, permission-filtered UI.
 8. Archive and purge — period rollup, commands, guards, admin screen.

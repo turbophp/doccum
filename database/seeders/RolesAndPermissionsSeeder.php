@@ -21,7 +21,7 @@ class RolesAndPermissionsSeeder extends Seeder
         'files.restore',
         'directories.create',
         'directories.manage',
-        'attributes.manage',
+        'properties.manage',
         'users.manage',
         'periods.manage',
         // The admin bypass of per-directory access.

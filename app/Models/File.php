@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -59,11 +60,24 @@ class File extends Model
             $file->period_year ??= (int) $at->year;
             $file->period_month ??= (int) $at->month;
         });
+
+        // The morph columns on `properties` cannot carry a foreign key (they
+        // point at either directories or files), so a file's properties are
+        // not cascade-deleted by the database. Without this hook they would
+        // outlive the file they were attached to.
+        static::forceDeleted(static function (File $file): void {
+            $file->properties()->delete();
+        });
     }
 
     public function directory(): BelongsTo
     {
         return $this->belongsTo(Directory::class);
+    }
+
+    public function properties(): MorphMany
+    {
+        return $this->morphMany(Property::class, 'subject');
     }
 
     public function versions(): HasMany
