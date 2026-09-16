@@ -9,7 +9,7 @@
 FROM quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z AS minio
 
 # ---- base: runtime plus the binaries text extraction needs (spec §7) ----
-FROM serversideup/php:8.4-frankenphp-bookworm AS base
+FROM serversideup/php:8.5-frankenphp-bookworm AS base
 ARG WITH_OFFICE=false
 USER root
 RUN apt-get update \
@@ -36,7 +36,7 @@ RUN composer dump-autoload --optimize --no-dev --no-interaction
 # vendor/ is required here, not optional: resources/css/app.css imports
 # ../../vendor/livewire/flux/dist/flux.css and @sources vendor stub paths, so a
 # Tailwind build without it fails on the missing import.
-FROM node:24-bookworm-slim AS assets
+FROM node:26-bookworm-slim AS assets
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
