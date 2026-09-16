@@ -1,0 +1,63 @@
+# The development loop
+
+doccum is being driven to a tagged `v1.0.0` by an autonomous hourly loop. This
+file is the protocol that loop follows. It is normative: an iteration that
+skips a step here is a bug in the run, not a shortcut.
+
+## Roles
+
+Three models, three jobs. The split is deliberate — the expensive judgement
+calls and the bulk execution have different shapes.
+
+| Model | Role | Does |
+|---|---|---|
+| **Fable** | Consultation | Architecture, scope, what v1 means, whether the ledger vocabulary still fits reality. Advisory only: never writes files. |
+| **Opus** | Governance & orchestration | Owns the ledger, picks the next item, reviews and merges PRs, decides when to escalate to Fable, decides when v1 is done. |
+| **Sonnet** | Task execution | Implements one backlog item at a time against its plan, writes tests, pushes the branch. |
+
+## One iteration
+
+Every hour, the loop wakes and runs these steps in order.
+
+1. **Re-read state.** `docs/ledger/ledger.jsonld` is the source of truth for
+   what is done, in flight and next. Re-read it rather than trusting memory:
+   a previous iteration may have run in a different session.
+2. **Review and merge.** Look at every open PR this loop opened. CI is the
+   gate — a PR is mergeable only when every required check is green. Review
+   the diff, then merge to `main`. Record the merge in the ledger.
+3. **Pick the next item.** The first backlog item whose dependencies are all
+   `Completed`. Ties break toward whatever unblocks the most other items.
+4. **Execute.** Hand the item to a Sonnet worker with its plan, the relevant
+   spec section and `CLAUDE.md`. One item per branch, one branch per PR.
+5. **Verify through CI.** Push, open the PR, let the workflows run. Local
+   runs are a convenience; the CI matrix is the verification of record,
+   because it covers SQLite, PostgreSQL and MySQL and it boots the container.
+6. **Update the ledger.** Append the run, move the item's status, record any
+   decision taken and why.
+7. **Consult.** Every fourth iteration, or whenever the backlog shape changes,
+   ask Fable whether the remaining road to v1 and the ledger vocabulary still
+   describe reality. Fold the answer back into the ledger.
+8. **Re-arm.** Schedule the next wake-up. The loop stops only when the
+   ledger's release node reaches `Completed` — that is, `v1.0.0` is tagged and
+   the image is published.
+
+## Rules the loop does not get to bend
+
+- **CI is the gate.** Nothing merges red. "Flaky" is a diagnosis that has to
+  be earned, not asserted; see `CLAUDE.md`.
+- **A green suite is necessary and not sufficient.** The `image` job exists
+  because several bugs in this codebase were invisible to a fully green suite.
+- **Never skip, disable or quarantine a test** to get a PR green.
+- **Every guard gets a mutation check.** Delete the guard, watch the test
+  fail, restore it — and say in the PR that you did.
+- **Scope stays small.** One backlog item per PR. An item that grows past its
+  "done when" line gets split in the ledger, not widened in the branch.
+- **The ledger is append-only for history.** Runs and decisions are never
+  rewritten; only item status and the release node are mutable.
+
+## Stopping
+
+The loop is finished when the ledger's `v1.0.0` release node is `Completed`:
+every `required` backlog item done, the suite green across the full CI matrix,
+the container smoke test passing, the tag pushed and `ghcr.io` carrying the
+image. At that point the loop unschedules itself and reports.
