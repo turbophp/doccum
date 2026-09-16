@@ -17,6 +17,7 @@
       "@type": "Action",
       "order": 1,
       "name": "PeriodPurger behind three mutation-checked guards",
+      "url": "https://github.com/turbophp/doccum/issues/4",
       "isBasedOn": [
         "spec:9-archive-and-purge"
       ],
@@ -34,6 +35,7 @@
       "@type": "Action",
       "order": 2,
       "name": "Archive and purge console commands, scheduled",
+      "url": "https://github.com/turbophp/doccum/issues/5",
       "isBasedOn": [
         "spec:9-archive-and-purge"
       ],
@@ -53,6 +55,7 @@
       "@type": "Action",
       "order": 3,
       "name": "Get composer ci:check green on main",
+      "url": "https://github.com/turbophp/doccum/issues/6",
       "isBasedOn": [
         "spec:13-infrastructure"
       ],
@@ -70,6 +73,7 @@
       "@type": "Action",
       "order": 4,
       "name": "CI job that boots the image and drives it end to end",
+      "url": "https://github.com/turbophp/doccum/issues/7",
       "isBasedOn": [
         "spec:13-infrastructure"
       ],
@@ -89,6 +93,7 @@
       "@type": "Action",
       "order": 5,
       "name": "Run the suite against PostgreSQL and MySQL in CI",
+      "url": "https://github.com/turbophp/doccum/issues/8",
       "isBasedOn": [
         "spec:13-infrastructure"
       ],
@@ -108,6 +113,7 @@
       "@type": "Action",
       "order": 6,
       "name": "Rename, move and trash actions for directories and files",
+      "url": "https://github.com/turbophp/doccum/issues/9",
       "isBasedOn": [
         "spec:4-data-model"
       ],
@@ -125,6 +131,7 @@
       "@type": "Action",
       "order": 7,
       "name": "Set and clear a file's legal hold",
+      "url": "https://github.com/turbophp/doccum/issues/10",
       "isBasedOn": [
         "spec:9-archive-and-purge"
       ],
@@ -142,6 +149,7 @@
       "@type": "Action",
       "order": 8,
       "name": "Permanently delete one trashed item",
+      "url": "https://github.com/turbophp/doccum/issues/11",
       "isBasedOn": [
         "spec:9-archive-and-purge"
       ],
@@ -161,6 +169,7 @@
       "@type": "Action",
       "order": 9,
       "name": "Replace the starter sidebar with the doccum topbar shell",
+      "url": "https://github.com/turbophp/doccum/issues/12",
       "isBasedOn": [
         "spec:10-user-facing-surface"
       ],
@@ -180,6 +189,7 @@
       "@type": "Action",
       "order": 10,
       "name": "Three-pane file browser: tree, list, detail panel",
+      "url": "https://github.com/turbophp/doccum/issues/13",
       "isBasedOn": [
         "spec:10-user-facing-surface"
       ],
@@ -201,6 +211,7 @@
       "@type": "Action",
       "order": 11,
       "name": "Grant and revoke directory access from the UI",
+      "url": "https://github.com/turbophp/doccum/issues/14",
       "isBasedOn": [
         "spec:5-access-control"
       ],
@@ -220,6 +231,7 @@
       "@type": "Action",
       "order": 12,
       "name": "A Trash page with restore and purge",
+      "url": "https://github.com/turbophp/doccum/issues/15",
       "isBasedOn": [
         "spec:10-user-facing-surface"
       ],
@@ -241,6 +253,7 @@
       "@type": "Action",
       "order": 13,
       "name": "Home dashboard: recents, storage by period, quick search",
+      "url": "https://github.com/turbophp/doccum/issues/16",
       "isBasedOn": [
         "spec:10-user-facing-surface"
       ],
@@ -260,6 +273,7 @@
       "@type": "Action",
       "order": 14,
       "name": "Type, mime, period and property filters on search",
+      "url": "https://github.com/turbophp/doccum/issues/17",
       "isBasedOn": [
         "spec:10-user-facing-surface"
       ],
@@ -279,6 +293,7 @@
       "@type": "Action",
       "order": 15,
       "name": "Settings: users",
+      "url": "https://github.com/turbophp/doccum/issues/18",
       "isBasedOn": [
         "spec:10-user-facing-surface"
       ],
@@ -298,6 +313,7 @@
       "@type": "Action",
       "order": 16,
       "name": "Settings: roles and their permission matrix",
+      "url": "https://github.com/turbophp/doccum/issues/19",
       "isBasedOn": [
         "spec:10-user-facing-surface"
       ],
@@ -317,6 +333,7 @@
       "@type": "Action",
       "order": 17,
       "name": "Settings: periods, closing, purge plan and purge",
+      "url": "https://github.com/turbophp/doccum/issues/20",
       "isBasedOn": [
         "spec:9-archive-and-purge"
       ],
@@ -337,6 +354,7 @@
       "@type": "Action",
       "order": 18,
       "name": "Settings: instance name, signup, retention, limits",
+      "url": "https://github.com/turbophp/doccum/issues/21",
       "isBasedOn": [
         "spec:4-data-model"
       ],
@@ -356,6 +374,7 @@
       "@type": "Action",
       "order": 19,
       "name": "Sanctum tokens managed from My Account",
+      "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
         "spec:11-api"
       ],
@@ -375,6 +394,7 @@
       "@type": "Action",
       "order": 20,
       "name": "The /api/v1 content surface",
+      "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
         "spec:11-api"
       ],
@@ -396,6 +416,7 @@
       "@type": "Action",
       "order": 21,
       "name": "Presigned upload, commit and the staging sweep",
+      "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
         "spec:11-api"
       ],
@@ -415,6 +436,7 @@
       "@type": "Action",
       "order": 22,
       "name": "A generated, committed OpenAPI document",
+      "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
         "spec:12-documentation"
       ],
@@ -434,6 +456,7 @@
       "@type": "Action",
       "order": 23,
       "name": "The self-hosting documentation set",
+      "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
         "spec:12-documentation"
       ],
@@ -454,6 +477,7 @@
       "@type": "Action",
       "order": 24,
       "name": "Publish the docs to GitHub Pages",
+      "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
         "spec:12-documentation"
       ],
@@ -473,6 +497,7 @@
       "@type": "Action",
       "order": 25,
       "name": "Remove the known-value secret from compose.yaml",
+      "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
         "spec:13-infrastructure"
       ],
@@ -490,6 +515,7 @@
       "@type": "Action",
       "order": 26,
       "name": "The version pill reports the released tag",
+      "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
         "spec:10-user-facing-surface"
       ],
@@ -507,6 +533,7 @@
       "@type": "Action",
       "order": 27,
       "name": "Measure and reduce the image",
+      "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
         "spec:13-infrastructure"
       ],
@@ -524,6 +551,7 @@
       "@type": "Action",
       "order": 28,
       "name": "A changelog that becomes the release notes",
+      "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
         "spec:12-documentation"
       ],
@@ -541,6 +569,7 @@
       "@type": "Action",
       "order": 29,
       "name": "Tag v0.1.0 to prove the release pipeline",
+      "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
         "spec:13-infrastructure"
       ],
@@ -562,6 +591,7 @@
       "@type": "Action",
       "order": 30,
       "name": "A README that describes the shipped product",
+      "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
         "spec:12-documentation"
       ],
@@ -583,6 +613,7 @@
       "@type": "Action",
       "order": 31,
       "name": "Audit the whole surface against the spec",
+      "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
         "spec:15-milestones"
       ],
@@ -613,6 +644,7 @@
       "@type": "Action",
       "order": 32,
       "name": "Tag and publish 1.0.0",
+      "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
         "spec:15-milestones"
       ],

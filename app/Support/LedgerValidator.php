@@ -78,8 +78,11 @@ final class LedgerValidator
     private const ALLOWED_KEYS = [
         'Ledger' => ['version', 'dateModified', 'latestRun', 'about', 'items', 'pullRequests', 'decisions'],
         'SoftwareApplication' => ['name', 'description', 'version', 'url'],
+        // `url` is the item's tracking issue on GitHub. Optional rather than
+        // required: the ledger is the state of record and has to stand on its
+        // own if the issues are ever lost, renumbered or migrated.
         'Action' => [
-            'order', 'name', 'description', 'isBasedOn', 'size', 'release', 'dependsOn',
+            'order', 'name', 'url', 'description', 'isBasedOn', 'size', 'release', 'dependsOn',
             'doneWhen', 'actionStatus', 'startTime', 'endTime', 'result',
         ],
         'Run' => [
