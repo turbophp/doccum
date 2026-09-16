@@ -70,11 +70,13 @@ class File extends Model
         });
     }
 
+    /** @return BelongsTo<Directory, $this> */
     public function directory(): BelongsTo
     {
         return $this->belongsTo(Directory::class);
     }
 
+    /** @return MorphMany<Property, $this> */
     public function properties(): MorphMany
     {
         return $this->morphMany(Property::class, 'subject');

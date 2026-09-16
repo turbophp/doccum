@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
+use App\Models\Property;
 use App\Models\PropertyDefinition;
 use App\Models\User;
 use App\Policies\DirectoryPolicy;
@@ -50,6 +51,7 @@ class DoccumServiceProvider extends ServiceProvider
             'role' => Role::class,
             'directory' => Directory::class,
             'file' => File::class,
+            'property' => Property::class,
         ]);
 
         // The memoisation in DirectoryAccess is only safe while nothing has

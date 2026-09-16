@@ -59,6 +59,7 @@ class Directory extends Model
         return $this->belongsTo(User::class, 'home_user_id');
     }
 
+    /** @return MorphMany<Property, $this> */
     public function properties(): MorphMany
     {
         return $this->morphMany(Property::class, 'subject');
