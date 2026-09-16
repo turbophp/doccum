@@ -8,6 +8,7 @@ use App\Models\Directory;
 use App\Models\File;
 use App\Models\Property;
 use App\Models\SearchDocument;
+use App\Search\SearchIndex;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
 
@@ -22,6 +23,8 @@ use InvalidArgumentException;
  */
 class SearchIndexer
 {
+    public function __construct(private readonly SearchIndex $index) {}
+
     public function index(Model $subject): SearchDocument
     {
         $attributes = match (true) {
@@ -33,18 +36,33 @@ class SearchIndexer
             ),
         };
 
-        return SearchDocument::updateOrCreate(
+        $document = SearchDocument::updateOrCreate(
             ['subject_type' => $subject->getMorphClass(), 'subject_id' => $subject->getKey()],
             $attributes + ['indexed_at' => now()],
         );
+
+        // Writing the projection row is only half the job: until it reaches the
+        // index it is not searchable at all. Keeping these together means no
+        // caller can build a projection and forget to publish it.
+        $this->index->put($document);
+
+        return $document;
     }
 
     public function forget(Model $subject): void
     {
-        SearchDocument::query()
+        $documents = SearchDocument::query()
             ->where('subject_type', $subject->getMorphClass())
             ->where('subject_id', $subject->getKey())
-            ->delete();
+            ->get();
+
+        foreach ($documents as $document) {
+            // Remove from the index first: a row left in the index with no
+            // projection behind it would still match and then vanish from the
+            // results, which looks like corruption.
+            $this->index->forget($document);
+            $document->delete();
+        }
     }
 
     /**
