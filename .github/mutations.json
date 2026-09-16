@@ -1,0 +1,23 @@
+[
+  {
+    "id": "purge-guard-not-archived",
+    "why": "A period that was never archived must never be purgeable. Without this, an open period -- one still accepting uploads -- could be destroyed.",
+    "file": "app/Services/PeriodPurger.php",
+    "remove": "        if ($period === null || ! $period->isArchived()) {\n            $blockers[] = 'It has not been archived.';\n        }\n",
+    "expectFailing": "refuses a period that was never archived"
+  },
+  {
+    "id": "purge-guard-retention-window",
+    "why": "Documents inside the retention window must survive, and an instance with no window configured must refuse everything rather than treating 'unset' as 'keep nothing'.",
+    "file": "app/Services/PeriodPurger.php",
+    "remove": "        if ($years === null || $cutoff === null) {\n            // Unset means nobody has decided how long documents are kept.\n            // Reading that as \"keep nothing\" would make an instance that was\n            // never configured the one that deletes.\n            $blockers[] = 'No retention window is configured.';\n        } elseif ($period?->archived_at !== null && $period->archived_at->greaterThan($cutoff)) {\n            // Measured from archived_at rather than from the end of the\n            // period: that is when the operator declared it closed, and it is\n            // always the later of the two, so it is the safer clock.\n            $blockers[] = sprintf(\n                'It is inside the %d-year retention window until %s.',\n                (int) $years,\n                $period->archived_at->addYears((int) $years)->toDateString(),\n            );\n        }\n",
+    "expectFailing": "refuses a period inside the retention window"
+  },
+  {
+    "id": "purge-guard-legal-hold",
+    "why": "A single file under legal hold blocks its whole period. This is the guard with legal consequences if it silently stops working.",
+    "file": "app/Services/PeriodPurger.php",
+    "remove": "        if ($held > 0) {\n            // The whole period stays, not merely the held files: a partial\n            // purge of a period under legal hold is exactly what a hold\n            // exists to prevent.\n            $blockers[] = sprintf('%d file(s) are under legal hold.', $held);\n        }\n",
+    "expectFailing": "refuses when a file in the period is under legal hold"
+  }
+]
