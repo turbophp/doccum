@@ -35,7 +35,7 @@ class LikeSearchIndex implements SearchIndex
         // either. Left as a plain LIKE, searching "quarterly" simply never
         // found "Quarterly-Report.pdf" on Postgres -- no error, no warning,
         // just nothing, which is the worst way for a search box to be wrong.
-        $operator = SearchDocument::query()->getConnection()->getDriverName() === 'pgsql'
+        $operator = (new SearchDocument)->getConnection()->getDriverName() === 'pgsql'
             ? 'ilike'
             : 'like';
 
