@@ -324,6 +324,11 @@ class FirstRun extends Component
         // which is precisely the attach-mode danger.
         abort_if(User::query()->exists(), 404);
 
+        // The entrypoint seeds roles at boot, but the installer may since have
+        // migrated a DIFFERENT database -- one the entrypoint never saw. Roles
+        // are structure, and seeding is idempotent, so ensure them here too.
+        Artisan::call('doccum:ensure-roles');
+
         $validated = $this->validate([
             'instance_name' => ['required', 'string', 'max:191'],
             'name' => $this->nameRules(),

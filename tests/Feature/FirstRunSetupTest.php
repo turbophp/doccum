@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Route;
 use App\Models\Directory;
 use App\Models\User;
 use App\Services\Settings;
@@ -59,4 +60,22 @@ it('stops redirecting once a user exists', function () {
     User::factory()->create();
 
     $this->get(route('login'))->assertOk();
+});
+
+it('lets livewire requests through while the instance is unconfigured', function () {
+    // Regression: the setup form is a Livewire component, so its submission is
+    // a POST to Livewire's update endpoint. Redirecting that to /setup made the
+    // form impossible to submit -- the page rendered fine and every submission
+    // silently bounced. Livewire::test() bypasses HTTP middleware, so only a
+    // test at this layer catches it.
+    expect(App\Models\User::query()->exists())->toBeFalse();
+
+    $livewireRoute = collect(Route::getRoutes()->getRoutes())
+        ->first(fn ($route) => str_ends_with((string) $route->getName(), 'livewire.update'));
+
+    expect($livewireRoute)->not->toBeNull();
+
+    $response = $this->post('/'.ltrim($livewireRoute->uri(), '/'), []);
+
+    expect($response->isRedirect(route('setup')))->toBeFalse();
 });

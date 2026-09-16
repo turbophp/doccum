@@ -74,6 +74,10 @@ ENV AUTORUN_ENABLED=true \
 # is a complete instance: web, both queue workers, the scheduler and object
 # storage. Compose turns the workers off on its app service because dedicated
 # containers run them there.
+# The starter kit renders config('app.name') into every page title, so without
+# this a fresh install is branded "Laravel".
+ENV APP_NAME=doccum
+
 ENV DOCCUM_EMBEDDED_STORAGE=true \
     DOCCUM_RUN_WORKERS=true \
     DOCCUM_RUN_SCHEDULER=true

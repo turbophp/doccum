@@ -31,7 +31,16 @@ class RequireInstanceSetup
 
         $hasUsers = User::query()->exists();
 
-        if (! $hasUsers && ! $request->routeIs('setup')) {
+        // Livewire's own endpoints must pass through, or the setup form can
+        // never submit: its POST would be redirected back to /setup before it
+        // ever reached the component. Livewire 4 names that route
+        // `default-livewire.update`, hence the wildcard rather than a literal.
+        //
+        // This is safe because Livewire validates the component snapshot
+        // against a checksum signed with APP_KEY, so a caller cannot summon an
+        // arbitrary component -- only one rendered by a page it was served,
+        // and /setup is the only page reachable in this state.
+        if (! $hasUsers && ! $request->routeIs('setup', '*livewire.*')) {
             return redirect()->route('setup');
         }
 
