@@ -377,6 +377,121 @@ jobs:
             exit 1
           fi
 
+      # Everything from here drives the real product end to end, per issue #7:
+      # complete the installer, upload a file, wait for extraction, find it by
+      # search, restart, confirm persistence. That is deliberately more than
+      # "the suite is green" -- CLAUDE.md's whole point is that a green suite
+      # has already missed things a running container would have caught (see
+      # tests/Feature/Search/EndToEndSearchTest.php).
+      #
+      # Driving this over HTTP means driving Livewire: /setup (the installer),
+      # the files browser's upload form, and the live search box are each a
+      # Livewire component, and their real submissions are JSON payloads keyed
+      # to a checksum Livewire's own client JS assembles -- there is no
+      # `doccum:` artisan install command and no documented HTTP API for any
+      # of this (checked in app/Console/Commands and routes/*.php before
+      # writing this). Reconstructing that wire protocol by hand for three
+      # unrelated components would be more fragile than driving the same
+      # client a real operator uses, so a real headless browser (Playwright)
+      # does it instead. See .github/scripts/container-smoke.mjs for the
+      # step-by-step rationale and what each step asserts.
+      #
+      # Playwright is installed ad hoc, into .github/scripts/node_modules,
+      # and is never added to package.json or package-lock.json -- it drives
+      # the smoke test, it is not a dependency of the product.
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+
+      # Credentials and marker text the installer, upload and search steps
+      # below all agree on, keyed to this run so two runs racing on a shared
+      # runner (or a re-run) never collide. GITHUB_ENV makes these ordinary
+      # environment variables for every later step in this job.
+      - name: Generate smoke test fixtures
+        run: |
+          RUN_ID="${{ github.run_id }}-${{ github.run_attempt }}"
+          DIGITS="$(echo "$RUN_ID" | tr -cd '0-9')"
+          {
+            echo "SMOKE_INSTANCE_NAME=doccum CI smoke"
+            echo "SMOKE_ADMIN_NAME=Smoke Admin"
+            # Username charset is constrained (app/Concerns/ProfileValidationRules.php:
+            # ^[a-z0-9._-]+$) because it names the admin's home directory.
+            echo "SMOKE_ADMIN_USERNAME=smokeadmin${DIGITS}"
+            echo "SMOKE_ADMIN_EMAIL=smoke+${RUN_ID}@example.test"
+            # config/app.php defaults APP_ENV to "production" when unset, and
+            # the image's own `docker run` sets no APP_ENV -- so this is the
+            # real production rule (app/Providers/AppServiceProvider.php):
+            # min 12, mixed case, letters, numbers, symbols, uncompromised().
+            echo "SMOKE_ADMIN_PASSWORD=Doccum-Smoke-${RUN_ID}!Aa9"
+            echo "SMOKE_FILE_NAME=smoke-${RUN_ID}.txt"
+            echo "SMOKE_FILE_MARKER=smokeword${DIGITS}"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Playwright (smoke-test driver only, not a project dependency)
+        timeout-minutes: 5
+        run: |
+          npm install --no-save --prefix .github/scripts playwright@1.49.1
+          .github/scripts/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Complete the installer, upload a file, wait for extraction, search
+        timeout-minutes: 8
+        env:
+          BASE_URL: http://127.0.0.1:8080
+          CONTAINER_NAME: doccum-smoke
+          # Generous but bounded: extraction of a plain-text upload needs no
+          # OCR and should finish in well under a second once the ingest
+          # worker picks it up, but this is a real queue hop through a real
+          # worker (supervisor runs `queue:work --queue=ingest`), not
+          # Queue::fake(), so it gets real headroom rather than a tight poll.
+          EXTRACTION_TIMEOUT_MS: '60000'
+          SEARCH_TIMEOUT_MS: '20000'
+        run: node .github/scripts/container-smoke.mjs setup
+
+      # `storage/` does not survive a rebuild, but this is a restart of the
+      # SAME container against the SAME named volume, not a rebuild -- the
+      # only thing that is supposed to persist here is /data, which is exactly
+      # what the next step checks.
+      - name: Restart the container
+        timeout-minutes: 3
+        run: |
+          set -e
+          docker restart doccum-smoke
+
+          ok=false
+          for i in $(seq 1 30); do
+            if ! docker inspect -f '{{.State.Running}}' doccum-smoke 2>/dev/null | grep -q true; then
+              echo "::error::container exited after restart"
+              break
+            fi
+            if curl -sS -L --max-time 5 http://127.0.0.1:8080/ >/dev/null 2>&1; then
+              ok=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [ "$ok" != true ]; then
+            echo "::error::doccum never came back up after the restart"
+            docker logs doccum-smoke || true
+            exit 1
+          fi
+
+          echo "container is back up after the restart"
+
+      - name: Verify persistence after restart
+        timeout-minutes: 5
+        env:
+          BASE_URL: http://127.0.0.1:8080
+          CONTAINER_NAME: doccum-smoke
+          SEARCH_TIMEOUT_MS: '20000'
+        run: node .github/scripts/container-smoke.mjs verify
+
       - name: Container logs
         if: failure()
-        run: docker logs doccum-smoke || true
+        run: |
+          docker logs doccum-smoke || true
+          echo "--- docker ps -a ---"
+          docker ps -a || true
+          echo "--- supervisorctl status ---"
+          docker exec doccum-smoke supervisorctl status || true

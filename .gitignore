@@ -1,5 +1,9 @@
 /.phpunit.cache
 /node_modules
+# Playwright, installed ad hoc by the container smoke test and never a
+# project dependency. Rooted /node_modules above does not cover it, and an
+# unstaged `git add -A` would otherwise commit a browser engine.
+/.github/scripts/node_modules
 /public/build
 /public/fonts-manifest.dev.json
 /public/hot
