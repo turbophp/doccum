@@ -131,14 +131,14 @@ final class LedgerValidator
 
         // Nothing further can be checked meaningfully without these.
         if ($context === null || $ledgerRaw === null || $runFiles === null) {
-            return $errors;
+            return array_values($errors);
         }
 
         $ledger = json_decode($ledgerRaw, true);
         if (! is_array($ledger)) {
             $errors[] = 'fatal: ledger.jsonld is not a JSON object.';
 
-            return $errors;
+            return array_values($errors);
         }
 
         $runRaws = [];
@@ -161,7 +161,7 @@ final class LedgerValidator
         if ($runRaws === []) {
             $errors[] = 'fatal: no run files were loaded; skipping checks that depend on them.';
 
-            return $errors;
+            return array_values($errors);
         }
 
         $vocabTerms = self::vocabTerms($context);
@@ -181,11 +181,12 @@ final class LedgerValidator
         $errors = array_merge($errors, self::runErrors($ledger, $runs));
         $errors = array_merge($errors, self::specAnchorErrors($ledger, $specPath));
 
-        return $errors;
+        return array_values($errors);
     }
 
     // -- Loading -------------------------------------------------------
 
+    /** @param list<string> $errors */
     private static function readFile(array &$errors, string $path, string $label): ?string
     {
         if (! is_file($path)) {
@@ -204,7 +205,10 @@ final class LedgerValidator
         return $contents;
     }
 
-    /** @return array<string, mixed>|null */
+    /**
+     * @param  list<string>  $errors
+     * @return array<string, mixed>|null
+     */
     private static function loadJson(array &$errors, string $path, string $label): ?array
     {
         $raw = self::readFile($errors, $path, $label);
@@ -223,6 +227,7 @@ final class LedgerValidator
     }
 
     /**
+     * @param  list<string>  $errors
      * @return array<string, string>|null map of filename (e.g. "0000.jsonld") to full path,
      *                                    sorted by filename.
      */

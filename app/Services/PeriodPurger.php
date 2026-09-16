@@ -9,8 +9,8 @@ use App\Models\ArchivePeriod;
 use App\Models\File;
 use App\Support\PurgePlan;
 use App\Support\PurgeReport;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -176,7 +176,7 @@ class PeriodPurger
             $blockers[] = sprintf(
                 'It is inside the %d-year retention window until %s.',
                 (int) $years,
-                $period->archived_at->copy()->addYears((int) $years)->toDateString(),
+                $period->archived_at->addYears((int) $years)->toDateString(),
             );
         }
 
@@ -192,7 +192,7 @@ class PeriodPurger
         return $blockers;
     }
 
-    private function retentionCutoff(): ?Carbon
+    private function retentionCutoff(): ?CarbonImmutable
     {
         $years = config('doccum.retention.purge_after_years');
 
