@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-16T17:30:00Z",
-  "latestRun": "run/0001",
+  "dateModified": "2026-09-16T18:30:00Z",
+  "latestRun": "run/0002",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -25,10 +25,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "PeriodPurgerTest green; PR body records that each of the three guards was removed and its test failed; objects deleted only through DocumentStorage; rows deleted and purged_at stamped in one transaction; directory rows survive.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-16T17:00:01Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-16T18:27:00Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/2"
+      ]
     },
     {
       "@id": "item/purge-commands",
@@ -45,10 +47,12 @@
         "item/purge-service"
       ],
       "doneWhen": "ArchiveCommandsTest green; schedule:list shows close-periods daily and purge-expired weekly; purge-period without --force changes no row and no object.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-16T17:00:01Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-16T18:27:00Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/2"
+      ]
     },
     {
       "@id": "item/ci-green-baseline",
@@ -63,10 +67,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "pint --test reports no style issues and phpstan stays at or below its baseline; the tests workflow is green on main.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-16T17:00:01Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-16T18:27:00Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/2"
+      ]
     },
     {
       "@id": "item/container-smoke-ci",
@@ -660,6 +666,24 @@
       "result": []
     },
     {
+      "@id": "item/pgsql-value-string-index",
+      "@type": "Action",
+      "order": 33,
+      "name": "Index properties.value_string safely on PostgreSQL",
+      "url": "https://github.com/turbophp/doccum/issues/39",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "A test inserting roughly a thousand multi-byte characters into value_string round-trips on all three drivers, having first failed on PostgreSQL; and the chosen index strategy is recorded along with which queries it can and cannot serve.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
       "@id": "item/vector-index-seam",
       "@type": "Action",
       "order": 101,
@@ -947,12 +971,12 @@
         "item/purge-service"
       ],
       "run": "run/0001",
-      "state": "open",
+      "state": "merged",
       "dateCreated": "2026-09-16T17:02:30Z",
-      "headSha": "7a4b0bb869605230004c6828ec7842f13cfc7640",
-      "mergedAt": null,
-      "mergeSha": null,
-      "mergedIn": null
+      "headSha": "b39896d08a896189e6c390ff8c8d6d213554f864",
+      "mergedAt": "2026-09-16T18:27:00Z",
+      "mergeSha": "de51dc6790a0ee577a8fcce0a2aaef1931799337",
+      "mergedIn": "run/0002"
     }
   ],
   "decisions": [
@@ -1019,6 +1043,21 @@
       ],
       "affects": [
         "item/directory-legal-hold"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0005",
+      "@type": "Decision",
+      "dateCreated": "2026-09-16T18:25:00Z",
+      "run": "run/0002",
+      "name": "PostgreSQL's value_string index is its own item, not part of the MySQL fix",
+      "rationale": "Fixing the MySQL key-length failure exposed the same defect class on PostgreSQL: it still indexes value_string whole, and its btree tuple ceiling of roughly 2704 bytes is crossed by about nine hundred characters of three-byte content. It was not folded into that fix because the MySQL one had a failing CI leg proving both the bug and the cure, and this has neither -- it fails on insert, only for non-ASCII content, so nothing currently exercises it. Every candidate remedy also costs something real: an expression index on a truncation serves only queries written against that same expression, a hash index gives up ordering and prefix matching, and shortening the column was already rejected for cutting product capacity to dodge a storage-engine limit. Choosing between those without a test to judge them by would be guessing.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/pgsql-value-string-index"
       ],
       "supersedes": null
     }
