@@ -20,11 +20,18 @@ final readonly class ExtractionResult
         public ?string $text,
         public ?string $extractor,
         public ?string $error,
+        public bool $truncated = false,
     ) {}
 
-    public static function done(string $text, string $extractor): self
+    /**
+     * @param  bool  $truncated  True when a page cap (or similar limit) meant
+     *                           not all of the document's content was read --
+     *                           set so the outcome is honest rather than
+     *                           silently partial. See OcrExtractor.
+     */
+    public static function done(string $text, string $extractor, bool $truncated = false): self
     {
-        return new self(ExtractionStatus::Done, $text, $extractor, null);
+        return new self(ExtractionStatus::Done, $text, $extractor, null, $truncated);
     }
 
     public static function failed(string $error, ?string $extractor = null): self
