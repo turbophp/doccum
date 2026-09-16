@@ -93,6 +93,26 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: ${{ env.PRIMARY_PHP }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache composer dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: vendor
+          key: composer-${{ env.PRIMARY_PHP }}-${{ hashFiles('composer.lock') }}
+
+      # resources/css/app.css imports Flux's stylesheet straight out of
+      # vendor/, so the PHP dependencies have to be on disk before Vite can
+      # resolve anything. This is why the old single-job CI ran `composer
+      # setup`, which did both in order.
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist
+
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
