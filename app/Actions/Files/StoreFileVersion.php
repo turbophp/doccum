@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions\Files;
 
+use App\Exceptions\PeriodIsArchived;
 use App\Jobs\ExtractText;
+use App\Models\ArchivePeriod;
 use App\Models\Directory;
 use App\Models\File;
 use App\Models\FileVersion;
@@ -44,6 +46,17 @@ class StoreFileVersion
                 ->where('directory_id', $directory->getKey())
                 ->where('name', $originalName)
                 ->first();
+
+            // A file's versions all live under its creation period (see
+            // App\Support\ObjectKey), so the period to check is the file's own
+            // period when one already exists, and the period it would be
+            // created into -- today's -- when it does not.
+            $year = $file !== null ? $file->period_year : (int) now()->year;
+            $month = $file !== null ? $file->period_month : (int) now()->month;
+
+            if (ArchivePeriod::isArchivedFor($year, $month)) {
+                throw PeriodIsArchived::forPeriod($year, $month);
+            }
 
             $file ??= File::create([
                 'directory_id' => $directory->getKey(),
