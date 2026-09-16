@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions\Files;
 
+use App\Jobs\ExtractText;
 use App\Models\Directory;
 use App\Models\File;
 use App\Models\FileVersion;
@@ -38,7 +39,7 @@ class StoreFileVersion
         $size = (int) filesize($sourcePath);
         $mime ??= 'application/octet-stream';
 
-        return DB::transaction(function () use ($uploader, $directory, $sourcePath, $originalName, $mime, $size, $checksum): File {
+        $file = DB::transaction(function () use ($uploader, $directory, $sourcePath, $originalName, $mime, $size, $checksum): File {
             $file = File::query()
                 ->where('directory_id', $directory->getKey())
                 ->where('name', $originalName)
@@ -76,5 +77,13 @@ class StoreFileVersion
 
             return $file->refresh();
         });
+
+        // Dispatched here, after the transaction has returned -- not from a
+        // closure passed to DB::transaction() -- so a worker can never pick
+        // this job up before the version row it needs is visible. Queued on
+        // the ingest queue by the job itself.
+        ExtractText::dispatch($file->currentVersion);
+
+        return $file;
     }
 }

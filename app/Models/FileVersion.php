@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * An immutable record of one uploaded object. Rows are inserted and deleted,
@@ -34,5 +35,11 @@ class FileVersion extends Model
     public function file(): BelongsTo
     {
         return $this->belongsTo(File::class);
+    }
+
+    /** @return HasOne<FileText, $this> */
+    public function text(): HasOne
+    {
+        return $this->hasOne(FileText::class);
     }
 }

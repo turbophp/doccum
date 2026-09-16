@@ -13,6 +13,7 @@ use App\Policies\DirectoryPolicy;
 use App\Policies\FilePolicy;
 use App\Policies\PropertyDefinitionPolicy;
 use App\Services\DirectoryAccess;
+use App\Support\ProcessRunner;
 use AzureOss\Storage\Blob\BlobServiceClient;
 use AzureOss\Storage\BlobFlysystem\AzureBlobStorageAdapter;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -35,6 +36,11 @@ class DoccumServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(DirectoryAccess::class);
+
+        // Singleton so a test's ProcessRunner::fake() state is visible to
+        // every `app(ProcessRunner::class)` resolved afterwards, including
+        // the one inside the extraction strategy under test.
+        $this->app->singleton(ProcessRunner::class);
     }
 
     public function boot(): void

@@ -85,8 +85,15 @@ class File extends Model
         return $this->hasMany(FileVersion::class);
     }
 
+    /** @return BelongsTo<FileVersion, $this> */
     public function currentVersion(): BelongsTo
     {
         return $this->belongsTo(FileVersion::class, 'current_version_id');
+    }
+
+    /** The extracted text of the current version, or null if there is none yet. */
+    public function extractedText(): ?string
+    {
+        return $this->currentVersion?->text?->text;
     }
 }
