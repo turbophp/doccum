@@ -29,8 +29,24 @@ afterEach(function () {
     // transaction -- RefreshDatabaseState caches a raw handle to it for reuse
     // across tests, and that handle is left stuck mid-transaction forever
     // unless cleared here. See Global Constraints re: the test-isolation trap.
-    RefreshDatabaseState::$inMemoryConnections = [];
-    RefreshDatabaseState::$migrated = false;
+    //
+    // That trap only exists because the connection every test in this file
+    // asks saveDatabase() to attach ("sqlite") is, on this suite's own
+    // sqlite :memory: leg, the exact same connection name and the exact same
+    // underlying PDO handle RefreshDatabase already wrapped in a transaction
+    // before the test began. On a server-backed leg (pgsql, mysql) the
+    // suite's default connection is a different name entirely, so this
+    // purge/migrate never touches it -- there is no stuck PDO handle to
+    // clear. Resetting $migrated there anyway forces the NEXT test to
+    // `migrate:fresh` a real server connection it never needed to, and that
+    // DDL can queue up behind whatever lock the real connection's own
+    // (correctly-isolated) transaction is holding -- a hang, not a speed
+    // bump, which is exactly what issue #37 saw on pgsql and mysql.
+    if ($this->originalDefaultConnection === 'sqlite'
+        && ($this->originalSqliteConfig['database'] ?? null) === ':memory:') {
+        RefreshDatabaseState::$inMemoryConnections = [];
+        RefreshDatabaseState::$migrated = false;
+    }
 
     config()->set('database.default', $this->originalDefaultConnection);
     config()->set('database.connections.sqlite', $this->originalSqliteConfig);
