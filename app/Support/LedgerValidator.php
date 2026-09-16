@@ -131,14 +131,14 @@ final class LedgerValidator
 
         // Nothing further can be checked meaningfully without these.
         if ($context === null || $ledgerRaw === null || $runFiles === null) {
-            return array_values($errors);
+            return $errors;
         }
 
         $ledger = json_decode($ledgerRaw, true);
         if (! is_array($ledger)) {
             $errors[] = 'fatal: ledger.jsonld is not a JSON object.';
 
-            return array_values($errors);
+            return $errors;
         }
 
         $runRaws = [];
@@ -161,7 +161,7 @@ final class LedgerValidator
         if ($runRaws === []) {
             $errors[] = 'fatal: no run files were loaded; skipping checks that depend on them.';
 
-            return array_values($errors);
+            return $errors;
         }
 
         $vocabTerms = self::vocabTerms($context);
@@ -181,7 +181,7 @@ final class LedgerValidator
         $errors = array_merge($errors, self::runErrors($ledger, $runs));
         $errors = array_merge($errors, self::specAnchorErrors($ledger, $specPath));
 
-        return array_values($errors);
+        return $errors;
     }
 
     // -- Loading -------------------------------------------------------
@@ -536,7 +536,7 @@ final class LedgerValidator
             };
         }
 
-        return array_values($errors);
+        return $errors;
     }
 
     /**
