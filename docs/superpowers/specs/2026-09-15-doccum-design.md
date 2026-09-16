@@ -650,6 +650,33 @@ Four properties make that safe rather than merely deferred:
   switches over once coverage is complete — rather than leaving the corpus
   unsearchable for the hours a large backfill takes.
 
+### The scheduled sweep is the authority
+
+Embedding is driven by a scheduled task, not only by a job dispatched at upload.
+`doccum:embeddings:sweep` runs on the scheduler every few minutes, claims a
+bounded slice of whatever is unembedded or stale, and processes it.
+
+That inversion matters. If embedding only happened reactively, then every way a
+job can be lost — retries exhausted, the provider down for an hour, the worker
+killed mid-batch, a model enabled after the documents arrived — leaves
+documents permanently invisible to semantic search with nothing to notice or
+correct it. A user would simply never find a file and have no way to know why.
+With the sweep as the authority, the dispatched job is an optimisation that
+makes embedding prompt, and its failure costs latency rather than correctness.
+
+The bound is what makes it safe on a small host. Each run takes a configured
+number of chunks rather than everything outstanding, so enabling a provider on
+an instance with 100,000 existing documents drains steadily over hours instead
+of saturating CPU and starving the web process. The same mechanism covers
+first-time backfill, recovery after an outage, and re-embedding after a model
+change — there is no separate backfill path to get wrong, and
+`doccum:embeddings:backfill` simply runs the sweep to completion for an operator
+who would rather not wait.
+
+Progress is observable: how many chunks are pending, how many stale, and what
+the last run did — because a silent background process that has quietly done
+nothing for a week is indistinguishable from one with nothing to do.
+
 ### Hybrid ranking
 
 Keyword and semantic search answer different questions and fail differently:
