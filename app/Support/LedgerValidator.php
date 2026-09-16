@@ -536,9 +536,13 @@ final class LedgerValidator
             };
         }
 
-        return $errors;
+        return array_values($errors);
     }
 
+    /**
+     * @param  array<string, mixed>  $node
+     * @param  list<string>  $errors
+     */
     private static function checkAction(string $id, array $node, array &$errors): void
     {
         if (isset($node['size']) && ! in_array($node['size'], self::SIZES, true)) {
@@ -552,6 +556,10 @@ final class LedgerValidator
         }
     }
 
+    /**
+     * @param  array<string, mixed>  $node
+     * @param  list<string>  $errors
+     */
     private static function checkPullRequest(string $id, array $node, array &$errors): void
     {
         if (isset($node['state']) && ! in_array($node['state'], self::PULL_REQUEST_STATES, true)) {
@@ -565,6 +573,10 @@ final class LedgerValidator
         }
     }
 
+    /**
+     * @param  array<string, mixed>  $node
+     * @param  list<string>  $errors
+     */
     private static function checkRun(string $id, array $node, array &$errors): void
     {
         if (isset($node['outcome']) && ! in_array($node['outcome'], self::RUN_OUTCOMES, true)) {
@@ -679,6 +691,7 @@ final class LedgerValidator
         return $errors;
     }
 
+    /** @param array<string, mixed> $data */
     private static function canonicalize(array $data): string
     {
         $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
