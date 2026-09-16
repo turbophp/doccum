@@ -12,8 +12,17 @@ name: phpstan baseline
 # Run it only from a branch where the new code is already clean, and read the
 # resulting file before merging: every entry in it is a finding somebody has
 # decided to live with.
+#
+# Two ways in. workflow_dispatch works once this file is on the default
+# branch; before that it does not exist as far as the API is concerned, which
+# is why pushing to a branch named baseline/* also triggers it. That name is
+# the opt-in: no ordinary branch regenerates a baseline by accident, and
+# nobody has to remember a flag.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'baseline/**'
 
 permissions:
   contents: read
