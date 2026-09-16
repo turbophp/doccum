@@ -10,3 +10,17 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  # The Dockerfile pins its own base images (serversideup/php, the MinIO
+  # release tag) by tag or digest -- see CLAUDE.md's Docker notes -- so this
+  # is what actually bumps them instead of them going stale forever.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 5
+    groups:
+      docker:
+        patterns:
+          - "*"

@@ -1,0 +1,56 @@
+name: ledger
+
+# The ledger is doccum's backlog-of-record (docs/ledger/ledger.jsonld), so it
+# gets checked on every push to main as well as every PR, not PRs alone.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: validate ledger
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Ledger file exists
+        run: |
+          if [ ! -f docs/ledger/ledger.jsonld ]; then
+            echo "::error::docs/ledger/ledger.jsonld is missing"
+            exit 1
+          fi
+
+      - name: Ledger is valid JSON
+        run: |
+          php -r '$raw = file_get_contents("docs/ledger/ledger.jsonld"); json_decode($raw, true, 512, JSON_THROW_ON_ERROR); echo "docs/ledger/ledger.jsonld parses as JSON\n";'
+
+      # validate-ledger.php is a companion piece of work landing separately
+      # (schema/shape checks beyond "is this JSON at all"). Its absence is not
+      # a reason to fail every PR in the meantime, only a reason to say so.
+      - name: Run deep ledger validation
+        run: |
+          if [ -f .github/scripts/validate-ledger.php ]; then
+            php .github/scripts/validate-ledger.php docs/ledger/ledger.jsonld
+          else
+            echo "::notice::.github/scripts/validate-ledger.php does not exist yet -- skipping deep validation, JSON-shape check above still ran"
+          fi
