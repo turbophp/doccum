@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ConnectionProbe;
 use App\Services\InstanceState;
 use App\Services\Settings;
+use App\Support\SupervisedProcesses;
 use App\Support\RuntimeConfig;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Arr;
@@ -49,6 +50,12 @@ class FirstRun extends Component
      * creation must never be reachable once this is true -- see saveDatabase().
      */
     public bool $attaching = false;
+
+    /**
+     * Whether the supervised workers picked up the new database. False under
+     * compose, where they are separate containers the app cannot restart.
+     */
+    public bool $workersRestarted = false;
 
     // -- Step 1: database ------------------------------------------------
 
@@ -214,6 +221,11 @@ class FirstRun extends Component
         }
 
         $this->applyDatabase($config, $connection);
+
+        // Supervised workers still hold a connection to whatever database was
+        // configured when they started. Left alone they would process jobs
+        // against the bootstrap SQLite -- silently wrong rather than broken.
+        $this->workersRestarted = SupervisedProcesses::restartWorkers();
 
         if ($state === InstanceState::Populated) {
             $this->attaching = true;

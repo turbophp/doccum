@@ -70,6 +70,14 @@ ENV AUTORUN_ENABLED=true \
     AUTORUN_LARAVEL_STORAGE_LINK=true \
     PHP_OPCACHE_ENABLE=1
 
+# Everything on by default, so `docker run -v doccum:/data -p 8080:8080 <image>`
+# is a complete instance: web, both queue workers, the scheduler and object
+# storage. Compose turns the workers off on its app service because dedicated
+# containers run them there.
+ENV DOCCUM_EMBEDDED_STORAGE=true \
+    DOCCUM_RUN_WORKERS=true \
+    DOCCUM_RUN_SCHEDULER=true
+
 # supervisord replaces frankenphp as PID 1's command, but serversideup's own
 # entrypoint still runs first and ends with `exec "$@"` -- so every
 # entrypoint.d script (migrations, storage link, our own credential
