@@ -7,10 +7,24 @@ OCR of scanned pages.
 ## Run it
 
 ```bash
-docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/<org>/doccum
+docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/OWNER/doccum
 ```
 
+Replace `OWNER` with the GitHub owner this image is published under. (Angle
+brackets are deliberately not used here: `<owner>` in a shell is input
+redirection, not a placeholder, and the command fails with a confusing
+`No such file or directory`.)
+
 Open <http://localhost:8080> and complete the setup screen.
+
+### Building it yourself
+
+Until the image is published, or to run your own build:
+
+```bash
+docker build -t doccum:local .
+docker run -d --name doccum -v doccum:/data -p 8080:8080 doccum:local
+```
 
 That is the whole installation. One container runs the web application, both
 queue workers, the scheduler and object storage; one volume holds everything
