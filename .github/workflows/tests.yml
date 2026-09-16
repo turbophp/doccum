@@ -73,8 +73,23 @@ jobs:
             echo (int) ($data["totals"]["file_errors"] ?? 0);
           ')
           echo "phpstan findings: ${COUNT} (baseline: ${PHPSTAN_BASELINE_COUNT})"
+
+          # A count on its own tells whoever reads this that they broke
+          # something and nothing about what, which is the difference between
+          # a failure they can act on and one they have to reproduce locally
+          # first -- and reproducing it locally is exactly what the
+          # environment this project is developed in cannot do.
+          php -r '
+            $data = json_decode(file_get_contents("phpstan-result.json"), true);
+            foreach (($data["files"] ?? []) as $file => $entry) {
+              foreach (($entry["messages"] ?? []) as $message) {
+                printf("%s:%s  %s%s", $file, $message["line"] ?? "?", $message["message"] ?? "", PHP_EOL);
+              }
+            }
+          '
+
           if [ "$COUNT" -gt "$PHPSTAN_BASELINE_COUNT" ]; then
-            echo "::error::phpstan findings went from ${PHPSTAN_BASELINE_COUNT} to ${COUNT}. Fix the new ones, or lower PHPSTAN_BASELINE_COUNT in this workflow only once a real phpstan-baseline.neon exists to explain the difference."
+            echo "::error::phpstan findings went from ${PHPSTAN_BASELINE_COUNT} to ${COUNT}. Fix the new ones listed above. Never raise PHPSTAN_BASELINE_COUNT to make this pass."
             exit 1
           fi
 
