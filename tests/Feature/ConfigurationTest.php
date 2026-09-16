@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Providers\DoccumServiceProvider;
 use Illuminate\Support\Facades\Storage;
 
 it('ships product defaults in config', function () {
@@ -23,5 +24,5 @@ it('defines a documents disk backed by s3', function () {
 });
 
 it('registers the single registration point', function () {
-    expect(app()->getProviders(App\Providers\DoccumServiceProvider::class))->not->toBeEmpty();
+    expect(app()->getProviders(DoccumServiceProvider::class))->not->toBeEmpty();
 });

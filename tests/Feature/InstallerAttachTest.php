@@ -29,8 +29,24 @@ afterEach(function () {
     // transaction -- RefreshDatabaseState caches a raw handle to it for reuse
     // across tests, and that handle is left stuck mid-transaction forever
     // unless cleared here. See Global Constraints re: the test-isolation trap.
-    RefreshDatabaseState::$inMemoryConnections = [];
-    RefreshDatabaseState::$migrated = false;
+    //
+    // That trap only exists because the connection every test in this file
+    // asks saveDatabase() to attach ("sqlite") is, on this suite's own
+    // sqlite :memory: leg, the exact same connection name and the exact same
+    // underlying PDO handle RefreshDatabase already wrapped in a transaction
+    // before the test began. On a server-backed leg (pgsql, mysql) the
+    // suite's default connection is a different name entirely, so this
+    // purge/migrate never touches it -- there is no stuck PDO handle to
+    // clear. Resetting $migrated there anyway forces the NEXT test to
+    // `migrate:fresh` a real server connection it never needed to, and that
+    // DDL can queue up behind whatever lock the real connection's own
+    // (correctly-isolated) transaction is holding -- a hang, not a speed
+    // bump, which is exactly what issue #37 saw on pgsql and mysql.
+    if ($this->originalDefaultConnection === 'sqlite'
+        && ($this->originalSqliteConfig['database'] ?? null) === ':memory:') {
+        RefreshDatabaseState::$inMemoryConnections = [];
+        RefreshDatabaseState::$migrated = false;
+    }
 
     config()->set('database.default', $this->originalDefaultConnection);
     config()->set('database.connections.sqlite', $this->originalSqliteConfig);
@@ -93,12 +109,25 @@ function attachTargetDatabase(?string $keyCheckValue): string
 }
 
 it('treats a database with no users as a fresh install', function () {
-    Livewire::test(FirstRun::class)
-        ->set('db_connection', 'sqlite')
-        ->set('db_database', config('database.connections.sqlite.database'))
-        ->call('saveDatabase')
-        ->assertSet('attaching', false)
-        ->assertSet('step', 2);
+    // A real, empty sqlite file rather than
+    // config('database.connections.sqlite.database'). That config value is
+    // env('DB_DATABASE'), the very variable the CI matrix sets to a schema
+    // name on its postgres and mysql legs -- where it resolves to something
+    // that is not a path at all. The test means "a reachable, empty
+    // database", so it has to build one rather than borrow the suite's.
+    $path = sys_get_temp_dir().'/doccum-fresh-'.uniqid().'.sqlite';
+    touch($path);
+
+    try {
+        Livewire::test(FirstRun::class)
+            ->set('db_connection', 'sqlite')
+            ->set('db_database', $path)
+            ->call('saveDatabase')
+            ->assertSet('attaching', false)
+            ->assertSet('step', 2);
+    } finally {
+        @unlink($path);
+    }
 });
 
 it('detects a populated database and skips straight past setup', function () {

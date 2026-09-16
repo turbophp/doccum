@@ -2,16 +2,18 @@
 
 declare(strict_types=1);
 
+use App\Actions\Directories\MoveDirectory;
 use App\Enums\AccessLevel;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\User;
 use App\Services\DirectoryAccess;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
 beforeEach(function () {
-    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(RolesAndPermissionsSeeder::class);
     $this->root = Directory::factory()->create();
     $this->mid = Directory::factory()->for($this->root, 'parent')->create();
     $this->leaf = Directory::factory()->for($this->mid, 'parent')->create();
@@ -152,7 +154,7 @@ it('sees a directory moved out of a granted subtree', function () {
 
     expect($access->levelFor($this->user, $this->leaf))->toBe(AccessLevel::Edit);
 
-    app(App\Actions\Directories\MoveDirectory::class)->handle($this->leaf->fresh(), $this->elsewhere->fresh());
+    app(MoveDirectory::class)->handle($this->leaf->fresh(), $this->elsewhere->fresh());
 
     expect($access->levelFor($this->user, $this->leaf->fresh()))->toBeNull();
 });

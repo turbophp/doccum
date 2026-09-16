@@ -30,13 +30,22 @@ class LikeSearchIndex implements SearchIndex
             return new Collection;
         }
 
+        // Postgres is the only driver here whose LIKE is case-sensitive:
+        // SQLite's is not, and MySQL's default utf8mb4 collation is not
+        // either. Left as a plain LIKE, searching "quarterly" simply never
+        // found "Quarterly-Report.pdf" on Postgres -- no error, no warning,
+        // just nothing, which is the worst way for a search box to be wrong.
+        $operator = (new SearchDocument)->getConnection()->getDriverName() === 'pgsql'
+            ? 'ilike'
+            : 'like';
+
         $documents = SearchDocument::query()
             ->whereIn('directory_id', $viewableDirectoryIds)
-            ->where(function (Builder $outer) use ($words): void {
+            ->where(function (Builder $outer) use ($words, $operator): void {
                 foreach ($words as $word) {
-                    $outer->where(function (Builder $inner) use ($word): void {
-                        $inner->where('title', 'like', '%'.$word.'%')
-                            ->orWhere('body', 'like', '%'.$word.'%');
+                    $outer->where(function (Builder $inner) use ($word, $operator): void {
+                        $inner->where('title', $operator, '%'.$word.'%')
+                            ->orWhere('body', $operator, '%'.$word.'%');
                     });
                 }
             })

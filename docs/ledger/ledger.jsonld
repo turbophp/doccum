@@ -1,0 +1,1026 @@
+{
+  "@context": "context.jsonld",
+  "@id": "ledger",
+  "@type": "Ledger",
+  "version": "1",
+  "dateModified": "2026-09-16T17:30:00Z",
+  "latestRun": "run/0001",
+  "about": {
+    "@id": "https://github.com/turbophp/doccum",
+    "@type": "SoftwareApplication",
+    "name": "doccum",
+    "version": "0.1.0"
+  },
+  "items": [
+    {
+      "@id": "item/purge-service",
+      "@type": "Action",
+      "order": 1,
+      "name": "PeriodPurger behind three mutation-checked guards",
+      "url": "https://github.com/turbophp/doccum/issues/4",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "PeriodPurgerTest green; PR body records that each of the three guards was removed and its test failed; objects deleted only through DocumentStorage; rows deleted and purged_at stamped in one transaction; directory rows survive.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-16T17:00:01Z",
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/purge-commands",
+      "@type": "Action",
+      "order": 2,
+      "name": "Archive and purge console commands, scheduled",
+      "url": "https://github.com/turbophp/doccum/issues/5",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/purge-service"
+      ],
+      "doneWhen": "ArchiveCommandsTest green; schedule:list shows close-periods daily and purge-expired weekly; purge-period without --force changes no row and no object.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-16T17:00:01Z",
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/ci-green-baseline",
+      "@type": "Action",
+      "order": 3,
+      "name": "Get composer ci:check green on main",
+      "url": "https://github.com/turbophp/doccum/issues/6",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "pint --test reports no style issues and phpstan stays at or below its baseline; the tests workflow is green on main.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-16T17:00:01Z",
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/container-smoke-ci",
+      "@type": "Action",
+      "order": 4,
+      "name": "CI job that boots the image and drives it end to end",
+      "url": "https://github.com/turbophp/doccum/issues/7",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/ci-green-baseline"
+      ],
+      "doneWhen": "A workflow runs on PRs and main: build image, run from an empty volume, complete the installer over HTTP, upload a file, wait for extraction, find it by search, restart and confirm persistence.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/ci-db-matrix",
+      "@type": "Action",
+      "order": 5,
+      "name": "Run the suite against PostgreSQL and MySQL in CI",
+      "url": "https://github.com/turbophp/doccum/issues/8",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/ci-green-baseline"
+      ],
+      "doneWhen": "tests.yml matrix green on sqlite, pgsql and mysql; the FTS5 migration is a no-op off SQLite and the LikeSearchIndex path is covered.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/content-actions",
+      "@type": "Action",
+      "order": 6,
+      "name": "Rename, move and trash actions for directories and files",
+      "url": "https://github.com/turbophp/doccum/issues/9",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Each action has a test that a caller lacking edit or manage is refused; name collisions throw the existing Duplicate exceptions; a trashed directory's files vanish from the browser and from search at query level; restore reverses it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/legal-hold",
+      "@type": "Action",
+      "order": 7,
+      "name": "Set and clear a file's legal hold",
+      "url": "https://github.com/turbophp/doccum/issues/10",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Policy test gated on periods.manage plus view; PeriodPurger::plan() names the held file as a blocker.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/trash-purge-manual",
+      "@type": "Action",
+      "order": 8,
+      "name": "Permanently delete one trashed item",
+      "url": "https://github.com/turbophp/doccum/issues/11",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/content-actions"
+      ],
+      "doneWhen": "Requires files.delete and manage; objects removed through DocumentStorage; refusal tests for legal hold and for an archived period.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/topbar-shell",
+      "@type": "Action",
+      "order": 9,
+      "name": "Replace the starter sidebar with the doccum topbar shell",
+      "url": "https://github.com/turbophp/doccum/issues/12",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/ci-green-baseline"
+      ],
+      "doneWhen": "Layout test asserts the nav items and that Settings is absent for a plain member; login lands on the file browser; the version pill shows config('doccum.version').",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/files-three-pane",
+      "@type": "Action",
+      "order": 10,
+      "name": "Three-pane file browser: tree, list, detail panel",
+      "url": "https://github.com/turbophp/doccum/issues/13",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "L",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/content-actions",
+        "item/legal-hold",
+        "item/topbar-shell"
+      ],
+      "doneWhen": "FileBrowserTest keeps its unreachable-directory guarantees and adds column sort, panel-on-select, version list, replace-adds-a-version and bulk trash of exactly the selected files.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/directory-access-ui",
+      "@type": "Action",
+      "order": 11,
+      "name": "Grant and revoke directory access from the UI",
+      "url": "https://github.com/turbophp/doccum/issues/14",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/files-three-pane"
+      ],
+      "doneWhen": "A non-manager sees no control and is refused server-side; a grant is visible to the grantee in the same request cycle; revoke is covered; writes go through the DirectoryGrant model, never a mass query.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/trash-view",
+      "@type": "Action",
+      "order": 12,
+      "name": "A Trash page with restore and purge",
+      "url": "https://github.com/turbophp/doccum/issues/15",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/content-actions",
+        "item/topbar-shell",
+        "item/trash-purge-manual"
+      ],
+      "doneWhen": "Another user's trashed items never appear, asserted at query level; restore and purge are wired to the actions.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/home-dashboard",
+      "@type": "Action",
+      "order": 13,
+      "name": "Home dashboard: recents, storage by period, quick search",
+      "url": "https://github.com/turbophp/doccum/issues/16",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/topbar-shell"
+      ],
+      "doneWhen": "Recents are filtered by DirectoryAccess so another user's file is absent; the page renders with zero data.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/search-filters",
+      "@type": "Action",
+      "order": 14,
+      "name": "Type, mime, period and property filters on search",
+      "url": "https://github.com/turbophp/doccum/issues/17",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/ci-green-baseline"
+      ],
+      "doneWhen": "Each filter is applied inside the query with the permission filter still active; the property filter uses the typed value columns.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/admin-users",
+      "@type": "Action",
+      "order": 15,
+      "name": "Settings: users",
+      "url": "https://github.com/turbophp/doccum/issues/18",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/topbar-shell"
+      ],
+      "doneWhen": "A user created through the UI has a home directory and a manage grant; without users.manage the page is 403; the last admin cannot lose users.manage.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/admin-roles",
+      "@type": "Action",
+      "order": 16,
+      "name": "Settings: roles and their permission matrix",
+      "url": "https://github.com/turbophp/doccum/issues/19",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/admin-users"
+      ],
+      "doneWhen": "Toggling a permission changes what the Policy allows in the same request; the admin role cannot lose users.manage.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/admin-periods",
+      "@type": "Action",
+      "order": 17,
+      "name": "Settings: periods, closing, purge plan and purge",
+      "url": "https://github.com/turbophp/doccum/issues/20",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/purge-commands",
+        "item/topbar-shell"
+      ],
+      "doneWhen": "The purge control is disabled while plan()->purgeable is false and lists the blockers; confirmation requires the exact period label; without periods.manage the page is 403.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/admin-instance-settings",
+      "@type": "Action",
+      "order": 18,
+      "name": "Settings: instance name, signup, retention, limits",
+      "url": "https://github.com/turbophp/doccum/issues/21",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/topbar-shell"
+      ],
+      "doneWhen": "All writes go through the Settings service; toggling auth.public_signup flips /register between 200 and 404.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/api-sanctum-tokens",
+      "@type": "Action",
+      "order": 19,
+      "name": "Sanctum tokens managed from My Account",
+      "url": "https://github.com/turbophp/doccum/issues/22",
+      "isBasedOn": [
+        "spec:11-api"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/topbar-shell"
+      ],
+      "doneWhen": "Token page test; abilities outside the eight are rejected; the plaintext token never appears in a later render.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/api-content",
+      "@type": "Action",
+      "order": 20,
+      "name": "The /api/v1 content surface",
+      "url": "https://github.com/turbophp/doccum/issues/23",
+      "isBasedOn": [
+        "spec:11-api"
+      ],
+      "size": "L",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/api-sanctum-tokens",
+        "item/content-actions",
+        "item/search-filters"
+      ],
+      "doneWhen": "Per-endpoint three-gate matrix: a missing ability is 403 despite the permission, a denied ACL is 404 or 403, and revoking the owner's role narrows an existing token on the next request; a test asserts no /api route touches users, roles, definition writes or periods.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/api-presigned-upload",
+      "@type": "Action",
+      "order": 21,
+      "name": "Presigned upload, commit and the staging sweep",
+      "url": "https://github.com/turbophp/doccum/issues/24",
+      "isBasedOn": [
+        "spec:11-api"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/api-content"
+      ],
+      "doneWhen": "End-to-end url then commit; a size or checksum mismatch is rejected and the staging object removed; an archived period is rejected at upload-url; the sweep removes only stale staging objects.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/openapi-reference",
+      "@type": "Action",
+      "order": 22,
+      "name": "A generated, committed OpenAPI document",
+      "url": "https://github.com/turbophp/doccum/issues/25",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/api-presigned-upload"
+      ],
+      "doneWhen": "Adding an unlisted route fails the contract test, mutation-checked; openapi.json is committed.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/self-hosting-docs",
+      "@type": "Action",
+      "order": 23,
+      "name": "The self-hosting documentation set",
+      "url": "https://github.com/turbophp/doccum/issues/26",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/admin-periods",
+        "item/api-presigned-upload"
+      ],
+      "doneWhen": "A test greps every env() key read under app/, config/ and docker/ and asserts each appears in the configuration reference; every listed page exists and is non-trivial.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/docs-site",
+      "@type": "Action",
+      "order": 24,
+      "name": "Publish the docs to GitHub Pages",
+      "url": "https://github.com/turbophp/doccum/issues/27",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/self-hosting-docs"
+      ],
+      "doneWhen": "The Pages workflow is green and the README links to the published site.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/compose-secret",
+      "@type": "Action",
+      "order": 25,
+      "name": "Remove the known-value secret from compose.yaml",
+      "url": "https://github.com/turbophp/doccum/issues/28",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "compose.yaml contains no occurrence of doccum-secret; the storage profile fails without MINIO_ROOT_PASSWORD; the default stack still boots under the smoke job.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/version-from-tag",
+      "@type": "Action",
+      "order": 26,
+      "name": "The version pill reports the released tag",
+      "url": "https://github.com/turbophp/doccum/issues/29",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "An image built from tag vX.Y.Z reports vX.Y.Z; the development default stays 0.1.0-dev.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/image-size",
+      "@type": "Action",
+      "order": 27,
+      "name": "Measure and reduce the image",
+      "url": "https://github.com/turbophp/doccum/issues/30",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "The release job prints compressed and uncompressed size, the README states them, and the image is at or below its stated budget or a Decision records why not.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/changelog-release-notes",
+      "@type": "Action",
+      "order": 28,
+      "name": "A changelog that becomes the release notes",
+      "url": "https://github.com/turbophp/doccum/issues/31",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Pushing a tag produces a GitHub Release whose body is that version's changelog section.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/release-v0-1-0",
+      "@type": "Action",
+      "order": 29,
+      "name": "Tag v0.1.0 to prove the release pipeline",
+      "url": "https://github.com/turbophp/doccum/issues/32",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/changelog-release-notes",
+        "item/compose-secret",
+        "item/version-from-tag"
+      ],
+      "doneWhen": "docker pull of the 0.1.0 image works on amd64 and arm64 and boots to the installer.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/readme-owner",
+      "@type": "Action",
+      "order": 30,
+      "name": "A README that describes the shipped product",
+      "url": "https://github.com/turbophp/doccum/issues/33",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/docs-site",
+        "item/image-size",
+        "item/release-v0-1-0"
+      ],
+      "doneWhen": "README contains no OWNER placeholder and its quick start uses the published image.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/v1-audit",
+      "@type": "Action",
+      "order": 31,
+      "name": "Audit the whole surface against the spec",
+      "url": "https://github.com/turbophp/doccum/issues/34",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/admin-instance-settings",
+        "item/admin-periods",
+        "item/admin-roles",
+        "item/ci-db-matrix",
+        "item/container-smoke-ci",
+        "item/directory-access-ui",
+        "item/home-dashboard",
+        "item/image-size",
+        "item/openapi-reference",
+        "item/purge-commands",
+        "item/readme-owner",
+        "item/trash-view"
+      ],
+      "doneWhen": "A checklist in the PR body walks spec milestones 1 to 11 and this backlog; pint clean, phpstan at or below baseline, smoke green; a manual run of the published image through install, upload, share, search, trash and a purge dry run is recorded.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/tag-v1-0-0",
+      "@type": "Action",
+      "order": 32,
+      "name": "Tag and publish 1.0.0",
+      "url": "https://github.com/turbophp/doccum/issues/35",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/v1-audit"
+      ],
+      "doneWhen": "docker run of the 1.0.0 image boots to the installer on amd64 and arm64; the GitHub Release exists; the ledger's about.version reads 1.0.0.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/vector-index-seam",
+      "@type": "Action",
+      "order": 101,
+      "name": "A vector index seam alongside the keyword index",
+      "isBasedOn": [
+        "spec:8a-semantic-search"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/embedding-provider",
+      "@type": "Action",
+      "order": 102,
+      "name": "An embedding provider seam with an embedded default",
+      "isBasedOn": [
+        "spec:8a-semantic-search"
+      ],
+      "size": "L",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/vector-index-seam"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/embedding-sweep",
+      "@type": "Action",
+      "order": 103,
+      "name": "Backfill embeddings for existing documents",
+      "isBasedOn": [
+        "spec:8a-semantic-search"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/embedding-provider"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/hybrid-ranking",
+      "@type": "Action",
+      "order": 104,
+      "name": "Blend keyword and vector ranking",
+      "isBasedOn": [
+        "spec:8a-semantic-search"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/embedding-sweep"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/ocr-provider-seam",
+      "@type": "Action",
+      "order": 105,
+      "name": "An OCR provider seam beyond Tesseract",
+      "isBasedOn": [
+        "spec:7a-ocr-providers"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/llama-runtime-bundle",
+      "@type": "Action",
+      "order": 106,
+      "name": "Bundle a llama.cpp runtime in the image",
+      "isBasedOn": [
+        "spec:7a-ocr-providers"
+      ],
+      "size": "L",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/ocr-provider-seam"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/hardware-profile-picker",
+      "@type": "Action",
+      "order": 107,
+      "name": "Pick a model by the container's hardware budget",
+      "isBasedOn": [
+        "spec:7a-ocr-providers"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/llama-runtime-bundle"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/remote-ocr-providers",
+      "@type": "Action",
+      "order": 108,
+      "name": "Azure DI, Textract and Document AI as OCR providers",
+      "isBasedOn": [
+        "spec:7a-ocr-providers"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/ocr-provider-seam"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/tsvector-index",
+      "@type": "Action",
+      "order": 109,
+      "name": "A ranked tsvector index for PostgreSQL",
+      "isBasedOn": [
+        "spec:8-search"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/external-search-engine",
+      "@type": "Action",
+      "order": 110,
+      "name": "Typesense or Meilisearch as a search provider",
+      "isBasedOn": [
+        "spec:8-search"
+      ],
+      "size": "L",
+      "release": "post-v1",
+      "dependsOn": [],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/directory-legal-hold",
+      "@type": "Action",
+      "order": 111,
+      "name": "Legal hold on a directory subtree",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/legal-hold"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/trash-retention-schedule",
+      "@type": "Action",
+      "order": 112,
+      "name": "Scheduled expiry of trashed items",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "size": "S",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/trash-purge-manual"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/sidebar-width-per-user",
+      "@type": "Action",
+      "order": 113,
+      "name": "Remember each viewer's sidebar width",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/files-three-pane"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/alpine-image",
+      "@type": "Action",
+      "order": 114,
+      "name": "An Alpine-based image",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "L",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/image-size"
+      ],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/doc-xls-libreoffice",
+      "@type": "Action",
+      "order": 115,
+      "name": "Legacy .doc and .xls extraction via LibreOffice",
+      "isBasedOn": [
+        "spec:7-text-extraction"
+      ],
+      "size": "S",
+      "release": "post-v1",
+      "dependsOn": [],
+      "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    }
+  ],
+  "pullRequests": [
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/2",
+      "@type": "PullRequest",
+      "identifier": 2,
+      "name": "feat: purging, a CI matrix that can prove it, and the v1 ledger",
+      "implements": [
+        "item/ci-green-baseline",
+        "item/purge-commands",
+        "item/purge-service"
+      ],
+      "run": "run/0001",
+      "state": "open",
+      "dateCreated": "2026-09-16T17:02:30Z",
+      "headSha": "7a4b0bb869605230004c6828ec7842f13cfc7640",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    }
+  ],
+  "decisions": [
+    {
+      "@id": "decision/0001",
+      "@type": "Decision",
+      "dateCreated": "2026-09-16T17:00:00Z",
+      "run": "run/0000",
+      "name": "Semantic search is post-v1",
+      "rationale": "The spec itself ships keyword search first and describes semantic search as additive. It needs a bundled llama.cpp runtime, sqlite-vec, a PDO connector override and a scheduler authority -- a large item on top of a large item, with nobody asking for it yet. The schema already carries the columns it would need, so deferring costs no rework.",
+      "isBasedOn": [
+        "spec:8a-semantic-search"
+      ],
+      "affects": [
+        "item/embedding-provider",
+        "item/embedding-sweep",
+        "item/hybrid-ranking",
+        "item/vector-index-seam"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0002",
+      "@type": "Decision",
+      "dateCreated": "2026-09-16T17:00:00Z",
+      "run": "run/0000",
+      "name": "Vision-model OCR is post-v1",
+      "rationale": "Optional by design, and it drags in one to two gigabytes of model weights and a hardware-aware picker. Tesseract is the stated default and it works. This lands after the llama.cpp runtime exists for embeddings, so the runtime is paid for once.",
+      "isBasedOn": [
+        "spec:7a-ocr-providers"
+      ],
+      "affects": [
+        "item/hardware-profile-picker",
+        "item/llama-runtime-bundle",
+        "item/ocr-provider-seam",
+        "item/remote-ocr-providers"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0003",
+      "@type": "Decision",
+      "dateCreated": "2026-09-16T17:00:00Z",
+      "run": "run/0000",
+      "name": "PostgreSQL ships with unranked search in v1",
+      "rationale": "FTS5 gives SQLite ranked BM25 results; other drivers fall back to a correct-but-unranked LIKE. A ranked tsvector index is a second search implementation to maintain and test, and SQLite is the default everyone runs. v1 documents the limitation instead of hiding it.",
+      "isBasedOn": [
+        "spec:8-search"
+      ],
+      "affects": [
+        "item/tsvector-index"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0004",
+      "@type": "Decision",
+      "dateCreated": "2026-09-16T17:00:00Z",
+      "run": "run/0000",
+      "name": "Legal hold is file-level only in v1",
+      "rationale": "Only files carry the column, and a single held file already blocks its whole period from purging -- which is the guard that matters. A subtree-wide hold is a second inheritance model to reason about for no additional protection.",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "affects": [
+        "item/directory-legal-hold"
+      ],
+      "supersedes": null
+    }
+  ]
+}

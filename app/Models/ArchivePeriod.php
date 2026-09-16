@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Database\Factories\ArchivePeriodFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,6 +13,20 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * One year, or one year-month, and where it sits in the archive lifecycle:
  * open -> archived (read-only) -> purged. See spec §9.
+ *
+ * The timestamps are annotated because casts() is invisible to static
+ * analysis: without these, archived_at reads as the string the column holds
+ * and every date comparison against it looks like a call on a string.
+ * CarbonImmutable rather than Carbon -- AppServiceProvider calls
+ * Date::use(CarbonImmutable::class), so that is what a cast actually returns.
+ *
+ * @property int $year
+ * @property int|null $month
+ * @property CarbonImmutable|null $archived_at
+ * @property CarbonImmutable|null $purged_at
+ * @property int $file_count
+ * @property int $byte_count
+ * @property string|null $notes
  */
 #[Fillable(['year', 'month', 'archived_at', 'purged_at', 'file_count', 'byte_count', 'notes'])]
 class ArchivePeriod extends Model

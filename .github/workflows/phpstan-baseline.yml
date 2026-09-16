@@ -1,0 +1,75 @@
+name: phpstan baseline
+
+# Regenerates phpstan-baseline.neon and pushes it to the branch it was run
+# from. Deliberately manual: a baseline that regenerated itself on every push
+# would absorb each new finding the moment it appeared, which is the exact
+# failure a baseline exists to prevent.
+#
+# It exists because the agent loop developing this project cannot run phpstan
+# locally -- Composer fetches dist archives from api.github.com, which caps
+# unauthenticated callers at 60 requests an hour against 164 packages.
+#
+# Run it only from a branch where the new code is already clean, and read the
+# resulting file before merging: every entry in it is a finding somebody has
+# decided to live with.
+#
+# Two ways in. workflow_dispatch works once this file is on the default
+# branch; before that it does not exist as far as the API is concerned, which
+# is why pushing to a branch named baseline/* also triggers it. That name is
+# the opt-in: no ordinary branch regenerates a baseline by accident, and
+# nobody has to remember a flag.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'baseline/**'
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    timeout-minutes: 15
+    name: generate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Generate the baseline
+        run: composer types:check -- --generate-baseline phpstan-baseline.neon --allow-empty-baseline
+
+      - name: Report what was baselined
+        run: |
+          echo "### phpstan baseline" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -c 'message:' phpstan-baseline.neon >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat phpstan-baseline.neon
+
+      - name: Commit the baseline
+        run: |
+          if git diff --quiet -- phpstan-baseline.neon && [ -z "$(git status --porcelain phpstan-baseline.neon)" ]; then
+            echo "Baseline unchanged; nothing to push."
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add phpstan-baseline.neon
+          git commit -m 'chore: regenerate the phpstan baseline'
+          git push

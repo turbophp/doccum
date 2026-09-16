@@ -1,0 +1,85 @@
+name: security
+
+on:
+  pull_request:
+  schedule:
+    # Anchored to an arbitrary off-peak time -- there is no dependency on the
+    # minute, just a want for "roughly once a week, not at the top of the
+    # hour with everyone else".
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  composer-audit:
+    timeout-minutes: 15
+    name: composer audit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # Blocking on a PR (a new advisory landed with the very dependency bump
+      # under review, catch it before merge); advisory-only noise on the
+      # weekly run should not need a human to click "re-run" every Monday, so
+      # it is reported but never fails the schedule.
+      - name: composer audit (PR, blocking)
+        if: github.event_name == 'pull_request'
+        run: composer audit
+
+      - name: composer audit (scheduled, non-blocking)
+        if: github.event_name != 'pull_request'
+        run: composer audit || echo "::warning::composer audit reported advisories -- see the step output above"
+
+  dependency-review:
+    timeout-minutes: 15
+    name: dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # PR-only by construction (dependency-review-action diffs a base ref
+      # against a head ref); there is no equivalent "since last week" run to
+      # do on a schedule, hence composer audit covers that leg alone above.
+      #
+      # Non-blocking for now, and deliberately not removed: the action needs
+      # GitHub's Dependency graph switched on for the repository, which is a
+      # settings toggle no workflow can flip
+      # (Settings -> Code security -> Dependency graph). Until someone turns
+      # it on the action errors out on every PR with "Dependency review is
+      # not supported on this repository", which would block every merge on
+      # something no diff can fix. Left in place so it starts reporting for
+      # real the moment the setting lands; `composer audit` above stays
+      # blocking meanwhile and covers the PHP advisories that matter most
+      # here. Drop continue-on-error once the graph is enabled.
+      - name: Dependency review
+        continue-on-error: true
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          fail-on-severity: high

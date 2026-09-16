@@ -19,6 +19,22 @@ interface SearchIndex
 {
     public function put(SearchDocument $document): void;
 
+    /**
+     * Drops whatever auxiliary structure this implementation keeps for the
+     * document. That is NOT, on its own, a promise that the document stops
+     * being findable: where the projection row IS the index -- the LIKE
+     * fallback -- there is nothing separate to drop, and the row's own
+     * deletion is what removes it.
+     *
+     * "No longer searchable" is what Services\SearchIndexer::forget() does:
+     * it calls this and then deletes the row, in that order. Callers want
+     * that one; this is the half of it an implementation owns.
+     *
+     * Named in prose rather than with {@see}, deliberately. A {@see} tag with
+     * a fully-qualified name gets rewritten into a use statement by pint's
+     * fully_qualified_strict_types rule, and this seam importing the service
+     * that consumes it points the dependency the wrong way round.
+     */
     public function forget(SearchDocument $document): void;
 
     /**

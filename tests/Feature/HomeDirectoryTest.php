@@ -8,6 +8,7 @@ use App\Models\Directory;
 use App\Models\User;
 use App\Services\DirectoryAccess;
 use App\Services\Settings;
+use Database\Seeders\RolesAndPermissionsSeeder;
 
 beforeEach(fn () => app(Settings::class)->set('auth.public_signup', true));
 
@@ -56,7 +57,7 @@ it('does nothing when auto home is disabled', function () {
 });
 
 it('creates a home when a user registers', function () {
-    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(RolesAndPermissionsSeeder::class);
 
     // An instance with no users at all redirects every route to the
     // first-run setup screen; the self-service register page only makes

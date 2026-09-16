@@ -6,11 +6,12 @@ namespace Database\Factories;
 
 use App\Enums\AccessLevel;
 use App\Models\Directory;
+use App\Models\DirectoryGrant;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<\App\Models\DirectoryGrant>
+ * @extends Factory<DirectoryGrant>
  */
 class DirectoryGrantFactory extends Factory
 {

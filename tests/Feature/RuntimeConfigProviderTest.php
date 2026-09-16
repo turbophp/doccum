@@ -3,15 +3,25 @@
 declare(strict_types=1);
 
 use App\Providers\RuntimeConfigServiceProvider;
+use App\Services\Settings;
 use App\Support\RuntimeConfig;
+use Illuminate\Database\QueryException;
 
 beforeEach(function () {
+    $this->originalDefaultConnection = config('database.default');
     $this->file = sys_get_temp_dir().'/doccum-runtime-'.uniqid().'.json';
     config()->set('doccum.runtime_config_path', $this->file);
 });
 
 afterEach(function () {
-    config()->set('database.default', 'sqlite');
+    // Restored to whatever the suite was actually running on, not pinned to
+    // sqlite. These tests repoint database.default on purpose, and
+    // RefreshDatabase resolves that key lazily at rollback time (see
+    // CLAUDE.md), so hardcoding it sends the rollback at the wrong
+    // connection: on a postgres or mysql run the real transaction is never
+    // closed, and the next test waits on the row locks it still holds until
+    // the server gives up on it.
+    config()->set('database.default', $this->originalDefaultConnection);
     @unlink($this->file);
 });
 
@@ -44,9 +54,9 @@ it('overrides the database connection', function () {
 });
 
 it('overrides the documents disk from settings', function () {
-    app(App\Services\Settings::class)->set('storage.endpoint', 'https://s3.example.com');
-    app(App\Services\Settings::class)->set('storage.bucket', 'papers');
-    app(App\Services\Settings::class)->set('storage.region', 'eu-west-1');
+    app(Settings::class)->set('storage.endpoint', 'https://s3.example.com');
+    app(Settings::class)->set('storage.bucket', 'papers');
+    app(Settings::class)->set('storage.region', 'eu-west-1');
 
     (new RuntimeConfigServiceProvider(app()))->boot();
 
@@ -57,7 +67,7 @@ it('overrides the documents disk from settings', function () {
 
 it('beats an environment value', function () {
     config()->set('filesystems.disks.documents.bucket', 'from-env');
-    app(App\Services\Settings::class)->set('storage.bucket', 'from-installer');
+    app(Settings::class)->set('storage.bucket', 'from-installer');
 
     (new RuntimeConfigServiceProvider(app()))->boot();
 
@@ -95,5 +105,5 @@ it('boots without a reachable database', function () {
     config()->set('database.default', 'broken');
 
     expect(fn () => (new RuntimeConfigServiceProvider(app()))->boot())
-        ->not->toThrow(Illuminate\Database\QueryException::class);
+        ->not->toThrow(QueryException::class);
 });

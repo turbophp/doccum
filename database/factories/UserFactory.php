@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Actions\Users\CreateHomeDirectory;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -68,7 +69,7 @@ class UserFactory extends Factory
     public function withHome(): static
     {
         return $this->afterCreating(function (User $user): void {
-            app(\App\Actions\Users\CreateHomeDirectory::class)->handle($user);
+            app(CreateHomeDirectory::class)->handle($user);
         });
     }
 }

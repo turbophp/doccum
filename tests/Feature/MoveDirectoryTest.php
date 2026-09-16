@@ -35,7 +35,7 @@ it('promotes a directory to the root', function () {
     expect($this->child->fresh()->path)->toBe("/{$this->child->id}/")
         ->and($this->child->fresh()->depth)->toBe(0)
         ->and($this->grandchild->fresh()->path)
-            ->toBe("/{$this->child->id}/{$this->grandchild->id}/")
+        ->toBe("/{$this->child->id}/{$this->grandchild->id}/")
         ->and($this->grandchild->fresh()->depth)->toBe(1);
 });
 

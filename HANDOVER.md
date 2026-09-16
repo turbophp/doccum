@@ -28,12 +28,12 @@ no database to create, no bucket to provision, no default password.
 | Extraction | PDF text layer, OCR fallback, Office XML, plain text — on the ingest queue |
 | Search | FTS5 with BM25, permission-filtered inside the query |
 | Periods | Closing rolls up counts and bytes; archived periods reject writes |
+| Purging | Irreversible, guarded three ways, dry-run by default, off on a schedule unless enabled |
 
 ## What is not built
 
 | Remaining | Plan |
 |---|---|
-| Purging (the irreversible half) | `docs/superpowers/plans/2026-09-16-archive-purge.md` tasks 3–4 |
 | Three-pane shell, admin surface | not yet planned |
 | REST API with Sanctum | spec §11 |
 | Documentation site | spec §12 |
@@ -44,11 +44,16 @@ Everything above is specified in `docs/superpowers/specs/2026-09-15-doccum-desig
 Plans live in `docs/superpowers/plans/`. Each is task-by-task with literal code
 and is meant to be executed by an agent; read `CLAUDE.md` first.
 
-**Stopped deliberately before purging.** Tasks 1–2 of the archive plan are
-merged; tasks 3–4 delete documents and their objects permanently. The plan
-specifies three guards — not archived, inside the retention window, under legal
-hold — and requires each to be verified by deleting it and watching a test fail.
-Do not shortcut that.
+**Purging is built.** All four tasks of the archive plan are done.
+`PeriodPurger::plan()` answers "what would this destroy" without writing;
+`purge()` refuses unless the period is archived, has aged past
+`doccum.retention.purge_after_years`, and holds nothing under legal hold — and
+a refusal names every blocker, not just the first. `doccum:purge-period` is a
+dry run without `--force`; `doccum:purge-expired` reports and deletes nothing
+unless `doccum.retention.auto_purge` is switched on.
+
+Development now runs as an hourly autonomous loop to a tagged `v1.0.0`. The
+protocol is `docs/LOOP.md`; the state of the road is `docs/ledger/ledger.jsonld`.
 
 ---
 

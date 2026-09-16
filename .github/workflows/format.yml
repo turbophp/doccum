@@ -1,0 +1,68 @@
+name: format
+
+# Pint is the formatter of record, but it only exists inside `vendor/`, and
+# the agent loop that develops this project cannot always install
+# dependencies (GitHub's unauthenticated API rate limit is 60 requests an
+# hour and this project has 164 packages). So formatting is done here, where
+# `composer install` always works, and pushed back to the branch.
+#
+# Pushes made with GITHUB_TOKEN do not trigger further workflow runs, which
+# is what stops this from re-triggering itself forever.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'claude/**'
+      - 'ledger/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pint:
+    timeout-minutes: 15
+    name: pint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache composer dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: vendor
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run Pint
+        run: composer lint
+
+      - name: Commit any reformatting
+        run: |
+          if git diff --quiet; then
+            echo "Already formatted; nothing to push."
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'style: apply pint'
+          git push

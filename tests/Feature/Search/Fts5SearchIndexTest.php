@@ -77,11 +77,30 @@ it('scopes to a period when asked', function () {
         ->and(app(SearchIndex::class)->search('tenant', $this->visible, ['period_year' => 2026]))->toBeEmpty();
 });
 
+it('matches regardless of case, on every driver', function () {
+    // Stated outright rather than left to whichever tests happen to use
+    // mixed case. FTS5 folds case for free; the LIKE fallback does not, and
+    // Postgres LIKE is case-sensitive where SQLite's and MySQL's are not --
+    // so this passed on two of the three drivers while search returned
+    // nothing at all on the third.
+    indexFile('Quarterly-Report.pdf', 'Annual TENANT summary');
+
+    expect(app(SearchIndex::class)->search('quarterly', $this->visible))->toHaveCount(1)
+        ->and(app(SearchIndex::class)->search('QUARTERLY', $this->visible))->toHaveCount(1)
+        ->and(app(SearchIndex::class)->search('tenant', $this->visible))->toHaveCount(1)
+        ->and(app(SearchIndex::class)->search('Tenant', $this->visible))->toHaveCount(1);
+});
+
 it('forgets a removed document', function () {
     $file = indexFile('Lease.pdf', 'tenant');
-    app(SearchIndex::class)->forget(
-        SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->firstOrFail()
-    );
+
+    // Through SearchIndexer, not SearchIndex::forget() directly. Dropping the
+    // FTS5 row alone is enough to make a document unfindable on SQLite, and
+    // that is an implementation detail of FTS5: the LIKE fallback searches
+    // the projection row itself, so nothing disappears until the row does.
+    // Asserting the former was asserting SQLite's internals; what callers
+    // are owed is "no longer searchable", and SearchIndexer is what owes it.
+    app(SearchIndexer::class)->forget($file);
 
     expect(app(SearchIndex::class)->search('tenant', $this->visible))->toBeEmpty();
 });

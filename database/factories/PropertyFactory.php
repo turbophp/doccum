@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Models\File;
 use App\Models\Property;
 use App\Models\PropertyDefinition;
-use App\Models\File;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**

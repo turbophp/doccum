@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Services\Settings;
+use Database\Seeders\RolesAndPermissionsSeeder;
 
 beforeEach(function () {
-    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(RolesAndPermissionsSeeder::class);
 
     // An instance with no users at all redirects every route to the
     // first-run setup screen; the public signup toggle only matters once an
@@ -24,7 +25,7 @@ it('refuses a registration post by default', function () {
         'password' => 'password', 'password_confirmation' => 'password',
     ])->assertNotFound();
 
-    expect(App\Models\User::where('email', 'ada@example.com')->exists())->toBeFalse();
+    expect(User::where('email', 'ada@example.com')->exists())->toBeFalse();
 });
 
 it('serves the register page when the operator enables signup', function () {
@@ -41,7 +42,7 @@ it('accepts a registration when signup is enabled', function () {
         'password' => 'password', 'password_confirmation' => 'password',
     ])->assertSessionHasNoErrors();
 
-    expect(App\Models\User::where('email', 'ada@example.com')->exists())->toBeTrue();
+    expect(User::where('email', 'ada@example.com')->exists())->toBeTrue();
 });
 
 it('leaves login reachable regardless', function () {

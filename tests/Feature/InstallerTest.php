@@ -13,6 +13,7 @@ use Livewire\Livewire;
 
 beforeEach(function () {
     $this->originalDefaultConnection = config('database.default');
+    $this->originalSqliteConfig = config('database.connections.sqlite');
     $this->file = sys_get_temp_dir().'/doccum-runtime-'.uniqid().'.json';
     config()->set('doccum.runtime_config_path', $this->file);
     $this->seed(RolesAndPermissionsSeeder::class);
@@ -30,10 +31,26 @@ afterEach(function () {
     // Clearing it forces the next test to resolve (and migrate) a clean
     // connection instead of restoring the poisoned one. See Global
     // Constraints re: the test-isolation trap.
-    RefreshDatabaseState::$inMemoryConnections = [];
-    RefreshDatabaseState::$migrated = false;
+    //
+    // That trap is specific to sqlite :memory: being both the connection
+    // saveDatabase() is asked to attach ("sqlite", set below) and the
+    // connection RefreshDatabase already wrapped in a transaction before the
+    // test started -- on this suite's sqlite leg those are the same PDO
+    // handle. On a server-backed leg (pgsql, mysql) the suite's default
+    // connection is a different one entirely; saveDatabase()'s purge/migrate
+    // never touches it, so there is no stuck handle to clear, and forcing
+    // $migrated back to false anyway only buys the NEXT test an unwanted
+    // `migrate:fresh` against the real server -- DDL that can queue up
+    // behind a lock the (correctly-isolated) next transaction is holding and
+    // hang rather than fail, which is what issue #37 saw on pgsql and mysql.
+    if ($this->originalDefaultConnection === 'sqlite'
+        && ($this->originalSqliteConfig['database'] ?? null) === ':memory:') {
+        RefreshDatabaseState::$inMemoryConnections = [];
+        RefreshDatabaseState::$migrated = false;
+    }
 
     config()->set('database.default', $this->originalDefaultConnection);
+    config()->set('database.connections.sqlite', $this->originalSqliteConfig);
 });
 
 it('starts advanced configuration on the database step', function () {
@@ -61,13 +78,26 @@ it('refuses to advance past a database it cannot reach', function () {
 });
 
 it('advances to storage when the database works', function () {
-    Livewire::test(FirstRun::class)
-        ->call('enterAdvanced')
-        ->set('db_connection', 'sqlite')
-        ->set('db_database', config('database.connections.sqlite.database'))
-        ->call('saveDatabase')
-        ->assertHasNoErrors()
-        ->assertSet('step', 2);
+    // A real, empty sqlite file rather than
+    // config('database.connections.sqlite.database'). That config value is
+    // env('DB_DATABASE'), the very variable the CI matrix sets to a schema
+    // name on its postgres and mysql legs -- where it resolves to something
+    // that is not a path at all. The test means "a reachable, empty
+    // database", so it has to build one rather than borrow the suite's.
+    $path = sys_get_temp_dir().'/doccum-fresh-'.uniqid().'.sqlite';
+    touch($path);
+
+    try {
+        Livewire::test(FirstRun::class)
+            ->call('enterAdvanced')
+            ->set('db_connection', 'sqlite')
+            ->set('db_database', $path)
+            ->call('saveDatabase')
+            ->assertHasNoErrors()
+            ->assertSet('step', 2);
+    } finally {
+        @unlink($path);
+    }
 });
 
 it('lets the operator keep the default storage', function () {
@@ -211,8 +241,8 @@ it('completes a default install without touching database or storage config', fu
         ->assertHasNoErrors()
         ->assertRedirect('/');
 
-    expect(App\Models\User::firstOrFail()->hasRole('admin'))->toBeTrue()
-        ->and(App\Support\RuntimeConfig::exists())->toBeFalse();
+    expect(User::firstOrFail()->hasRole('admin'))->toBeTrue()
+        ->and(RuntimeConfig::exists())->toBeFalse();
 });
 
 it('offers a way back to the embedded defaults from every advanced step', function () {

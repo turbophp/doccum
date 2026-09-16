@@ -1,6 +1,11 @@
 includes:
     - vendor/larastan/larastan/extension.neon
     - vendor/nesbot/carbon/extension.neon
+    # Findings that predate the current work, enumerated rather than counted:
+    # a count cannot tell a new finding from an old one, it only notices the
+    # total moved. Regenerate with .github/workflows/phpstan-baseline.yml, and
+    # only from a branch whose own code is already clean.
+    - phpstan-baseline.neon
 
 parameters:
     paths:

@@ -16,7 +16,7 @@ class MoveDirectory
     public function handle(Directory $directory, ?Directory $newParent): Directory
     {
         if ($newParent !== null && ($newParent->is($directory) || $newParent->isDescendantOf($directory))) {
-            throw new CannotMoveDirectoryIntoItself();
+            throw new CannotMoveDirectoryIntoItself;
         }
 
         $oldPath = $directory->path;
