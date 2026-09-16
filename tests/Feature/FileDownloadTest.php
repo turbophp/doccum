@@ -8,6 +8,7 @@ use App\Models\DirectoryGrant;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -16,7 +17,7 @@ beforeEach(function () {
         fn (string $path, DateTimeInterface $expires): string => "https://minio.test/{$path}?e={$expires->getTimestamp()}",
     );
 
-    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(RolesAndPermissionsSeeder::class);
     User::factory()->create(); // instance is set up
     $this->dir = Directory::factory()->create();
     $this->file = File::factory()->for($this->dir, 'directory')->create();

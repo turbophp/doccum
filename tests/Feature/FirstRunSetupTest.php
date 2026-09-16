@@ -2,13 +2,15 @@
 
 declare(strict_types=1);
 
-use Illuminate\Support\Facades\Route;
+use App\Livewire\Setup\FirstRun;
 use App\Models\Directory;
 use App\Models\User;
 use App\Services\Settings;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
 
-beforeEach(fn () => $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class));
+beforeEach(fn () => $this->seed(RolesAndPermissionsSeeder::class));
 
 it('redirects to setup while the instance has no users', function () {
     $this->get('/')->assertRedirect(route('setup'));
@@ -20,7 +22,7 @@ it('serves the setup screen when there are no users', function () {
 });
 
 it('creates the first admin with a home directory', function () {
-    Livewire::test(App\Livewire\Setup\FirstRun::class)
+    Livewire::test(FirstRun::class)
         ->set('instance_name', 'Acme Docs')
         ->set('name', 'Ada Lovelace')
         ->set('username', 'ada')
@@ -41,7 +43,7 @@ it('creates the first admin with a home directory', function () {
 });
 
 it('validates the first admin', function () {
-    Livewire::test(App\Livewire\Setup\FirstRun::class)
+    Livewire::test(FirstRun::class)
         ->set('username', 'Not A Username!')
         ->set('email', 'nope')
         ->call('submit')
@@ -68,7 +70,7 @@ it('lets livewire requests through while the instance is unconfigured', function
     // form impossible to submit -- the page rendered fine and every submission
     // silently bounced. Livewire::test() bypasses HTTP middleware, so only a
     // test at this layer catches it.
-    expect(App\Models\User::query()->exists())->toBeFalse();
+    expect(User::query()->exists())->toBeFalse();
 
     $livewireRoute = collect(Route::getRoutes()->getRoutes())
         ->first(fn ($route) => str_ends_with((string) $route->getName(), 'livewire.update'));

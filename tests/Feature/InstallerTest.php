@@ -211,8 +211,8 @@ it('completes a default install without touching database or storage config', fu
         ->assertHasNoErrors()
         ->assertRedirect('/');
 
-    expect(App\Models\User::firstOrFail()->hasRole('admin'))->toBeTrue()
-        ->and(App\Support\RuntimeConfig::exists())->toBeFalse();
+    expect(User::firstOrFail()->hasRole('admin'))->toBeTrue()
+        ->and(RuntimeConfig::exists())->toBeFalse();
 });
 
 it('offers a way back to the embedded defaults from every advanced step', function () {

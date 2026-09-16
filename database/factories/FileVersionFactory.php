@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Database\Factories;
 
 use App\Models\File;
+use App\Models\FileVersion;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<\App\Models\FileVersion>
+ * @extends Factory<FileVersion>
  */
 class FileVersionFactory extends Factory
 {

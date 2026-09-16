@@ -13,6 +13,7 @@ use App\Models\PropertyDefinition;
 use App\Models\SearchDocument;
 use App\Search\SearchIndex;
 use App\Services\PeriodPurger;
+use App\Services\SearchIndexer;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -213,7 +214,7 @@ it('leaves nothing purged behind in the keyword index', function () {
     config()->set('doccum.retention.purge_after_years', 1);
     archived(2020, 3);
     $file = fileIn(2020, 3, ['name' => 'Zagglefrotz.pdf']);
-    app(App\Services\SearchIndexer::class)->index($file->refresh());
+    app(SearchIndexer::class)->index($file->refresh());
 
     app(PeriodPurger::class)->purge(2020, 3);
 

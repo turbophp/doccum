@@ -8,13 +8,14 @@ use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
     Storage::fake('documents');
-    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(RolesAndPermissionsSeeder::class);
 
     $this->user = User::factory()->create();
     $this->user->assignRole('member');

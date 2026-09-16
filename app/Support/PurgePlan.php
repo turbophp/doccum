@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Services\PeriodPurger;
+
 /**
  * What purging a period would destroy, and every reason it may not.
  *
- * Returned by {@see \App\Services\PeriodPurger::plan()} without writing
+ * Returned by {@see PeriodPurger::plan()} without writing
  * anything, so "what would this do" is answerable without doing it -- which
  * is the only honest way to offer an irreversible operation. See spec §9.
  */

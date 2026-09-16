@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\EnsurePublicSignupEnabled;
+use App\Http\Middleware\RequireInstanceSetup;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,8 +14,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->appendToGroup('web', App\Http\Middleware\RequireInstanceSetup::class);
-        $middleware->appendToGroup('web', App\Http\Middleware\EnsurePublicSignupEnabled::class);
+        $middleware->appendToGroup('web', RequireInstanceSetup::class);
+        $middleware->appendToGroup('web', EnsurePublicSignupEnabled::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

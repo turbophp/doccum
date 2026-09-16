@@ -3,9 +3,10 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Spatie\Permission\Models\Role;
 
-beforeEach(fn () => $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class));
+beforeEach(fn () => $this->seed(RolesAndPermissionsSeeder::class));
 
 it('seeds the admin and member roles', function () {
     expect(Role::pluck('name')->all())->toContain('admin', 'member');
@@ -36,7 +37,7 @@ it('lets a user hold a role and its permissions', function () {
 });
 
 it('is idempotent when seeded twice', function () {
-    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(RolesAndPermissionsSeeder::class);
 
     expect(Role::where('name', 'admin')->count())->toBe(1);
 });

@@ -6,6 +6,7 @@ use App\Enums\AccessLevel;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Spatie\Permission\Models\Role;
 
 it('grants access to a user', function () {
@@ -59,5 +60,5 @@ it('refuses two grants to the same grantee on one directory', function () {
     DirectoryGrant::create([...$attrs, 'level' => AccessLevel::View]);
 
     expect(fn () => DirectoryGrant::create([...$attrs, 'level' => AccessLevel::Edit]))
-        ->toThrow(Illuminate\Database\QueryException::class);
+        ->toThrow(QueryException::class);
 });

@@ -7,9 +7,10 @@ use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 
 beforeEach(function () {
-    $this->seed(Database\Seeders\RolesAndPermissionsSeeder::class);
+    $this->seed(RolesAndPermissionsSeeder::class);
     $this->dir = Directory::factory()->create();
     $this->user = User::factory()->create();
     $this->user->assignRole('member');
