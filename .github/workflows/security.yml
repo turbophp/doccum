@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   composer-audit:
+    timeout-minutes: 15
     name: composer audit
     runs-on: ubuntu-latest
     permissions:
@@ -51,6 +52,7 @@ jobs:
         run: composer audit || echo "::warning::composer audit reported advisories -- see the step output above"
 
   dependency-review:
+    timeout-minutes: 15
     name: dependency review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

@@ -21,6 +21,7 @@ env:
 
 jobs:
   lint:
+    timeout-minutes: 10
     name: lint
     runs-on: ubuntu-latest
     permissions:
@@ -67,6 +68,7 @@ jobs:
   # test, so building them six times would just be six copies of the same
   # `public/build` output.
   assets:
+    timeout-minutes: 10
     name: build assets
     runs-on: ubuntu-latest
     permissions:
@@ -116,6 +118,7 @@ jobs:
           retention-days: 1
 
   test:
+    timeout-minutes: 20
     name: test (php ${{ matrix.php }}, ${{ matrix.database }})
     needs: assets
     runs-on: ubuntu-latest
@@ -253,6 +256,7 @@ jobs:
   # already passed without the code they were guarding, so this is a job
   # rather than a habit.
   guards:
+    timeout-minutes: 20
     name: guards
     needs: assets
     runs-on: ubuntu-latest
@@ -304,6 +308,7 @@ jobs:
         run: git diff --exit-code
 
   image:
+    timeout-minutes: 30
     name: image
     runs-on: ubuntu-latest
     permissions:

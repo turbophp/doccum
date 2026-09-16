@@ -29,6 +29,7 @@ permissions:
 
 jobs:
   baseline:
+    timeout-minutes: 15
     name: generate
     runs-on: ubuntu-latest
     permissions:

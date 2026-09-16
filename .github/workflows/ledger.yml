@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   validate:
+    timeout-minutes: 15
     name: validate ledger
     runs-on: ubuntu-latest
     permissions:
