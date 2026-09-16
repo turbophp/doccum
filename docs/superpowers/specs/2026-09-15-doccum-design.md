@@ -526,6 +526,25 @@ The catalogue records, for each model: disk size, working memory, quality tier,
 licence, and where it comes from. Entries cover both roles — a bigger or
 multilingual embedding model is the same kind of choice as a vision OCR model.
 
+The hint is advice, never a gate. An operator who knows their host better than
+doccum does — memory about to be freed, a swap file, a machine that is idle
+overnight — can select anything in the catalogue; a grade below Recommended
+simply says what to expect first. Refusing outright would be doccum overruling
+someone about their own hardware on the strength of one number.
+
+Concretely, against usable memory `U` and a model's working requirement `W`:
+
+| Condition | Grade | What the operator is told |
+|---|---|---|
+| `W × 1.25 ≤ U` and cores ≥ 4 | Recommended | "Fits comfortably on this host." |
+| `W × 1.25 ≤ U` and cores < 4 | Slow here | "Will run, but expect roughly a minute per page on 2 cores." |
+| `W ≤ U` | Tight | "Fits with little headroom; OCR may slow other work." |
+| `W > U` | Needs more memory | "Needs ~3.0 GB, this host has 1.8 GB available. Selecting it anyway risks the ingest worker being stopped mid-document." |
+
+The 25% headroom is there because the worker is not alone: extraction, the web
+process and the database share the container, and a model sized to exactly fit
+leaves nothing for them.
+
 **Available memory matters more than total.** A 16 GB host with 2 GB free will
 not run a 3 GB model, and reporting "16 GB" would be a lie of omission, so the
 picker shows both.
