@@ -40,4 +40,19 @@ class ArchivePeriod extends Model
     {
         return $this->purged_at !== null;
     }
+
+    /**
+     * Whether the given month is covered by an archived period, either the
+     * month itself or the whole year it falls within.
+     */
+    public static function isArchivedFor(int $year, int $month): bool
+    {
+        return static::query()
+            ->where('year', $year)
+            ->where(function ($query) use ($month): void {
+                $query->where('month', $month)->orWhereNull('month');
+            })
+            ->whereNotNull('archived_at')
+            ->exists();
+    }
 }
