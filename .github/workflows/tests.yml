@@ -50,48 +50,17 @@ jobs:
       - name: Pint (format check)
         run: composer lint:check
 
-      # ~44 pre-existing findings today at level 7 (see CLAUDE.md) -- the
-      # point of this job is to stop that number growing, not to demand it
-      # hits zero in one PR. A real `phpstan-baseline.neon`, wired into
-      # phpstan.neon's `includes`, is the clean way to do that, but generating
-      # one needs `vendor/`, which this sandbox does not have installed, so it
-      # could not be produced here. Until a maintainer runs
-      # `composer types:check -- --generate-baseline` locally once and commits
-      # the result, this counts findings instead and fails only on an
-      # INCREASE -- strictly worse than a real baseline (a finding can move
-      # without the count changing) but still catches the common case, and
-      # never blocks on the pre-existing 44. Delete the counting step below
-      # the day the baseline file lands and go back to a plain
-      # `composer types:check`.
-      - name: PHPStan (fails only on new findings)
-        env:
-          PHPSTAN_BASELINE_COUNT: 44
-        run: |
-          composer types:check -- --error-format=json --no-progress > phpstan-result.json || true
-          COUNT=$(php -r '
-            $data = json_decode(file_get_contents("phpstan-result.json"), true);
-            echo (int) ($data["totals"]["file_errors"] ?? 0);
-          ')
-          echo "phpstan findings: ${COUNT} (baseline: ${PHPSTAN_BASELINE_COUNT})"
-
-          # A count on its own tells whoever reads this that they broke
-          # something and nothing about what, which is the difference between
-          # a failure they can act on and one they have to reproduce locally
-          # first -- and reproducing it locally is exactly what the
-          # environment this project is developed in cannot do.
-          php -r '
-            $data = json_decode(file_get_contents("phpstan-result.json"), true);
-            foreach (($data["files"] ?? []) as $file => $entry) {
-              foreach (($entry["messages"] ?? []) as $message) {
-                printf("%s:%s  %s%s", $file, $message["line"] ?? "?", $message["message"] ?? "", PHP_EOL);
-              }
-            }
-          '
-
-          if [ "$COUNT" -gt "$PHPSTAN_BASELINE_COUNT" ]; then
-            echo "::error::phpstan findings went from ${PHPSTAN_BASELINE_COUNT} to ${COUNT}. Fix the new ones listed above. Never raise PHPSTAN_BASELINE_COUNT to make this pass."
-            exit 1
-          fi
+      # phpstan-baseline.neon enumerates the findings that predate this
+      # work, so a new one fails the build however many old ones there are.
+      # It replaced a count comparison, which could only notice that a total
+      # had moved -- and duly hid two fresh findings in a brand-new file
+      # behind four pre-existing ones that had been fixed in the same branch.
+      #
+      # Regenerate with .github/workflows/phpstan-baseline.yml, and only from
+      # a branch whose own code is already clean: a baseline generated over a
+      # dirty branch quietly blesses whatever was wrong with it.
+      - name: PHPStan
+        run: composer types:check
 
   # Built once and shared with every test leg below -- the compiled assets
   # depend on package-lock.json, not on the PHP version or database under

@@ -1,0 +1,271 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$properties\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Actions/Directories/MoveDirectory.php
+
+		-
+			message: '#^Parameter \#1 \$subject of job class App\\Jobs\\ReindexSearchDocument constructor expects App\\Models\\Directory\|App\\Models\\File\|App\\Models\\Property in App\\Jobs\\ReindexSearchDocument\:\:dispatch\(\), Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Actions/Directories/MoveDirectory.php
+
+		-
+			message: '#^Cannot call method cast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Actions/Properties/SetProperties.php
+
+		-
+			message: '#^Cannot call method includes\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Actions/Properties/SetProperties.php
+
+		-
+			message: '#^Cannot call method rules\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Actions/Properties/SetProperties.php
+
+		-
+			message: '#^Parameter \#1 \$subject of job class App\\Jobs\\ReindexSearchDocument constructor expects App\\Models\\Directory\|App\\Models\\File\|App\\Models\\Property in App\\Jobs\\ReindexSearchDocument\:\:dispatch\(\), Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Jobs/ExtractText.php
+
+		-
+			message: '#^Method App\\Livewire\\Files\\Browser\:\:render\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Livewire/Files/Browser.php
+
+		-
+			message: '#^Property App\\Livewire\\Files\\Browser\:\:\$upload has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: app/Livewire/Files/Browser.php
+
+		-
+			message: '#^Method App\\Livewire\\Search\\Results\:\:render\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Livewire/Search/Results.php
+
+		-
+			message: '#^Method App\\Livewire\\Setup\\FirstRun\:\:emailRules\(\) should return array\<int, array\<mixed\>\|Illuminate\\Contracts\\Validation\\ValidationRule\|string\> but returns array\<int, Illuminate\\Validation\\Rules\\Unique\|string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Livewire/Setup/FirstRun.php
+
+		-
+			message: '#^Method App\\Livewire\\Setup\\FirstRun\:\:render\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Livewire/Setup/FirstRun.php
+
+		-
+			message: '#^Method App\\Livewire\\Setup\\FirstRun\:\:usernameRules\(\) should return array\<int, array\<mixed\>\|Illuminate\\Contracts\\Validation\\ValidationRule\|string\> but returns array\<int, Illuminate\\Validation\\Rules\\Unique\|string\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Livewire/Setup/FirstRun.php
+
+		-
+			message: '#^Class App\\Models\\Directory uses generic trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory but does not specify its types\: TFactory$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Directory.php
+
+		-
+			message: '#^Method App\\Models\\Directory\:\:children\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Directory.php
+
+		-
+			message: '#^Method App\\Models\\Directory\:\:descendants\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Directory.php
+
+		-
+			message: '#^Method App\\Models\\Directory\:\:homeUser\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Directory.php
+
+		-
+			message: '#^Method App\\Models\\Directory\:\:parent\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Directory.php
+
+		-
+			message: '#^Method App\\Models\\Directory\:\:scopeInSubtreeOf\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Directory.php
+
+		-
+			message: '#^Method App\\Models\\Directory\:\:scopeInSubtreeOf\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Directory.php
+
+		-
+			message: '#^Class App\\Models\\DirectoryGrant uses generic trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory but does not specify its types\: TFactory$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/DirectoryGrant.php
+
+		-
+			message: '#^Method App\\Models\\DirectoryGrant\:\:directory\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/DirectoryGrant.php
+
+		-
+			message: '#^Method App\\Models\\DirectoryGrant\:\:grantee\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\MorphTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/DirectoryGrant.php
+
+		-
+			message: '#^Class App\\Models\\File uses generic trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory but does not specify its types\: TFactory$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/File.php
+
+		-
+			message: '#^Method App\\Models\\File\:\:versions\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/File.php
+
+		-
+			message: '#^Property App\\Models\\File\:\:\$period_month \(int\<0, max\>\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Models/File.php
+
+		-
+			message: '#^Property App\\Models\\File\:\:\$period_year \(int\<0, max\>\) does not accept int\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Models/File.php
+
+		-
+			message: '#^Class App\\Models\\FileText uses generic trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory but does not specify its types\: TFactory$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/FileText.php
+
+		-
+			message: '#^Class App\\Models\\FileVersion uses generic trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory but does not specify its types\: TFactory$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/FileVersion.php
+
+		-
+			message: '#^Method App\\Models\\FileVersion\:\:file\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\BelongsTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/FileVersion.php
+
+		-
+			message: '#^Cannot call method cast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/Property.php
+
+		-
+			message: '#^Cannot call method column\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Models/Property.php
+
+		-
+			message: '#^Class App\\Models\\Property uses generic trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory but does not specify its types\: TFactory$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Property.php
+
+		-
+			message: '#^Method App\\Models\\Property\:\:subject\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\MorphTo does not specify its types\: TRelatedModel, TDeclaringModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/Property.php
+
+		-
+			message: '#^Class App\\Models\\PropertyDefinition uses generic trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory but does not specify its types\: TFactory$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/PropertyDefinition.php
+
+		-
+			message: '#^Method App\\Models\\PropertyDefinition\:\:scopeFor\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/PropertyDefinition.php
+
+		-
+			message: '#^Method App\\Models\\PropertyDefinition\:\:scopeFor\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/PropertyDefinition.php
+
+		-
+			message: '#^Method App\\Models\\PropertyDefinition\:\:scopeOrdered\(\) has parameter \$query with generic class Illuminate\\Database\\Eloquent\\Builder but does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/PropertyDefinition.php
+
+		-
+			message: '#^Method App\\Models\\PropertyDefinition\:\:scopeOrdered\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/PropertyDefinition.php
+
+		-
+			message: '#^Class App\\Models\\SearchDocument uses generic trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory but does not specify its types\: TFactory$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Models/SearchDocument.php
+
+		-
+			message: '#^Method App\\Providers\\RuntimeConfigServiceProvider\:\:applyDatabase\(\) has parameter \$database with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/Providers/RuntimeConfigServiceProvider.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Search/Fts5SearchIndex.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$score\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Search/Fts5SearchIndex.php
+
+		-
+			message: '#^Comparison operation "\>" between int\<1, max\> and 0 is always true\.$#'
+			identifier: greater.alwaysTrue
+			count: 1
+			path: app/Search/Terms.php
+
+		-
+			message: '#^Method App\\Services\\DirectoryAccess\:\:grantsFor\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Services/DirectoryAccess.php
+
+		-
+			message: '#^Binary operation "\." between array\|string and ''\.pdf'' results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: database/factories/FileFactory.php
