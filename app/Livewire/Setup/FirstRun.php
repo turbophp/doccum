@@ -42,7 +42,15 @@ class FirstRun extends Component
     use PasswordValidationRules, ProfileValidationRules;
 
     /** 1 = database, 2 = storage, 3 = admin. */
-    public int $step = 1;
+    /**
+     * The default install asks for nothing but the administrator account:
+     * database and object storage are embedded and need no configuration. The
+     * stepped database/storage flow is opt-in, for the minority who are
+     * pointing doccum at their own infrastructure.
+     */
+    public bool $advanced = false;
+
+    public int $step = 3;
 
     /**
      * True once saveDatabase() has recognised the database as an already-
@@ -210,6 +218,22 @@ class FirstRun extends Component
             'mysql', 'mariadb' => '3306',
             default => '',
         };
+        $this->resetErrorBag();
+    }
+
+    /** Reveal the database and storage steps. */
+    public function enterAdvanced(): void
+    {
+        $this->advanced = true;
+        $this->step = 1;
+        $this->resetErrorBag();
+    }
+
+    /** Abandon advanced configuration and take the embedded defaults. */
+    public function leaveAdvanced(): void
+    {
+        $this->advanced = false;
+        $this->step = 3;
         $this->resetErrorBag();
     }
 

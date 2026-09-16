@@ -1,13 +1,20 @@
 <div class="flex flex-col gap-6">
-    <x-auth-header :title="__('Set up doccum')" :description="__('Configure this instance, then create its first administrator')" />
+    <x-auth-header
+        :title="__('Set up doccum')"
+        :description="$advanced
+            ? __('Point doccum at your own database and object storage')
+            : __('Create the administrator account and you are done')"
+    />
+    @if ($advanced)
 
     <div class="flex items-center justify-center gap-2">
         <flux:badge :color="$step === 1 ? 'blue' : 'zinc'" size="sm">1. {{ __('Database') }}</flux:badge>
         <flux:badge :color="$step === 2 ? 'blue' : 'zinc'" size="sm">2. {{ __('Storage') }}</flux:badge>
         <flux:badge :color="$step === 3 ? 'blue' : 'zinc'" size="sm">3. {{ __('Administrator') }}</flux:badge>
     </div>
+    @endif
 
-    @if ($step === 1)
+    @if ($advanced && $step === 1)
         <!-- Step 1: Database -->
         <form wire:submit="saveDatabase" class="flex flex-col gap-6">
             <flux:text class="text-sm">
@@ -51,7 +58,7 @@
                 </flux:button>
             </div>
         </form>
-    @elseif ($step === 2)
+    @elseif ($advanced && $step === 2)
         <!-- Step 2: Object storage -->
         <form wire:submit="saveStorage" class="flex flex-col gap-6">
             <flux:text>
@@ -183,5 +190,26 @@
                 </flux:button>
             </div>
         </form>
+
+    @endif
+
+    {{-- Outside the step blocks on purpose: in advanced mode there was
+         otherwise no way back to the embedded defaults from the database or
+         storage step. --}}
+    @if (! $advanced)
+        <div class="text-center">
+            <flux:text class="text-sm">
+                {{ __('Using your own database or object storage?') }}
+            </flux:text>
+            <flux:link wire:click="enterAdvanced" class="cursor-pointer text-sm" data-test="setup-advanced-link">
+                {{ __('Advanced configuration') }}
+            </flux:link>
+        </div>
+    @else
+        <div class="text-center">
+            <flux:link wire:click="leaveAdvanced" class="cursor-pointer text-sm" data-test="setup-simple-link">
+                {{ __('Use embedded database and storage instead') }}
+            </flux:link>
+        </div>
     @endif
 </div>

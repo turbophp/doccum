@@ -36,12 +36,17 @@ afterEach(function () {
     config()->set('database.default', $this->originalDefaultConnection);
 });
 
-it('starts on the database step', function () {
-    Livewire::test(FirstRun::class)->assertSet('step', 1);
+it('starts advanced configuration on the database step', function () {
+    // The default flow starts on the administrator step; database and storage
+    // are embedded and only appear when the operator opts in.
+    Livewire::test(FirstRun::class)
+        ->call('enterAdvanced')
+        ->assertSet('step', 1);
 });
 
 it('refuses to advance past a database it cannot reach', function () {
     Livewire::test(FirstRun::class)
+        ->call('enterAdvanced')
         ->set('db_connection', 'pgsql')
         ->set('db_host', '127.0.0.1')
         ->set('db_port', 1)
@@ -57,6 +62,7 @@ it('refuses to advance past a database it cannot reach', function () {
 
 it('advances to storage when the database works', function () {
     Livewire::test(FirstRun::class)
+        ->call('enterAdvanced')
         ->set('db_connection', 'sqlite')
         ->set('db_database', config('database.connections.sqlite.database'))
         ->call('saveDatabase')
@@ -68,6 +74,7 @@ it('lets the operator keep the default storage', function () {
     Storage::fake('documents');
 
     Livewire::test(FirstRun::class)
+        ->set('advanced', true)
         ->set('step', 2)
         ->call('skipStorage')
         ->assertSet('step', 3);
@@ -75,6 +82,7 @@ it('lets the operator keep the default storage', function () {
 
 it('refuses storage it cannot write to', function () {
     Livewire::test(FirstRun::class)
+        ->set('advanced', true)
         ->set('step', 2)
         ->set('s3_endpoint', 'http://127.0.0.1:1')
         ->set('s3_key', 'k')
@@ -114,6 +122,7 @@ it('never writes a storage secret into the runtime file at all', function () {
     Storage::fake('doccum_probe');
 
     Livewire::test(FirstRun::class)
+        ->set('advanced', true)
         ->set('step', 2)
         ->set('s3_endpoint', 'http://minio:9000')
         ->set('s3_key', 'doccum')
@@ -134,6 +143,7 @@ it('swaps the database field between a file path and server credentials', functi
     // path" because wire:model is deferred, so the select never reached the
     // server and the form never re-rendered.
     Livewire::test(FirstRun::class)
+        ->call('enterAdvanced')
         ->assertSet('db_connection', 'sqlite')
         ->assertSet('db_database', '/data/doccum.sqlite')
         ->set('db_connection', 'mariadb')
@@ -147,6 +157,7 @@ it('swaps the database field between a file path and server credentials', functi
 
 it('restores the embedded path when switching back', function () {
     Livewire::test(FirstRun::class)
+        ->call('enterAdvanced')
         ->set('db_connection', 'pgsql')
         ->assertSet('db_port', '5432')
         ->set('db_connection', 'sqlite')
@@ -156,5 +167,61 @@ it('restores the embedded path when switching back', function () {
 });
 
 it('describes the embedded database in the same language as embedded storage', function () {
-    Livewire::test(FirstRun::class)->assertSee('Embedded (SQLite)');
+    Livewire::test(FirstRun::class)->call('enterAdvanced')->assertSee('Embedded (SQLite)');
+});
+
+it('asks only for the administrator account by default', function () {
+    // The common install configures nothing: database and storage are embedded.
+    Livewire::test(FirstRun::class)
+        ->assertSet('advanced', false)
+        ->assertSet('step', 3)
+        ->assertSee('Username')
+        ->assertSee('Create administrator account')
+        ->assertDontSee('Database type')
+        ->assertDontSee('Storage provider');
+});
+
+it('offers advanced configuration for people using their own infrastructure', function () {
+    Livewire::test(FirstRun::class)
+        ->assertSee('Advanced configuration')
+        ->call('enterAdvanced')
+        ->assertSet('advanced', true)
+        ->assertSet('step', 1)
+        ->assertSee('Database type');
+});
+
+it('lets the operator fall back to the embedded defaults', function () {
+    Livewire::test(FirstRun::class)
+        ->call('enterAdvanced')
+        ->call('leaveAdvanced')
+        ->assertSet('advanced', false)
+        ->assertSet('step', 3)
+        ->assertDontSee('Database type');
+});
+
+it('completes a default install without touching database or storage config', function () {
+    Livewire::test(FirstRun::class)
+        ->set('instance_name', 'Acme Docs')
+        ->set('name', 'Ada Lovelace')
+        ->set('username', 'ada')
+        ->set('email', 'ada@example.com')
+        ->set('password', 'Correct-Horse-Battery9')
+        ->set('password_confirmation', 'Correct-Horse-Battery9')
+        ->call('submit')
+        ->assertHasNoErrors()
+        ->assertRedirect('/');
+
+    expect(App\Models\User::firstOrFail()->hasRole('admin'))->toBeTrue()
+        ->and(App\Support\RuntimeConfig::exists())->toBeFalse();
+});
+
+it('offers a way back to the embedded defaults from every advanced step', function () {
+    // The browser found this: the escape hatch only existed on the last step,
+    // so an operator who opened advanced config was stuck with it.
+    foreach ([1, 2, 3] as $step) {
+        Livewire::test(FirstRun::class)
+            ->set('advanced', true)
+            ->set('step', $step)
+            ->assertSee('Use embedded database and storage instead');
+    }
 });

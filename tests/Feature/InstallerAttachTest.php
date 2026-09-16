@@ -136,6 +136,9 @@ it('refuses to attach when APP_KEY does not match', function () {
     $path = attachTargetDatabase($bogusKeyCheck);
 
     Livewire::test(FirstRun::class)
+        // Pointing at an existing database is advanced configuration; the
+        // default flow never leaves the administrator step.
+        ->call('enterAdvanced')
         ->set('db_connection', 'sqlite')
         ->set('db_database', $path)
         ->call('saveDatabase')
