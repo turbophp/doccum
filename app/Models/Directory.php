@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -33,6 +34,14 @@ class Directory extends Model
     protected static function booted(): void
     {
         static::created(static fn (Directory $directory) => $directory->syncPath());
+
+        // The morph columns on `attributes` cannot carry a foreign key (they
+        // point at either directories or files), so a directory's attributes
+        // are not cascade-deleted by the database. Without this hook they
+        // would outlive the directory they were attached to.
+        static::forceDeleted(static function (Directory $directory): void {
+            $directory->attributes()->delete();
+        });
     }
 
     public function parent(): BelongsTo
@@ -48,6 +57,11 @@ class Directory extends Model
     public function homeUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'home_user_id');
+    }
+
+    public function attributes(): MorphMany
+    {
+        return $this->morphMany(Attribute::class, 'attributable');
     }
 
     /**
