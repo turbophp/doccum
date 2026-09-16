@@ -33,7 +33,9 @@ yarn-error.log
 /.pi
 /.mcp.json
 /AGENTS.md
-/CLAUDE.md
+# CLAUDE.md is tracked on purpose: it carries the project's
+# conventions and the testing traps this codebase actually hit,
+# which every contributor and agent needs.
 /boost.json
 /opencode.json
 /opencode.jsonc
