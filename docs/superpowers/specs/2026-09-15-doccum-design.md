@@ -609,6 +609,59 @@ not hundreds: an embedding model is far smaller than a generative one. It is
 supervised exactly like MinIO, bound to localhost, never published, and gated by
 `DOCCUM_EMBEDDED_EMBEDDINGS` so the worker containers do not each run one.
 
+### Chunking, and why embeddings are per passage
+
+**A document does not get one embedding.** Averaging fifty pages into a single
+vector produces a point that means nothing in particular: the passage that
+actually answers the query is diluted by everything around it, and long
+documents rank worse the more they contain. Text is therefore split into
+overlapping chunks — a few hundred tokens each, overlapping so a passage split
+across a boundary survives in one piece — and each chunk is embedded
+separately.
+
+`search_chunks` holds them: `search_document_id`, `ordinal`, `text`,
+`token_count`, `embedding`, `embedding_model`, `embedded_at`. A hit is a chunk;
+results are grouped back to their document, keeping the best-scoring passage as
+the snippet — which is also what makes a useful preview, because it is the part
+that matched.
+
+### Asynchronous by construction
+
+Extraction, chunking and embedding all run on the `ingest` queue, never in the
+request. An upload returns as soon as the bytes are stored; search freshness
+lags by however long the pipeline takes, and that is the correct trade — a user
+waiting on OCR of a 300-page scan before their upload completes is the wrong
+failure.
+
+Four properties make that safe rather than merely deferred:
+
+- **Resumable.** Each chunk records its own `embedded_at`, so a job killed at
+  chunk 400 of 900 re-embeds 500 on restart, not 900. Long documents are
+  precisely the ones most likely to be interrupted.
+- **Batched and bounded.** Chunks go to the provider in batches with limited
+  concurrency and backoff on rate limiting, so a remote provider's 429 slows
+  ingestion instead of failing it, and a local model is not asked for more
+  parallelism than the host has cores.
+- **Idempotent.** Re-running embeds only what is missing or stale. Re-ingesting
+  a document, re-running after a crash, and backfilling after enabling a
+  provider are all the same code path.
+- **Never blind.** Existing vectors stay searchable while new ones are
+  generated. A model change writes the new dimension alongside, and search
+  switches over once coverage is complete — rather than leaving the corpus
+  unsearchable for the hours a large backfill takes.
+
+### Hybrid ranking
+
+Keyword and semantic search answer different questions and fail differently:
+exact identifiers, names and numbers are keyword's strength and embeddings'
+weakness, while paraphrase is the reverse. Results from both are combined by
+reciprocal rank fusion rather than by comparing scores directly, because a BM25
+score and a cosine distance are not on the same scale and any threshold that
+appears to work is a coincidence of one corpus.
+
+With no embedding provider configured, fusion degrades to keyword alone and the
+search UI is unchanged.
+
 ### Storage and invalidation
 
 `search_documents` carries `embedding`, `embedding_model` and
