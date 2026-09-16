@@ -11,9 +11,14 @@ use App\Models\User;
 use App\Policies\DirectoryPolicy;
 use App\Policies\FilePolicy;
 use App\Services\DirectoryAccess;
+use AzureOss\Storage\Blob\BlobServiceClient;
+use AzureOss\Storage\BlobFlysystem\AzureBlobStorageAdapter;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
+use League\Flysystem\Filesystem;
 use Spatie\Permission\Models\Role;
 
 /**
@@ -54,5 +59,25 @@ class DoccumServiceProvider extends ServiceProvider
 
         Gate::policy(Directory::class, DirectoryPolicy::class);
         Gate::policy(File::class, FilePolicy::class);
+
+        $this->registerAzureDriver();
+    }
+
+    /**
+     * Azure Blob is the one storage provider that is not S3-compatible, so it
+     * needs its own Flysystem driver rather than an S3 preset (see
+     * App\Enums\StorageProvider and plan Task 4). Laravel ships no built-in
+     * "azure" driver, so Storage::extend() -- the documented extension point
+     * -- is how the "documents" disk can be configured to use it.
+     */
+    private function registerAzureDriver(): void
+    {
+        Storage::extend('azure', function ($app, array $config) {
+            $client = BlobServiceClient::fromConnectionString((string) $config['connection_string']);
+            $container = $client->getContainerClient((string) $config['container']);
+            $adapter = new AzureBlobStorageAdapter($container, (string) ($config['prefix'] ?? ''));
+
+            return new FilesystemAdapter(new Filesystem($adapter), $adapter, $config);
+        });
     }
 }

@@ -36,6 +36,12 @@ return [
         'disk' => env('DOCCUM_DISK', 'documents'),
         'staging_prefix' => 'uploads',
         'files_prefix' => 'files',
+        // Where docker/entrypoint.d/48-doccum-storage.sh generates embedded
+        // MinIO's root credentials, and the endpoint to reach it at. Both are
+        // overridden by an operator's own storage.* settings -- see
+        // RuntimeConfigServiceProvider::boot().
+        'embedded_env' => env('DOCCUM_EMBEDDED_ENV', '/data/minio.env'),
+        'endpoint' => env('AWS_ENDPOINT', 'http://127.0.0.1:9000'),
     ],
 
     'extraction' => [

@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+# Credentials are generated once per install and persisted on the data volume.
+set -a
+. /data/minio.env
+set +a
+exec /usr/local/bin/minio server "${DOCCUM_EMBEDDED_ROOT:-/data/objects}" --address ":9000"

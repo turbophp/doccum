@@ -51,23 +51,49 @@
         <!-- Step 2: Object storage -->
         <form wire:submit="saveStorage" class="flex flex-col gap-6">
             <flux:text>
-                {{ __('Point doccum at S3-compatible object storage, or skip this to keep the default configured on this instance.') }}
+                {{ __('Embedded storage works with no configuration. Pick a provider below to use your own bucket instead.') }}
             </flux:text>
 
-            <flux:input wire:model="s3_endpoint" :label="__('Endpoint')" type="text" placeholder="https://s3.example.com" />
+            <flux:select wire:model="storage_provider" :label="__('Storage provider')">
+                <flux:select.option value="embedded">{{ __('Embedded (bundled MinIO)') }}</flux:select.option>
+                <flux:select.option value="s3">{{ __('Amazon S3') }}</flux:select.option>
+                <flux:select.option value="r2">{{ __('Cloudflare R2') }}</flux:select.option>
+                <flux:select.option value="spaces">{{ __('DigitalOcean Spaces') }}</flux:select.option>
+                <flux:select.option value="wasabi">{{ __('Wasabi') }}</flux:select.option>
+                <flux:select.option value="backblaze_b2">{{ __('Backblaze B2') }}</flux:select.option>
+                <flux:select.option value="custom">{{ __('Custom S3-compatible endpoint') }}</flux:select.option>
+            </flux:select>
 
-            <flux:input wire:model="s3_bucket" :label="__('Bucket')" type="text" placeholder="doccum" />
+            @if ($storage_provider !== 'embedded')
+                @if ($storage_provider === 'r2')
+                    <flux:input
+                        wire:model="s3_account"
+                        :label="__('Account ID')"
+                        type="text"
+                        placeholder="abc123"
+                        :description="__('The endpoint is derived from this automatically.')"
+                    />
+                @endif
 
-            <flux:input wire:model="s3_region" :label="__('Region')" type="text" placeholder="us-east-1" />
+                @if ($storage_provider === 'custom')
+                    <flux:input wire:model="s3_endpoint" :label="__('Endpoint')" type="text" placeholder="https://s3.example.com" />
+                @endif
 
-            <flux:input wire:model="s3_key" :label="__('Access key')" type="text" />
+                @if (in_array($storage_provider, ['s3', 'spaces', 'wasabi', 'backblaze_b2'], true))
+                    <flux:input wire:model="s3_region" :label="__('Region')" type="text" placeholder="us-east-1" />
+                @endif
 
-            <flux:input
-                wire:model="s3_secret"
-                :label="__('Secret key')"
-                type="password"
-                viewable
-            />
+                <flux:input wire:model="s3_bucket" :label="__('Bucket')" type="text" placeholder="doccum" />
+
+                <flux:input wire:model="s3_key" :label="__('Access key')" type="text" />
+
+                <flux:input
+                    wire:model="s3_secret"
+                    :label="__('Secret key')"
+                    type="password"
+                    viewable
+                />
+            @endif
 
             <div class="flex items-center justify-between gap-2">
                 <flux:button wire:click="skipStorage" variant="ghost" data-test="setup-storage-skip-button">
@@ -75,7 +101,7 @@
                 </flux:button>
 
                 <flux:button type="submit" variant="primary" data-test="setup-storage-button">
-                    {{ __('Test connection & continue') }}
+                    {{ $storage_provider === 'embedded' ? __('Continue') : __('Test connection & continue') }}
                 </flux:button>
             </div>
         </form>

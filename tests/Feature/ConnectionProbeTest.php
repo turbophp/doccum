@@ -64,3 +64,16 @@ it('rejects storage it cannot reach', function () {
 
     expect($result->ok)->toBeFalse();
 });
+
+it('carries an explicit addressing style into the probed disk', function () {
+    // A provider preset (App\Enums\StorageProvider) derives use_path_style_endpoint
+    // before the installer probes -- that flag must reach the temporary disk
+    // ConnectionProbe builds, or the probe would validate the wrong style.
+    app(ConnectionProbe::class)->storage([
+        'endpoint' => 'http://127.0.0.1:1',
+        'key' => 'k', 'secret' => 's', 'bucket' => 'b', 'region' => 'us-east-1',
+        'use_path_style_endpoint' => false,
+    ]);
+
+    expect(config('filesystems.disks.doccum_probe.use_path_style_endpoint'))->toBeFalse();
+});

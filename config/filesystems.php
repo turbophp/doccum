@@ -71,6 +71,17 @@ return [
             'throw' => true,
         ],
 
+        // Reference only: the "documents" disk above is what doccum actually
+        // uses. Azure Blob is not S3-compatible, so it takes a connection
+        // string and container rather than the key/secret/region/bucket
+        // shape every other provider preset shares -- see the "azure" driver
+        // registered by DoccumServiceProvider and App\Enums\StorageProvider.
+        'azure' => [
+            'driver' => 'azure',
+            'connection_string' => env('AZURE_STORAGE_CONNECTION_STRING'),
+            'container' => env('AZURE_STORAGE_CONTAINER', 'doccum'),
+        ],
+
     ],
 
     /*
