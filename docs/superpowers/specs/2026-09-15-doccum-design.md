@@ -412,6 +412,26 @@ Failures are recorded in `file_texts.error` and are retryable without re-upload.
 
 ## 8. Search
 
+### The search index seam
+
+Keyword search goes through a `SearchIndex` seam, the same shape as storage,
+OCR and embeddings — not through Laravel Scout as originally specified.
+
+Scout's value is swapping in a hosted engine later, but its database driver is
+what the default install would actually run, and on SQLite that means `LIKE`:
+no ranking, no relevance, and a full scan of every document on every query. The
+configuration nearly everyone uses would be the worst one.
+
+SQLite's FTS5 extension is compiled into the runtime and gives real BM25
+ranking, which the hybrid ranking in §8a needs regardless. So:
+
+| Implementation | Where |
+|---|---|
+| `Fts5SearchIndex` | embedded SQLite — BM25, no extra service |
+| `TsvectorSearchIndex` | PostgreSQL |
+| `LikeSearchIndex` | any other driver: correct, unranked, a safety net |
+| external engines | Typesense, Meilisearch — later, as another implementation |
+
 ### The projection table
 
 Laravel Scout's database engine resolves every key returned by
