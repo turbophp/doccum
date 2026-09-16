@@ -52,6 +52,44 @@ class DocumentStorage
         return $this->disk()->temporaryUrl($version->object_key, now()->addMinutes($minutes));
     }
 
+    /**
+     * Copies a version's bytes to a local temporary file and returns its
+     * path, for extraction tools that need a real path on disk rather than
+     * a stream. The caller owns the returned file and must remove it.
+     */
+    public function downloadToTemp(FileVersion $version): string
+    {
+        $stream = $this->disk()->readStream($version->object_key);
+
+        if ($stream === null) {
+            throw new RuntimeException("Unable to read object [{$version->object_key}] from storage.");
+        }
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'doccum-extract-');
+
+        if ($tempPath === false) {
+            throw new RuntimeException('Unable to create a temporary file for extraction.');
+        }
+
+        $destination = fopen($tempPath, 'wb');
+
+        if ($destination === false) {
+            throw new RuntimeException("Unable to open {$tempPath} for writing.");
+        }
+
+        try {
+            stream_copy_to_stream($stream, $destination);
+        } finally {
+            fclose($destination);
+
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }
+
+        return $tempPath;
+    }
+
     public function delete(string ...$objectKeys): void
     {
         $this->disk()->delete($objectKeys);

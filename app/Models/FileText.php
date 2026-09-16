@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * Kept off `files` and `file_versions` deliberately: a directory listing must
  * never drag megabytes of OCR text along with it. See spec §7.
+ *
+ * @property ExtractionStatus $status
  */
 #[Fillable(['file_version_id', 'status', 'extractor', 'text', 'chars', 'error'])]
 class FileText extends Model
@@ -38,6 +40,7 @@ class FileText extends Model
         ];
     }
 
+    /** @return BelongsTo<FileVersion, $this> */
     public function version(): BelongsTo
     {
         return $this->belongsTo(FileVersion::class, 'file_version_id');
