@@ -467,6 +467,69 @@ driver, so deferring the engine choice costs nothing and no result can leak a
 document the user cannot reach. `period_year`, `mime`, and `extension` are
 carried for filtering and for the eventual faceted UI.
 
+## 8a. Semantic search
+
+Keyword search finds documents that use the words you typed. Semantic search
+finds the ones that mean what you meant. doccum does both, and the second is
+built on two seams shaped like the storage seam.
+
+### Vector index: follows the database
+
+| Database | Index | Cost |
+|---|---|---|
+| Embedded (SQLite) | `sqlite-vec` | a 60 KB loadable extension, no process |
+| PostgreSQL | `pgvector` | an extension, present in `pgvector/pgvector` images |
+
+Both sit behind one `VectorIndex` service, so nothing above it knows which is in
+use. SQLite keeps its decisive advantage — the embedded database stays a library
+with no process to supervise — because the vector extension is loadable rather
+than a server.
+
+Loading it needs `Pdo\Sqlite::loadExtension()`, added in PHP 8.3. Laravel's
+SQLite connector builds a plain `PDO`, so the connector is overridden to use
+`PDO::connect()`, which returns the driver subclass.
+
+### Embedding generator: local or remote, one client
+
+**Embeddings are generated over an OpenAI-compatible `/v1/embeddings` endpoint,
+whatever produces them.** That is the whole trick: the bundled local model and a
+remote API differ by a base URL and an optional key, not by a code path — the
+same lesson as embedded storage speaking S3.
+
+| Provider | Endpoint |
+|---|---|
+| Embedded (default) | `llama.cpp` server on `127.0.0.1`, bundled |
+| Ollama | a local or remote Ollama host |
+| OpenAI / Voyage / Cohere | the vendor's API with a key |
+| Custom | any OpenAI-compatible endpoint |
+
+The embedded generator is the `llama.cpp` server binary copied from
+`ghcr.io/ggml-org/llama.cpp` (published for amd64 and arm64) plus a small
+quantised GGUF embedding model pinned by revision. That is tens of megabytes,
+not hundreds: an embedding model is far smaller than a generative one. It is
+supervised exactly like MinIO, bound to localhost, never published, and gated by
+`DOCCUM_EMBEDDED_EMBEDDINGS` so the worker containers do not each run one.
+
+### Storage and invalidation
+
+`search_documents` carries `embedding`, `embedding_model` and
+`embedding_dimensions` alongside the text. Recording the model is not
+bookkeeping: **different models produce different dimensions and incompatible
+vector spaces** — 384 for `bge-small`, 1536 for OpenAI's small model — so
+changing provider invalidates every stored vector. doccum detects the mismatch,
+rebuilds the vector column at the new width, and backfills through
+`doccum:embeddings:backfill` rather than silently comparing vectors that mean
+nothing to each other.
+
+Embedding happens on the `ingest` queue, after extraction, so a slow model
+delays search freshness rather than uploads.
+
+### Sequencing
+
+Keyword search ships first and stands alone; semantic search is the plan after
+it. The schema and both seams are designed in from the start so that is an
+additive change rather than a migration of everything already indexed.
+
 ## 9. Archive and purge
 
 A period is a first-class row with a lifecycle: **open** → **archived**
