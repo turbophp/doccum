@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-16T17:00:00Z",
-  "latestRun": "run/0000",
+  "dateModified": "2026-09-16T17:30:00Z",
+  "latestRun": "run/0001",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -25,8 +25,8 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "PeriodPurgerTest green; PR body records that each of the three guards was removed and its test failed; objects deleted only through DocumentStorage; rows deleted and purged_at stamped in one transaction; directory rows survive.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-16T17:00:01Z",
       "endTime": null,
       "result": []
     },
@@ -45,8 +45,8 @@
         "item/purge-service"
       ],
       "doneWhen": "ArchiveCommandsTest green; schedule:list shows close-periods daily and purge-expired weekly; purge-period without --force changes no row and no object.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-16T17:00:01Z",
       "endTime": null,
       "result": []
     },
@@ -63,8 +63,8 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "pint --test reports no style issues and phpstan stays at or below its baseline; the tests workflow is green on main.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-16T17:00:01Z",
       "endTime": null,
       "result": []
     },
@@ -935,7 +935,26 @@
       "result": []
     }
   ],
-  "pullRequests": [],
+  "pullRequests": [
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/2",
+      "@type": "PullRequest",
+      "identifier": 2,
+      "name": "feat: purging, a CI matrix that can prove it, and the v1 ledger",
+      "implements": [
+        "item/ci-green-baseline",
+        "item/purge-commands",
+        "item/purge-service"
+      ],
+      "run": "run/0001",
+      "state": "open",
+      "dateCreated": "2026-09-16T17:02:30Z",
+      "headSha": "7a4b0bb869605230004c6828ec7842f13cfc7640",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    }
+  ],
   "decisions": [
     {
       "@id": "decision/0001",
