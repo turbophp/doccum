@@ -3,10 +3,10 @@
 declare(strict_types=1);
 
 use App\Enums\PropertyDataType;
-use App\Models\Property;
-use App\Models\PropertyDefinition;
 use App\Models\Directory;
 use App\Models\File;
+use App\Models\Property;
+use App\Models\PropertyDefinition;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
@@ -14,9 +14,9 @@ it('stores a string in the string column', function () {
     $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::String_]);
     $file = File::factory()->create();
 
-    $attribute = Property::for($file, $definition)->setValue('ACME-001');
+    $property = Property::for($file, $definition)->setValue('ACME-001');
 
-    expect($attribute->fresh()->value)->toBe('ACME-001')
+    expect($property->fresh()->value)->toBe('ACME-001')
         ->and(DB::table('properties')->value('value_string'))->toBe('ACME-001')
         ->and(DB::table('properties')->value('value_number'))->toBeNull();
 });
@@ -45,9 +45,9 @@ it('stores a date in the date column so ordering works', function () {
 it('stores a boolean', function () {
     $definition = PropertyDefinition::factory()->create(['data_type' => PropertyDataType::Boolean]);
 
-    $attribute = Property::for(File::factory()->create(), $definition)->setValue('1');
+    $property = Property::for(File::factory()->create(), $definition)->setValue('1');
 
-    expect($attribute->fresh()->value)->toBeTrue();
+    expect($property->fresh()->value)->toBeTrue();
 });
 
 it('attaches to a directory as well as a file', function () {

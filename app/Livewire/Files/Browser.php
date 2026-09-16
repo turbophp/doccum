@@ -28,6 +28,8 @@ class Browser extends Component
 
     public ?Directory $directory = null;
 
+    public ?File $selectedFile = null;
+
     public string $newDirectoryName = '';
 
     public $upload;
@@ -39,6 +41,16 @@ class Browser extends Component
         }
 
         $this->directory = $directory;
+    }
+
+    /** Opens the detail area's property panel on one file in the current directory. */
+    public function selectFile(int $fileId): void
+    {
+        $file = File::query()->where('directory_id', $this->directory?->getKey())->findOrFail($fileId);
+
+        $this->authorize('view', $file);
+
+        $this->selectedFile = $file;
     }
 
     public function createDirectory(CreateDirectory $action): void

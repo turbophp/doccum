@@ -15,7 +15,7 @@ return new class extends Migration
             $table->foreignId('property_definition_id')->constrained()->cascadeOnDelete();
             // No foreign key: subject_id can point at either directories
             // or files, so the relationship is enforced in the application
-            // (Directory::attributes() / File::attributes() plus their
+            // (Directory::properties() / File::properties() plus their
             // forceDeleted hooks) rather than in the schema.
             $table->string('subject_type', 32);
             $table->unsignedBigInteger('subject_id');
