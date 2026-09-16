@@ -10,8 +10,12 @@
     @if ($step === 1)
         <!-- Step 1: Database -->
         <form wire:submit="saveDatabase" class="flex flex-col gap-6">
-            <flux:select wire:model="db_connection" :label="__('Database type')">
-                <flux:select.option value="sqlite">{{ __('SQLite') }}</flux:select.option>
+            <flux:text class="text-sm">
+                {{ __('The embedded database needs no configuration. Choose a server type to use your own.') }}
+            </flux:text>
+
+            <flux:select wire:model.live="db_connection" :label="__('Database type')">
+                <flux:select.option value="sqlite">{{ __('Embedded (SQLite) — no server needed') }}</flux:select.option>
                 <flux:select.option value="mysql">{{ __('MySQL') }}</flux:select.option>
                 <flux:select.option value="mariadb">{{ __('MariaDB') }}</flux:select.option>
                 <flux:select.option value="pgsql">{{ __('PostgreSQL') }}</flux:select.option>
@@ -54,7 +58,7 @@
                 {{ __('Embedded storage works with no configuration. Pick a provider below to use your own bucket instead.') }}
             </flux:text>
 
-            <flux:select wire:model="storage_provider" :label="__('Storage provider')">
+            <flux:select wire:model.live="storage_provider" :label="__('Storage provider')">
                 <flux:select.option value="embedded">{{ __('Embedded (bundled MinIO)') }}</flux:select.option>
                 <flux:select.option value="s3">{{ __('Amazon S3') }}</flux:select.option>
                 <flux:select.option value="r2">{{ __('Cloudflare R2') }}</flux:select.option>

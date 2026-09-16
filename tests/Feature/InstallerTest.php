@@ -128,3 +128,33 @@ it('never writes a storage secret into the runtime file at all', function () {
 
     expect(app(Settings::class)->get('storage.secret'))->toBe('a-very-secret-string');
 });
+
+it('swaps the database field between a file path and server credentials', function () {
+    // The screenshot bug: picking MariaDB still asked for a "Database file
+    // path" because wire:model is deferred, so the select never reached the
+    // server and the form never re-rendered.
+    Livewire::test(FirstRun::class)
+        ->assertSet('db_connection', 'sqlite')
+        ->assertSet('db_database', '/data/doccum.sqlite')
+        ->set('db_connection', 'mariadb')
+        ->assertSet('db_database', '')
+        ->assertSet('db_port', '3306')
+        ->assertSee('Host')
+        ->assertSee('Username')
+        ->assertSee('Password')
+        ->assertDontSee('Database file path');
+});
+
+it('restores the embedded path when switching back', function () {
+    Livewire::test(FirstRun::class)
+        ->set('db_connection', 'pgsql')
+        ->assertSet('db_port', '5432')
+        ->set('db_connection', 'sqlite')
+        ->assertSet('db_database', '/data/doccum.sqlite')
+        ->assertSee('Database file path')
+        ->assertDontSee('Host');
+});
+
+it('describes the embedded database in the same language as embedded storage', function () {
+    Livewire::test(FirstRun::class)->assertSee('Embedded (SQLite)');
+});

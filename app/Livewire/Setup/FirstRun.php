@@ -65,7 +65,11 @@ class FirstRun extends Component
 
     public string $db_port = '';
 
-    public string $db_database = '';
+    /**
+     * Pre-filled with the embedded database's path so the default choice needs
+     * no typing at all; replaced by the operator when they pick a server.
+     */
+    public string $db_database = '/data/doccum.sqlite';
 
     public string $db_username = '';
 
@@ -194,6 +198,21 @@ class FirstRun extends Component
      * poison the running request with an unvalidated connection; migrating
      * first would create doccum's tables inside a stranger's database.
      */
+    /**
+     * The path and the database name share one field, so switching driver must
+     * not carry a filesystem path over as a database name (or vice versa).
+     */
+    public function updatedDbConnection(string $value): void
+    {
+        $this->db_database = $value === 'sqlite' ? '/data/doccum.sqlite' : '';
+        $this->db_port = match ($value) {
+            'pgsql' => '5432',
+            'mysql', 'mariadb' => '3306',
+            default => '',
+        };
+        $this->resetErrorBag();
+    }
+
     public function saveDatabase(): void
     {
         $this->resetErrorBag('db_connection');
