@@ -221,7 +221,7 @@ final class LedgerValidator
 
     /**
      * @return array<string, string>|null map of filename (e.g. "0000.jsonld") to full path,
-     *                                     sorted by filename.
+     *                                    sorted by filename.
      */
     private static function listRunFiles(array &$errors, string $runsDir): ?array
     {
