@@ -75,6 +75,8 @@ class ExtractText implements ShouldQueue
                 'error' => $exception?->getMessage() ?? 'extraction failed',
             ],
         );
+
+        ReindexSearchDocument::dispatch($this->version->file);
     }
 
     private function store(ExtractionResult $result): void
@@ -89,5 +91,11 @@ class ExtractText implements ShouldQueue
                 'error' => $result->error,
             ],
         );
+
+        // The file's body is only as current as its text, so the moment an
+        // outcome lands -- Done, Unsupported, or a text change on retry --
+        // the file's search projection needs rebuilding, not merely on
+        // upload before any text existed.
+        ReindexSearchDocument::dispatch($this->version->file);
     }
 }

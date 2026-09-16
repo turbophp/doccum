@@ -27,3 +27,7 @@ Route::livewire('admin/properties', PropertyDefinitions::class)
     ->name('admin.properties');
 
 require __DIR__.'/settings.php';
+
+Route::livewire('/search', App\Livewire\Search\Results::class)
+    ->middleware('auth')
+    ->name('search');

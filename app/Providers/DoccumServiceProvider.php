@@ -7,8 +7,10 @@ namespace App\Providers;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
+use App\Models\Property;
 use App\Models\PropertyDefinition;
 use App\Models\User;
+use App\Observers\SearchProjectionObserver;
 use App\Policies\DirectoryPolicy;
 use App\Policies\FilePolicy;
 use App\Policies\PropertyDefinitionPolicy;
@@ -20,6 +22,10 @@ use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use App\Search\Fts5SearchIndex;
+use App\Search\LikeSearchIndex;
+use App\Search\SearchIndex;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use League\Flysystem\Filesystem;
 use Spatie\Permission\Models\Role;
@@ -35,6 +41,15 @@ class DoccumServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        // FTS5 where the driver has it, a correct-but-unranked fallback
+        // elsewhere. Resolved at container level so nothing downstream has to
+        // know which is in play.
+        $this->app->singleton(SearchIndex::class, function ($app): SearchIndex {
+            return DB::connection()->getDriverName() === 'sqlite'
+                ? $app->make(Fts5SearchIndex::class)
+                : $app->make(LikeSearchIndex::class);
+        });
+
         $this->app->singleton(DirectoryAccess::class);
 
         // Singleton so a test's ProcessRunner::fake() state is visible to
@@ -50,6 +65,7 @@ class DoccumServiceProvider extends ServiceProvider
             'role' => Role::class,
             'directory' => Directory::class,
             'file' => File::class,
+            'property' => Property::class,
         ]);
 
         // The memoisation in DirectoryAccess is only safe while nothing has
@@ -68,6 +84,10 @@ class DoccumServiceProvider extends ServiceProvider
         Gate::policy(Directory::class, DirectoryPolicy::class);
         Gate::policy(File::class, FilePolicy::class);
         Gate::policy(PropertyDefinition::class, PropertyDefinitionPolicy::class);
+
+        Directory::observe(SearchProjectionObserver::class);
+        File::observe(SearchProjectionObserver::class);
+        Property::observe(SearchProjectionObserver::class);
 
         $this->registerAzureDriver();
     }

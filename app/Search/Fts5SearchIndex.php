@@ -1,0 +1,89 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Search;
+
+use App\Models\SearchDocument;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Keyword search on SQLite's FTS5, ranked by BM25.
+ *
+ * The virtual table's rowid is the projection row's id, so the two stay in
+ * step without triggers and a match joins straight back to everything needed
+ * for filtering.
+ */
+class Fts5SearchIndex implements SearchIndex
+{
+    /** Titles are weighted far above bodies: matching a name is a stronger signal than matching one word in fifty pages. */
+    private const TITLE_WEIGHT = 10.0;
+
+    private const BODY_WEIGHT = 1.0;
+
+    public function put(SearchDocument $document): void
+    {
+        DB::statement(
+            'INSERT OR REPLACE INTO search_index(rowid, title, body) VALUES (?, ?, ?)',
+            [$document->getKey(), $document->title, (string) $document->body],
+        );
+    }
+
+    public function forget(SearchDocument $document): void
+    {
+        DB::statement('DELETE FROM search_index WHERE rowid = ?', [$document->getKey()]);
+    }
+
+    public function search(string $query, array $viewableDirectoryIds, array $filters = [], int $limit = 50): Collection
+    {
+        $match = Terms::toFts5($query);
+
+        // Nothing searchable was typed. An empty query must return nothing
+        // rather than everything -- "show me all documents" is browsing, and
+        // it is not what someone pressing enter on an empty box asked for.
+        if ($match === null || $viewableDirectoryIds === []) {
+            return new Collection;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($viewableDirectoryIds), '?'));
+        $bindings = [$match, ...array_values($viewableDirectoryIds)];
+
+        $where = '';
+        foreach (['period_year', 'period_month', 'mime', 'extension', 'subject_type'] as $filter) {
+            if (isset($filters[$filter])) {
+                $where .= " AND d.{$filter} = ?";
+                $bindings[] = $filters[$filter];
+            }
+        }
+
+        $bindings[] = $limit;
+
+        // bm25() is negative in SQLite, and more negative is a better match,
+        // so ascending order puts the best first.
+        $rows = DB::select(
+            'SELECT d.id, bm25(search_index, '.self::TITLE_WEIGHT.', '.self::BODY_WEIGHT.') AS score
+             FROM search_index
+             JOIN search_documents d ON d.id = search_index.rowid
+             WHERE search_index MATCH ?
+               AND d.directory_id IN ('.$placeholders.')'.$where.'
+             ORDER BY score ASC
+             LIMIT ?',
+            $bindings,
+        );
+
+        $documents = SearchDocument::query()
+            ->whereIn('id', array_map(static fn (object $row): int => (int) $row->id, $rows))
+            ->get()
+            ->keyBy('id');
+
+        return (new Collection($rows))
+            ->map(function (object $row) use ($documents): ?SearchHit {
+                $document = $documents->get((int) $row->id);
+
+                return $document === null ? null : SearchHit::fromDocument($document, (float) $row->score);
+            })
+            ->filter()
+            ->values();
+    }
+}
