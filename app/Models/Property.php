@@ -18,10 +18,10 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * comparisons rather than string comparisons. See spec §4.
  */
 #[Fillable([
-    'attribute_definition_id', 'attributable_type', 'attributable_id',
+    'property_definition_id', 'subject_type', 'subject_id',
     'value_string', 'value_number', 'value_date', 'value_boolean',
 ])]
-class Attribute extends Model
+class Property extends Model
 {
     use HasFactory;
 
@@ -33,24 +33,24 @@ class Attribute extends Model
         ];
     }
 
-    /** @return BelongsTo<AttributeDefinition, $this> */
+    /** @return BelongsTo<PropertyDefinition, $this> */
     public function definition(): BelongsTo
     {
-        return $this->belongsTo(AttributeDefinition::class, 'attribute_definition_id');
+        return $this->belongsTo(PropertyDefinition::class, 'property_definition_id');
     }
 
-    public function attributable(): MorphTo
+    public function subject(): MorphTo
     {
         return $this->morphTo();
     }
 
-    /** Resolve, or prepare, the single attribute for this subject and definition. */
-    public static function for(Model $subject, AttributeDefinition $definition): self
+    /** Resolve, or prepare, the single property for this subject and definition. */
+    public static function for(Model $subject, PropertyDefinition $definition): self
     {
         return static::firstOrNew([
-            'attribute_definition_id' => $definition->getKey(),
-            'attributable_type' => $subject->getMorphClass(),
-            'attributable_id' => $subject->getKey(),
+            'property_definition_id' => $definition->getKey(),
+            'subject_type' => $subject->getMorphClass(),
+            'subject_id' => $subject->getKey(),
         ]);
     }
 

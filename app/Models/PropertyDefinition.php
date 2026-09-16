@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\AppliesTo;
-use App\Enums\AttributeDataType;
+use App\Enums\PropertyDataType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * What an attribute is: a key, a label, a data type and what it applies to.
+ * What a property is: a key, a label, a data type and what it applies to.
  *
- * The value itself lives on Attribute, one row per subject per definition.
+ * The value itself lives on Property, one row per subject per definition.
  * See spec §4.
  */
 #[Fillable(['key', 'label', 'data_type', 'options', 'is_required', 'applies_to', 'sort_order'])]
-class AttributeDefinition extends Model
+class PropertyDefinition extends Model
 {
     use HasFactory;
 
@@ -35,7 +35,7 @@ class AttributeDefinition extends Model
     protected function casts(): array
     {
         return [
-            'data_type' => AttributeDataType::class,
+            'data_type' => PropertyDataType::class,
             'applies_to' => AppliesTo::class,
             'options' => 'array',
             'is_required' => 'boolean',

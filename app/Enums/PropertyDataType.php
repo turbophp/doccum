@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
-use App\Models\AttributeDefinition;
+use App\Models\PropertyDefinition;
 use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 
@@ -15,7 +15,7 @@ use Illuminate\Validation\Rule;
  * and date ordering are SQL comparisons instead of string comparisons. See
  * spec §4.
  */
-enum AttributeDataType: string
+enum PropertyDataType: string
 {
     case String_ = 'string';
     case Text = 'text';
@@ -47,7 +47,7 @@ enum AttributeDataType: string
     }
 
     /**
-     * An empty input means the attribute is absent, not that it holds an empty
+     * An empty input means the property is absent, not that it holds an empty
      * value -- otherwise clearing a field would still satisfy a required rule.
      */
     public function cast(mixed $value): mixed
@@ -65,7 +65,7 @@ enum AttributeDataType: string
     }
 
     /** @return array<int, mixed> */
-    public function rules(AttributeDefinition $definition): array
+    public function rules(PropertyDefinition $definition): array
     {
         $rules = $definition->is_required ? ['required'] : ['nullable'];
 

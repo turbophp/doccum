@@ -10,7 +10,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('attribute_definitions', function (Blueprint $table) {
+        Schema::create('property_definitions', function (Blueprint $table) {
             $table->id();
             $table->string('key', 64)->unique();
             $table->string('label', 191);
@@ -27,6 +27,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('attribute_definitions');
+        Schema::dropIfExists('property_definitions');
     }
 };

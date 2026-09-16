@@ -61,12 +61,12 @@ class File extends Model
             $file->period_month ??= (int) $at->month;
         });
 
-        // The morph columns on `attributes` cannot carry a foreign key (they
-        // point at either directories or files), so a file's attributes are
+        // The morph columns on `properties` cannot carry a foreign key (they
+        // point at either directories or files), so a file's properties are
         // not cascade-deleted by the database. Without this hook they would
         // outlive the file they were attached to.
         static::forceDeleted(static function (File $file): void {
-            $file->attributes()->delete();
+            $file->properties()->delete();
         });
     }
 
@@ -75,9 +75,9 @@ class File extends Model
         return $this->belongsTo(Directory::class);
     }
 
-    public function attributes(): MorphMany
+    public function properties(): MorphMany
     {
-        return $this->morphMany(Attribute::class, 'attributable');
+        return $this->morphMany(Property::class, 'subject');
     }
 
     public function versions(): HasMany

@@ -35,12 +35,12 @@ class Directory extends Model
     {
         static::created(static fn (Directory $directory) => $directory->syncPath());
 
-        // The morph columns on `attributes` cannot carry a foreign key (they
-        // point at either directories or files), so a directory's attributes
+        // The morph columns on `properties` cannot carry a foreign key (they
+        // point at either directories or files), so a directory's properties
         // are not cascade-deleted by the database. Without this hook they
         // would outlive the directory they were attached to.
         static::forceDeleted(static function (Directory $directory): void {
-            $directory->attributes()->delete();
+            $directory->properties()->delete();
         });
     }
 
@@ -59,9 +59,9 @@ class Directory extends Model
         return $this->belongsTo(User::class, 'home_user_id');
     }
 
-    public function attributes(): MorphMany
+    public function properties(): MorphMany
     {
-        return $this->morphMany(Attribute::class, 'attributable');
+        return $this->morphMany(Property::class, 'subject');
     }
 
     /**
