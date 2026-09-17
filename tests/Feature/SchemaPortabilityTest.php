@@ -1,0 +1,422 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Concerns\ProfileValidationRules;
+use App\Support\NameKey;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+
+/*
+|--------------------------------------------------------------------------
+| Schema portability audit -- decision/0010
+|--------------------------------------------------------------------------
+|
+| decision/0010: doccum states every semantic it relies on; none is
+| inherited from a driver or framework default. Six defects (and one
+| ledger decision, 0008) all trace back to that one pattern -- a semantic
+| that was true only because of what a driver happened to default to,
+| never written down anywhere. This file adds no behaviour. It makes the
+| existing behaviour stated and asserted, so the next unstated inherited
+| semantic fails here instead of in someone's install.
+|
+| Runs unchanged on every leg of the CI matrix (sqlite/mysql/pgsql x two
+| PHP versions -- see .github/workflows/tests.yml). Where today's schema
+| does not yet satisfy a rule this file checks, the gap is named in an
+| exclusion list with a comment, rather than silently passing or being
+| fixed inline -- this item audits, it does not repair.
+*/
+
+/**
+ * InnoDB's key-length cap, and PostgreSQL's btree tuple-size cap, byte for
+ * byte. SQLite has no such ceiling, so it is deliberately absent here --
+ * the index-width assertions below simply do not run for it, though the
+ * rest of this test (introspection, FK coverage, the site inventory, the
+ * folding-rule list) still does.
+ *
+ * @var array<string, int>
+ */
+const SCHEMA_AUDIT_KEY_WIDTH_LIMITS = [
+    'mysql' => 3072,
+    'mariadb' => 3072,
+    'pgsql' => 2704,
+];
+
+/**
+ * Indexes whose worst-case width cannot be judged from declared column
+ * length alone, because a driver-conditional raw expression built them
+ * instead of a plain Blueprint column list. Each entry names why, and the
+ * generic width check below skips exactly these and nothing else.
+ *
+ * @var array<string, array<string, string>>
+ */
+const SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES = [
+    'properties' => [
+        'properties_property_definition_id_value_string_index' => 'database/migrations/2026_09_16_090100_create_properties_table.php creates this with a '.
+            'raw DB::statement(), not a Blueprint index, specifically so MySQL/MariaDB can index '.
+            "value_string(255) -- a 255-char prefix, safely under 3072 bytes even at utf8mb4's worst ".
+            'case. Every other driver indexes value_string whole (1024 chars declared), which this '.
+            'generic check cannot see through the raw expression to size. On PostgreSQL that full '.
+            'column can exceed the ~2704-byte btree tuple limit -- closing that gap is '.
+            'item/pgsql-value-string-index (issue #39), a separate item this one depends on landing '.
+            'after. Not sized here on purpose; do not remove this entry until #39 lands.',
+    ],
+];
+
+/**
+ * Foreign-key columns with no index leading with that column, on the legs
+ * that do not require one (InnoDB does; SQLite and PostgreSQL do not --
+ * see decision/0008). Every one of these was found while building this
+ * audit, none by design: nothing here was fixed inline, per this item's
+ * brief. Each is reported alongside this work for its own issue.
+ *
+ * Keyed by "table.column" for a single-column foreign key.
+ *
+ * @var array<string, string>
+ */
+const SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS = [
+    'directories.created_by' => 'foreignId(\'created_by\')->constrained(\'users\') carries no index of its own -- only '.
+        'MySQL/MariaDB gets one, auto-created by InnoDB because the constraint requires it. '.
+        'SQLite and PostgreSQL leave the column entirely unindexed. Verified empirically against '.
+        'both (PRAGMA index_list / pg_indexes) while building this audit.',
+    'files.created_by' => 'Same gap as directories.created_by, same column, same migration pattern '.
+        '(database/migrations/2026_09_15_132337_create_files_table.php).',
+    'file_versions.uploaded_by' => 'foreignId(\'uploaded_by\')->constrained(\'users\') in '.
+        'database/migrations/2026_09_15_132338_create_file_versions_table.php has no covering '.
+        'index outside MySQL/MariaDB\'s auto-created one; file_id is covered by the '.
+        '(file_id, version_number) unique index, uploaded_by is not.',
+    'search_documents.owner_id' => 'database/migrations/2026_09_16_140000_create_search_documents_table.php indexes '.
+        'directory_id explicitly but not owner_id, which carries its own foreign key to users.',
+    'settings.updated_by' => 'foreignId(\'updated_by\')->constrained(\'users\') in '.
+        'database/migrations/2026_09_15_131320_create_settings_table.php has no index at all '.
+        'outside MySQL/MariaDB\'s auto-created one.',
+    'role_has_permissions.role_id' => "spatie/laravel-permission's own migration (database/migrations/2026_09_15_134326_"
+        .'create_permission_tables.php) gives role_has_permissions a composite primary key '
+        .'(permission_id, role_id) -- it leads with permission_id, so only that column is covered. '
+        .'role_id is the trailing column of that primary key, never the leading column of any '
+        .'index, except on MySQL/MariaDB where InnoDB auto-creates one for it.',
+];
+
+/**
+ * Every raw-SQL or collation-dependent site under app/ and database/, found
+ * by grepping for the patterns below and reviewed one by one while building
+ * this audit -- not trusted from the issue that named four of them, which
+ * said as much. Each entry records why the site is (or, for the false
+ * positives the same grep catches, is not) driver-dependent. A new hit that
+ * is not a key here fails the scan test below; a key with no matching hit
+ * any more is stale and fails it too, so this cannot silently rot.
+ *
+ * @var array<string, string>
+ */
+const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
+    'app/Search/Fts5SearchIndex.php' => "SQLite's FTS5 MATCH operator and bm25() ranking function, both SQLite-only -- ".
+        'DoccumServiceProvider only resolves this class when getDriverName() === \'sqlite\'. '.
+        'Raw DB::statement()/DB::select() because FTS5 virtual tables are not something the '.
+        'query builder can target.',
+    'app/Search/LikeSearchIndex.php' => "PostgreSQL's LIKE is case-sensitive; SQLite's and MySQL's default utf8mb4 collation are ".
+        'not. Switches to ILIKE on pgsql specifically so search does not go silently empty there -- '.
+        'the fix for issue #2/PR #2.',
+    'app/Search/SearchIndex.php' => 'The word "LIKE" appears only in a docblock explaining LikeSearchIndex\'s relationship to '.
+        'this interface -- prose, not a query. Not actually driver-dependent; registered because '.
+        'the grep cannot tell the difference.',
+    'app/Actions/Directories/MoveDirectory.php' => 'Two raw DB::statement() calls rewriting `path` and recomputing `depth` with REPLACE() and '.
+        'LENGTH() -- called out in the surrounding comment as "the one expression that behaves '.
+        'identically on SQLite, MySQL, and Postgres\", so this is raw SQL by choice, not a raw SQL '.
+        'that happens to only work on one driver.',
+    'app/Actions/Directories/RestoreDirectory.php' => "A 'like' prefix match against `path`, which is a materialised path of ids and '/' only -- ".
+        "no letters ever appear in it, so LikeSearchIndex's case-sensitivity split does not apply ".
+        'here. Registered because the operator is still raw and driver-conditional in general; '.
+        'safe today only because of what this column happens to contain.',
+    'app/Models/Directory.php' => "Same 'like' prefix match against `path` (descendants(), scopeInSubtreeOf()) as "
+        .'RestoreDirectory, same reasoning: safe because path is ids and slashes only.',
+    'app/Services/DirectoryAccess.php' => "resolveViewable()'s 'like'/'not like' prefix matches against `path`, expanding a granted ".
+        'subtree and excluding a trashed one (issue #49). Same "path is ids only" reasoning as '.
+        'Directory and RestoreDirectory -- named explicitly in this item\'s brief as a known site.',
+    'app/Support/NameKey.php' => 'mb_strtolower() here is not a driver dependency -- it is the fix for one. It states the '.
+        "folding rule (NFC-normalise, then lowercase) in PHP so no driver's own collation gets to ".
+        "decide what \"the same name\" means; see issue #46 and this file's own docblock. See the ".
+        'folding-rule inventory below.',
+    'app/Console/Commands/ConfigShow.php' => 'strtolower() here folds a config *key path* (e.g. "storage.KEY") before checking whether '.
+        'it should be masked as a secret -- pure PHP string matching, nothing stored, compared for '.
+        'uniqueness, or touching a database. Registered as a false positive the grep cannot filter '.
+        'out on its own.',
+    'app/Services/SearchIndexer.php' => 'strtolower() here normalises a file *extension* for the search projection\'s `extension` '.
+        'column -- a value the application computes and writes, not one compared against '.
+        'unnormalised user input, and no database function is involved. False positive.',
+    'app/Providers/FortifyServiceProvider.php' => 'Str::lower() here folds the login rate-limiter\'s throttle key (an in-memory/cache lookup '.
+        'key, not a database column) so "Alice" and "alice" share one bucket. Unrelated to schema '.
+        'or SQL. False positive.',
+    'app/Support/LedgerValidator.php' => "mb_strtolower() here reproduces GitHub's own heading-to-anchor slug rule for validating ".
+        'docs/ledger cross-references -- dev tooling with no database involved at all. False '.
+        'positive.',
+    'database/migrations/2026_09_16_090100_create_properties_table.php' => 'The driver-conditional raw CREATE INDEX for value_string, described above in '.
+        'SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES -- the reason doccum could not be installed on '.
+        'MySQL at all before this was added (issues #37/#38).',
+    'database/migrations/2026_09_16_110000_create_search_index_table.php' => "Creates SQLite's FTS5 virtual table with a raw DB::statement(), guarded by ".
+        "getDriverName() !== 'sqlite' returning early -- would fail the migration outright on ".
+        'every other driver if it ran unconditionally.',
+];
+
+/**
+ * Every column compared against user input for equality or uniqueness,
+ * with the folding rule it relies on -- or the honest absence of one.
+ * decision/0010's third rule: any such comparison states its folding rule
+ * in code rather than borrowing whatever the column's default collation
+ * happens to do, and that rule differs by driver exactly when nothing
+ * states it.
+ *
+ * @var array<string, string>
+ */
+const SCHEMA_AUDIT_FOLDING_RULES = [
+    'users.email' => 'None today. App\Actions\Fortify\CreateNewUser stores the address exactly as submitted and '.
+        'App\Concerns\ProfileValidationRules::emailRules() only checks format and Rule::unique() -- '.
+        'no normalisation happens anywhere, so uniqueness is decided entirely by the `email` '.
+        "column's driver collation, which folds case and accents differently per driver. Known "
+        .'gap: issue #59, tracked there rather than fixed here.',
+    'users.username' => 'App\Concerns\ProfileValidationRules::usernameRules() constrains input to '.
+        '/^[a-z0-9._-]+$/ before Rule::unique() ever runs, so no two valid usernames can differ '.
+        'only by case or accent -- the column\'s own collation is never asked to fold anything, on '.
+        'any driver. Asserted below directly against that regex.',
+    'settings.key' => 'Not user input. Every caller of App\Services\Settings::set()/get() passes a literal '.
+        "dotted key it wrote itself in source (e.g. 'auth.default_role', 'storage.provider') -- ".
+        'never a value an end user typed. The unique constraint on `settings.key` guards against '.
+        'an application bug writing the wrong literal, not against two differently-cased user '.
+        'inputs colliding, so there is no folding rule to state.',
+    'property_definitions.key' => 'App\Livewire\Admin\PropertyDefinitions runs Str::slug($this->key, \'_\') before '.
+        'validating, so the value that ever reaches the `regex:/^[a-z0-9_]+$/` rule and '.
+        "Rule::unique('property_definitions', 'key') is already lowercase ASCII -- covered by ".
+        'tests/Feature/PropertyDefinitionAdminTest.php\'s "normalises a key to the allowed '.
+        'character set".',
+    'directories.name / files.name' => 'Folded by App\Support\NameKey::of(): NFC-normalise, then mb_strtolower(), persisted in '.
+        '`name_key` and compared there (Directory::scopeWhereNamed(), File\'s equivalent) instead '.
+        'of on `name` directly -- deliberately never `LOWER(name) = ?`, which is exactly the '.
+        'collation-dependent comparison issue #46 found. Already done, and already covered by '.
+        'tests/Unit/NameKeyTest.php.',
+];
+
+/**
+ * Recursively scans every .php file under the given path (relative to
+ * base_path()) for the driver-dependent-site pattern, pure PHP -- no
+ * external `grep`, per CLAUDE.md's "no test may require an external
+ * binary".
+ *
+ * @return array<string, list<int>> relative file path => matching line numbers
+ */
+function schemaAuditScanDriverDependentSites(string $relativeDirectory): array
+{
+    $pattern = "~DB::statement|DB::select|whereRaw|selectRaw|orderByRaw|->raw\(|'like'|LIKE|LOWER\(|lower\(~";
+
+    $root = base_path($relativeDirectory);
+    $hits = [];
+
+    $files = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS),
+    );
+
+    foreach ($files as $file) {
+        if (! $file->isFile() || $file->getExtension() !== 'php') {
+            continue;
+        }
+
+        $relativePath = $relativeDirectory.substr($file->getPathname(), strlen($root));
+        $relativePath = str_replace('\\', '/', $relativePath);
+
+        $lines = file($file->getPathname(), FILE_IGNORE_NEW_LINES) ?: [];
+
+        foreach ($lines as $number => $line) {
+            if (preg_match($pattern, $line) === 1) {
+                $hits[$relativePath][] = $number + 1;
+            }
+        }
+    }
+
+    ksort($hits);
+
+    return $hits;
+}
+
+/**
+ * A conservative, deliberately coarse worst-case byte width for one column
+ * inside an index key. Variable-length text is sized from its declared
+ * length x4 (utf8mb4's worst case, per this item's brief); anything
+ * unbounded (text/blob/json, no declared length to size against) is
+ * treated as unmeasurable rather than guessed at, so a future index on one
+ * of those fails loudly instead of silently passing. Every other column
+ * type in this schema is fixed-width and nowhere near either limit, so a
+ * flat, generous stand-in is used rather than modelling storage byte-for-
+ * byte.
+ */
+function schemaAuditColumnWidth(array $column): int
+{
+    $typeName = strtolower((string) ($column['type_name'] ?? ''));
+    $type = strtolower((string) ($column['type'] ?? ''));
+
+    if (str_contains($typeName, 'char')) {
+        if (preg_match('/\((\d+)\)/', $type, $matches) === 1) {
+            return ((int) $matches[1]) * 4;
+        }
+
+        return PHP_INT_MAX;
+    }
+
+    if (str_contains($typeName, 'text') || str_contains($typeName, 'blob') || str_contains($typeName, 'json')) {
+        return PHP_INT_MAX;
+    }
+
+    return 8;
+}
+
+it('sizes every index against utf8mb4\'s worst case, or names the driver-conditional expression that is not generically sizeable', function () {
+    $driver = DB::connection()->getDriverName();
+    $limit = SCHEMA_AUDIT_KEY_WIDTH_LIMITS[$driver] ?? null;
+
+    if ($limit === null) {
+        // SQLite imposes no index key length limit, so there is no ceiling
+        // here to size anything against -- and its implicit
+        // sqlite_autoindex_* entries are artefacts it generates for primary
+        // key and unique constraints, not indexes doccum declares or could
+        // shorten. Asserting width on this driver measures nothing.
+        //
+        // Named explicitly rather than skipped by absence, so a driver added
+        // to the matrix without a registered limit fails here instead of
+        // quietly opting out of the check.
+        expect($driver)->toBe(
+            'sqlite',
+            "Driver {$driver} has no entry in SCHEMA_AUDIT_KEY_WIDTH_LIMITS. Add its index ".
+            'key length ceiling, or record here why it has none.',
+        );
+
+        return;
+    }
+
+    foreach (Schema::getTables() as $tableInfo) {
+        $table = $tableInfo['name'];
+        $columns = collect(Schema::getColumns($table))->keyBy('name');
+        $allowListed = SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES[$table] ?? [];
+
+        foreach (Schema::getIndexes($table) as $index) {
+            if (array_key_exists($index['name'], $allowListed)) {
+                continue;
+            }
+
+            $width = 0;
+
+            foreach ($index['columns'] as $columnName) {
+                $column = $columns->get($columnName);
+
+                expect($column)->not->toBeNull(
+                    "Index {$table}.{$index['name']} references unknown column {$columnName}.",
+                );
+
+                $width += schemaAuditColumnWidth($column);
+            }
+
+            expect($width)->toBeLessThan(
+                PHP_INT_MAX,
+                "Index {$table}.{$index['name']} covers an unbounded column (text/blob/json) with ".
+                'no declared length to size against. Either add a driver-conditional expression to '.
+                'SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES with the reasoning, or size the index '.
+                'explicitly (a prefix, a functional index, a shorter column).',
+            );
+
+            if ($limit !== null) {
+                expect($width)->toBeLessThanOrEqual(
+                    $limit,
+                    "Index {$table}.{$index['name']} has a worst-case key width of {$width} bytes ".
+                    "on {$driver}, over its {$limit}-byte limit, and is not in ".
+                    'SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES.',
+                );
+            }
+        }
+    }
+});
+
+it('keeps a leading index on every foreign key column, on every leg -- decision/0008, generalised', function () {
+    foreach (Schema::getTables() as $tableInfo) {
+        $table = $tableInfo['name'];
+        $indexes = Schema::getIndexes($table);
+
+        foreach (Schema::getForeignKeys($table) as $foreignKey) {
+            $columns = $foreignKey['columns'];
+            $key = $table.'.'.implode(',', $columns);
+
+            if (array_key_exists($key, SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS)) {
+                continue;
+            }
+
+            $hasLeadingIndex = collect($indexes)->contains(
+                fn (array $index): bool => array_slice($index['columns'], 0, count($columns)) === $columns,
+            );
+
+            expect($hasLeadingIndex)->toBeTrue(
+                "Foreign key {$key} has no index whose first column(s) are its own -- decision/0008's ".
+                'errno 1553 rule. Either keep/add one, or register a named exclusion in '.
+                'SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS explaining why it is safe to go without.',
+            );
+        }
+    }
+});
+
+it('inventories every raw-SQL or collation-dependent site under app/ and database/, and fails on an unregistered one', function () {
+    $hits = array_merge(
+        schemaAuditScanDriverDependentSites('app'),
+        schemaAuditScanDriverDependentSites('database'),
+    );
+
+    $unregistered = array_values(array_diff(array_keys($hits), array_keys(SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES)));
+
+    expect($unregistered)->toBe(
+        [],
+        'Found driver-dependent site(s) not in SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES: '.
+        implode(', ', $unregistered).'. Register each with the driver semantics it relies on.',
+    );
+
+    $stale = array_values(array_diff(array_keys(SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES), array_keys($hits)));
+
+    expect($stale)->toBe(
+        [],
+        'SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES lists site(s) that no longer match the scan: '.
+        implode(', ', $stale).'. Remove the stale entry.',
+    );
+});
+
+it('states the folding rule (or the honest lack of one) for every column compared against user input', function () {
+    expect(SCHEMA_AUDIT_FOLDING_RULES)->toHaveKeys([
+        'users.email',
+        'users.username',
+        'settings.key',
+        'property_definitions.key',
+        'directories.name / files.name',
+    ]);
+});
+
+it('folds a username to a character set no case or accent can vary within, before uniqueness is ever checked', function () {
+    $rules = (new class
+    {
+        use ProfileValidationRules;
+
+        /** @return array<int, mixed> */
+        public function rules(): array
+        {
+            return $this->usernameRules();
+        }
+    })->rules();
+
+    $regexRule = collect($rules)->first(
+        fn (mixed $rule): bool => is_string($rule) && str_starts_with($rule, 'regex:'),
+    );
+
+    expect($regexRule)->not->toBeNull();
+
+    $pattern = substr($regexRule, strlen('regex:'));
+
+    expect(preg_match($pattern, 'johndoe'))->toBe(1)
+        ->and(preg_match($pattern, 'John.Doe-9_x'))->toBe(0)
+        ->and(preg_match($pattern, 'JOHNDOE'))->toBe(0)
+        ->and(preg_match($pattern, "jos\u{00E9}"))->toBe(0);
+});
+
+it('folds directory and file names via name_key, never via the column collation -- see tests/Unit/NameKeyTest.php for the full behaviour', function () {
+    expect(NameKey::of('Report.PDF'))->toBe(NameKey::of('report.pdf'))
+        ->and(NameKey::of("r\u{00E9}sum\u{00E9}.pdf"))->not->toBe(NameKey::of('resume.pdf'));
+});
