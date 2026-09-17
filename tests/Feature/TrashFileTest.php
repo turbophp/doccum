@@ -69,3 +69,34 @@ it('leaves the trashed file trashed when restore is refused', function () {
 
     expect(File::withTrashed()->findOrFail($file->id)->trashed())->toBeTrue();
 });
+
+it('refuses to restore onto a name that differs only by case', function () {
+    $file = put('report.pdf');
+    app(TrashFile::class)->handle($file);
+    put('Report.pdf');
+
+    expect(fn () => app(RestoreFile::class)->handle(File::withTrashed()->findOrFail($file->id)))
+        ->toThrow(DuplicateFileName::class);
+});
+
+it('allows restoring onto a name that differs only by an accent', function () {
+    $file = put("r\u{00E9}sum\u{00E9}.pdf"); // NFC "résumé.pdf"
+    app(TrashFile::class)->handle($file);
+    put('resume.pdf');
+
+    $restored = app(RestoreFile::class)->handle(File::withTrashed()->findOrFail($file->id));
+
+    expect($restored->trashed())->toBeFalse();
+});
+
+it('refuses to restore onto a name that reappeared in a different unicode normalisation form', function () {
+    $nfc = "r\u{00E9}sum\u{00E9}.pdf"; // precomposed U+00E9
+    $nfd = "re\u{0301}sume\u{0301}.pdf"; // "e" + combining acute U+0301
+
+    $file = put($nfc);
+    app(TrashFile::class)->handle($file);
+    put($nfd);
+
+    expect(fn () => app(RestoreFile::class)->handle(File::withTrashed()->findOrFail($file->id)))
+        ->toThrow(DuplicateFileName::class);
+});

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\NameKey;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -34,6 +35,13 @@ class Directory extends Model
     protected static function booted(): void
     {
         static::created(static fn (Directory $directory) => $directory->syncPath());
+
+        // Maintained here, the same pattern as syncPath(), so that no code
+        // path can create or rename a directory while leaving name_key
+        // stale. See App\Support\NameKey and issue #46's decision comment.
+        static::saving(static function (Directory $directory): void {
+            $directory->name_key = NameKey::of((string) $directory->name);
+        });
 
         // The morph columns on `properties` cannot carry a foreign key (they
         // point at either directories or files), so a directory's properties
@@ -127,5 +135,19 @@ class Directory extends Model
     public static function depthFor(string $path): int
     {
         return substr_count($path, '/') - 2;
+    }
+
+    /**
+     * Siblings are compared case-insensitively and accent-sensitively, after
+     * NFC normalisation, through the persisted `name_key` column -- never
+     * `where('name', ...)`, which keeps every driver's accent folding alive.
+     * See App\Support\NameKey.
+     *
+     * @param  Builder<Directory>  $query
+     * @return Builder<Directory>
+     */
+    public function scopeWhereNamed(Builder $query, string $name): Builder
+    {
+        return $query->where('name_key', NameKey::of($name));
     }
 }

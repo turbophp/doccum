@@ -154,7 +154,11 @@ and no effect on object keys, which are built from period and file uuid (§6).
 | created_by | bigint fk→users | |
 | timestamps, deleted_at | | soft deletes |
 
-Unique `(parent_id, name)` among non-trashed rows.
+Unique `(parent_id, name)` among non-trashed rows, compared case-insensitively
+and accent-sensitively, after NFC normalisation, through a persisted
+`name_key` column (`App\Support\NameKey`; issue #46's decision comment) —
+`Report.pdf` and `report.pdf` are the same name, `résumé.pdf` and
+`resume.pdf` are not.
 
 A **home directory** is an ordinary root-level directory with `home_user_id`
 set and `name` equal to the owner's username — no separate table and no second
@@ -186,7 +190,11 @@ Moving a directory rewrites descendant paths with a single `UPDATE ... REPLACE()
 | created_by | bigint fk→users | |
 | timestamps, deleted_at | | soft deletes |
 
-Unique `(directory_id, name)` among non-trashed rows.
+Unique `(directory_id, name)` among non-trashed rows, compared
+case-insensitively and accent-sensitively, after NFC normalisation, through a
+persisted `name_key` column (`App\Support\NameKey`; issue #46's decision
+comment) — `Report.pdf` and `report.pdf` are the same name, `résumé.pdf` and
+`resume.pdf` are not.
 `period_year`/`period_month` are denormalised so period queries and reporting
 never scan object keys.
 
