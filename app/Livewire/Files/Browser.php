@@ -202,7 +202,7 @@ class Browser extends Component
                 // document rather than after whatever the operator happened
                 // to call the new upload (see App\Support\ObjectKey). It is
                 // the line the container smoke's mutation flips.
-                $this->selectedFile->name,
+                $this->replacement->getClientOriginalName(),
                 $this->replacement->getMimeType(),
             );
         } catch (PeriodIsArchived $e) {
