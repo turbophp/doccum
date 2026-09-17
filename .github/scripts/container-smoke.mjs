@@ -640,22 +640,26 @@ async function runSetup() {
 
     console.log('[setup] submitting the administrator form');
     await Promise.all([
-      // submit() does `return redirect('/')` unconditionally on success (see
+      // submit() ends in `redirect()->route('files.browse')` (see
       // FirstRun::submit) -- a real, full-page redirect, not a Livewire
       // ->navigate() morph, so a plain URL wait is enough.
-      page.waitForURL((u) => u.pathname === '/', { timeout: 15000 }),
+      //
+      // This wait is the load-bearing half of issue #97. Put the redirect
+      // back to '/' and it times out, because '/' is Route::view('/',
+      // 'welcome') -- Laravel's starter page. Nothing navigates after it any
+      // more, so the smoke can no longer paper over a redirect that lands
+      // somewhere the operator did not ask to be.
+      page.waitForURL((u) => u.pathname === '/files', { timeout: 15000 }),
       page.getByRole('button', { name: 'Create administrator account' }).click(),
     ]);
-    console.log('[setup] installer complete, admin created and logged in');
+    console.log('[setup] installer complete, admin created, landed on the files browser');
 
     checkEmbeddedSqlitePragmas();
 
-    console.log('[setup] opening the home directory');
-    await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-
-    // Checked here rather than on the post-installer redirect: that lands on
-    // `/`, which is Route::view('/', 'welcome') -- a standalone document that
-    // does not use the topbar layout, so there would be no topbar to drive.
+    // Driven on the page the installer actually delivers. This used to run
+    // after a manual page.goto('/files'), because '/' has no topbar on it --
+    // the smoke accommodated the defect in a comment rather than failing on
+    // it, which is how it survived. See issue #97.
     await checkTopbar(page, 'setup');
     await page.keyboard.press('Escape');
 

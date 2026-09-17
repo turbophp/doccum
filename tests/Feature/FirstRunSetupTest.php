@@ -31,7 +31,7 @@ it('creates the first admin with a home directory', function () {
         ->set('password_confirmation', 'password-please')
         ->call('submit')
         ->assertHasNoErrors()
-        ->assertRedirect('/');
+        ->assertRedirect(route('files.browse'));
 
     $user = User::firstOrFail();
 
