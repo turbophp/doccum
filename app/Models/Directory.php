@@ -109,7 +109,7 @@ class Directory extends Model
     /**
      * Every node beneath this one, excluding itself.
      *
-     * @return Builder<Directory>
+     * @return Builder<static>
      */
     public function descendants(): Builder
     {
