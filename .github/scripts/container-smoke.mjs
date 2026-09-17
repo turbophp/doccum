@@ -220,7 +220,7 @@ async function uploadAndProveStored(page, name, contents, phase) {
   fs.writeFileSync(tmpFile, contents);
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    await page.locator('input[type="file"]').setInputFiles(tmpFile);
+    await page.locator('[data-test="upload-form"] input[type="file"]').setInputFiles(tmpFile);
     await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
     await page.getByRole('button', { name: 'Upload', exact: true }).click();
     await page
@@ -794,7 +794,7 @@ function checkEmbeddedSqlitePragmas() {
 async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
-  await page.locator('input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+  await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
   // Through uploadAndProveStored(), not by hand. This check originally
   // repeated the old text-only assertion -- getByText(name) and nothing more
@@ -918,19 +918,26 @@ async function checkReplaceAddsASecondVersion(page, phase) {
 
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
-  await page.locator('input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+  await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
   await uploadAndProveStored(page, VERSIONS_CHECK_FILE_NAME, originalBody, phase);
 
   await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).click();
 
   // Two input[type="file"] elements exist on the page from this point on --
-  // the main upload form's and this now-visible Replace form's. Selecting
-  // by data-test rather than page.locator('input[type="file"]') is what
-  // keeps this from throwing on Playwright's strict-mode "resolved to 2
-  // elements" the moment a file is selected. See CLAUDE.md and the Blade
-  // template's own comment on these attributes.
-  const replaceInput = page.locator('[data-test="replace-file-input"]');
+  // the main upload form's and this now-visible Replace form's -- so every
+  // file-input locator in this file is scoped to the form that owns it. A
+  // bare locator would throw Playwright's strict-mode "resolved to 2
+  // elements" the moment a file is selected.
+  //
+  // The scope hangs off the <form>, which is plain HTML. Flux is only KNOWN
+  // to forward arbitrary attributes on flux:button -- data-test=
+  // "trash-file-button" is driven that way by a check that has passed CI and
+  // been mutation-proven -- and there is no such precedent for flux:input,
+  // which renders a label/wrapper around the real <input>. An attribute
+  // landing on that wrapper is somewhere setInputFiles() cannot reach.
+  // See the Blade template's comment on these two forms.
+  const replaceInput = page.locator('[data-test="replace-form"] input[type="file"]');
   await replaceInput.waitFor({ state: 'attached', timeout: 10000 });
 
   const replacementPath = path.join(os.tmpdir(), replacementFileName);
@@ -1128,7 +1135,7 @@ async function runSetup() {
     // username (config('doccum.settings.directories.auto_home') defaults to
     // true -- see config/doccum.php), so it is the one link on this page.
     await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
-    await page.locator('input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+    await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
     console.log(`[setup] uploading ${FILE_NAME}`);
     await uploadAndProveStored(
