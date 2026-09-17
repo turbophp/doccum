@@ -44,7 +44,9 @@ class RegistrationTest extends TestCase
         ]);
 
         $response->assertSessionHasNoErrors()
-            ->assertRedirect(route('dashboard', absolute: false));
+            // Files is the default landing after login (spec §10,
+            // "Destinations"), not the dashboard.
+            ->assertRedirect(route('files.browse', absolute: false));
 
         $this->assertAuthenticated();
     }
