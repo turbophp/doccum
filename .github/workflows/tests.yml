@@ -507,11 +507,18 @@ jobs:
       # SAME container against the SAME named volume, not a rebuild -- the
       # only thing that is supposed to persist here is /data, which is exactly
       # what the next step checks.
-      - name: Restart the container
+      # Replaced, not restarted. `docker restart` keeps the container's
+      # writable layer, so a database inside the image layer survives it and
+      # this step passes while proving nothing about the volume. Destroying
+      # the container and starting a new one from the same image against the
+      # same named volume is what "persists" has to mean for a container
+      # people are told to upgrade by replacing. See issue #91.
+      - name: Replace the container, keeping only the volume
         timeout-minutes: 3
         run: |
           set -e
-          docker restart doccum-smoke
+          docker rm -f doccum-smoke
+          docker run -d --name doccum-smoke -v doccum-ci:/data -p 8080:8080 doccum:ci
 
           ok=false
           for i in $(seq 1 30); do
