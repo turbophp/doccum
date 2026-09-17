@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T11:55:00Z",
-  "latestRun": "run/0009",
+  "dateModified": "2026-09-17T12:20:00Z",
+  "latestRun": "run/0010",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -237,10 +237,12 @@
         "item/schema-query-audit"
       ],
       "doneWhen": "A test inserts a value_string of roughly a thousand multi-byte characters and asserts it round-trips, failing on the PostgreSQL leg first; an index strategy is then chosen with that test green on all three drivers and the reasoning recorded, including which queries the chosen index can and cannot serve.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T11:55:01Z",
+      "endTime": "2026-09-17T12:08:41Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/69"
+      ]
     },
     {
       "@id": "item/fk-index-coverage",
@@ -257,10 +259,12 @@
         "item/schema-query-audit"
       ],
       "doneWhen": "Each of the six uncovered foreign key columns has an index leading with that column or a recorded reason it does not need one; the corresponding entries are removed from SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS so the audit asserts the rule rather than recording the exception; any new index is created before one it supersedes is dropped, per decision/0008.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:09:00Z",
+      "endTime": "2026-09-17T12:17:32Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/70"
+      ]
     },
     {
       "@id": "item/email-folding",
@@ -1279,6 +1283,38 @@
       "mergedAt": "2026-09-17T11:53:08Z",
       "mergeSha": "f102df2672d1855e37e2c33a4993d9efb5166fec",
       "mergedIn": "run/0009"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/69",
+      "@type": "PullRequest",
+      "identifier": 69,
+      "name": "fix: index md5(value_string) on PostgreSQL instead of the column whole",
+      "implements": [
+        "item/pgsql-value-string-index"
+      ],
+      "run": "run/0010",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:04:00Z",
+      "headSha": "068b295624b24536e7c30e89f0bf6b5860c4afbe",
+      "mergedAt": "2026-09-17T12:08:41Z",
+      "mergeSha": "2aafd0686a8bf77bee7254a0012574a318827c8d",
+      "mergedIn": "run/0010"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/70",
+      "@type": "PullRequest",
+      "identifier": 70,
+      "name": "fix: index every foreign key column that had none",
+      "implements": [
+        "item/fk-index-coverage"
+      ],
+      "run": "run/0010",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:13:00Z",
+      "headSha": "647313bdf051536ebc33523a9e58852e89c55bc9",
+      "mergedAt": "2026-09-17T12:17:32Z",
+      "mergeSha": "02813272271f704ffada85fb09216de2afc35b6c",
+      "mergedIn": "run/0010"
     }
   ],
   "decisions": [
@@ -1447,6 +1483,23 @@
         "item/trash-directory",
         "item/email-folding",
         "item/pgsql-value-string-index"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0011",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T12:20:00Z",
+      "run": "run/0010",
+      "name": "The properties value_string index is equality-only on PostgreSQL, and search-filters must spell it",
+      "rationale": "decision/0005 deferred this choice because every remedy cost something and none could be judged without a test. With the test in hand the answer was not a close call: reproducing the failure against a real PostgreSQL returned the engine's own HINT suggesting a function index on an md5 hash, so the chosen fix is the database's recommendation rather than a pick among three guesses. A truncation expression was rejected because PostgreSQL only uses an expression index when the query is spelled with that identical expression, and it stays an approximation needing the real predicate for correctness whenever two values share the truncated prefix -- a cost with no offsetting benefit, since spec section 4 defines this index for equality lookup alone: ordering and ranges live in value_number and value_date, prefix and substring search in search_documents. The index therefore serves equality only, written as md5(value_string) = md5(?) alongside the real value_string = ? predicate, and cannot serve ordering or LIKE at all. item/search-filters must add that second predicate for the string, text and select data types on PostgreSQL or the planner will never pick this index; that obligation is written into the migration where whoever implements it will read it, and was confirmed by EXPLAIN rather than assumed. The regression test was nearly worthless before review: a value built by repeating one character is pglz-compressed by TOAST before storage, so it never reaches the byte width the test means to exercise and passes against the unfixed index. It uses a thousand distinct codepoints instead, and says why.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/pgsql-value-string-index",
+        "item/search-filters",
+        "item/schema-query-audit"
       ],
       "supersedes": null
     }
