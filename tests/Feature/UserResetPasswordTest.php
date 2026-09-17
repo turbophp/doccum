@@ -78,3 +78,50 @@ it('fails loudly and by name for an address with no account, instead of a one-ti
     expect($output)->toContain('No user found for nobody@example.test.');
     expect($output)->not->toContain('/reset-password/');
 });
+
+it('builds the link on the host the operator names, scheme included', function () {
+    // Forcing only the root is not enough, and the difference is the whole
+    // point of this option: UrlGenerator::formatRoot() re-applies a scheme
+    // from formatScheme(), which in console falls back to config('app.url')
+    // -- http by default. So an https:// base that only forced the root
+    // would come back out as http://, silently. That mistake shipped once
+    // and CI caught it on all six legs (PR 82); this asserts it cannot
+    // return.
+    $user = User::factory()->create(['email' => 'locked-out@example.com']);
+
+    Artisan::call('doccum:user:reset-password', [
+        'email' => $user->email,
+        '--url' => 'https://docs.example.test',
+    ]);
+
+    $output = Str::squish(Artisan::output());
+
+    expect($output)->toContain('https://docs.example.test/reset-password/')
+        ->and($output)->not->toContain('http://docs.example.test');
+});
+
+it('warns that the link is built on a default host when APP_URL is unset', function () {
+    config()->set('doccum.app_url_is_set', false);
+
+    $user = User::factory()->create(['email' => 'unset-app-url@example.com']);
+
+    Artisan::call('doccum:user:reset-password', ['email' => $user->email]);
+
+    // The token is genuine either way; what makes the link useless to a
+    // remote administrator is the host, so the command says so rather than
+    // printing something that merely looks right.
+    expect(Str::squish(Artisan::output()))->toContain('APP_URL is not set');
+});
+
+it('does not warn about APP_URL when the operator names a host', function () {
+    config()->set('doccum.app_url_is_set', false);
+
+    $user = User::factory()->create(['email' => 'named-host@example.com']);
+
+    Artisan::call('doccum:user:reset-password', [
+        'email' => $user->email,
+        '--url' => 'https://docs.example.test',
+    ]);
+
+    expect(Str::squish(Artisan::output()))->not->toContain('APP_URL is not set');
+});
