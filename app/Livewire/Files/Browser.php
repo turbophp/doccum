@@ -628,6 +628,16 @@ class Browser extends Component
     }
 
     /** $direction resolved to a literal 'asc'/'desc', falling back to 'asc' for anything else. */
+    /**
+     * Narrowed to the two literals rather than plain string, because
+     * Builder::orderBy() is typed 'asc'|'desc'|SortDirection and a bare
+     * string is not assignable to it. The annotation is not decoration: it
+     * is the type this method has always actually returned, and writing it
+     * down is what lets phpstan check the call site instead of adding
+     * another entry to the baseline.
+     *
+     * @return 'asc'|'desc'
+     */
     private function resolveSortDirection(): string
     {
         return $this->direction === 'desc' ? 'desc' : 'asc';
