@@ -147,7 +147,7 @@ it('falls back to sorting by name when $sort is not a whitelisted column', funct
 
     Livewire::actingAs($this->user)
         ->test(Browser::class, ['directory' => $this->mine])
-        ->set('sort', "id; DROP TABLE files; --")
+        ->set('sort', 'id; DROP TABLE files; --')
         ->assertSeeInOrder(['apple.txt', 'banana.txt']);
 });
 
