@@ -292,6 +292,209 @@ function checkForwardedPasswordResetUrl() {
   console.log(`[setup] generated password-reset URL honours the forwarded host -- ${url}`);
 }
 
+// item/user-reset-password-command (issue #61), first half of its doneWhen:
+// `doccum:user:reset-password` must print a one-time link that genuinely
+// works with no mailer configured -- which is exactly this container's
+// state, since the workflow's `docker run` for this job sets no MAIL_MAILER
+// at all (config/mail.php falls back to "log").
+//
+// The account it resets is a throwaway created here, not the smoke admin:
+// reusing the admin would change its password out from under the "verify"
+// phase's later login, which authenticates with SMOKE_ADMIN_PASSWORD
+// unchanged after a restart.
+//
+// User::create(), not User::factory(): fakerphp/faker backs fake() and is a
+// require-dev dependency (composer.json), so it is not autoloadable at all
+// in this --no-dev image even though the feature test suite can use it
+// freely against the dev-installed vendor/ tree.
+//
+// The printed URL's host is NOT followed as printed. config('app.url')
+// defaults to "http://localhost" (config/app.php) and this container sets
+// no APP_URL, and App\Http\Middleware\ForceRootUrlFromRequest -- which
+// would otherwise make a URL generated during a real HTTP request use the
+// request's own host -- says plainly in its own docblock that it does
+// nothing for "console commands, queue workers, the scheduler" on purpose,
+// so a link printed by this command is generated exactly like it would be
+// for any other operator who has not set APP_URL: "http://localhost/...",
+// which this runner cannot dial (nothing answers on port 80). That is a
+// real, reportable rough edge for an operator relying on the container's
+// documented `docker run ... -p 8080:8080` invocation as-is -- see the
+// task report -- but it is orthogonal to whether the TOKEN the command
+// printed is genuine, which is what this check actually proves: it keeps
+// the path and discards the host, then drives BASE_URL + that path.
+//
+// Mutation this is meant to prove load-bearing: in
+// UserResetPassword::handle(), change `$token = $broker->createToken($user);`
+// to append anything, e.g. `... . 'x';` -- the command still exits
+// successfully and still prints a syntactically normal-looking
+// /reset-password/... link (so a check that only asserted a successful
+// exit code, or pattern-matched the URL shape, would keep passing), but the
+// token no longer matches what the database actually stored. The reset
+// form then redirects back to /reset-password with a validation error
+// instead of accepting the new password, so the FIRST `waitForURL(pathname
+// === '/login')` never resolves and this check fails on that timeout,
+// before ever reaching the login step.
+async function checkResetPasswordCommandPrintsAWorkingLink(browser, phase) {
+  const digits = Date.now().toString().slice(-9);
+  const email = `smoke-reset-${digits}@example.test`;
+  const username = `smokereset${digits}`;
+  const newPassword = `Doccum-Smoke-Reset-${digits}!Aa`;
+
+  const createPhp = [
+    "$u = \\App\\Models\\User::create(['name' => 'Smoke Reset Target',",
+    `'username' => '${username}', 'email' => '${email}',`,
+    "'password' => 'whatever-it-was-before']);",
+    "echo 'CREATED:' . $u->email;",
+  ].join(' ');
+
+  const createOutput = tinker(createPhp);
+  if (!createOutput.includes(`CREATED:${email}`)) {
+    dumpContainerState(
+      `[${phase}] could not create the scratch account for the reset-password command check -- raw output: ${createOutput}`,
+    );
+    throw Object.assign(new Error('scratch account creation for the reset-password command check failed'), { dumped: true });
+  }
+
+  let commandOutput;
+  try {
+    // The real CLI entrypoint an operator locked out with no mailer would
+    // actually run -- not tinker -- so this also proves the artisan command
+    // itself is registered and reachable inside the shipped image.
+    commandOutput = execFileSync(
+      'docker',
+      ['exec', CONTAINER_NAME, 'php', 'artisan', 'doccum:user:reset-password', email],
+      { encoding: 'utf8', timeout: 20000 },
+    );
+  } catch (e) {
+    dumpContainerState(`[${phase}] doccum:user:reset-password failed for a real account -- ${e.message}`);
+    throw Object.assign(new Error('doccum:user:reset-password failed for a real account'), { dumped: true });
+  }
+
+  const match = /\/reset-password\/(\S+?)(?=["'\s?]|$)/.exec(commandOutput);
+  if (!match) {
+    dumpContainerState(`[${phase}] doccum:user:reset-password printed no reset-password link -- raw output: ${commandOutput}`);
+    throw Object.assign(new Error('doccum:user:reset-password printed no reset link'), { dumped: true });
+  }
+  const resetUrl = `${BASE_URL}/reset-password/${match[1]}`;
+  console.log(`[${phase}] doccum:user:reset-password printed a link for ${email}`);
+
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.goto(resetUrl, { waitUntil: 'domcontentloaded' });
+    await page.getByLabel('Email', { exact: true }).fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(newPassword);
+    await page.getByLabel('Confirm password', { exact: true }).fill(newPassword);
+    await Promise.all([
+      page.waitForURL((u) => u.pathname === '/login', { timeout: 10000 }),
+      page.getByRole('button', { name: 'Reset password' }).click(),
+    ]);
+    console.log(`[${phase}] the printed link's token was accepted and set a new password`);
+
+    // Landing on /login only proves the form posted -- logging in with the
+    // password the link just set is what proves the link genuinely changed
+    // it, per CLAUDE.md: prefer an assertion that requires the feature to
+    // DO something over one that only observes a resting state.
+    await page.getByLabel('Email address', { exact: true }).fill(email);
+    await page.getByLabel('Password', { exact: true }).fill(newPassword);
+    await Promise.all([
+      page.waitForURL((u) => u.pathname !== '/login', { timeout: 15000 }),
+      page.getByRole('button', { name: 'Log in' }).click(),
+    ]);
+    console.log(`[${phase}] logged in with the password doccum:user:reset-password set -- the link genuinely worked`);
+  } finally {
+    await context.close();
+  }
+}
+
+// item/user-reset-password-command (issue #61), second half of its
+// doneWhen: the forgot-password POST must say mail is not configured
+// instead of claiming it emailed anything, when the mailer is "log" or
+// "array" -- which, again, is this container's actual default (no
+// MAIL_MAILER set at all). Feature tests already prove this against the
+// test renderer; this proves it against the real routes, real session
+// handling and real Blade rendering of the shipped image, which is the
+// whole reason CLAUDE.md requires it here at all.
+//
+// The important half of this check is not "it says mail is not configured"
+// -- it is that a real account and an address with NO account produce the
+// byte-identical flashed message. A version of the fix that only patched
+// the success branch would still let the failure branch's stock "we can't
+// find a user with that email address" leak account existence straight
+// back out, invisibly to a check that only asserted "each one is some kind
+// of message".
+//
+// Runs in its own fresh, unauthenticated context: /forgot-password sits
+// behind Fortify's `guest` middleware, and the admin page used by the rest
+// of this script is already logged in, so reusing it would just redirect
+// away before the form ever rendered.
+//
+// Mutation this is meant to prove load-bearing: in
+// App\Http\Responses\Fortify\FailedPasswordResetLinkRequestResponse, delete
+// the `if (MailDeliverability::unavailable()) { ... }` branch (leaving only
+// the stock fallback). The "no account" call then falls through to
+// Fortify's own stock failure response, which flashes a validation error
+// on 'email' instead of the 'status' this page's only
+// x-auth-session-status element renders -- so statusFor()'s second call
+// never finds a ".text-green-600" node at all and this check fails on that
+// wait's own timeout, never even reaching the equality comparison below
+// it. Either failure mode -- a timeout because the two branches stopped
+// rendering the same kind of thing, or a mismatch because they render two
+// different somethings -- proves the same fact: the two calls stopped
+// being interchangeable. A check that only asserted the real-account
+// branch said "mail is not configured" would keep passing under that exact
+// mutation, which is why comparing the two calls is the assertion, not
+// either one alone.
+async function checkForgotPasswordSameResponseRegardlessOfAccount(browser, phase) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+
+    const statusFor = async (email) => {
+      await page.goto(`${BASE_URL}/forgot-password`, { waitUntil: 'domcontentloaded' });
+      await page.getByLabel('Email address', { exact: true }).fill(email);
+      // Not paired with a waitForURL/waitForLoadState race the way other
+      // submits in this script are: this POST redirects back to the SAME
+      // path (back()->with('status', ...)), so the pathname never changes,
+      // and calling waitForLoadState() concurrently with the click could
+      // resolve against the page's PRE-click state instead of the
+      // redirect's. Playwright's locator below already polls/retries
+      // across the navigation on its own.
+      await page.getByRole('button', { name: 'Email password reset link' }).click();
+      // x-auth-session-status's only styling hook -- see
+      // resources/views/components/auth-session-status.blade.php -- and the
+      // only element on this page that carries it.
+      const status = page.locator('.text-green-600').first();
+      await status.waitFor({ state: 'visible', timeout: 10000 });
+      return (await status.innerText()).trim();
+    };
+
+    const forRealAccount = await statusFor(ADMIN_EMAIL);
+    const forNoAccount = await statusFor('no-such-account-at-all@example.invalid');
+
+    if (!forRealAccount.includes('Mail is not configured')) {
+      dumpContainerState(
+        `[${phase}] forgot-password did not say mail is not configured for a real account -- got: "${forRealAccount}"`,
+      );
+      throw Object.assign(new Error('forgot-password claimed to send mail with no mailer configured'), { dumped: true });
+    }
+
+    if (forRealAccount !== forNoAccount) {
+      dumpContainerState(
+        `[${phase}] forgot-password gave different responses for a real account and a nonexistent one\n` +
+          `real account: "${forRealAccount}"\nno account:   "${forNoAccount}"`,
+      );
+      throw Object.assign(new Error('forgot-password response differs by whether the account exists'), { dumped: true });
+    }
+
+    console.log(
+      `[${phase}] forgot-password says mail is not configured, byte-identically, for a real account and for no account at all`,
+    );
+  } finally {
+    await context.close();
+  }
+}
+
 /**
  * Drives the topbar shell (item/topbar-shell, issue #12) in the real
  * container, because the layout test that shipped it renders Blade through
@@ -433,6 +636,12 @@ async function runSetup() {
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();
+
+    console.log('[setup] checking doccum:user:reset-password prints a working link with no mailer configured');
+    await checkResetPasswordCommandPrintsAWorkingLink(browser, 'setup');
+
+    console.log('[setup] checking forgot-password says mail is not configured, identically, for a real and a nonexistent account');
+    await checkForgotPasswordSameResponseRegardlessOfAccount(browser, 'setup');
   } finally {
     await browser.close();
   }
