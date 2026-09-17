@@ -89,6 +89,17 @@ class Browser extends Component
     {
         $subdirectory = Directory::query()->where('parent_id', $this->directory?->getKey())->findOrFail($directoryId);
 
+        // Deliberately NOT in .github/mutations.json, and the reason is worth
+        // stating rather than leaving as an omission someone later "fixes".
+        // Removing this line does not change any observable outcome: the panel
+        // it opens renders <livewire:files.property-panel>, whose own mount()
+        // authorises view on the same subject, so an unviewable directory is
+        // refused either way and the mutation harness correctly reported the
+        // guard as not load-bearing. It stays because PropertyPanel refusing
+        // is PropertyPanel's concern, not this component's, and this is the
+        // line that keeps being true if that ever changes -- but a
+        // mutations.json entry for it would claim a proof that does not
+        // exist, which CLAUDE.md is explicit about. See issue #101.
         $this->authorize('view', $subdirectory);
 
         $this->selectedFile = null;

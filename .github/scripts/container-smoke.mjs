@@ -796,6 +796,14 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
  * poller, and this stays clear of that region and of tinker() by construction).
  */
 async function searchUntilFoundByName(page, name) {
+  // Navigate first. searchUntilFound() above is only ever called with the
+  // browser already on /search; this one is called straight after an upload,
+  // with the browser still in the files browser, where there is no Search
+  // field at all -- so it timed out on locator.fill waiting for a control
+  // that was never going to appear. The post-trash search further down
+  // already does this goto; only this half was missing it.
+  await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
+
   const deadline = Date.now() + SEARCH_TIMEOUT_MS;
   const field = page.getByLabel('Search', { exact: true });
 

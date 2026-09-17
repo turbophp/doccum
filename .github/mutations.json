@@ -91,13 +91,6 @@
     "expectFailing": "journals the embedded database in WAL mode so readers do not block writers"
   },
   {
-    "id": "browser-select-directory-view",
-    "why": "item/files-actions-ui (issue #101): selecting a subdirectory row must still be refused for one the viewer cannot view. mount() only authorises the directory already being browsed, and at the root ($directory is null) mount() runs no check at all, so this is the only guard between a directory id typed straight into wire:click and one the viewer has no grant on at all.",
-    "file": "app/Livewire/Files/Browser.php",
-    "remove": "        $this->authorize('view', $subdirectory);\n\n",
-    "expectFailing": "refuses to select a directory the viewer cannot view"
-  },
-  {
     "id": "browser-rename-file-update",
     "why": "item/files-actions-ui (issue #101): renaming a file through the panel must require edit access, and RenameFile itself never checks -- actions never authorise (CLAUDE.md). Without this the Rename control would work for a viewer holding view alone.",
     "file": "app/Livewire/Files/Browser.php",

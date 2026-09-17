@@ -19,7 +19,14 @@ use Livewire\Livewire;
  * inside the Action it calls (CLAUDE.md).
  *
  * Every "refuses ..." test below is the expectFailing target for exactly one
- * .github/mutations.json entry: with the matching `$this->authorize(...)`
+ * .github/mutations.json entry -- except 'refuses to select a directory the
+ * viewer cannot view', which deliberately has no entry: PropertyPanel::mount()
+ * authorises view on the same subject, so that refusal survives deleting
+ * selectDirectory()'s own authorize() and the mutation harness said so. The
+ * guard stays; the claim that a mutation proves it does not. See the note on
+ * selectDirectory() in app/Livewire/Files/Browser.php.
+ *
+ * For the rest: with the matching `$this->authorize(...)`
  * call removed from app/Livewire/Files/Browser.php, none of the Actions this
  * component calls (RenameFile, MoveFile, TrashFile, SetLegalHold,
  * RenameDirectory, MoveDirectory, TrashDirectory) checks anything on its own
