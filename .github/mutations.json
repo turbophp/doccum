@@ -26,5 +26,33 @@
     "file": "app/Policies/FilePolicy.php",
     "remove": "        if (! $user->can('periods.manage')) {\n            return false;\n        }\n\n",
     "expectFailing": "refuses a caller with directory access but no periods.manage"
+  },
+  {
+    "id": "trash-file-legal-hold",
+    "why": "A legal hold must stop deletion outright. Without this, a file under hold could be trashed like any other, which makes the hold decoration rather than protection.",
+    "file": "app/Actions/Files/TrashFile.php",
+    "remove": "        if ($file->legal_hold) {\n            throw FileIsUnderLegalHold::forFile($file);\n        }\n\n",
+    "expectFailing": "refuses to trash a file under legal hold"
+  },
+  {
+    "id": "trash-file-archived-period",
+    "why": "An archived period is read-only. Without this, a file created inside an archived period could still be trashed even though it can no longer be replaced or restored.",
+    "file": "app/Actions/Files/TrashFile.php",
+    "remove": "        if (ArchivePeriod::isArchivedFor((int) $file->period_year, (int) $file->period_month)) {\n            throw PeriodIsArchived::forPeriod((int) $file->period_year, (int) $file->period_month);\n        }\n\n",
+    "expectFailing": "refuses to trash a file in an archived period"
+  },
+  {
+    "id": "rename-file-archived-period",
+    "why": "Renaming writes back into a file's fixed period exactly as a new version would. Without this, an archived period's files could still be renamed even though new versions and restores are refused.",
+    "file": "app/Actions/Files/RenameFile.php",
+    "remove": "        if (ArchivePeriod::isArchivedFor((int) $file->period_year, (int) $file->period_month)) {\n            throw PeriodIsArchived::forPeriod((int) $file->period_year, (int) $file->period_month);\n        }\n\n",
+    "expectFailing": "refuses to rename a file in an archived period"
+  },
+  {
+    "id": "move-file-archived-period",
+    "why": "Moving writes back into a file's fixed period exactly as a new version would. Without this, an archived period's files could still be moved to another directory even though new versions and restores are refused.",
+    "file": "app/Actions/Files/MoveFile.php",
+    "remove": "        if (ArchivePeriod::isArchivedFor((int) $file->period_year, (int) $file->period_month)) {\n            throw PeriodIsArchived::forPeriod((int) $file->period_year, (int) $file->period_month);\n        }\n\n",
+    "expectFailing": "refuses to move a file out of an archived period"
   }
 ]
