@@ -51,6 +51,8 @@ class FileVersion extends Model
      * on both sides of a strict comparison rather than trust a driver to
      * hand it back as an int; this cast is the model-level half of that
      * same belt-and-braces pair.
+     *
+     * @return BelongsTo<User, $this>
      */
     public function uploader(): BelongsTo
     {

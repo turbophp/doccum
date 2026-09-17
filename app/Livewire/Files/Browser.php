@@ -63,6 +63,16 @@ class Browser extends Component
      * creating a second file rather than a new version of the selected
      * one -- which is the exact bug this item's mutation is about, and it
      * is reachable by an ordinary user, not just a test double.
+     *
+     * Left untyped for the same reason $upload above is: across the upload
+     * lifecycle WithFileUploads assigns this a string, then an array, then
+     * a TemporaryUploadedFile, so a native property type would reject a
+     * value Livewire itself sets. $upload predates phpstan-baseline.neon and
+     * sits in it; this one carries an annotation instead, because CLAUDE.md
+     * says to add no new findings and a new baseline entry is a finding with
+     * the alarm switched off rather than one fixed.
+     *
+     * @var mixed
      */
     public $replacement;
 
