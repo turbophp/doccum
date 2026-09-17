@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\Files\StoreFileVersion;
 use App\Enums\ExtractionStatus;
+use App\Extraction\ExtractorChain;
 use App\Jobs\ExtractText;
 use App\Models\Directory;
 use App\Models\FileText;
@@ -124,6 +125,8 @@ it('gives a retry real spacing instead of retrying instantly', function () {
 });
 
 it('retries a storage read that fails once, rather than settling as failed', function () {
+    // Queue::fake() so storeText()'s own dispatch does not run extraction and
+    // leave a settled row behind -- handle() returns early on one.
     Queue::fake();
     $file = storeText('a.txt', 'hello');
     $version = $file->currentVersion;
@@ -131,31 +134,36 @@ it('retries a storage read that fails once, rather than settling as failed', fun
     $recovered = tempnam(sys_get_temp_dir(), 'doccum-retry');
     file_put_contents($recovered, 'hello world');
 
-    // One expectation consuming two behaviours in order, not two expectations.
-    // Mockery merges repeated shouldReceive() for the same method and argument
-    // list rather than queueing them, so declaring them separately let the
-    // second overwrite the first: the read never threw and the test asserted
-    // an exception that could not happen.
-    $this->mock(DocumentStorage::class, function ($mock) use ($version, $recovered) {
-        $mock->shouldReceive('downloadToTemp')
-            ->twice()
-            ->with($version)
-            ->andReturnUsing(
-                fn () => throw new RuntimeException('Unable to read object from storage.'),
-                fn () => $recovered,
-            );
-    });
+    // handle() is called directly with an explicit double, rather than
+    // through dispatchSync() and a container binding. Two earlier attempts
+    // at this went through the bus and reported only "exception not thrown",
+    // which says nothing about WHICH of the queue fake, the container
+    // binding, or the double was responsible. Calling the method under test
+    // with its collaborator passed in has none of those between the
+    // assertion and the behaviour.
+    $job = new ExtractText($version);
+    $chain = app(ExtractorChain::class);
 
-    // Attempt 1: the object store is not yet serving the object. The
-    // exception must reach the caller uncaught -- catching it here and
-    // writing a Failed row would spend the whole retry budget on what is
-    // only a transient read, exactly the bug this test guards against.
-    expect(fn () => ExtractText::dispatchSync($version))->toThrow(RuntimeException::class);
+    // Attempt 1: the object store is not serving the object. The exception
+    // must leave handle() uncaught -- swallowing it and writing a Failed row
+    // would spend the whole retry budget on a transient read, which is the
+    // bug this test guards against.
+    $failing = Mockery::mock(DocumentStorage::class);
+    $failing->shouldReceive('downloadToTemp')
+        ->once()
+        ->andThrow(new RuntimeException('Unable to read object from storage.'));
+
+    expect(fn () => $job->handle($failing, $chain))->toThrow(RuntimeException::class);
     expect(FileText::where('file_version_id', $version->id)->exists())->toBeFalse();
 
     // Attempt 2 -- what the run after $backoff's delay looks like: storage
-    // now serves the object and extraction settles normally.
-    ExtractText::dispatchSync($version);
+    // serves the object and extraction settles normally.
+    $serving = Mockery::mock(DocumentStorage::class);
+    $serving->shouldReceive('downloadToTemp')
+        ->once()
+        ->andReturn($recovered);
+
+    $job->handle($serving, $chain);
 
     $text = FileText::where('file_version_id', $version->id)->firstOrFail();
     expect($text->status)->toBe(ExtractionStatus::Done);
