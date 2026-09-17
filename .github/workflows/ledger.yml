@@ -45,13 +45,12 @@ jobs:
         run: |
           php -r '$raw = file_get_contents("docs/ledger/ledger.jsonld"); json_decode($raw, true, 512, JSON_THROW_ON_ERROR); echo "docs/ledger/ledger.jsonld parses as JSON\n";'
 
-      # validate-ledger.php is a companion piece of work landing separately
-      # (schema/shape checks beyond "is this JSON at all"). Its absence is not
-      # a reason to fail every PR in the meantime, only a reason to say so.
+      # The script takes the ledger DIRECTORY, not the file inside it. Passing
+      # the file made it print "nothing to validate" and exit 0, so this job
+      # was green from the day it was written without ever running a single
+      # check. It is no longer tolerant of a path it cannot use, and the
+      # "script might not exist yet" branch is gone with it: the script has
+      # landed, and a missing one now fails this job rather than skipping it,
+      # which is the whole point of the check.
       - name: Run deep ledger validation
-        run: |
-          if [ -f .github/scripts/validate-ledger.php ]; then
-            php .github/scripts/validate-ledger.php docs/ledger/ledger.jsonld
-          else
-            echo "::notice::.github/scripts/validate-ledger.php does not exist yet -- skipping deep validation, JSON-shape check above still ran"
-          fi
+        run: php .github/scripts/validate-ledger.php docs/ledger
