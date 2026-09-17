@@ -25,19 +25,24 @@ Every hour, the loop wakes and runs these steps in order.
 2. **Review and merge.** Look at every open PR this loop opened. CI is the
    gate — a PR is mergeable only when every required check is green. Review
    the diff, then merge to `main`. Record the merge in the ledger.
-3. **Pick the next item.** The first backlog item whose dependencies are all
+3. **Watch `main` after each merge.** A PR's checks ran against the PR's head,
+   not against the `main` that merging it produced, so they cannot speak for
+   `main`. Wait for the push run on the merge commit and read its conclusion.
+   A red `main` is this iteration's first work, and the next iteration's,
+   ahead of picking a new item.
+4. **Pick the next item.** The first backlog item whose dependencies are all
    `Completed`. Ties break toward whatever unblocks the most other items.
-4. **Execute.** Hand the item to a Sonnet worker with its plan, the relevant
+5. **Execute.** Hand the item to a Sonnet worker with its plan, the relevant
    spec section and `CLAUDE.md`. One item per branch, one branch per PR.
-5. **Verify through CI.** Push, open the PR, let the workflows run. Local
+6. **Verify through CI.** Push, open the PR, let the workflows run. Local
    runs are a convenience; the CI matrix is the verification of record,
    because it covers SQLite, PostgreSQL and MySQL and it boots the container.
-6. **Update the ledger.** Append the run, move the item's status, record any
+7. **Update the ledger.** Append the run, move the item's status, record any
    decision taken and why.
-7. **Consult.** Every fourth iteration, or whenever the backlog shape changes,
+8. **Consult.** Every fourth iteration, or whenever the backlog shape changes,
    ask Fable whether the remaining road to v1 and the ledger vocabulary still
    describe reality. Fold the answer back into the ledger.
-8. **Re-arm.** Schedule the next wake-up. The loop stops only when the
+9. **Re-arm.** Schedule the next wake-up. The loop stops only when the
    ledger's release node reaches `Completed` — that is, `v1.0.0` is tagged and
    the image is published.
 
@@ -45,6 +50,13 @@ Every hour, the loop wakes and runs these steps in order.
 
 - **CI is the gate.** Nothing merges red. "Flaky" is a diagnosis that has to
   be earned, not asserted; see `CLAUDE.md`.
+- **"`main` is green" is a claim about `main`.** It may only be made after
+  reading a `main` run, never inferred from the PR that merged into it. This
+  rule exists because it was broken: by run 0012, eight of `main`'s
+  thirty-eight `tests.yml` runs had failed — five of them after CI was
+  established, every one on a merge commit whose PR had been fully green —
+  while the loop reported `main` green each iteration, because the merge step
+  checked the PR and nothing afterwards ever looked again.
 - **A green suite is necessary and not sufficient.** The `image` job exists
   because several bugs in this codebase were invisible to a fully green suite.
 - **Never skip, disable or quarantine a test** to get a PR green.
