@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T06:50:00Z",
-  "latestRun": "run/0004",
+  "dateModified": "2026-09-17T08:05:00Z",
+  "latestRun": "run/0005",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -119,27 +119,9 @@
       ]
     },
     {
-      "@id": "item/content-actions",
-      "@type": "Action",
-      "order": 6,
-      "name": "Rename, move and trash actions for directories and files",
-      "url": "https://github.com/turbophp/doccum/issues/9",
-      "isBasedOn": [
-        "spec:4-data-model"
-      ],
-      "size": "M",
-      "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "Each action has a test that a caller lacking edit or manage is refused; name collisions throw the existing Duplicate exceptions; a trashed directory's files vanish from the browser and from search at query level; restore reverses it.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
       "@id": "item/legal-hold",
       "@type": "Action",
-      "order": 7,
+      "order": 6,
       "name": "Set and clear a file's legal hold",
       "url": "https://github.com/turbophp/doccum/issues/10",
       "isBasedOn": [
@@ -149,6 +131,66 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "Policy test gated on periods.manage plus view; PeriodPurger::plan() names the held file as a blocker.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T07:20:00Z",
+      "endTime": "2026-09-17T07:52:59Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/48"
+      ]
+    },
+    {
+      "@id": "item/name-key",
+      "@type": "Action",
+      "order": 7,
+      "name": "One name-comparison rule all three drivers agree on",
+      "url": "https://github.com/turbophp/doccum/issues/50",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Support\\NameKey is unit-tested directly; File and Directory maintain name_key in a saving hook and expose whereNamed(), which replaces every where('name', ...) collision check; the migration applies utf8mb4_bin only on mysql and mariadb; three tests -- a differently-cased upload adds a version, an accented name creates a second file, and an NFD name matches its NFC twin -- are each shown failing on at least one driver before the fix and green on all six legs after; the stored name is unchanged when an upload versions an existing file.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/content-actions",
+      "@type": "Action",
+      "order": 8,
+      "name": "Rename and move actions for directories and files",
+      "url": "https://github.com/turbophp/doccum/issues/9",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/name-key"
+      ],
+      "doneWhen": "Each action has a test that a caller lacking edit or manage is refused, through a Policy rather than in the action; a rename or move into a name a live sibling already holds throws the existing Duplicate exceptions under the NameKey rule, asserted on all three matrix legs; the pre-existing MoveDirectory, TrashFile and RestoreFile gain the same refusal coverage.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/trash-directory",
+      "@type": "Action",
+      "order": 9,
+      "name": "Trashing a directory hides everything beneath it",
+      "url": "https://github.com/turbophp/doccum/issues/49",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/name-key"
+      ],
+      "doneWhen": "A file in a live descendant of a trashed directory is absent from Services\\Search results and from the browser for a viewer granted on an ancestor, asserted against the query rather than the rendered view; that test fails on main with no code change and is mutation-checked; TrashDirectory cascades through Eloquent so each projection is forgotten; RestoreDirectory reverses it and leaves independently trashed files trashed; both require manage, refused through a Policy.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -157,7 +199,7 @@
     {
       "@id": "item/trash-purge-manual",
       "@type": "Action",
-      "order": 8,
+      "order": 10,
       "name": "Permanently delete one trashed item",
       "url": "https://github.com/turbophp/doccum/issues/11",
       "isBasedOn": [
@@ -166,7 +208,7 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [
-        "item/content-actions"
+        "item/trash-directory"
       ],
       "doneWhen": "Requires files.delete and manage; objects removed through DocumentStorage; refusal tests for legal hold and for an archived period.",
       "actionStatus": "PotentialActionStatus",
@@ -177,7 +219,7 @@
     {
       "@id": "item/topbar-shell",
       "@type": "Action",
-      "order": 9,
+      "order": 11,
       "name": "Replace the starter sidebar with the doccum topbar shell",
       "url": "https://github.com/turbophp/doccum/issues/12",
       "isBasedOn": [
@@ -197,7 +239,7 @@
     {
       "@id": "item/files-three-pane",
       "@type": "Action",
-      "order": 10,
+      "order": 12,
       "name": "Three-pane file browser: tree, list, detail panel",
       "url": "https://github.com/turbophp/doccum/issues/13",
       "isBasedOn": [
@@ -208,7 +250,8 @@
       "dependsOn": [
         "item/content-actions",
         "item/legal-hold",
-        "item/topbar-shell"
+        "item/topbar-shell",
+        "item/trash-directory"
       ],
       "doneWhen": "FileBrowserTest keeps its unreachable-directory guarantees and adds column sort, panel-on-select, version list, replace-adds-a-version and bulk trash of exactly the selected files.",
       "actionStatus": "PotentialActionStatus",
@@ -219,7 +262,7 @@
     {
       "@id": "item/directory-access-ui",
       "@type": "Action",
-      "order": 11,
+      "order": 13,
       "name": "Grant and revoke directory access from the UI",
       "url": "https://github.com/turbophp/doccum/issues/14",
       "isBasedOn": [
@@ -239,7 +282,7 @@
     {
       "@id": "item/trash-view",
       "@type": "Action",
-      "order": 12,
+      "order": 14,
       "name": "A Trash page with restore and purge",
       "url": "https://github.com/turbophp/doccum/issues/15",
       "isBasedOn": [
@@ -248,8 +291,8 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [
-        "item/content-actions",
         "item/topbar-shell",
+        "item/trash-directory",
         "item/trash-purge-manual"
       ],
       "doneWhen": "Another user's trashed items never appear, asserted at query level; restore and purge are wired to the actions.",
@@ -261,7 +304,7 @@
     {
       "@id": "item/home-dashboard",
       "@type": "Action",
-      "order": 13,
+      "order": 15,
       "name": "Home dashboard: recents, storage by period, quick search",
       "url": "https://github.com/turbophp/doccum/issues/16",
       "isBasedOn": [
@@ -281,7 +324,7 @@
     {
       "@id": "item/search-filters",
       "@type": "Action",
-      "order": 14,
+      "order": 16,
       "name": "Type, mime, period and property filters on search",
       "url": "https://github.com/turbophp/doccum/issues/17",
       "isBasedOn": [
@@ -301,7 +344,7 @@
     {
       "@id": "item/admin-users",
       "@type": "Action",
-      "order": 15,
+      "order": 17,
       "name": "Settings: users",
       "url": "https://github.com/turbophp/doccum/issues/18",
       "isBasedOn": [
@@ -321,7 +364,7 @@
     {
       "@id": "item/admin-roles",
       "@type": "Action",
-      "order": 16,
+      "order": 18,
       "name": "Settings: roles and their permission matrix",
       "url": "https://github.com/turbophp/doccum/issues/19",
       "isBasedOn": [
@@ -341,7 +384,7 @@
     {
       "@id": "item/admin-periods",
       "@type": "Action",
-      "order": 17,
+      "order": 19,
       "name": "Settings: periods, closing, purge plan and purge",
       "url": "https://github.com/turbophp/doccum/issues/20",
       "isBasedOn": [
@@ -362,7 +405,7 @@
     {
       "@id": "item/admin-instance-settings",
       "@type": "Action",
-      "order": 18,
+      "order": 20,
       "name": "Settings: instance name, signup, retention, limits",
       "url": "https://github.com/turbophp/doccum/issues/21",
       "isBasedOn": [
@@ -382,7 +425,7 @@
     {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
-      "order": 19,
+      "order": 21,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -402,7 +445,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 20,
+      "order": 22,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -413,7 +456,8 @@
       "dependsOn": [
         "item/api-sanctum-tokens",
         "item/content-actions",
-        "item/search-filters"
+        "item/search-filters",
+        "item/trash-directory"
       ],
       "doneWhen": "Per-endpoint three-gate matrix: a missing ability is 403 despite the permission, a denied ACL is 404 or 403, and revoking the owner's role narrows an existing token on the next request; a test asserts no /api route touches users, roles, definition writes or periods.",
       "actionStatus": "PotentialActionStatus",
@@ -424,7 +468,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 21,
+      "order": 23,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -444,7 +488,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 22,
+      "order": 24,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -464,7 +508,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 23,
+      "order": 25,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -485,7 +529,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 24,
+      "order": 26,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -505,7 +549,7 @@
     {
       "@id": "item/compose-secret",
       "@type": "Action",
-      "order": 25,
+      "order": 27,
       "name": "Remove the known-value secret from compose.yaml",
       "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
@@ -523,7 +567,7 @@
     {
       "@id": "item/version-from-tag",
       "@type": "Action",
-      "order": 26,
+      "order": 28,
       "name": "The version pill reports the released tag",
       "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
@@ -541,7 +585,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 27,
+      "order": 29,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -559,7 +603,7 @@
     {
       "@id": "item/changelog-release-notes",
       "@type": "Action",
-      "order": 28,
+      "order": 30,
       "name": "A changelog that becomes the release notes",
       "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
@@ -577,7 +621,7 @@
     {
       "@id": "item/release-v0-1-0",
       "@type": "Action",
-      "order": 29,
+      "order": 31,
       "name": "Tag v0.1.0 to prove the release pipeline",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
@@ -599,7 +643,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 30,
+      "order": 32,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -621,7 +665,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 31,
+      "order": 33,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -652,7 +696,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 32,
+      "order": 34,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -672,7 +716,7 @@
     {
       "@id": "item/pgsql-value-string-index",
       "@type": "Action",
-      "order": 33,
+      "order": 35,
       "name": "Index properties.value_string safely on PostgreSQL",
       "url": "https://github.com/turbophp/doccum/issues/39",
       "isBasedOn": [
@@ -997,6 +1041,22 @@
       "mergedAt": "2026-09-17T06:45:00Z",
       "mergeSha": "6b293b40109827e69858d7804792b161554de0af",
       "mergedIn": "run/0004"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/48",
+      "@type": "PullRequest",
+      "identifier": 48,
+      "name": "feat: let an operator place and lift a legal hold",
+      "implements": [
+        "item/legal-hold"
+      ],
+      "run": "run/0005",
+      "state": "merged",
+      "dateCreated": "2026-09-17T07:49:00Z",
+      "headSha": "e3a65e4bceb02ed65b131a78fe74683c40fd9be4",
+      "mergedAt": "2026-09-17T07:52:59Z",
+      "mergeSha": "e4ae10ca8339a5d085388ab6c8dbbc9717559a7e",
+      "mergedIn": "run/0005"
     }
   ],
   "decisions": [
@@ -1078,6 +1138,43 @@
       ],
       "affects": [
         "item/pgsql-value-string-index"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0006",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T08:05:00Z",
+      "run": "run/0005",
+      "name": "Sibling names are compared case-insensitively and accent-sensitively, on a persisted normalised key",
+      "rationale": "Three actions asked \"does a sibling already hold this name\" with a plain equality comparison, which meant three different things on three drivers: MySQL's utf8mb4_unicode_ci folds case and accents, while SQLite and PostgreSQL compare bytes. Uploading Report.pdf beside report.pdf therefore added a version to the existing document on MySQL and created a second, separate document on the other two -- silently, in both directions. Case-insensitive won because StoreFileVersion is built on \"same name in the same directory is a new version\", so the strict drivers silently fork a document when a tool re-saves it with different casing; because the filesystems people upload from are case-insensitive, making a directory holding both names undownloadable as a folder; and because it ratifies what the driver most likely to be deployed already does. Accent-insensitivity was rejected: resume.pdf and résumé.pdf are distinct names to every filesystem, and MySQL is the outlier in folding them. NFC normalisation is part of the rule rather than an exception to it, because macOS clients submit NFD filenames and byte-comparing the two encodings would split one abstract name in two. The comparison is done on a persisted name_key column rather than in SQL or in PHP: LOWER(name) inherits the column collation on MySQL so it stays accent-insensitive, and SQLite's lower() is ASCII-only without ICU so it would turn SQLite case-sensitive for any non-ASCII letter -- the expression that looks portable is wrong on two of three drivers. Comparing in PHP is correct but cannot use an index to narrow candidates, because on MySQL the prefilter is itself the bug. A persisted key is the only option that also leaves a path to a real database constraint.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/name-key",
+        "item/content-actions"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0007",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T08:05:00Z",
+      "run": "run/0005",
+      "name": "content-actions is split three ways, because two of its clauses could not be satisfied as written",
+      "rationale": "The item bundled rename, move and trash behind a doneWhen with two clauses that no implementation could honour. \"Name collisions throw the existing Duplicate exceptions\" named an outcome that differed by driver and had no agreed meaning until decision/0006; it is now item/name-key and blocks the rest. \"A trashed directory's files vanish from the browser and from search at query level\" described behaviour the codebase does not have and would not gain by soft-deleting one row: DirectoryAccess::resolveViewable collects granted directories' paths and returns every directory prefix-matching one, so a live grandchild of a trashed directory still matches a grant held on a live ancestor, and its files were never removed from search_documents. A file directly inside the trashed directory is hidden only incidentally, by the SoftDeletes global scope on the query that builds the reachable set, which nothing asserts and nobody designed. The answer is also inconsistent: a grant sitting on the trashed directory itself drops the entire subtree, live descendants included, so the same tree resolves differently depending on where the grant hangs. That is a defect, not missing work, so it became item/trash-directory with a test that must fail on main before it passes. The fix belongs in DirectoryAccess and in a cascade at trash time, not in Services\\Search: reach already has exactly one home, and a second reach rule inside Search would fix search alone while leaving the browser and the policy path open. What remains of content-actions is rename and move, which is an S -- MoveDirectory, TrashFile and RestoreFile already exist.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/content-actions",
+        "item/name-key",
+        "item/trash-directory",
+        "item/trash-purge-manual",
+        "item/trash-view",
+        "item/files-three-pane",
+        "item/api-content"
       ],
       "supersedes": null
     }
