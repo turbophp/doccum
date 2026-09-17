@@ -7,6 +7,7 @@ namespace App\Livewire\Files;
 use App\Models\ArchivePeriod;
 use App\Models\Directory;
 use App\Models\File;
+use App\Services\DirectoryAccess;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -87,13 +88,32 @@ class FileList extends Component
         $this->direction = $field === 'name' ? 'asc' : 'desc';
     }
 
+    /**
+     * Opening a folder is the tree's job, so the list announces rather than
+     * navigates: one component owns where you are, and two components both
+     * setting it is how they drift apart.
+     */
+    public function openFolder(int $directoryId): void
+    {
+        $this->dispatch('directory-selected', directoryId: $directoryId);
+    }
+
     public function render(): View
     {
         $grouped = $this->sort === 'period';
         $files = $this->filesQuery()->get();
 
+        // Folders sit above every band, ungrouped. A directory has no period,
+        // no hold and no extraction state, so it cannot belong to a band -- and
+        // sorting folders first regardless of the ordering applied to files is
+        // what Finder and Drive do, so a filer already expects it.
+        $rows = [
+            ...$this->foldersQuery()->get()->map(fn (Directory $d): array => $this->folderRow($d))->all(),
+            ...$this->rowsFor($files, $grouped),
+        ];
+
         return view('livewire.files.file-list', [
-            'rows' => $this->rowsFor($files, $grouped),
+            'rows' => $rows,
             'grouped' => $grouped,
             'sort' => $this->sort,
             'direction' => $this->direction,
@@ -164,6 +184,42 @@ class FileList extends Component
     }
 
     /** @return array<string, mixed> */
+    /**
+     * Subdirectories of the directory being listed.
+     *
+     * Filtered through the DirectoryAccess seam rather than trusting the
+     * parent grant: access is inherited down a subtree, but a child can carry
+     * its own higher grant, and a viewer who may see this folder is not
+     * automatically entitled to every folder inside it.
+     *
+     * @return Builder<Directory>
+     */
+    private function foldersQuery(): Builder
+    {
+        return Directory::query()
+            ->where('parent_id', $this->directory->getKey())
+            ->whereIn('id', app(DirectoryAccess::class)->viewableDirectoryIds(auth()->user()))
+            ->orderBy('name', $this->sort === 'name' ? $this->direction : 'asc');
+    }
+
+    /**
+     * A folder uses the same row template as a file (design plan §4). The
+     * cells a directory has no value for are empty rather than absent, so the
+     * columns stay aligned down the whole table.
+     */
+    private function folderRow(Directory $directory): array
+    {
+        return [
+            'type' => 'folder',
+            'id' => $directory->getKey(),
+            'name' => $directory->name,
+            'modified' => $directory->updated_at?->format('Y-m-d H:i'),
+            // Not an item count: a recursive count per row is a query per row,
+            // and the status bar already carries counts for what you selected.
+            'size' => '—',
+        ];
+    }
+
     private function bandRow(int $year, int $month): array
     {
         $period = $this->archivePeriodFor($year, $month);

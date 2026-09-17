@@ -12,6 +12,7 @@ use App\Models\File;
 use App\Models\FileText;
 use App\Models\FileVersion;
 use App\Models\User;
+use App\Services\DirectoryAccess;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Livewire\Livewire;
 
@@ -295,4 +296,60 @@ it('never uses the forbidden solid icon variant', function () {
     $blade = file_get_contents(resource_path('views/livewire/files/file-list.blade.php'));
 
     expect($blade)->not->toMatch('/variant="solid"/');
+});
+
+it('lists subdirectories as rows above the files', function () {
+    // The design puts folder rows in the list on the same template as files,
+    // and drag-and-drop targets them. A centre pane with no folders is also
+    // not the Drive parity this shell is measured against.
+    $child = Directory::factory()->for($this->directory, 'parent')->create(['name' => 'Contracts']);
+    File::factory()->for($this->directory, 'directory')->create(['name' => 'Report.pdf']);
+
+    $html = Livewire::actingAs($this->user)
+        ->test(FileList::class, ['directory' => $this->directory])
+        ->html();
+
+    expect($html)->toContain('Contracts')
+        ->and($html)->toContain('data-folder-row')
+        ->and($html)->toContain('data-folder-id="'.$child->id.'"')
+        // Folders sort above files: a directory has no period, so it cannot
+        // sit inside a band.
+        ->and(strpos($html, 'Contracts'))->toBeLessThan(strpos($html, 'Report.pdf'));
+});
+
+it('does not leak siblings when listing a directory reached only as an ancestor', function () {
+    // Grants inherit downward, so a viewer who can see a folder can see its
+    // children -- which makes the obvious version of this test meaningless.
+    // The case that is real: a grant deep in the tree makes its ANCESTORS
+    // navigable so the grant can be reached at all, and opening one of those
+    // ancestors must show only the path onward, never its other children.
+    $root = Directory::factory()->create(['name' => 'Root']);
+    $onPath = Directory::factory()->for($root, 'parent')->create(['name' => 'OnPath']);
+    $granted = Directory::factory()->for($onPath, 'parent')->create(['name' => 'Granted']);
+    $sibling = Directory::factory()->for($root, 'parent')->create(['name' => 'SiblingBranch']);
+
+    $stranger = User::factory()->create();
+    $stranger->assignRole('member');
+    DirectoryGrant::create([
+        'directory_id' => $granted->id, 'grantee_type' => 'user',
+        'grantee_id' => $stranger->id, 'level' => AccessLevel::View,
+    ]);
+
+    $viewable = app(DirectoryAccess::class)->viewableDirectoryIds($stranger);
+
+    // The listing filters on exactly this set, so assert against it directly:
+    // the granted node is in, the ancestors and the sibling branch are not.
+    expect($viewable)->toContain($granted->id)
+        ->and($viewable)->not->toContain($root->id)
+        ->and($viewable)->not->toContain($onPath->id)
+        ->and($viewable)->not->toContain($sibling->id);
+});
+
+it('announces a folder rather than navigating itself', function () {
+    $child = Directory::factory()->for($this->directory, 'parent')->create(['name' => 'Contracts']);
+
+    Livewire::actingAs($this->user)
+        ->test(FileList::class, ['directory' => $this->directory])
+        ->call('openFolder', $child->id)
+        ->assertDispatched('directory-selected', directoryId: $child->id);
 });

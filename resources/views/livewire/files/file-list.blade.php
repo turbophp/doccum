@@ -103,6 +103,43 @@
                         <span class="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-[repeating-linear-gradient(90deg,var(--color-ink-2)_0,var(--color-ink-2)_2px,transparent_2px,transparent_4px)]" aria-hidden="true"></span>
                     @endif
                 </div>
+            @elseif ($row['type'] === 'folder')
+                {{-- Folder row: the same template as a file (design plan §4), with
+                     the cells a directory has no value for left empty so the columns
+                     stay aligned. `data-folder-row` is what drag-and-drop targets. --}}
+                <div
+                    role="row"
+                    wire:key="folder-{{ $row['id'] }}"
+                    data-folder-id="{{ $row['id'] }}"
+                    data-folder-row
+                    tabindex="-1"
+                    wire:click="openFolder({{ $row['id'] }})"
+                    class="group relative flex h-8 shrink-0 cursor-pointer items-center border-b border-rule/60 px-2 hover:bg-chrome"
+                >
+                    {{-- Spine gutter stays empty: a folder belongs to no period. --}}
+                    <div class="h-full w-5 shrink-0" aria-hidden="true"></div>
+
+                    <div class="w-6 shrink-0"></div>
+
+                    <div class="flex w-5 shrink-0 items-center justify-center text-ink-2">
+                        <flux:icon.folder variant="micro" />
+                    </div>
+
+                    <div class="min-w-40 flex-1 truncate pl-2 text-[13px] font-medium text-ink">
+                        {{ $row['name'] }}
+                    </div>
+
+                    <div class="w-24 shrink-0"></div>
+                    <div class="num hidden w-16 shrink-0 text-[12px] text-ink-2 xl:block"></div>
+                    <div class="hidden w-32 shrink-0 text-[12px] text-ink-2 min-[1440px]:block"></div>
+
+                    <div class="num w-32 shrink-0 text-[12px] text-ink-2">{{ $row['modified'] }}</div>
+
+                    <div class="num w-[72px] shrink-0 text-right text-[12px] text-ink-2">{{ $row['size'] }}</div>
+
+                    <div class="hidden w-10 shrink-0 xl:block"></div>
+                    <div class="w-7 shrink-0"></div>
+                </div>
             @else
                 {{-- File row: 32px default density (design plan §4). --}}
                 <div
