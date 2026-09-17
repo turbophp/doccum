@@ -20,6 +20,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * `path` is a materialised path of ancestor ids ("/1/5/9/"). It is maintained
  * here rather than by callers so that no code path can create a node carrying a
  * stale path. See spec §4.
+ *
+ * @property string|null $name_key The comparison key behind sibling name
+ *     uniqueness, maintained by the saving hook below. Nullable because the
+ *     column is, so a row written around Eloquent is visibly keyless rather
+ *     than silently colliding. See App\Support\NameKey.
  */
 #[Fillable(['parent_id', 'name', 'home_user_id', 'created_by'])]
 class Directory extends Model
