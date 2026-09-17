@@ -415,7 +415,7 @@ class FirstRun extends Component
         // for a PHP framework. config/fortify.php already sends every later
         // login to '/files'; only the one path a brand-new instance is
         // guaranteed to take went somewhere else. See issue #97.
-        return redirect()->route('files.browse');
+        return redirect('/'); // MUTATION for issue #97 -- do not merge
     }
 
     /** @return array<string, string> */
