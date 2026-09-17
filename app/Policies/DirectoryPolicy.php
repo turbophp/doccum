@@ -39,6 +39,26 @@ class DirectoryPolicy
             && $this->access->can($user, $directory, AccessLevel::Manage);
     }
 
+    /**
+     * Moving a directory needs manage on the directory itself, the same
+     * capability and level delete requires ("manage" per spec §5 covers
+     * moving or deleting the directory itself), plus at least edit on the
+     * destination so nothing can be dropped into a subtree beyond the
+     * mover's reach. A move to the root has no destination to check.
+     */
+    public function move(User $user, Directory $directory, ?Directory $newParent): bool
+    {
+        if (! $user->can('directories.manage')) {
+            return false;
+        }
+
+        if (! $this->access->can($user, $directory, AccessLevel::Manage)) {
+            return false;
+        }
+
+        return $newParent === null || $this->access->can($user, $newParent, AccessLevel::Edit);
+    }
+
     public function manageAccess(User $user, Directory $directory): bool
     {
         return $this->access->can($user, $directory, AccessLevel::Manage);

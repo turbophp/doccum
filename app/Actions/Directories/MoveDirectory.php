@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Directories;
 
 use App\Exceptions\CannotMoveDirectoryIntoItself;
+use App\Exceptions\DuplicateDirectoryName;
 use App\Jobs\ReindexSearchDocument;
 use App\Models\Directory;
 use App\Models\File;
@@ -17,6 +18,18 @@ class MoveDirectory
     {
         if ($newParent !== null && ($newParent->is($directory) || $newParent->isDescendantOf($directory))) {
             throw new CannotMoveDirectoryIntoItself;
+        }
+
+        $newParentId = $newParent?->getKey();
+
+        $taken = Directory::query()
+            ->where('parent_id', $newParentId)
+            ->whereNamed((string) $directory->name)
+            ->whereKeyNot($directory->getKey())
+            ->exists();
+
+        if ($taken) {
+            throw DuplicateDirectoryName::in($newParentId, (string) $directory->name);
         }
 
         $oldPath = $directory->path;
