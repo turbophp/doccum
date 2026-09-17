@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T16:25:00Z",
-  "latestRun": "run/0012",
+  "dateModified": "2026-09-17T17:15:00Z",
+  "latestRun": "run/0013",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -1473,6 +1473,55 @@
       "mergedAt": "2026-09-17T16:20:29Z",
       "mergeSha": "75a3013b56a498e334dce0cf135e243da77254bf",
       "mergedIn": "run/0012"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/93",
+      "@type": "PullRequest",
+      "identifier": 93,
+      "name": "fix: keep the database on the volume, and make the smoke prove it",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0013",
+      "state": "merged",
+      "dateCreated": "2026-09-17T16:46:09Z",
+      "headSha": "2f23276b923119dd5bccb93ede1a7dbe1783baab",
+      "mergedAt": "2026-09-17T16:56:42Z",
+      "mergeSha": "b0f9a624eddb596cd1475909b9f67dfe8cdd3472",
+      "mergedIn": "run/0013"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/94",
+      "@type": "PullRequest",
+      "identifier": 94,
+      "name": "fix: state the embedded SQLite pragmas instead of inheriting them",
+      "implements": [
+        "item/extract-text-flake",
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0013",
+      "state": "merged",
+      "dateCreated": "2026-09-17T16:54:47Z",
+      "headSha": "28746687b5ef47a0e5970cf0f1e584492f06b88f",
+      "mergedAt": "2026-09-17T17:01:12Z",
+      "mergeSha": "ba799a9051617217967589698bb97c23a11ba01b",
+      "mergedIn": "run/0013"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/95",
+      "@type": "PullRequest",
+      "identifier": 95,
+      "name": "docs(loop): make the loop look at main after it merges",
+      "implements": [
+        "item/ci-green-baseline"
+      ],
+      "run": "run/0013",
+      "state": "merged",
+      "dateCreated": "2026-09-17T16:56:27Z",
+      "headSha": "ddca4fa76a2e5aeb6f2ab415acea775870e607ab",
+      "mergedAt": "2026-09-17T17:01:44Z",
+      "mergeSha": "e8686a0fb9df00d7e9498a241d743646c847a22f",
+      "mergedIn": "run/0013"
     }
   ],
   "decisions": [
@@ -1711,6 +1760,52 @@
       "affects": [
         "item/trash-purge-manual",
         "item/trash-view"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0015",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:15:00Z",
+      "run": "run/0013",
+      "name": "A persistence claim is tested by destroying whatever could be hiding the state, not by restarting it",
+      "rationale": "CLAUDE.md said /data was the only persistent volume and listed SQLite first. That was false for the run command CLAUDE.md itself documents. compose.yaml has always set DB_DATABASE; the image never did, so config/database.php fell back to database_path('database.sqlite') and the database lived inside the image layer, while objects and minio.env sat on the volume -- so `docker rm` or an image upgrade brought the instance back half-alive rather than empty, which is worse than empty because it looks like it worked. The entrypoint had been creating /data/doccum.sqlite throughout: a file nothing ever opened. The smoke could not catch this, and the reason is the general lesson. Its persistence step ran `docker restart`, which keeps the container's writable layer, so a database inside the image layer survives it; a step named \"Verify persistence after restart\" passed for its whole life without exercising the property it was named for. Restarting a process tests that the process can restart. It says nothing about where state lives, because everything that would disappear is still there. The step now destroys the container and starts a new one from the same image against the same named volume, which is what persistence has to mean for a container people are told to upgrade by replacing. The two halves check each other and neither would have been enough alone: without the DB_DATABASE default the verify phase cannot log in at all, and without the smoke change nothing would have proven the default mattered. Generalised: for any claim that X survives Y, the test must actually perform Y in the form an operator would, and must be shown to fail when X is not on the durable side of it. Filed as issue 91.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0016",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:15:00Z",
+      "run": "run/0013",
+      "name": "Green on main is read from a main run, and only the newest one speaks for main",
+      "rationale": "The loop reported \"main is green\" every iteration without being entitled to. docs/LOOP.md gated merging on the pull request's checks and then went straight to picking the next item, so nothing ever looked at main afterwards. A pull request's checks run against the pull request's head, not against the main that merging it produces, and the gap is not theoretical: of main's 38 tests.yml push runs up to run 0012, 8 failed and 6 were cancelled, and every one of the five failures that came after CI was established was a merge commit whose pull request had been fully green. The loop now waits for the push run on the merge commit and reads its conclusion, and \"main is green\" may only be said after reading a main run. Applying the rule immediately exposed a second hole in it, which is why this decision says \"the newest one\". Merging pull requests 94 and 95 a few minutes apart meant GitHub's concurrency group cancelled the run on the first merge commit in favour of the second: ba799a9 shows two check runs, both green, because the other nine were cancelled before they started. A poller that asks \"are all the checks on this commit green\" answers yes to that, which is a false green of exactly the kind this decision exists to prevent -- read from a main run, and still wrong. An intermediate merge commit in a back-to-back sequence therefore never gets a verdict and must not be treated as having one; the tip is what has to be green, and a completeness check on the number of checks is part of reading the answer, not an optimisation.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ci-green-baseline"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0017",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:15:00Z",
+      "run": "run/0013",
+      "name": "An item does not close with its own central question unanswered while the answer is already in CI output",
+      "rationale": "item/extract-text-flake's doneWhen asked for the intermittent failure to be \"reproduced or the object-store race ruled out ... and which is stated\". It closed saying the cause was unknown. It was not unknown: the diagnostic that item itself added -- printing file_texts.error from the container -- printed the cause on main twice within 25 minutes of the item closing, as \"General error: 5 database is locked\" on an update to the jobs table. Nobody read it. The cause is SQLite write contention, not an object-store race and not MinIO readiness: the single container runs FrankenPHP, two queue workers and the scheduler against one file with queue, cache and session all on the database driver, and config/database.php left busy_timeout and journal_mode null, so SQLite's own default busy timeout of zero applied and the loser of a write race failed instantly instead of waiting. That is decision/0010's pattern for the seventh time, and the backoff added in pull request 83 was treating the symptom, which is why it recovered rather than failing outright. Two rules follow. An item may not be marked Completed while the question its own doneWhen poses is open; \"cause unknown\" closes nothing when a diagnostic added for that cause is still running. And a diagnostic is only worth what someone reads -- adding one and then not looking at its output is the same defect as not adding it, with more confidence attached. Filed as issue 92; the design question of whether queue, cache and session belong on the same SQLite file as the application data is deliberately left open rather than settled here.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/extract-text-flake",
+        "item/container-smoke-ci"
       ],
       "supersedes": null
     }
