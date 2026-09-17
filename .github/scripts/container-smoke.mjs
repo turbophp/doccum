@@ -88,11 +88,32 @@ function sleep(ms) {
  * no shell), so the PHP source needs no shell escaping.
  */
 function tinker(php) {
-  return execFileSync(
-    'docker',
-    ['exec', CONTAINER_NAME, 'php', 'artisan', 'tinker', '--execute', php],
-    { encoding: 'utf8', timeout: 20000 },
-  );
+  try {
+    return execFileSync(
+      'docker',
+      ['exec', CONTAINER_NAME, 'php', 'artisan', 'tinker', '--execute', php],
+      { encoding: 'utf8', timeout: 20000 },
+    );
+  } catch (e) {
+    // execFileSync's own `message` is only "Command failed: <the command>",
+    // so a caller that reports e.message reports the command back and says
+    // nothing about why it failed -- which is exactly what happened: an
+    // image job printed the whole PHP snippet and not one word of cause.
+    // Everything diagnostic lives on the error OBJECT, not its message:
+    // `status` is the exit code, `signal`/`killed` distinguish the 20s
+    // timeout from a non-zero exit, and stderr carries the PHP error.
+    const detail = [
+      `exit status: ${e.status ?? '(none)'}`,
+      `signal: ${e.signal ?? '(none)'}`,
+      `killed by timeout: ${e.killed === true}`,
+      `stdout: ${String(e.stdout ?? '').trim() || '(empty)'}`,
+      `stderr: ${String(e.stderr ?? '').trim() || '(empty)'}`,
+    ].join('\n    ');
+
+    const err = new Error(`artisan tinker failed inside ${CONTAINER_NAME}\n    ${detail}`);
+    err.cause = e;
+    throw err;
+  }
 }
 
 /**
