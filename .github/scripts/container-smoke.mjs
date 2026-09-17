@@ -154,6 +154,43 @@ function dumpContainerState(reason) {
 }
 
 /**
+ * Blocks until a files row actually exists for FILE_NAME.
+ *
+ * "The filename is on the page" is not that claim: page.getByText() matches
+ * the file input's own label and Livewire's optimistic preview, so the upload
+ * step reported success through a whole run in which File::where('name', ...)
+ * returned null for sixty seconds. An assertion that observes a resting state
+ * rather than requiring the feature to do something -- decision/0012, again.
+ */
+async function waitForFileRow() {
+  const php = [
+    `$f = \\App\\Models\\File::where('name', '${FILE_NAME}')->first();`,
+    "echo 'ROW:' . ($f ? 'yes' : 'no');",
+  ].join(' ');
+
+  const deadline = Date.now() + 30000;
+  let last = 'never answered';
+
+  while (Date.now() < deadline) {
+    try {
+      const output = tinker(php);
+      if (/ROW:yes/.test(output)) return;
+      last = 'no files row';
+    } catch (e) {
+      last = e.message;
+    }
+    await sleep(1000);
+  }
+
+  dumpContainerState(
+    `the upload reported success but no files row exists for ${FILE_NAME} (${last})`,
+  );
+  const err = new Error(`no files row for ${FILE_NAME} after the upload (${last})`);
+  err.dumped = true;
+  throw err;
+}
+
+/**
  * Polls file_texts.status (via the File -> currentVersion -> text chain,
  * matching app/Models/File.php and app/Models/FileVersion.php) for the file
  * named FILE_NAME, bounded by EXTRACTION_TIMEOUT_MS. Never hangs: a status
@@ -162,12 +199,18 @@ function dumpContainerState(reason) {
  * forever.
  */
 async function waitForExtraction() {
+  // Deliberately branch rather than `exit`. PsySH makes `exit` inside
+  // --execute leave the process with status 1, so execFileSync threw and the
+  // NO_FILE / NO_VERSION readings -- the two most diagnostic answers this
+  // query has -- were converted into "the tinker call failed" and never
+  // reached the poller. Both were unreachable for as long as they have
+  // existed. See issue #106.
   const php = [
     `$f = \\App\\Models\\File::where('name', '${FILE_NAME}')->first();`,
-    "if (!$f) { echo 'STATUS:NO_FILE'; exit; }",
+    "if (!$f) { echo 'STATUS:NO_FILE'; } else {",
     '$f->refresh();',
     '$v = $f->currentVersion;',
-    "if (!$v) { echo 'STATUS:NO_VERSION'; exit; }",
+    "if (!$v) { echo 'STATUS:NO_VERSION'; } else {",
     '$t = $v->text;',
     "echo 'STATUS:' . ($t ? $t->status->value : 'NO_TEXT');",
     // ExtractText::failed() records why in file_texts.error. Without this the
@@ -175,6 +218,7 @@ async function waitForExtraction() {
     // failure in CI was diagnosed by guesswork rather than by reading the
     // exception -- see issue #57.
     "if ($t && $t->error) { echo ' ERROR:' . $t->error; }",
+    '} }',
   ].join(' ');
 
   const deadline = Date.now() + EXTRACTION_TIMEOUT_MS;
@@ -710,14 +754,29 @@ async function runSetup() {
       tmpFile,
       `This is a doccum container smoke test document containing the marker word ${FILE_MARKER}.\n`,
     );
+    // Wait for Livewire's temporary-upload POST itself, not for the network
+    // to go quiet. The previous version waited on 'networkidle' and swallowed
+    // the timeout with .catch(() => {}), so when the upload had not landed
+    // yet the smoke clicked Upload anyway against a form referencing nothing.
+    // That is a race, and it is why this step could "pass" while no row was
+    // ever written. See issue #106.
+    const temporaryUpload = page.waitForResponse(
+      (r) => r.url().includes('/livewire/upload-file') && r.status() === 200,
+      { timeout: 20000 },
+    );
     await page.locator('input[type="file"]').setInputFiles(tmpFile);
-    // Livewire uploads the file to its temporary-upload endpoint as soon as
-    // the input changes, asynchronously; give that request a moment to land
-    // before submitting the form that references it.
-    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    await temporaryUpload;
+
     await page.getByRole('button', { name: 'Upload', exact: true }).click();
     await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-    console.log('[setup] upload accepted, file listed in the directory');
+
+    // The text assertion above proves only that the NAME appears somewhere on
+    // the page, which the file input and Livewire's own preview both satisfy
+    // without a file ever being stored. It said "upload accepted" through a
+    // run in which no files row existed at all. What follows is the claim
+    // this step is supposed to make.
+    await waitForFileRow();
+    console.log('[setup] upload accepted, and a files row exists for it');
 
     console.log(`[setup] waiting up to ${EXTRACTION_TIMEOUT_MS}ms for extraction to finish`);
     await waitForExtraction();
