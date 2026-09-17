@@ -30,6 +30,13 @@ Every hour, the loop wakes and runs these steps in order.
    `main`. Wait for the push run on the merge commit and read its conclusion.
    A red `main` is this iteration's first work, and the next iteration's,
    ahead of picking a new item.
+
+   Only the **newest** `main` run speaks for `main`, and a run counts only
+   when the full set of checks reported. Merging two PRs a few minutes apart
+   lets the concurrency group cancel the first merge commit's run: `ba799a9`
+   carries two green check runs and nine cancelled ones, so "are this
+   commit's checks all green?" answers yes about a commit nothing verified.
+   Check the tip, and check that the count is complete.
 4. **Pick the next item.** The first backlog item whose dependencies are all
    `Completed`. Ties break toward whatever unblocks the most other items.
 5. **Execute.** Hand the item to a Sonnet worker with its plan, the relevant
