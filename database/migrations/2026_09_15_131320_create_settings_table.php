@@ -19,6 +19,12 @@ return new class extends Migration
             $table->json('value')->nullable();
             $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
+
+            // foreignId()->constrained() does not index the column itself --
+            // only MySQL/MariaDB gets one, auto-created by InnoDB because the
+            // constraint requires it. SQLite and PostgreSQL leave it bare.
+            // See tests/Feature/SchemaPortabilityTest.php (decision/0008).
+            $table->index('updated_by');
         });
     }
 

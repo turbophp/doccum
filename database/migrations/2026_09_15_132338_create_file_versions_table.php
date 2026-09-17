@@ -22,6 +22,14 @@ return new class extends Migration
             $table->timestamp('created_at')->useCurrent();
 
             $table->unique(['file_id', 'version_number']);
+
+            // file_id is already covered by the unique index above, which
+            // leads with it, but uploaded_by is not. foreignId()->constrained()
+            // does not index the column itself -- only MySQL/MariaDB gets one,
+            // auto-created by InnoDB because the constraint requires it.
+            // SQLite and PostgreSQL leave it bare. See
+            // tests/Feature/SchemaPortabilityTest.php (decision/0008).
+            $table->index('uploaded_by');
         });
     }
 

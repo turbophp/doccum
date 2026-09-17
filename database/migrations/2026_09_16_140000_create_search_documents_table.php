@@ -33,6 +33,12 @@ return new class extends Migration
             $table->unique(['subject_type', 'subject_id']);
             $table->index('directory_id');
             $table->index(['period_year', 'period_month']);
+
+            // foreignId()->constrained() does not index the column itself --
+            // only MySQL/MariaDB gets one, auto-created by InnoDB because the
+            // constraint requires it. SQLite and PostgreSQL leave it bare.
+            // See tests/Feature/SchemaPortabilityTest.php (decision/0008).
+            $table->index('owner_id');
         });
     }
 
