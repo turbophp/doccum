@@ -8,6 +8,7 @@ use App\Models\Directory;
 use App\Models\File;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Soft-deletes a directory and everything beneath it.
@@ -24,37 +25,41 @@ use Illuminate\Support\Facades\DB;
  * otherwise be false. The per-row cost is accepted for v1 -- trashing a
  * directory is rare, and the subtrees in practice are not enormous.
  *
- * A row that is already trashed independently of this one -- a file someone
- * deleted before its directory was, or a descendant directory trashed on its
- * own -- is left alone: SoftDeletes' global scope excludes it from every
- * query here, so its own deleted_at survives untouched. That is exactly what
- * lets RestoreDirectory tell the two apart.
+ * Every row this cascade trashes is stamped with one trashed_batch, which is
+ * what RestoreDirectory reverses. A row already trashed independently is
+ * left alone -- SoftDeletes' global scope excludes it from every query here,
+ * so it keeps whatever batch (or none) it already had.
  */
 class TrashDirectory
 {
     public function handle(Directory $directory): Directory
     {
         DB::transaction(function () use ($directory): void {
-            $deletedAt = now();
+            $batch = (string) Str::uuid();
 
             $subtree = (new Collection([$directory]))->concat($directory->descendants()->get());
 
             foreach ($subtree as $node) {
-                $node->delete();
-
-                // delete() stamps its own fresh timestamp; pinned to the same
-                // value across every row so RestoreDirectory's "deleted_at
-                // equals the root's" comparison is exact, not a race against
-                // the clock between the first row and the last.
-                $node->forceFill(['deleted_at' => $deletedAt])->saveQuietly();
+                $this->trash($node, $batch);
 
                 foreach (File::query()->where('directory_id', $node->getKey())->get() as $file) {
-                    $file->delete();
-                    $file->forceFill(['deleted_at' => $deletedAt])->saveQuietly();
+                    $this->trash($file, $batch);
                 }
             }
         });
 
         return $directory->refresh();
+    }
+
+    /**
+     * The batch is written before the delete, quietly, so that by the time
+     * SearchProjectionObserver::deleted() runs the row already carries it.
+     * delete() itself would not persist it: soft-deleting writes only
+     * deleted_at and updated_at, never the model's other dirty attributes.
+     */
+    private function trash(Directory|File $node, string $batch): void
+    {
+        $node->forceFill(['trashed_batch' => $batch])->saveQuietly();
+        $node->delete();
     }
 }

@@ -87,11 +87,15 @@ it('leaves a sibling subtree untouched', function () {
 it('leaves a file that was already trashed independently at its own deleted_at', function () {
     app(TrashFile::class)->handle($this->leafFile);
 
-    // Pinned to a value nothing in this test could coincidentally reproduce,
-    // so the assertion below cannot pass by two calls to now() landing in
-    // the same second.
-    $independentDeletedAt = now()->subDay();
-    File::withTrashed()->findOrFail($this->leafFile->id)->forceFill(['deleted_at' => $independentDeletedAt])->saveQuietly();
+    // Pinned a day back so the assertion cannot pass by two calls to now()
+    // landing in the same second, then read back from the database rather
+    // than compared against the in-memory Carbon: deleted_at stores at
+    // second precision, so the value that went in is not the value that
+    // comes out.
+    File::withTrashed()->findOrFail($this->leafFile->id)
+        ->forceFill(['deleted_at' => now()->subDay()])->saveQuietly();
+
+    $independentDeletedAt = File::withTrashed()->findOrFail($this->leafFile->id)->deleted_at;
 
     $trashed = app(TrashDirectory::class)->handle($this->root->fresh());
 

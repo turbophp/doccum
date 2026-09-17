@@ -78,3 +78,37 @@ it('leaves the directory trashed when restore is refused for a name collision', 
 
     expect(Directory::withTrashed()->findOrFail($this->root->id)->trashed())->toBeTrue();
 });
+
+it('tells two cascades apart even when both happen within the same second', function () {
+    // The reason trashed_batch exists rather than matching on deleted_at.
+    // Both cascades run in the same test, so their deleted_at values are
+    // byte-identical once stored at second precision -- restoring one used
+    // to resurrect the other's rows too.
+    $sibling = Directory::factory()->for($this->parent, 'parent')->create();
+    $siblingFile = File::factory()->for($sibling, 'directory')->create();
+
+    app(TrashDirectory::class)->handle($sibling->fresh());
+    app(TrashDirectory::class)->handle($this->root->fresh());
+
+    $trashedSibling = Directory::withTrashed()->findOrFail($sibling->id);
+    $trashedRoot = Directory::withTrashed()->findOrFail($this->root->id);
+
+    expect($trashedSibling->deleted_at)->toEqual($trashedRoot->deleted_at)
+        ->and($trashedSibling->trashed_batch)->not->toBe($trashedRoot->trashed_batch);
+
+    app(RestoreDirectory::class)->handle($trashedRoot);
+
+    expect(Directory::withTrashed()->findOrFail($sibling->id)->trashed())->toBeTrue()
+        ->and(File::withTrashed()->findOrFail($siblingFile->id)->trashed())->toBeTrue()
+        ->and($this->root->fresh()->trashed())->toBeFalse()
+        ->and(File::query()->whereKey($this->rootFile->id)->exists())->toBeTrue();
+});
+
+it('clears the batch on the rows it restores', function () {
+    app(TrashDirectory::class)->handle($this->root->fresh());
+    app(RestoreDirectory::class)->handle(Directory::withTrashed()->findOrFail($this->root->id));
+
+    expect($this->root->fresh()->trashed_batch)->toBeNull()
+        ->and($this->leaf->fresh()->trashed_batch)->toBeNull()
+        ->and(File::query()->findOrFail($this->leafFile->id)->trashed_batch)->toBeNull();
+});
