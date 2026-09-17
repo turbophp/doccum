@@ -1148,7 +1148,37 @@ async function clickFileRow(page, name, { shift = false, ctrl = false } = {}) {
  * identically on both. Only "the THIRD, unselected file is still live"
  * tells them apart -- the same reasoning CLAUDE.md's note on the topbar
  * check makes: which half of a check is load-bearing is not something to
- * argue about, only to measure. TODO: mutated run URL.
+ * argue about, only to measure.
+ *
+ * MUTATION RECORD, both directions measured against a built image:
+ *
+ *   correct build (#120, head c1b4bd2) -> image PASSES
+ *     https://github.com/turbophp/doccum/actions/runs/35279512648/job/105397955034
+ *
+ *   bulkTrash() taking every file in the directory instead of the selected
+ *   ones, with the exact-resolution guard dropped so it does not abort
+ *   first (#122, head 5632724) -> image FAILS with
+ *     "DoccumSmokeBulkSurvivor.txt is not live after a bulk trash that
+ *      should not have selected it"
+ *     raw: SURVIVOR_LIVE:no V1_TRASHED:yes V2_TRASHED:yes
+ *     https://github.com/turbophp/doccum/actions/runs/35279957311/job/105399358226
+ *
+ * Note what the PASSING direction proves that the failing one cannot. Under
+ * the mutation the selection is ignored entirely, so that run says nothing
+ * about whether multi-select works. The green run does: the survivor stayed
+ * live while exactly the two clicked rows were trashed, which can only
+ * happen if the checkbox clicks actually reached selectRow() and left
+ * $selectedIds holding those two ids. That is the only evidence anywhere
+ * that the Alpine mechanism -- $wire.selectRow() reading $event.shiftKey
+ * and $event.ctrlKey -- functions in the shipped image at all; no Blade
+ * assertion in the suite can see it.
+ *
+ * Both runs are recorded because one alone is not a proof. The replace
+ * check one item earlier failed IDENTICALLY in both directions on its first
+ * attempt and was minutes from being written down as evidence. A red image
+ * job also has to be read for WHERE it died, not merely that it did: issue
+ * #121 has the container intermittently dying at extraction with a locked
+ * jobs table, which happened on this very PR's first run.
  */
 async function checkBulkTrashLeavesUnselectedFilesAlone(page, phase) {
   const survivorName = 'DoccumSmokeBulkSurvivor.txt';
