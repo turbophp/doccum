@@ -103,5 +103,8 @@ it('refuses an upload without edit access', function () {
         ->call('store')
         ->assertForbidden();
 
-    expect(File::count())->toBe(0);
+    // Scoped to the file this test itself would have created, not the whole
+    // table: File::count() breaks the moment anything else in the suite
+    // legitimately writes a row (CLAUDE.md).
+    expect(File::where('name', 'Report.pdf')->count())->toBe(0);
 });
