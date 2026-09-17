@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\File;
 
 // Foundation (implementation plan Task 2): tokens, type, the `move()` motion
 // helper, and `layouts::shell`. Everything else in the shell builds on this,
@@ -187,4 +188,35 @@ it('keeps rows exempt from the micro-interaction tier, per design plan §5', fun
     $js = file_get_contents(resource_path('js/shell/motion.js'));
 
     expect($js)->toContain('Rows stay exempt');
+});
+
+it('collapses CSS transitions under prefers-reduced-motion, covering the half move() cannot reach', function () {
+    // move() short-circuits before animate(), which covers every scripted
+    // animation in the shell. It cannot cover a CSS transition, and the tree
+    // deliberately uses one for its disclosure chevrons -- a 120ms rotation
+    // needs neither a spring nor JavaScript. So "reduced motion is enforced in
+    // one place" is only true of the JavaScript half unless CSS is caught too.
+    $shellViews = collect(File::allFiles(resource_path('views/livewire/files')))
+        ->merge(File::allFiles(resource_path('views/layouts/shell')))
+        ->filter(fn ($file) => str_contains($file->getContents(), 'transition-'));
+
+    expect($shellViews)->not->toBeEmpty(
+        'No shell view animates in CSS any more. The guard below is still correct, but the reason '
+        .'it was written has changed -- check whether it is still the right shape.'
+    );
+
+    $css = file_get_contents(resource_path('css/app.css'));
+
+    preg_match('/@media \(prefers-reduced-motion: reduce\)\s*\{(.*?)\n\}/s', $css, $matches);
+
+    expect($matches)->not->toBeEmpty('Expected a prefers-reduced-motion block in app.css');
+
+    $body = $matches[1];
+
+    expect($body)->toContain('*')
+        ->and($body)->toContain('transition-duration')
+        ->and($body)->toContain('animation-duration')
+        // Without !important a Tailwind duration utility wins on specificity
+        // and the guard is decoration.
+        ->and($body)->toContain('!important');
 });

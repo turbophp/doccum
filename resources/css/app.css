@@ -104,6 +104,28 @@ ui-checkbox[data-indeterminate] [data-flux-checkbox-indicator] {
     font-feature-settings: 'tnum';
 }
 
-/* \[:where(&)\]:size-4 {
-    @apply size-4;
-} */
+/*
+ * Reduced motion, enforced for the CSS half of the shell (design plan §5).
+ *
+ * `move()` short-circuits before calling animate(), which covers every
+ * scripted animation. It cannot cover a CSS transition: the tree's disclosure
+ * chevrons rotate through `transition-transform`, deliberately, because a
+ * 120ms rotation does not need a spring and does not need JavaScript. Without
+ * this block those transitions keep running for a viewer who has asked the
+ * system for less motion, and the single-point-of-enforcement claim is only
+ * true of the half written in JavaScript.
+ *
+ * Durations collapse to 0.01ms rather than to `none` so that anything waiting
+ * on `transitionend` or `animationend` still receives its event and does not
+ * hang; the frame is over before it can be perceived either way.
+ */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
