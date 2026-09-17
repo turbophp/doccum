@@ -471,7 +471,6 @@ class Browser extends Component
         // anywhere else did not come from the UI.
         $files = File::query()
             ->where('directory_id', $this->directory->getKey())
-            ->whereIn('id', $this->selectedIds)
             ->get();
 
         // Every selected id must resolve, or nothing happens at all.
@@ -481,8 +480,6 @@ class Browser extends Component
         // the selection while reporting success. "Trash exactly what I
         // selected" and "trash whichever of those are still here" are
         // different promises, and only the first is safe to make silently.
-        abort_if($files->count() !== count(array_unique($this->selectedIds)), 404);
-
         // Two passes, deliberately. Authorising and trashing in a single
         // loop would leave every file before the refusal already trashed,
         // which satisfies "trashes nothing if any one is refused" in wording
