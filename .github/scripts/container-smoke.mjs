@@ -567,6 +567,57 @@ async function checkTopbar(page, phase) {
   return logout;
 }
 
+/**
+ * The embedded SQLite database's pragmas, read out of the RUNNING container.
+ *
+ * Four processes write to that one file -- FrankenPHP, two queue workers and
+ * the scheduler -- with queue, cache and session all on the database driver.
+ * SQLite's own default busy timeout is zero, so the loser of a write race
+ * fails instantly instead of waiting, and that is what printed
+ *
+ *   General error: 5 database is locked
+ *   (SQL: update "jobs" set "reserved_at" = ..., "attempts" = 1 ...)
+ *
+ * on main (issue #92). tests/Feature/SqlitePragmaTest.php asserts the same
+ * two values, but it does so against a temporary file it configures itself,
+ * because the suite's own connection is ":memory:" where journal_mode is
+ * always "memory". Only this check reads them off the real /data database in
+ * the image the operator actually runs, which is the configuration that was
+ * wrong. It fails if config/database.php goes back to leaving either at the
+ * driver default -- that is the mutation, and .github/mutations.json runs it.
+ */
+function checkEmbeddedSqlitePragmas() {
+  const php = [
+    "$journal = \\Illuminate\\Support\\Facades\\DB::select('pragma journal_mode')[0]->journal_mode;",
+    // `pragma busy_timeout` answers in a column called `timeout`, not
+    // `busy_timeout`.
+    "$busy = \\Illuminate\\Support\\Facades\\DB::select('pragma busy_timeout')[0]->timeout;",
+    "echo 'JOURNAL:' . $journal . ' BUSY:' . $busy;",
+  ].join(' ');
+
+  const output = tinker(php);
+  const journal = /JOURNAL:(\S+)/.exec(output);
+  const busy = /BUSY:(\d+)/.exec(output);
+
+  if (!journal || !busy) {
+    throw new Error(`could not read the SQLite pragmas from the container: ${output.trim()}`);
+  }
+
+  if (journal[1].toLowerCase() !== 'wal') {
+    throw new Error(
+      `the embedded database is journalling in "${journal[1]}", not WAL -- readers will block writers (issue #92)`,
+    );
+  }
+
+  if (Number(busy[1]) <= 0) {
+    throw new Error(
+      `the embedded database's busy_timeout is ${busy[1]} -- a writer that loses a race fails instead of waiting (issue #92)`,
+    );
+  }
+
+  console.log(`[setup] embedded database: journal_mode=${journal[1]}, busy_timeout=${busy[1]}ms`);
+}
+
 async function runSetup() {
   const browser = await chromium.launch();
   try {
@@ -596,6 +647,8 @@ async function runSetup() {
       page.getByRole('button', { name: 'Create administrator account' }).click(),
     ]);
     console.log('[setup] installer complete, admin created and logged in');
+
+    checkEmbeddedSqlitePragmas();
 
     console.log('[setup] opening the home directory');
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });

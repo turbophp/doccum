@@ -38,9 +38,34 @@ return [
             'database' => env('DB_DATABASE', database_path('database.sqlite')),
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
-            'busy_timeout' => null,
-            'journal_mode' => null,
-            'synchronous' => null,
+
+            /*
+             * Stated, not inherited -- decision/0010. Stock Laravel leaves all
+             * three null, which means "whatever the driver decides", and what
+             * SQLite decides is a busy timeout of zero: the loser of a write
+             * race fails instantly instead of waiting. The single container
+             * runs FrankenPHP, two queue workers and the scheduler against one
+             * file, with queue, cache and session all on the database driver,
+             * and that default is what printed "General error: 5 database is
+             * locked" on the jobs table (issue #92).
+             *
+             * busy_timeout makes a blocked writer wait; WAL stops a reader
+             * blocking a writer at all. Both address the contention.
+             *
+             * synchronous is FULL because that is what SQLite itself defaults
+             * to, and this is a document archive: a host power loss must not
+             * lose the metadata row for an object already in the store. It is
+             * named here only so it is a decision rather than an inheritance.
+             * Note that WAL + FULL is still cheaper than the rollback-journal
+             * FULL it replaces, so nothing is traded away for the fix.
+             *
+             * All three are overridable: WAL in particular cannot be used on
+             * a network filesystem, where DB_JOURNAL_MODE=DELETE is required.
+             */
+            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
+            'journal_mode' => env('DB_JOURNAL_MODE', 'WAL'),
+            'synchronous' => env('DB_SYNCHRONOUS', 'FULL'),
+
             'transaction_mode' => 'DEFERRED',
         ],
 

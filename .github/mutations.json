@@ -75,5 +75,19 @@
     "file": "app/Actions/Files/PurgeFile.php",
     "remove": "        if (ArchivePeriod::isArchivedFor((int) $file->period_year, (int) $file->period_month)) {\n            throw PeriodIsArchived::forPeriod((int) $file->period_year, (int) $file->period_month);\n        }\n\n",
     "expectFailing": "refuses to purge a file whose period is archived"
+  },
+  {
+    "id": "sqlite-busy-timeout-stated",
+    "why": "SQLite's own default busy timeout is zero: the loser of a write race fails immediately instead of waiting. The single container has four writers on one file (FrankenPHP, two queue workers, the scheduler), with queue, cache and session all on the database driver, and that default is what printed \"General error: 5 database is locked\" on the jobs table on main. Remove the stated value and the connector skips the pragma entirely -- back to zero, silently.",
+    "file": "config/database.php",
+    "remove": "            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),\n",
+    "expectFailing": "waits rather than failing when the embedded database is locked"
+  },
+  {
+    "id": "sqlite-wal-journal-stated",
+    "why": "Without WAL, a SQLite reader blocks every writer for the length of its read. Laravel leaves journal_mode null, which means the driver's rollback-journal default, so remove the stated value and the pragma is never issued -- the contention this fixes comes straight back, and the suite's own \":memory:\" connection cannot see it.",
+    "file": "config/database.php",
+    "remove": "            'journal_mode' => env('DB_JOURNAL_MODE', 'WAL'),\n",
+    "expectFailing": "journals the embedded database in WAL mode so readers do not block writers"
   }
 ]
