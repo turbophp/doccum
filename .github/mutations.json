@@ -89,5 +89,54 @@
     "file": "config/database.php",
     "remove": "            'journal_mode' => env('DB_JOURNAL_MODE', 'WAL'),\n",
     "expectFailing": "journals the embedded database in WAL mode so readers do not block writers"
+  },
+  {
+    "id": "browser-rename-file-update",
+    "why": "item/files-actions-ui (issue #101): renaming a file through the panel must require edit access, and RenameFile itself never checks -- actions never authorise (CLAUDE.md). Without this the Rename control would work for a viewer holding view alone.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        $this->authorize('update', $this->selectedFile);\n\n",
+    "expectFailing": "refuses to rename a file without edit access"
+  },
+  {
+    "id": "browser-move-file-move",
+    "why": "item/files-actions-ui (issue #101): moving a file through the panel must require edit access on both the source and the chosen destination, and MoveFile itself never checks either. Without this the Move control would relocate any file anywhere for any signed-in user.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        $this->authorize('move', [$this->selectedFile, $destination]);\n\n",
+    "expectFailing": "refuses to move a file without edit access on both ends"
+  },
+  {
+    "id": "browser-trash-file-delete",
+    "why": "item/files-actions-ui (issue #101): trashing a file through the panel must require files.delete and edit access, and TrashFile itself never checks. Without this the Trash control would soft-delete any file for a viewer holding view alone.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        $this->authorize('delete', $this->selectedFile);\n\n",
+    "expectFailing": "refuses to trash a file without edit access"
+  },
+  {
+    "id": "browser-legal-hold-file",
+    "why": "item/files-actions-ui (issue #101): setting or clearing a legal hold through the panel must require periods.manage, not merely directory reach -- SetLegalHold itself never checks. Without this the control would let anyone who can open the file freeze or unfreeze its purge eligibility, which is exactly what depending on item/legal-hold was supposed to buy here.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        $this->authorize('legalHold', $this->selectedFile);\n\n",
+    "expectFailing": "refuses to set a legal hold without periods.manage, even with manage access on the directory"
+  },
+  {
+    "id": "browser-rename-directory-update",
+    "why": "item/files-actions-ui (issue #101): renaming a directory through the panel must require edit access, and RenameDirectory itself never checks. Without this the Rename control would work for a viewer holding view alone.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        $this->authorize('update', $this->selectedDirectory);\n\n",
+    "expectFailing": "refuses to rename a directory without edit access"
+  },
+  {
+    "id": "browser-move-directory-move",
+    "why": "item/files-actions-ui (issue #101): moving a directory through the panel must require directories.manage and manage access, and MoveDirectory itself never checks. Without this the Move control would relocate any directory's subtree for any signed-in user.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        $this->authorize('move', [$this->selectedDirectory, $destination]);\n\n",
+    "expectFailing": "refuses to move a directory without directories.manage, manage access alone is not enough"
+  },
+  {
+    "id": "browser-trash-directory-delete",
+    "why": "item/files-actions-ui (issue #101): trashing a directory through the panel must require directories.manage and manage access, and TrashDirectory itself never checks. Without this the Trash control would cascade-delete any directory's subtree for a viewer holding view alone.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        $this->authorize('delete', $this->selectedDirectory);\n\n",
+    "expectFailing": "refuses to trash a directory without directories.manage, manage access alone is not enough"
   }
 ]

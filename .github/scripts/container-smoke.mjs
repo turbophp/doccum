@@ -58,6 +58,14 @@ const ADMIN_PASSWORD = env('SMOKE_ADMIN_PASSWORD');
 const FILE_NAME = env('SMOKE_FILE_NAME');
 const FILE_MARKER = env('SMOKE_FILE_MARKER');
 
+// A second, throwaway upload dedicated to checkTrashRemovesFileFromListingAndSearch()
+// below -- deliberately NOT the same file FILE_NAME/FILE_MARKER identify.
+// Those two survive into the 'verify' phase to prove the container being
+// replaced did not lose data; trashing that same file here would falsify
+// that check for a completely unrelated reason. No new env var: a fixed,
+// distinctive literal is enough since nothing else needs to agree on it.
+const TRASH_CHECK_FILE_NAME = 'DoccumSmokeTrashTarget.txt';
+
 const EXTRACTION_TIMEOUT_MS = Number(env('EXTRACTION_TIMEOUT_MS', '60000'));
 const POLL_INTERVAL_MS = Number(env('POLL_INTERVAL_MS', '2000'));
 const SEARCH_TIMEOUT_MS = Number(env('SEARCH_TIMEOUT_MS', '20000'));
@@ -718,6 +726,184 @@ function checkEmbeddedSqlitePragmas() {
   console.log(`[setup] embedded database: journal_mode=${journal[1]}, busy_timeout=${busy[1]}ms`);
 }
 
+/**
+ * item/files-actions-ui (issue #101): drives the Trash control this item
+ * wires into the file detail panel and proves it does what trashing a file
+ * is supposed to do -- the file leaves the directory listing AND stops
+ * being findable by search -- against the real container, not the test
+ * renderer. tests/Feature/FileBrowserActionsTest.php already covers the
+ * authorisation this control gates on; what only a browser against the real
+ * image can see is whether the wire:click reaches TrashFile at all.
+ *
+ * Uploads its OWN file (TRASH_CHECK_FILE_NAME) rather than reusing
+ * FILE_NAME/FILE_MARKER: those two are what the 'verify' phase re-checks
+ * after the container is replaced, to prove upload and search survived --
+ * trashing that same file here would break that unrelated check for a
+ * reason that has nothing to do with persistence.
+ *
+ * Searches by the uploaded name rather than a marker word inside its body:
+ * SearchIndexer::forFile() puts a file's name in `title`, indexed as soon as
+ * the queued ReindexSearchDocument job runs (see SearchProjectionObserver),
+ * independently of ExtractText finishing -- so this needs no
+ * waitForExtraction()-style poll of its own, only a short retry for that one
+ * queued reindex job to land.
+ *
+ * Selecting the file's name link uses page.getByText() rather than
+ * page.getByRole('link', ...): unlike the folder link this script clicks
+ * elsewhere, the file name has no href (it only carries wire:click, see
+ * resources/views/livewire/files/browser.blade.php), so the <a> Flux renders
+ * for it exposes no accessible "link" role at all -- only a real href does.
+ *
+ * The Trash button carries wire:confirm, a native browser confirm() dialog
+ * (see resources/views/livewire/files/browser.blade.php and Livewire's own
+ * wire-confirm docs) -- page.once('dialog', ...) below accepts it, since an
+ * unhandled confirm() otherwise blocks the click forever.
+ *
+ * Mutation this is meant to prove load-bearing: empty out
+ * TrashFile::handle()'s body (app/Actions/Files/TrashFile.php) so the
+ * button click still succeeds and the panel still closes, but nothing is
+ * actually soft-deleted. Recorded run against that mutated image:
+ * https://github.com/turbophp/doccum/actions/runs/35259216429/job/105330423553
+ * (pull request 111, opened as a draft purely to obtain that job and closed
+ * immediately after -- tests.yml runs on pull_request and pushes to main
+ * only, so a bare mutation-branch push produces no image job at all and
+ * reports nothing, which is a trap worth knowing about).
+ *
+ * It failed where it had to, and the call log is the proof rather than the
+ * red mark:
+ *
+ *   locator.waitFor: Timeout 10000ms exceeded.
+ *   Call log:
+ *     - waiting for getByText('DoccumSmokeTrashTarget.txt', { exact: true })
+ *       to be detached
+ *       25 x locator resolved to visible <a ...>DoccumSmokeTrashTarget.txt</a>
+ *
+ * The run reached the trash step, uploaded and confirmed the target, found it
+ * in search, clicked Trash -- and the file stayed in the listing. A red image
+ * job on its own would not have shown that: the run could have died earlier,
+ * at the upload race in issue 106, with this assertion never executing.
+ */
+async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+
+  // Through uploadAndProveStored(), not by hand. This check originally
+  // repeated the old text-only assertion -- getByText(name) and nothing more
+  // -- which is precisely what #107 had already replaced for the first
+  // upload, and it was fooled in exactly the same way: it announced the file
+  // as uploaded while the container reported FILE:no, and the run then died
+  // twenty seconds later in a search for something that had never existed.
+  await uploadAndProveStored(
+    page,
+    TRASH_CHECK_FILE_NAME,
+    'Uploaded only to prove the Trash control removes a file. Its content is unused.\n',
+    phase,
+  );
+
+  await searchUntilFoundByName(page, TRASH_CHECK_FILE_NAME);
+  console.log(`[${phase}] search finds ${TRASH_CHECK_FILE_NAME} before it is trashed`);
+
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
+  await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).click();
+
+  const trashButton = page.locator('[data-test="trash-file-button"]');
+  await trashButton.waitFor({ state: 'visible', timeout: 10000 });
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await trashButton.click();
+
+  // The listing is what Browser::render() re-queries on every update, scoped
+  // to the directory being browsed -- a TrashFile that did nothing would
+  // leave this element in place indefinitely, so this is the assertion that
+  // requires the feature to actually DO something (CLAUDE.md).
+  await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).waitFor({ state: 'detached', timeout: 10000 });
+  console.log(`[${phase}] trashing ${TRASH_CHECK_FILE_NAME} through the detail panel removed it from the listing`);
+
+  // SearchProjectionObserver::deleted() forgets the projection inline, not
+  // queued (see the observer's own docblock), so the removal is visible to
+  // the very next search -- no poll-until-gone needed here, unlike the
+  // poll above that waited for the reindex job to land.
+  await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
+  await page.getByLabel('Search', { exact: true }).fill(TRASH_CHECK_FILE_NAME);
+
+  const stillFound = await page
+    .getByText(TRASH_CHECK_FILE_NAME, { exact: true })
+    .waitFor({ timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+
+  if (stillFound) {
+    dumpContainerState(`[${phase}] ${TRASH_CHECK_FILE_NAME} is still findable by search after being trashed through the panel`);
+    throw Object.assign(new Error(`${TRASH_CHECK_FILE_NAME} is still findable by search after being trashed`), { dumped: true });
+  }
+
+  console.log(`[${phase}] trashing through the panel also removed ${TRASH_CHECK_FILE_NAME} from search -- OK`);
+}
+
+/**
+ * Polls the search page for an exact name, the way searchUntilFound() above
+ * polls for FILE_MARKER -- kept as its own function, rather than a shared
+ * helper, so as not to touch searchUntilFound() itself (see the note at the
+ * top of this file: another branch is concurrently editing the extraction
+ * poller, and this stays clear of that region and of tinker() by construction).
+ */
+async function searchUntilFoundByName(page, name) {
+  // Navigate first. searchUntilFound() above is only ever called with the
+  // browser already on /search; this one is called straight after an upload,
+  // with the browser still in the files browser, where there is no Search
+  // field at all -- so it timed out on locator.fill waiting for a control
+  // that was never going to appear. The post-trash search further down
+  // already does this goto; only this half was missing it.
+  await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
+
+  const deadline = Date.now() + SEARCH_TIMEOUT_MS;
+  const field = page.getByLabel('Search', { exact: true });
+
+  // Type the name WITHOUT its extension. Terms::words() splits on anything
+  // that is not a letter, digit or underscore, so "X.txt" becomes the two
+  // terms "X" and "txt" ANDed together (app/Search/Terms.php); the stem
+  // alone is one term and cannot fail on the join.
+  const stem = name.replace(/\.[^.]+$/, '');
+
+  while (Date.now() < deadline) {
+    await field.fill('');
+    await field.fill(stem);
+
+    const found = await page
+      .getByText(name, { exact: true })
+      .waitFor({ timeout: 2000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (found) return;
+  }
+
+  // Say WHICH of the three things is missing rather than only that the search
+  // came back empty: the file row, its search projection, or the match. Two
+  // runs were spent on this check without knowing which.
+  let state = '(could not be read)';
+  try {
+    state = tinker([
+      `$f = \\App\\Models\\File::where('name', '${name}')->first();`,
+      "if (!$f) { echo 'FILE:no'; } else {",
+      "echo 'FILE:yes';",
+      "$d = \\App\\Models\\SearchDocument::where('subject_type', 'file')->where('subject_id', $f->id)->first();",
+      "echo ' DOC:' . ($d ? 'yes title=[' . $d->title . ']' : 'no');",
+      '}',
+    ].join(' ')).trim();
+  } catch (e) {
+    state = e.message;
+  }
+
+  dumpContainerState(
+    `search never found ${name} (typed "${stem}") within ${SEARCH_TIMEOUT_MS}ms\n  container says: ${state}`,
+  );
+  throw Object.assign(new Error(`search timed out for ${name}; container says: ${state}`), { dumped: true });
+}
+
 async function runSetup() {
   const browser = await chromium.launch();
   try {
@@ -786,6 +972,9 @@ async function runSetup() {
     await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
     await searchUntilFound(page, 'setup');
     console.log('[setup] search found the uploaded document -- OK');
+
+    console.log('[setup] trashing a file through the detail panel and confirming it disappears from the listing and from search');
+    await checkTrashRemovesFileFromListingAndSearch(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();
