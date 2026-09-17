@@ -763,8 +763,25 @@ function checkEmbeddedSqlitePragmas() {
  * TrashFile::handle()'s body (app/Actions/Files/TrashFile.php) so the
  * button click still succeeds and the panel still closes, but nothing is
  * actually soft-deleted. Recorded run against that mutated image:
- * <PENDING -- see task report; this placeholder must be replaced with the
- * real workflow run URL before this item is considered done>.
+ * https://github.com/turbophp/doccum/actions/runs/35259216429/job/105330423553
+ * (pull request 111, opened as a draft purely to obtain that job and closed
+ * immediately after -- tests.yml runs on pull_request and pushes to main
+ * only, so a bare mutation-branch push produces no image job at all and
+ * reports nothing, which is a trap worth knowing about).
+ *
+ * It failed where it had to, and the call log is the proof rather than the
+ * red mark:
+ *
+ *   locator.waitFor: Timeout 10000ms exceeded.
+ *   Call log:
+ *     - waiting for getByText('DoccumSmokeTrashTarget.txt', { exact: true })
+ *       to be detached
+ *       25 x locator resolved to visible <a ...>DoccumSmokeTrashTarget.txt</a>
+ *
+ * The run reached the trash step, uploaded and confirmed the target, found it
+ * in search, clicked Trash -- and the file stayed in the listing. A red image
+ * job on its own would not have shown that: the run could have died earlier,
+ * at the upload race in issue 106, with this assertion never executing.
  */
 async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
