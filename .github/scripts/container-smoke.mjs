@@ -221,9 +221,50 @@ async function uploadAndProveStored(page, name, contents, phase) {
   fs.writeFileSync(tmpFile, contents);
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
+    // Every attempt after the first reloads, for the same reason
+    // checkReplaceAddsASecondVersion() does: when issue #106 swallows an
+    // upload, the component is left believing one is still in flight and
+    // Livewire keeps the submit button disabled, so retrying IN PLACE clicks
+    // a button that exists, is visible, and will never accept it.
+    //
+    // This helper had retried in place since it was written and got away
+    // with it, because a second attempt usually landed before the component
+    // wedged. The bulk-trash check uploads three files rather than one, and
+    // that was enough exposure to find it: "locator.click: Timeout 30000ms
+    // exceeded ... getByRole('button', { name: 'Upload', exact: true })",
+    // immediately after "attempt 1 left no files row".
+    //
+    // Callers all upload into the administrator's home directory and reach
+    // it exactly this way, so re-entering it here is a return to the state
+    // the caller set up, not a change of scene. A caller uploading anywhere
+    // else would need this generalised.
+    if (attempt > 1) {
+      await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+      await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+      await page
+        .locator('[data-test="upload-form"] input[type="file"]')
+        .waitFor({ state: 'attached', timeout: 10000 });
+    }
+
     await page.locator('[data-test="upload-form"] input[type="file"]').setInputFiles(tmpFile);
     await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-    await page.getByRole('button', { name: 'Upload', exact: true }).click();
+
+    // Bounded rather than Playwright's default 30s: a button still disabled
+    // after ten seconds means the component is wedged, and the next
+    // attempt's reload is the cure, so there is nothing to learn from
+    // waiting out the rest.
+    const clicked = await page
+      .getByRole('button', { name: 'Upload', exact: true })
+      .click({ timeout: 10000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (! clicked) {
+      console.log(`[${phase}] attempt ${attempt}: the Upload button never became clickable for ${name} -- reloading and retrying`);
+      await sleep(2000);
+      continue;
+    }
+
     await page
       .getByText(name, { exact: true })
       .waitFor({ timeout: 10000 })
@@ -974,9 +1015,6 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   // which renders a label/wrapper around the real <input>. An attribute
   // landing on that wrapper is somewhere setInputFiles() cannot reach.
   // See the Blade template's comment on these two forms.
-  const replaceInput = page.locator('[data-test="replace-form"] input[type="file"]');
-  await replaceInput.waitFor({ state: 'attached', timeout: 10000 });
-
   const replacementPath = path.join(os.tmpdir(), replacementFileName);
   fs.writeFileSync(replacementPath, replacementBody);
 
@@ -1032,9 +1070,48 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   let landed = false;
 
   for (let attempt = 1; attempt <= 3 && ! landed; attempt += 1) {
+    // Every attempt after the first starts from a FRESH PAGE, and that is
+    // the whole reason a second attempt can work at all.
+    //
+    // Retrying in place does not: when issue #106 swallows the upload, the
+    // component is left believing an upload is still in flight, so Livewire
+    // keeps the submit button disabled and the next click waits out its
+    // full actionability timeout against a button that exists, is visible,
+    // and will never accept the click. That is exactly how this went red on
+    // main -- "locator.click: Timeout 30000ms exceeded ... locator resolved
+    // to <button type=submit data-test=replace-file-button ...>" -- one
+    // merge after the retry was added. A retry that reuses wedged state is
+    // not a retry.
+    //
+    // Reloading costs a few seconds per attempt and buys a component whose
+    // state is known. Every other check in this file re-navigates before
+    // interacting for related reasons; this one now does too.
+    if (attempt > 1) {
+      await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+      await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+      await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
+      await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).click();
+    }
+
+    const replaceInput = page.locator('[data-test="replace-form"] input[type="file"]');
+    await replaceInput.waitFor({ state: 'attached', timeout: 10000 });
     await replaceInput.setInputFiles(replacementPath);
     await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-    await page.locator('[data-test="replace-file-button"]').click();
+
+    // Bounded rather than the default 30s: a disabled button means the
+    // component is wedged, and the next attempt's reload is the cure, so
+    // there is nothing to gain by waiting half a minute to find that out.
+    const replaceButton = page.locator('[data-test="replace-file-button"]');
+    const clicked = await replaceButton
+      .click({ timeout: 10000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (! clicked) {
+      console.log(`[${phase}] attempt ${attempt}: the Replace button never became clickable -- reloading and retrying`);
+      await sleep(2000);
+      continue;
+    }
 
     const replaceDeadline = Date.now() + REPLACE_TIMEOUT_MS;
     output = tinker(php);
