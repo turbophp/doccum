@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Concerns;
 
 use App\Models\User;
@@ -33,6 +35,16 @@ trait ProfileValidationRules
 
     /**
      * Get the validation rules used to validate user emails.
+     *
+     * Rule::unique() compares the submitted value byte-for-byte against the
+     * `email` column, so it only means the same thing on every driver
+     * because every caller folds the submitted value through
+     * App\Support\EmailKey BEFORE calling validate() -- CreateNewUser,
+     * FirstRun::submit() and Profile::updateProfileInformation() all do
+     * this. The column itself is always folded too (User's saving hook), so
+     * a folded submission compared against a folded column is a correct
+     * equality check on every driver, with no collation dependency and no
+     * per-call query rewrite needed here. See issue #59.
      *
      * @return array<int, ValidationRule|array<mixed>|string>
      */

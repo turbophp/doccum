@@ -58,6 +58,21 @@ return [
     | them in the database, as some database system string fields are case
     | sensitive. You may disable this for your application if necessary.
     |
+    | doccum's "username" here is the email column (see 'username' above).
+    | Leave this true: Fortify's own stock controllers -- registration,
+    | forgot-password, reset-password -- fold the submitted email through
+    | it before touching the database, and doccum's own write paths rely on
+    | that staying on for those three. Interactive login does NOT rely on
+    | this flag: App\Providers\FortifyServiceProvider wires an explicit
+    | Fortify::authenticateUsing() callback (App\Actions\Fortify\
+    | AuthenticateUser) that folds through App\Support\EmailKey itself,
+    | because decision/0010 is that doccum states the semantics it depends
+    | on rather than inheriting them from a config default -- this flag
+    | happening to already do the same fold was the discovery behind issue
+    | #59's finding that login was, coincidentally, not as broken as it
+    | looked. Turning it off breaks forgot-password/reset-password lookups
+    | against the now-always-folded `email` column; it does not touch login.
+    |
     */
 
     'lowercase_usernames' => true,
