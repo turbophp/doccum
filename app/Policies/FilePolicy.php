@@ -40,4 +40,20 @@ class FilePolicy
         return $user->can('files.delete')
             && $this->access->can($user, $file->directory, AccessLevel::Edit);
     }
+
+    /**
+     * Placing or lifting a legal hold needs both layers: the periods.manage
+     * capability, because a hold is a period-purging concern, and at least
+     * view reach into the file's directory, because a capability holder
+     * with no reach into a directory must still learn nothing about what is
+     * in it. See spec §9.
+     */
+    public function legalHold(User $user, File $file): bool
+    {
+        if (! $user->can('periods.manage')) {
+            return false;
+        }
+
+        return $this->access->can($user, $file->directory, AccessLevel::View);
+    }
 }

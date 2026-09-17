@@ -19,5 +19,12 @@
     "file": "app/Services/PeriodPurger.php",
     "remove": "        if ($held > 0) {\n            // The whole period stays, not merely the held files: a partial\n            // purge of a period under legal hold is exactly what a hold\n            // exists to prevent.\n            $blockers[] = sprintf('%d file(s) are under legal hold.', $held);\n        }\n",
     "expectFailing": "refuses when a file in the period is under legal hold"
+  },
+  {
+    "id": "file-policy-legal-hold-periods-manage",
+    "why": "Placing or lifting a legal hold must require the periods.manage permission, not merely reach into the file's directory. Without this, anyone who can view a directory could freeze or unfreeze its files' purge eligibility.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if (! $user->can('periods.manage')) {\n            return false;\n        }\n\n",
+    "expectFailing": "refuses a caller with directory access but no periods.manage"
   }
 ]
