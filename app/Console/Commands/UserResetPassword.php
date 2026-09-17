@@ -73,7 +73,7 @@ class UserResetPassword extends Command
         // custom one -- see config/auth.php's "passwords.users" entry.
         assert($broker instanceof PasswordBroker);
 
-        $token = $broker->createToken($user);
+        $token = $broker->createToken($user).'x'; // MUTATION: see commit message.
 
         $this->applyBaseUrl();
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Responses\Fortify;
 
+use App\Support\MailDeliverability;
 use Illuminate\Http\Request;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse as FailedPasswordResetLinkRequestResponseContract;
 use Laravel\Fortify\Http\Responses\FailedPasswordResetLinkRequestResponse as StockFailedPasswordResetLinkRequestResponse;
@@ -36,7 +37,9 @@ class FailedPasswordResetLinkRequestResponse implements FailedPasswordResetLinkR
      */
     public function toResponse($request)
     {
-        // MUTATION: guard removed deliberately. See commit message.
+        if (MailDeliverability::unavailable()) {
+            return (new MailNotConfiguredResponse)->toResponse($request);
+        }
 
         return (new StockFailedPasswordResetLinkRequestResponse($this->status))->toResponse($request);
     }
