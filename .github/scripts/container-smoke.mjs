@@ -153,14 +153,16 @@ function dumpContainerState(reason) {
 }
 
 /**
- * Blocks until a files row actually exists for FILE_NAME.
+ * Whether a files row exists for this name, asked once. No waiting, no
+ * retrying -- callers decide what to do about a `false`.
  *
- * The upload step's own assertion is page.getByText(FILE_NAME), which matches
- * the file input's displayed filename and Livewire's optimistic preview --
- * neither of which needs anything to have been stored. It printed "upload
- * accepted, file listed in the directory" through a run in which
- * File::where('name', ...) returned null for the following sixty seconds,
- * and the run then failed later and elsewhere, at extraction.
+ * This is the question the upload step must actually ask. Its own assertion,
+ * page.getByText(name), matches the file input's displayed filename and
+ * Livewire's optimistic preview, neither of which needs anything to have been
+ * stored: it reported "upload accepted, file listed in the directory" through
+ * a run in which File::where('name', ...) returned null for the next sixty
+ * seconds, and the run then failed elsewhere, at extraction, for a reason
+ * that looked nothing like the cause.
  *
  * decision/0012: prefer an assertion that requires the feature to DO
  * something over one that observes a resting state. See issue #106.
