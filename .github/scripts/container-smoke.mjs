@@ -147,6 +147,11 @@ async function waitForExtraction() {
     "if (!$v) { echo 'STATUS:NO_VERSION'; exit; }",
     '$t = $v->text;',
     "echo 'STATUS:' . ($t ? $t->status->value : 'NO_TEXT');",
+    // ExtractText::failed() records why in file_texts.error. Without this the
+    // smoke reports only that extraction failed, which is how a terminal
+    // failure in CI was diagnosed by guesswork rather than by reading the
+    // exception -- see issue #57.
+    "if ($t && $t->error) { echo ' ERROR:' . $t->error; }",
   ].join(' ');
 
   const deadline = Date.now() + EXTRACTION_TIMEOUT_MS;
@@ -166,10 +171,14 @@ async function waitForExtraction() {
     if (last === 'done') return;
 
     if (last === 'failed' || last === 'unsupported') {
+      const recorded = /ERROR:([\s\S]*)$/.exec(output);
+      const why = recorded ? recorded[1].trim() : '(file_texts.error was empty)';
+
       dumpContainerState(
-        `extraction reached a terminal non-success status (${last}) for ${FILE_NAME}`,
+        `extraction reached a terminal non-success status (${last}) for ${FILE_NAME}\n` +
+          `file_texts.error: ${why}`,
       );
-      const err = new Error(`extraction status "${last}" for ${FILE_NAME}`);
+      const err = new Error(`extraction status "${last}" for ${FILE_NAME}: ${why}`);
       err.dumped = true;
       throw err;
     }
