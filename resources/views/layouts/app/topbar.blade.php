@@ -98,6 +98,6 @@
             </flux:toast.group>
         @endpersist
 
-        @fluxScripts
+        {{-- @fluxScripts REMOVED: deliberate mutation, see commit message --}}
     </body>
 </html>
