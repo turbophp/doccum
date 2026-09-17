@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T16:25:00Z",
-  "latestRun": "run/0012",
+  "dateModified": "2026-09-17T17:40:00Z",
+  "latestRun": "run/0013",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -413,15 +413,15 @@
       ]
     },
     {
-      "@id": "item/files-three-pane",
+      "@id": "item/files-actions-ui",
       "@type": "Action",
       "order": 20,
-      "name": "Three-pane file browser: tree, list, detail panel",
-      "url": "https://github.com/turbophp/doccum/issues/13",
+      "name": "Selection and a detail panel that reaches the actions",
+      "url": "https://github.com/turbophp/doccum/issues/101",
       "isBasedOn": [
         "spec:10-user-facing-surface"
       ],
-      "size": "L",
+      "size": "M",
       "release": "v1.0.0",
       "dependsOn": [
         "item/content-actions",
@@ -429,7 +429,67 @@
         "item/topbar-shell",
         "item/trash-directory"
       ],
-      "doneWhen": "FileBrowserTest keeps its unreachable-directory guarantees and adds column sort, panel-on-select, version list, replace-adds-a-version and bulk trash of exactly the selected files.",
+      "doneWhen": "Selecting a file or directory row opens the detail panel -- the existing PropertyPanel plus Download, Rename, Move, Trash and set/clear legal hold -- with every control authorised in the Livewire method through a Policy, never in the action; a viewer holding view alone sees no Rename, Move or Trash control and is refused server-side when the method is called directly, with one mutations.json entry per authorize call, each shown failing; the Move destination list is filtered by DirectoryAccess::viewableDirectoryIds inside the query, not in the view; the container smoke trashes the uploaded file through the panel and asserts it leaves the listing and stops appearing in search, and that smoke assertion is shown failing against an image built with the trash method emptied, with the run recorded in the check docblock.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/files-versions-replace",
+      "@type": "Action",
+      "order": 21,
+      "name": "Version history and replace-in-place",
+      "url": "https://github.com/turbophp/doccum/issues/102",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/files-actions-ui"
+      ],
+      "doneWhen": "The detail panel lists a file version history newest first with size, uploader and date; Replace uploads through StoreFileVersion and the list then shows version 2 under an unchanged name; a per-version download route authorises through FilePolicy::download and returns 404 for a version id belonging to a different file, with that cross-file check mutation-checked; the container smoke replaces the uploaded file and asserts a second version row appears, shown failing against an image whose Replace posts to the create path instead.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/files-list-sort-select",
+      "@type": "Action",
+      "order": 22,
+      "name": "Dense list, column sort, multi-select and bulk trash",
+      "url": "https://github.com/turbophp/doccum/issues/103",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/files-actions-ui"
+      ],
+      "doneWhen": "The listing is a table with name, owner, modified and size; sort is a whitelisted orderBy in the query and an unknown column falls back to name, tested; multi-select supports shift-range and ctrl-toggle; bulk trash re-authorises every selected id through FilePolicy::delete and trashes nothing if any one is refused, tested and mutation-checked; the container smoke uploads three files, selects two, bulk-trashes and asserts the third is still listed -- shown failing against an image whose bulk method ignores the selection, because \"bulk trash of exactly the selected files\" also describes an implementation that trashed all of them.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/files-three-pane",
+      "@type": "Action",
+      "order": 23,
+      "name": "Tree sidebar rooted at the viewer reach, and a real breadcrumb",
+      "url": "https://github.com/turbophp/doccum/issues/104",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/files-actions-ui"
+      ],
+      "doneWhen": "The sidebar renders Home first, then the viewer reach roots -- viewable directories whose parent is not viewable -- and their viewable descendants, asserted against the query: a grant on a nested directory alone makes that directory reachable from /files, written as a test that fails on main before the fix; the breadcrumb lists every ancestor the viewer may view and no others; collapse state is per-browser; the container smoke navigates two levels through the tree and asserts three breadcrumb items. FileBrowserTest keeps its unreachable-directory guarantees throughout.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -438,7 +498,7 @@
     {
       "@id": "item/directory-access-ui",
       "@type": "Action",
-      "order": 21,
+      "order": 24,
       "name": "Grant and revoke directory access from the UI",
       "url": "https://github.com/turbophp/doccum/issues/14",
       "isBasedOn": [
@@ -458,7 +518,7 @@
     {
       "@id": "item/trash-view",
       "@type": "Action",
-      "order": 22,
+      "order": 25,
       "name": "A Trash page with restore and purge",
       "url": "https://github.com/turbophp/doccum/issues/15",
       "isBasedOn": [
@@ -467,6 +527,7 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [
+        "item/files-actions-ui",
         "item/topbar-shell",
         "item/trash-directory",
         "item/trash-purge-manual"
@@ -480,7 +541,7 @@
     {
       "@id": "item/home-dashboard",
       "@type": "Action",
-      "order": 23,
+      "order": 26,
       "name": "Home dashboard: recents, storage by period, quick search",
       "url": "https://github.com/turbophp/doccum/issues/16",
       "isBasedOn": [
@@ -500,7 +561,7 @@
     {
       "@id": "item/search-filters",
       "@type": "Action",
-      "order": 24,
+      "order": 27,
       "name": "Type, mime, period and property filters on search",
       "url": "https://github.com/turbophp/doccum/issues/17",
       "isBasedOn": [
@@ -520,7 +581,7 @@
     {
       "@id": "item/admin-users",
       "@type": "Action",
-      "order": 25,
+      "order": 28,
       "name": "Settings: users",
       "url": "https://github.com/turbophp/doccum/issues/18",
       "isBasedOn": [
@@ -540,7 +601,7 @@
     {
       "@id": "item/admin-roles",
       "@type": "Action",
-      "order": 26,
+      "order": 29,
       "name": "Settings: roles and their permission matrix",
       "url": "https://github.com/turbophp/doccum/issues/19",
       "isBasedOn": [
@@ -560,7 +621,7 @@
     {
       "@id": "item/admin-periods",
       "@type": "Action",
-      "order": 27,
+      "order": 30,
       "name": "Settings: periods, closing, purge plan and purge",
       "url": "https://github.com/turbophp/doccum/issues/20",
       "isBasedOn": [
@@ -581,7 +642,7 @@
     {
       "@id": "item/admin-instance-settings",
       "@type": "Action",
-      "order": 28,
+      "order": 31,
       "name": "Settings: instance name, signup, retention, limits",
       "url": "https://github.com/turbophp/doccum/issues/21",
       "isBasedOn": [
@@ -601,7 +662,7 @@
     {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
-      "order": 29,
+      "order": 32,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -621,7 +682,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 30,
+      "order": 33,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -644,7 +705,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 31,
+      "order": 34,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -664,7 +725,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 32,
+      "order": 35,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -684,7 +745,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 33,
+      "order": 36,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -705,7 +766,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 34,
+      "order": 37,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -725,7 +786,7 @@
     {
       "@id": "item/compose-secret",
       "@type": "Action",
-      "order": 35,
+      "order": 38,
       "name": "Remove the known-value secret from compose.yaml",
       "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
@@ -743,7 +804,7 @@
     {
       "@id": "item/version-from-tag",
       "@type": "Action",
-      "order": 36,
+      "order": 39,
       "name": "The version pill reports the released tag",
       "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
@@ -761,7 +822,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 37,
+      "order": 40,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -779,7 +840,7 @@
     {
       "@id": "item/changelog-release-notes",
       "@type": "Action",
-      "order": 38,
+      "order": 41,
       "name": "A changelog that becomes the release notes",
       "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
@@ -797,7 +858,7 @@
     {
       "@id": "item/release-v0-1-0",
       "@type": "Action",
-      "order": 39,
+      "order": 42,
       "name": "Tag v0.1.0 to prove the release pipeline",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
@@ -819,7 +880,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 40,
+      "order": 43,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -841,7 +902,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 41,
+      "order": 44,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -872,7 +933,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 42,
+      "order": 45,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -892,7 +953,7 @@
     {
       "@id": "item/vector-index-seam",
       "@type": "Action",
-      "order": 101,
+      "order": 104,
       "name": "A vector index seam alongside the keyword index",
       "isBasedOn": [
         "spec:8a-semantic-search"
@@ -909,7 +970,7 @@
     {
       "@id": "item/embedding-provider",
       "@type": "Action",
-      "order": 102,
+      "order": 105,
       "name": "An embedding provider seam with an embedded default",
       "isBasedOn": [
         "spec:8a-semantic-search"
@@ -928,7 +989,7 @@
     {
       "@id": "item/embedding-sweep",
       "@type": "Action",
-      "order": 103,
+      "order": 106,
       "name": "Backfill embeddings for existing documents",
       "isBasedOn": [
         "spec:8a-semantic-search"
@@ -947,7 +1008,7 @@
     {
       "@id": "item/hybrid-ranking",
       "@type": "Action",
-      "order": 104,
+      "order": 107,
       "name": "Blend keyword and vector ranking",
       "isBasedOn": [
         "spec:8a-semantic-search"
@@ -966,7 +1027,7 @@
     {
       "@id": "item/ocr-provider-seam",
       "@type": "Action",
-      "order": 105,
+      "order": 108,
       "name": "An OCR provider seam beyond Tesseract",
       "isBasedOn": [
         "spec:7a-ocr-providers"
@@ -983,7 +1044,7 @@
     {
       "@id": "item/llama-runtime-bundle",
       "@type": "Action",
-      "order": 106,
+      "order": 109,
       "name": "Bundle a llama.cpp runtime in the image",
       "isBasedOn": [
         "spec:7a-ocr-providers"
@@ -1002,7 +1063,7 @@
     {
       "@id": "item/hardware-profile-picker",
       "@type": "Action",
-      "order": 107,
+      "order": 110,
       "name": "Pick a model by the container's hardware budget",
       "isBasedOn": [
         "spec:7a-ocr-providers"
@@ -1021,7 +1082,7 @@
     {
       "@id": "item/remote-ocr-providers",
       "@type": "Action",
-      "order": 108,
+      "order": 111,
       "name": "Azure DI, Textract and Document AI as OCR providers",
       "isBasedOn": [
         "spec:7a-ocr-providers"
@@ -1040,7 +1101,7 @@
     {
       "@id": "item/tsvector-index",
       "@type": "Action",
-      "order": 109,
+      "order": 112,
       "name": "A ranked tsvector index for PostgreSQL",
       "isBasedOn": [
         "spec:8-search"
@@ -1057,7 +1118,7 @@
     {
       "@id": "item/external-search-engine",
       "@type": "Action",
-      "order": 110,
+      "order": 113,
       "name": "Typesense or Meilisearch as a search provider",
       "isBasedOn": [
         "spec:8-search"
@@ -1074,7 +1135,7 @@
     {
       "@id": "item/directory-legal-hold",
       "@type": "Action",
-      "order": 111,
+      "order": 114,
       "name": "Legal hold on a directory subtree",
       "isBasedOn": [
         "spec:9-archive-and-purge"
@@ -1093,7 +1154,7 @@
     {
       "@id": "item/trash-retention-schedule",
       "@type": "Action",
-      "order": 112,
+      "order": 115,
       "name": "Scheduled expiry of trashed items",
       "isBasedOn": [
         "spec:9-archive-and-purge"
@@ -1112,7 +1173,7 @@
     {
       "@id": "item/sidebar-width-per-user",
       "@type": "Action",
-      "order": 113,
+      "order": 116,
       "name": "Remember each viewer's sidebar width",
       "isBasedOn": [
         "spec:10-user-facing-surface"
@@ -1131,7 +1192,7 @@
     {
       "@id": "item/alpine-image",
       "@type": "Action",
-      "order": 114,
+      "order": 117,
       "name": "An Alpine-based image",
       "isBasedOn": [
         "spec:13-infrastructure"
@@ -1150,7 +1211,7 @@
     {
       "@id": "item/doc-xls-libreoffice",
       "@type": "Action",
-      "order": 115,
+      "order": 118,
       "name": "Legacy .doc and .xls extraction via LibreOffice",
       "isBasedOn": [
         "spec:7-text-extraction"
@@ -1473,6 +1534,55 @@
       "mergedAt": "2026-09-17T16:20:29Z",
       "mergeSha": "75a3013b56a498e334dce0cf135e243da77254bf",
       "mergedIn": "run/0012"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/93",
+      "@type": "PullRequest",
+      "identifier": 93,
+      "name": "fix: keep the database on the volume, and make the smoke prove it",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0013",
+      "state": "merged",
+      "dateCreated": "2026-09-17T16:46:09Z",
+      "headSha": "2f23276b923119dd5bccb93ede1a7dbe1783baab",
+      "mergedAt": "2026-09-17T16:56:42Z",
+      "mergeSha": "b0f9a624eddb596cd1475909b9f67dfe8cdd3472",
+      "mergedIn": "run/0013"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/94",
+      "@type": "PullRequest",
+      "identifier": 94,
+      "name": "fix: state the embedded SQLite pragmas instead of inheriting them",
+      "implements": [
+        "item/extract-text-flake",
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0013",
+      "state": "merged",
+      "dateCreated": "2026-09-17T16:54:47Z",
+      "headSha": "28746687b5ef47a0e5970cf0f1e584492f06b88f",
+      "mergedAt": "2026-09-17T17:01:12Z",
+      "mergeSha": "ba799a9051617217967589698bb97c23a11ba01b",
+      "mergedIn": "run/0013"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/95",
+      "@type": "PullRequest",
+      "identifier": 95,
+      "name": "docs(loop): make the loop look at main after it merges",
+      "implements": [
+        "item/ci-green-baseline"
+      ],
+      "run": "run/0013",
+      "state": "merged",
+      "dateCreated": "2026-09-17T16:56:27Z",
+      "headSha": "ddca4fa76a2e5aeb6f2ab415acea775870e607ab",
+      "mergedAt": "2026-09-17T17:01:44Z",
+      "mergeSha": "e8686a0fb9df00d7e9498a241d743646c847a22f",
+      "mergedIn": "run/0013"
     }
   ],
   "decisions": [
@@ -1711,6 +1821,52 @@
       "affects": [
         "item/trash-purge-manual",
         "item/trash-view"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0015",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:15:00Z",
+      "run": "run/0013",
+      "name": "A persistence claim is tested by destroying whatever could be hiding the state, not by restarting it",
+      "rationale": "CLAUDE.md said /data was the only persistent volume and listed SQLite first. That was false for the run command CLAUDE.md itself documents. compose.yaml has always set DB_DATABASE; the image never did, so config/database.php fell back to database_path('database.sqlite') and the database lived inside the image layer, while objects and minio.env sat on the volume -- so `docker rm` or an image upgrade brought the instance back half-alive rather than empty, which is worse than empty because it looks like it worked. The entrypoint had been creating /data/doccum.sqlite throughout: a file nothing ever opened. The smoke could not catch this, and the reason is the general lesson. Its persistence step ran `docker restart`, which keeps the container's writable layer, so a database inside the image layer survives it; a step named \"Verify persistence after restart\" passed for its whole life without exercising the property it was named for. Restarting a process tests that the process can restart. It says nothing about where state lives, because everything that would disappear is still there. The step now destroys the container and starts a new one from the same image against the same named volume, which is what persistence has to mean for a container people are told to upgrade by replacing. The two halves check each other and neither would have been enough alone: without the DB_DATABASE default the verify phase cannot log in at all, and without the smoke change nothing would have proven the default mattered. Generalised: for any claim that X survives Y, the test must actually perform Y in the form an operator would, and must be shown to fail when X is not on the durable side of it. Filed as issue 91.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0016",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:15:00Z",
+      "run": "run/0013",
+      "name": "Green on main is read from a main run, and only the newest one speaks for main",
+      "rationale": "The loop reported \"main is green\" every iteration without being entitled to. docs/LOOP.md gated merging on the pull request's checks and then went straight to picking the next item, so nothing ever looked at main afterwards. A pull request's checks run against the pull request's head, not against the main that merging it produces, and the gap is not theoretical: of main's 38 tests.yml push runs up to run 0012, 8 failed and 6 were cancelled, and every one of the five failures that came after CI was established was a merge commit whose pull request had been fully green. The loop now waits for the push run on the merge commit and reads its conclusion, and \"main is green\" may only be said after reading a main run. Applying the rule immediately exposed a second hole in it, which is why this decision says \"the newest one\". Merging pull requests 94 and 95 a few minutes apart meant GitHub's concurrency group cancelled the run on the first merge commit in favour of the second: ba799a9 shows two check runs, both green, because the other nine were cancelled before they started. A poller that asks \"are all the checks on this commit green\" answers yes to that, which is a false green of exactly the kind this decision exists to prevent -- read from a main run, and still wrong. An intermediate merge commit in a back-to-back sequence therefore never gets a verdict and must not be treated as having one; the tip is what has to be green, and a completeness check on the number of checks is part of reading the answer, not an optimisation.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ci-green-baseline"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0017",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:15:00Z",
+      "run": "run/0013",
+      "name": "An item does not close with its own central question unanswered while the answer is already in CI output",
+      "rationale": "item/extract-text-flake's doneWhen asked for the intermittent failure to be \"reproduced or the object-store race ruled out ... and which is stated\". It closed saying the cause was unknown. It was not unknown: the diagnostic that item itself added -- printing file_texts.error from the container -- printed the cause on main twice within 25 minutes of the item closing, as \"General error: 5 database is locked\" on an update to the jobs table. Nobody read it. The cause is SQLite write contention, not an object-store race and not MinIO readiness: the single container runs FrankenPHP, two queue workers and the scheduler against one file with queue, cache and session all on the database driver, and config/database.php left busy_timeout and journal_mode null, so SQLite's own default busy timeout of zero applied and the loser of a write race failed instantly instead of waiting. That is decision/0010's pattern for the seventh time, and the backoff added in pull request 83 was treating the symptom, which is why it recovered rather than failing outright. Two rules follow. An item may not be marked Completed while the question its own doneWhen poses is open; \"cause unknown\" closes nothing when a diagnostic added for that cause is still running. And a diagnostic is only worth what someone reads -- adding one and then not looking at its output is the same defect as not adding it, with more confidence attached. Filed as issue 92; the design question of whether queue, cache and session belong on the same SQLite file as the application data is deliberately left open rather than settled here.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/extract-text-flake",
+        "item/container-smoke-ci"
       ],
       "supersedes": null
     }
