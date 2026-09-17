@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T18:45:00Z",
+  "dateModified": "2026-09-17T18:55:00Z",
   "latestRun": "run/0014",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1965,6 +1965,23 @@
       "affects": [
         "item/container-smoke-ci",
         "item/ci-green-baseline"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0020",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T18:50:00Z",
+      "run": "run/0014",
+      "name": "A trashed subject must not be reindexed, because a queued reindex can outlive the trash",
+      "rationale": "SearchProjectionObserver::deleted() forgets a trashed subject's projection inline, and SearchIndexer::forget() removes the index row before the projection row, deliberately, so nothing can match and then vanish. Both are right, and neither is enough. ReindexSearchDocument is dispatched on save and runs on a real queue in the container, so it can be dispatched BEFORE a trash and run AFTER it -- the dispatch from an upload, or one from an ExtractText still in flight -- and handle() called index() unconditionally. index() is an updateOrCreate, so the projection came back and was republished, and the trashed file answered searches again. Trashing is how a person hides a document; an index that keeps serving it defeats the point, which is what that observer's own docblock already warned about in the abstract. The guard goes in the job, where the ordering problem is, and forgets rather than indexes, which also makes the job idempotent whatever order things land in. Guarding SearchIndexer::index() would be the better seam -- it is the single place a projection is published -- but it returns SearchDocument, so the guard means a nullable return and every caller touched, which is not a change to make unverified on a red main in an environment that cannot run the suite; recorded here rather than done quietly. What makes this worth a decision rather than a bug fix is where it hid. QUEUE_CONNECTION is sync in the suite, so every dispatch runs inline and in order, before the trash: the race is unreachable by construction, and 617 tests were green. CLAUDE.md has said since the beginning that the test queue is synchronous and production is not. This is the first run where that sentence cost something, and it is the clearest case yet for the rule that the container is the product -- a green suite is necessary and not sufficient, and the smoke is not a formality but the only place this class of defect can appear.",
+      "isBasedOn": [
+        "spec:8-search"
+      ],
+      "affects": [
+        "item/files-actions-ui",
+        "item/container-smoke-ci",
+        "item/trash-directory"
       ],
       "supersedes": null
     }
