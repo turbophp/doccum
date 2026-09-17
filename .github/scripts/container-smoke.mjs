@@ -908,9 +908,26 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
  * the (already-populated) version list rendering fine would sail through a
  * DOM-only assertion.
  *
- * TODO: mutated run URL (recorded by the orchestrator, see
- * checkTrashRemovesFileFromListingAndSearch()'s docblock for the shape of
- * that record).
+ * MUTATION RECORD. Both directions were measured against a built image, not
+ * reasoned about, because the first attempt at this check failed IDENTICALLY
+ * in both and would have been recorded as proof:
+ *
+ *   correct build  -> image PASSES
+ *     https://github.com/turbophp/doccum/actions/runs/35274858080/job/105382869492
+ *
+ *   Replace passing $this->replacement->getClientOriginalName() to
+ *   StoreFileVersion instead of $this->selectedFile->name, i.e. the create
+ *   path, on otherwise identical code (PR #118, head cb6d8bd)
+ *                  -> image FAILS with
+ *     "replace did not update the document's own current version checksum"
+ *     https://github.com/turbophp/doccum/actions/runs/35274860882/job/105382879408
+ *
+ * The failing run reached the checksum triple and named the symptom, rather
+ * than timing out on a selector -- which is the whole point of polling the
+ * database before touching the DOM above. An earlier revision of this check
+ * did time out on [data-test="file-version-row"].nth(1), in BOTH directions,
+ * because it selected the uploaded row without re-navigating first; see the
+ * comment on that goto.
  */
 async function checkReplaceAddsASecondVersion(page, phase) {
   const originalBody = 'Version 1 body, unique to the replace smoke check.\n';
