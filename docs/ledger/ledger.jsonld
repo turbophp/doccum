@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T22:25:00Z",
+  "dateModified": "2026-09-17T22:40:00Z",
   "latestRun": "run/0016",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1733,6 +1733,38 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/124",
+      "@type": "PullRequest",
+      "identifier": 124,
+      "name": "Retry the replace interaction in the smoke, not just poll for it",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0016",
+      "state": "merged",
+      "dateCreated": "2026-09-17T22:19:00Z",
+      "headSha": "ab03c414c3f597729251b55530899f356d3d9d2f",
+      "mergedAt": "2026-09-17T22:23:16Z",
+      "mergeSha": "23d862ffb25d372f14a7e075d7ad6a91f4eb19ea",
+      "mergedIn": "run/0016"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/125",
+      "@type": "PullRequest",
+      "identifier": 125,
+      "name": "Reload between upload attempts -- fixes red main",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0016",
+      "state": "merged",
+      "dateCreated": "2026-09-17T22:28:00Z",
+      "headSha": "dd17ab2a97ca1e51fdf10de14c5b2cc0fe082e5d",
+      "mergedAt": "2026-09-17T22:36:13Z",
+      "mergeSha": "9d6a93d13f9e9cb8b1dd9e916a28932d8716dc50",
+      "mergedIn": "run/0016"
     }
   ],
   "decisions": [
@@ -2148,6 +2180,24 @@
       "affects": [
         "item/files-list-sort-select",
         "item/files-actions-ui"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0026",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T22:30:00Z",
+      "run": "run/0016",
+      "name": "A retry that reuses wedged state is not a retry, and issue 106 wedges the form",
+      "rationale": "Issue 106 was recorded as an upload that is silently discarded -- no request, no error, roughly one attempt in two. The container smoke worked around it by retrying in place, and that workaround was wrong in a way that took a red main to expose. When the upload is swallowed, the component is left believing one is still in flight, so Livewire keeps the submit button DISABLED; every in-place retry then clicks a button that exists, is visible, and will never accept the click, burning Playwright's full thirty-second actionability timeout against a dead control. It happened first on the replace check one merge after a retry was added to it, and then -- once that was fixed by reloading -- immediately on uploadAndProveStored(), the pre-existing helper, on a different form and a different button. Two forms, two buttons, one failure shape: the wedge belongs to the swallowed upload, not to either form. That helper had retried in place since it was written and got away with it only because a second attempt usually landed before the component wedged, which is why uploading three files rather than one was enough to find it. Both now reload between attempts and bound the click, because starting clean does not depend on knowing exactly which state Livewire is stuck in -- and the inference about WHY the button is disabled is the one part of this that was reasoned from the log rather than reproduced, since neither Docker nor Playwright can run in this environment. The larger point is about issue 106 itself, and it is a product finding rather than a testing one: the discard is not merely a lost file, it leaves the operator looking at a dead Upload button with no error and no recourse but a page reload. That is worse than the original symptom and it is the same bug. Three runs of workarounds have now cost an unattributable mutation cycle, a false red on a ledger-only pull request, a red main, and retry scaffolding in two checks, one of which grew a bug of its own. The recommendation recorded on the issue is to diagnose rather than work around, on the grounds that the new symptom is a better lead: a stuck state machine leaves evidence in the browser, where a discarded request left none.",
+      "isBasedOn": [
+        "spec:14-testing",
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/container-smoke-ci",
+        "item/files-versions-replace",
+        "item/files-list-sort-select"
       ],
       "supersedes": null
     }
