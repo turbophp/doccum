@@ -84,6 +84,41 @@ it('requires edit as well as files.delete to trash a file', function () {
     expect($stranger->can('delete', $file))->toBeFalse();
 });
 
+it('requires files.delete as well as manage to purge a file', function () {
+    // $this->user carries files.delete via the member role, but has no
+    // grant on the directory at all.
+    $file = File::factory()->for($this->dir, 'directory')->create();
+    expect($this->user->can('purge', $file))->toBeFalse();
+
+    giveAccess($this->dir, $this->user, AccessLevel::Manage);
+    expect($this->user->fresh()->can('purge', $file))->toBeTrue();
+});
+
+it('requires manage as well as files.delete to purge a file', function () {
+    $stranger = User::factory()->create();
+    giveAccess($this->dir, $stranger, AccessLevel::Manage);
+    $file = File::factory()->for($this->dir, 'directory')->create();
+
+    expect($stranger->can('purge', $file))->toBeFalse();
+});
+
+it('requires manage rather than merely edit to purge a file, unlike trashing it', function () {
+    // $this->user carries files.delete via the member role, which is
+    // already enough to trash (see "requires files.delete as well as edit
+    // to trash a file" above). Purging is irreversible, so it holds out
+    // for the highest level DirectoryAccess grants, not the edit level
+    // trashing accepts.
+    $file = File::factory()->for($this->dir, 'directory')->create();
+    giveAccess($this->dir, $this->user, AccessLevel::Edit);
+
+    expect($this->user->fresh()->can('delete', $file))->toBeTrue()
+        ->and($this->user->fresh()->can('purge', $file))->toBeFalse();
+
+    DirectoryGrant::query()->delete();
+    giveAccess($this->dir, $this->user, AccessLevel::Manage);
+    expect($this->user->fresh()->can('purge', $file))->toBeTrue();
+});
+
 it('requires files.restore as well as edit to restore a file', function () {
     $file = File::factory()->for($this->dir, 'directory')->create();
     expect($this->user->can('restore', $file))->toBeFalse();
@@ -179,19 +214,20 @@ it('refuses a legal hold on a file whose directory is cascade-trashed, even for 
     expect($holder->fresh()->can('legalHold', $trashedFile))->toBeFalse();
 });
 
-// restore() and delete() each carry their own "if ($directory === null) {
-// return false; }" guard after resolving withTrashed() -- see
-// FilePolicy::directoryEvenIfTrashed(). Neither is in .github/mutations.json.
-// directory_id is a required, cascade-on-hard-delete foreign key, and
-// directories are never hard-deleted (PeriodPurger force-deletes files,
-// never directories), so directoryEvenIfTrashed() cannot actually return
-// null in this codebase today -- there is no way for a test to make it do
-// so, which means no test can fail when the guard is removed. Banking an
-// entry that always reports "STILL PASSES with the guard deleted" would be
-// exactly the false confidence CLAUDE.md's mutation rule exists to prevent.
-// The guard stays for defence in depth -- can() would otherwise be handed a
-// null against its non-nullable Directory parameter -- but it is not a
-// security boundary tested here, unlike the outright refusals below.
+// restore(), delete() and purge() each carry their own "if ($directory ===
+// null) { return false; }" guard after resolving withTrashed() -- see
+// FilePolicy::directoryEvenIfTrashed(). None of the three is in
+// .github/mutations.json. directory_id is a required, cascade-on-hard-delete
+// foreign key, and directories are never hard-deleted (PeriodPurger and
+// PurgeFile force-delete files, never directories), so
+// directoryEvenIfTrashed() cannot actually return null in this codebase
+// today -- there is no way for a test to make it do so, which means no test
+// can fail when the guard is removed. Banking an entry that always reports
+// "STILL PASSES with the guard deleted" would be exactly the false
+// confidence CLAUDE.md's mutation rule exists to prevent. The guard stays
+// for defence in depth -- can() would otherwise be handed a null against its
+// non-nullable Directory parameter -- but it is not a security boundary
+// tested here, unlike the outright refusals below.
 it('still allows restore of a file whose directory is cascade-trashed, consulted withTrashed(), when access reaches the trashed directory itself', function () {
     giveAccess($this->dir, $this->user, AccessLevel::Edit);
     $file = File::factory()->for($this->dir, 'directory')->create();
@@ -230,6 +266,25 @@ it('still refuses delete of a file whose cascade-trashed directory the user has 
     expect($this->user->fresh()->can('delete', $trashedFile))->toBeFalse();
 });
 
+it('still allows purge of a file whose directory is cascade-trashed, consulted withTrashed(), when access reaches the trashed directory itself', function () {
+    giveAccess($this->dir, $this->user, AccessLevel::Manage);
+    $file = File::factory()->for($this->dir, 'directory')->create();
+
+    app(TrashDirectory::class)->handle($this->dir->fresh());
+    $trashedFile = File::withTrashed()->findOrFail($file->id);
+
+    expect($this->user->fresh()->can('purge', $trashedFile))->toBeTrue();
+});
+
+it('still refuses purge of a file whose cascade-trashed directory the user has no access to, rather than throwing', function () {
+    $file = File::factory()->for($this->dir, 'directory')->create();
+
+    app(TrashDirectory::class)->handle($this->dir->fresh());
+    $trashedFile = File::withTrashed()->findOrFail($file->id);
+
+    expect($this->user->fresh()->can('purge', $trashedFile))->toBeFalse();
+});
+
 it('refuses restore of a file nested beneath the trashed batch root, even with access on its own directory', function () {
     // The grant sits directly on $mid, the file's own directory -- but $mid
     // is not the batch's root, and DirectoryAccess still finds $this->dir
@@ -257,4 +312,15 @@ it('refuses delete of a file nested beneath the trashed batch root, even with ac
     $trashedFile = File::withTrashed()->findOrFail($file->id);
 
     expect($this->user->fresh()->can('delete', $trashedFile))->toBeFalse();
+});
+
+it('refuses purge of a file nested beneath the trashed batch root, even with access on its own directory', function () {
+    $mid = Directory::factory()->for($this->dir, 'parent')->create();
+    giveAccess($mid, $this->user, AccessLevel::Manage);
+    $file = File::factory()->for($mid, 'directory')->create();
+
+    app(TrashDirectory::class)->handle($this->dir->fresh());
+    $trashedFile = File::withTrashed()->findOrFail($file->id);
+
+    expect($this->user->fresh()->can('purge', $trashedFile))->toBeFalse();
 });
