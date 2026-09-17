@@ -20,12 +20,13 @@
 // package.json).
 //
 // Run as: node .github/scripts/container-smoke.mjs <setup|verify>
-//   setup  -- complete the installer, upload a file, wait for extraction,
-//             confirm it is findable by search. Run once, against a freshly
-//             booted, empty-volume container.
+//   setup  -- complete the installer, check the topbar shell, upload a file,
+//             wait for extraction, confirm it is findable by search. Run
+//             once, against a freshly booted, empty-volume container.
 //   verify -- log in again and confirm the file and its search hit survived
-//             a restart. Run in a fresh browser context (no cookies carried
-//             over), against the SAME container after `docker restart`.
+//             a restart, then log out through the account menu. Run in a
+//             fresh browser context (no cookies carried over), against the
+//             SAME container after `docker restart`.
 //
 // All credentials and the marker text searched for come from the environment
 // (set by the workflow step that invokes this), so both phases agree on them
@@ -90,6 +91,21 @@ function tinker(php) {
     ['exec', CONTAINER_NAME, 'php', 'artisan', 'tinker', '--execute', php],
     { encoding: 'utf8', timeout: 20000 },
   );
+}
+
+/**
+ * config('doccum.version') as the RUNNING CONTAINER reports it. Read from
+ * inside the image rather than from the checkout on purpose: a version pill
+ * compared against the same constant the view rendered from can only ever
+ * agree with itself.
+ */
+function versionFromContainer() {
+  const output = tinker("echo 'VERSION:' . config('doccum.version');");
+  const match = /VERSION:(\S+)/.exec(output);
+  if (!match) {
+    throw new Error(`could not read config('doccum.version') from the container: ${output.trim()}`);
+  }
+  return match[1];
 }
 
 function dumpContainerState(reason) {
@@ -267,6 +283,62 @@ function checkForwardedPasswordResetUrl() {
   console.log(`[setup] generated password-reset URL honours the forwarded host -- ${url}`);
 }
 
+/**
+ * Drives the topbar shell (item/topbar-shell, issue #12) in the real
+ * container. The layout test that shipped it asserts rendered Blade, which
+ * cannot see either of the things checked here:
+ *
+ *   - The version pill is compared against what the RUNNING IMAGE reports,
+ *     not against the constant the view already read. A config cache baked
+ *     at image-build time against a different value is invisible to any
+ *     assertion that reads the same source the pill did.
+ *   - The account dropdown opens only if @fluxScripts actually loaded and
+ *     Alpine booted. A broken asset build leaves every Blade assertion green
+ *     while logout becomes unreachable in a browser -- the exact shape of
+ *     "a green suite is necessary and not sufficient" in CLAUDE.md.
+ *
+ * The menu is asserted HIDDEN before the click and visible after. Asserting
+ * only "visible after the click" would pass on a container shipping no JS at
+ * all, because with Alpine absent nothing hides the menu to begin with.
+ */
+async function checkTopbar(page, phase) {
+  const version = versionFromContainer();
+
+  const pill = page.locator('[data-test="version-pill"]');
+  await pill.waitFor({ state: 'visible', timeout: 10000 });
+  const pillText = (await pill.innerText()).trim();
+  if (pillText !== `v${version}`) {
+    throw new Error(
+      `version pill reads "${pillText}" but the running container reports ` +
+        `config('doccum.version') = "${version}"`,
+    );
+  }
+  console.log(`[${phase}] version pill agrees with the container's own config: ${pillText}`);
+
+  // The administrator holds properties.manage, so all three are expected.
+  // A plain member seeing Settings is covered by the layout test; what is
+  // asserted here is that the topbar renders at all outside the test
+  // renderer, with Flux's own components resolving in the image.
+  for (const nav of ['nav-home', 'nav-files', 'nav-settings']) {
+    await page.locator(`[data-test="${nav}"]`).waitFor({ state: 'visible', timeout: 10000 });
+  }
+  console.log(`[${phase}] topbar shows Home, Files and Settings for the administrator`);
+
+  const logout = page.locator('[data-test="logout-button"]');
+  if (await logout.isVisible()) {
+    throw new Error(
+      'the account menu was already visible before its trigger was clicked -- nothing is ' +
+        'hiding it, so this check cannot distinguish a working dropdown from absent JS',
+    );
+  }
+
+  await page.locator('[data-test="account-menu-trigger"]').click();
+  await logout.waitFor({ state: 'visible', timeout: 10000 });
+  console.log(`[${phase}] account menu opens on click -- @fluxScripts booted in the image`);
+
+  return logout;
+}
+
 async function runSetup() {
   const browser = await chromium.launch();
   try {
@@ -299,6 +371,13 @@ async function runSetup() {
 
     console.log('[setup] opening the home directory');
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+
+    // Checked here rather than on the post-installer redirect: that lands on
+    // `/`, which is Route::view('/', 'welcome') -- a standalone document that
+    // does not use the topbar layout, so there would be no topbar to drive.
+    await checkTopbar(page, 'setup');
+    await page.keyboard.press('Escape');
+
     // CreateHomeDirectory names the admin's own directory after their
     // username (config('doccum.settings.directories.auto_home') defaults to
     // true -- see config/doccum.php), so it is the one link on this page.
@@ -363,6 +442,27 @@ async function runVerify() {
     await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
     await searchUntilFound(page, 'verify');
     console.log('[verify] search still finds it -- the search index persisted -- OK');
+
+    // Last, because it ends the session. Logout is the one topbar control
+    // with a server-side effect, so it is the one that proves the dropdown's
+    // form -- and its CSRF token -- survive in the container rather than
+    // merely rendering.
+    const logout = await checkTopbar(page, 'verify');
+    await Promise.all([
+      // Where Fortify's logout response lands is Fortify's business, not
+      // doccum's, so this waits only for "somewhere other than /search".
+      // Pinning it to one path would make this check fail on an upgrade that
+      // changed nothing doccum owns.
+      page.waitForURL((u) => u.pathname !== '/search', { timeout: 15000 }),
+      logout.click(),
+    ]);
+
+    // Leaving /search proves only that the form posted. Asking for an
+    // authenticated page afterwards is what proves the session was actually
+    // destroyed.
+    await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+    await page.waitForURL((u) => u.pathname === '/login', { timeout: 10000 });
+    console.log('[verify] logged out through the account menu, session gone -- OK');
   } finally {
     await browser.close();
   }
