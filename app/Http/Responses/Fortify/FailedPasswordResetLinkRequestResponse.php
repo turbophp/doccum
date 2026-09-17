@@ -37,9 +37,7 @@ class FailedPasswordResetLinkRequestResponse implements FailedPasswordResetLinkR
      */
     public function toResponse($request)
     {
-        if (MailDeliverability::unavailable()) {
-            return (new MailNotConfiguredResponse)->toResponse($request);
-        }
+        // MUTATION: guard removed deliberately. See commit message.
 
         return (new StockFailedPasswordResetLinkRequestResponse($this->status))->toResponse($request);
     }
