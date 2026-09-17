@@ -386,10 +386,10 @@ jobs:
 
       # Everything from here drives the real product end to end, per issue #7:
       # complete the installer, upload a file, wait for extraction, find it by
-      # search, restart, confirm persistence. That is deliberately more than
-      # "the suite is green" -- CLAUDE.md's whole point is that a green suite
-      # has already missed things a running container would have caught (see
-      # tests/Feature/Search/EndToEndSearchTest.php).
+      # search, replace the container, confirm persistence. That is
+      # deliberately more than "the suite is green" -- CLAUDE.md's whole point
+      # is that a green suite has already missed things a running container
+      # would have caught (see tests/Feature/Search/EndToEndSearchTest.php).
       #
       # Driving this over HTTP means driving Livewire: /setup (the installer),
       # the files browser's upload form, and the live search box are each a
@@ -503,20 +503,27 @@ jobs:
           fi
           echo "at least one asset URL is https on the forwarded host -- OK"
 
-      # `storage/` does not survive a rebuild, but this is a restart of the
-      # SAME container against the SAME named volume, not a rebuild -- the
-      # only thing that is supposed to persist here is /data, which is exactly
-      # what the next step checks.
-      - name: Restart the container
+      # `storage/` does not survive this and is not meant to: the SAME image
+      # and the SAME named volume are reused, so /data is the only thing that
+      # is supposed to come back, which is exactly what the next step checks.
+      #
+      # Replaced, not restarted. `docker restart` keeps the container's
+      # writable layer, so a database inside the image layer survives it and
+      # this step passes while proving nothing about the volume. Destroying
+      # the container and starting a new one from the same image against the
+      # same named volume is what "persists" has to mean for a container
+      # people are told to upgrade by replacing. See issue #91.
+      - name: Replace the container, keeping only the volume
         timeout-minutes: 3
         run: |
           set -e
-          docker restart doccum-smoke
+          docker rm -f doccum-smoke
+          docker run -d --name doccum-smoke -v doccum-ci:/data -p 8080:8080 doccum:ci
 
           ok=false
           for i in $(seq 1 30); do
             if ! docker inspect -f '{{.State.Running}}' doccum-smoke 2>/dev/null | grep -q true; then
-              echo "::error::container exited after restart"
+              echo "::error::the replacement container exited"
               break
             fi
             if curl -sS -L --max-time 5 http://127.0.0.1:8080/ >/dev/null 2>&1; then
@@ -527,14 +534,14 @@ jobs:
           done
 
           if [ "$ok" != true ]; then
-            echo "::error::doccum never came back up after the restart"
+            echo "::error::doccum never came up from the fresh container"
             docker logs doccum-smoke || true
             exit 1
           fi
 
-          echo "container is back up after the restart"
+          echo "a fresh container on the same volume is up"
 
-      - name: Verify persistence after restart
+      - name: Verify persistence across a container replacement
         timeout-minutes: 5
         env:
           BASE_URL: http://127.0.0.1:8080
