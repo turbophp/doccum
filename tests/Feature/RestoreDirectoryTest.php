@@ -81,9 +81,16 @@ it('leaves the directory trashed when restore is refused for a name collision', 
 
 it('tells two cascades apart even when both happen within the same second', function () {
     // The reason trashed_batch exists rather than matching on deleted_at.
-    // Both cascades run in the same test, so their deleted_at values are
-    // byte-identical once stored at second precision -- restoring one used
-    // to resurrect the other's rows too.
+    // Two cascades close together in time. Restoring one used to resurrect
+    // the other's rows, because deleted_at was the discriminator and two
+    // cascades inside one tick of the column's precision are
+    // indistinguishable by it.
+    //
+    // The old deleted_at values are deliberately NOT asserted equal here:
+    // that would itself be a race -- true only while both cascades land in
+    // the same tick, which is exactly the fragility this test exists to
+    // retire. The batch is asserted instead, because it is the thing that
+    // actually distinguishes them, at any timing.
     $sibling = Directory::factory()->for($this->parent, 'parent')->create();
     $siblingFile = File::factory()->for($sibling, 'directory')->create();
 
@@ -93,7 +100,8 @@ it('tells two cascades apart even when both happen within the same second', func
     $trashedSibling = Directory::withTrashed()->findOrFail($sibling->id);
     $trashedRoot = Directory::withTrashed()->findOrFail($this->root->id);
 
-    expect($trashedSibling->deleted_at)->toEqual($trashedRoot->deleted_at)
+    expect($trashedSibling->trashed_batch)->not->toBeNull()
+        ->and($trashedRoot->trashed_batch)->not->toBeNull()
         ->and($trashedSibling->trashed_batch)->not->toBe($trashedRoot->trashed_batch);
 
     app(RestoreDirectory::class)->handle($trashedRoot);
