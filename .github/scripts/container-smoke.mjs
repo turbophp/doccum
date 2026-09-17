@@ -771,13 +771,18 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
   await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.locator('input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
-  const tmpFile = path.join(os.tmpdir(), TRASH_CHECK_FILE_NAME);
-  fs.writeFileSync(tmpFile, 'Uploaded only to prove the Trash control removes a file. Its content is unused.\n');
-  await page.locator('input[type="file"]').setInputFiles(tmpFile);
-  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-  await page.getByRole('button', { name: 'Upload', exact: true }).click();
-  await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-  console.log(`[${phase}] uploaded ${TRASH_CHECK_FILE_NAME}, dedicated to the trash check`);
+  // Through uploadAndProveStored(), not by hand. This check originally
+  // repeated the old text-only assertion -- getByText(name) and nothing more
+  // -- which is precisely what #107 had already replaced for the first
+  // upload, and it was fooled in exactly the same way: it announced the file
+  // as uploaded while the container reported FILE:no, and the run then died
+  // twenty seconds later in a search for something that had never existed.
+  await uploadAndProveStored(
+    page,
+    TRASH_CHECK_FILE_NAME,
+    'Uploaded only to prove the Trash control removes a file. Its content is unused.\n',
+    phase,
+  );
 
   await searchUntilFoundByName(page, TRASH_CHECK_FILE_NAME);
   console.log(`[${phase}] search finds ${TRASH_CHECK_FILE_NAME} before it is trashed`);
