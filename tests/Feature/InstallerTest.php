@@ -136,7 +136,7 @@ it('creates the admin on the final step', function () {
         ->set('password_confirmation', 'password-please')
         ->call('submit')
         ->assertHasNoErrors()
-        ->assertRedirect('/');
+        ->assertRedirect(route('files.browse'));
 
     expect(User::firstOrFail()->hasRole('admin'))->toBeTrue();
 });
@@ -239,7 +239,7 @@ it('completes a default install without touching database or storage config', fu
         ->set('password_confirmation', 'Correct-Horse-Battery9')
         ->call('submit')
         ->assertHasNoErrors()
-        ->assertRedirect('/');
+        ->assertRedirect(route('files.browse'));
 
     expect(User::firstOrFail()->hasRole('admin'))->toBeTrue()
         ->and(RuntimeConfig::exists())->toBeFalse();

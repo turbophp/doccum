@@ -409,7 +409,13 @@ class FirstRun extends Component
 
         Auth::login($user);
 
-        return redirect('/');
+        // The files browser, not '/'. '/' is Route::view('/', 'welcome') --
+        // Laravel's starter page -- so an operator who had just named their
+        // instance and created an administrator was handed a marketing page
+        // for a PHP framework. config/fortify.php already sends every later
+        // login to '/files'; only the one path a brand-new instance is
+        // guaranteed to take went somewhere else. See issue #97.
+        return redirect()->route('files.browse');
     }
 
     /** @return array<string, string> */

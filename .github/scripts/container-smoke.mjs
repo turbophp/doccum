@@ -740,10 +740,15 @@ async function runSetup() {
 
     console.log('[setup] submitting the administrator form');
     await Promise.all([
-      // submit() does `return redirect('/')` unconditionally on success (see
+      // submit() ends in `redirect()->route('files.browse')` (see
       // FirstRun::submit) -- a real, full-page redirect, not a Livewire
       // ->navigate() morph, so a plain URL wait is enough.
-      page.waitForURL((u) => u.pathname === '/', { timeout: 15000 }),
+      //
+      // This wait is the whole of issue #97's evidence. Put the redirect back
+      // to '/' and it times out here, because '/' is Route::view('/',
+      // 'welcome') -- Laravel's starter page. The page.goto() below cannot
+      // rescue it: this wait runs first.
+      page.waitForURL((u) => u.pathname === '/files', { timeout: 15000 }),
       page.getByRole('button', { name: 'Create administrator account' }).click(),
     ]);
     console.log('[setup] installer complete, admin created and logged in');
