@@ -221,9 +221,50 @@ async function uploadAndProveStored(page, name, contents, phase) {
   fs.writeFileSync(tmpFile, contents);
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
+    // Every attempt after the first reloads, for the same reason
+    // checkReplaceAddsASecondVersion() does: when issue #106 swallows an
+    // upload, the component is left believing one is still in flight and
+    // Livewire keeps the submit button disabled, so retrying IN PLACE clicks
+    // a button that exists, is visible, and will never accept it.
+    //
+    // This helper had retried in place since it was written and got away
+    // with it, because a second attempt usually landed before the component
+    // wedged. The bulk-trash check uploads three files rather than one, and
+    // that was enough exposure to find it: "locator.click: Timeout 30000ms
+    // exceeded ... getByRole('button', { name: 'Upload', exact: true })",
+    // immediately after "attempt 1 left no files row".
+    //
+    // Callers all upload into the administrator's home directory and reach
+    // it exactly this way, so re-entering it here is a return to the state
+    // the caller set up, not a change of scene. A caller uploading anywhere
+    // else would need this generalised.
+    if (attempt > 1) {
+      await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+      await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+      await page
+        .locator('[data-test="upload-form"] input[type="file"]')
+        .waitFor({ state: 'attached', timeout: 10000 });
+    }
+
     await page.locator('[data-test="upload-form"] input[type="file"]').setInputFiles(tmpFile);
     await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-    await page.getByRole('button', { name: 'Upload', exact: true }).click();
+
+    // Bounded rather than Playwright's default 30s: a button still disabled
+    // after ten seconds means the component is wedged, and the next
+    // attempt's reload is the cure, so there is nothing to learn from
+    // waiting out the rest.
+    const clicked = await page
+      .getByRole('button', { name: 'Upload', exact: true })
+      .click({ timeout: 10000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (! clicked) {
+      console.log(`[${phase}] attempt ${attempt}: the Upload button never became clickable for ${name} -- reloading and retrying`);
+      await sleep(2000);
+      continue;
+    }
+
     await page
       .getByText(name, { exact: true })
       .waitFor({ timeout: 10000 })
