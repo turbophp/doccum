@@ -1227,6 +1227,95 @@ async function clickFileRow(page, name, { shift = false, ctrl = false } = {}) {
 }
 
 /**
+ * item/download-reaches-the-browser (issue #74): follows the Download link
+ * the product actually renders and asserts the bytes arrive and match what
+ * was uploaded.
+ *
+ * THIS CHECK IS EXPECTED TO FAIL ON TODAY'S MAIN, and is pushed first for
+ * that reason. Everything asserted about issue #74 so far -- including the
+ * verification done when it was turned into a backlog item -- is a reading
+ * of the code. Nobody has watched the download fail. A smoke assertion that
+ * goes red before any fix exists is the first actual observation in the
+ * episode, and it means the eventual fix lands against a proof that was
+ * failing beforehand rather than one written afterwards to agree with it.
+ *
+ * What the reading says will happen: FileDownloadController redirects to a
+ * presigned URL whose host comes from the documents disk's endpoint, which
+ * for embedded storage defaults to http://127.0.0.1:9000 (config/doccum.php).
+ * From the browser that is the browser's OWN machine, and the single
+ * container publishes 8080 only -- so the redirect should lead nowhere.
+ *
+ * Deliberately NOT asserted: the specific failure. Whether Playwright sees a
+ * connection refusal, a timeout, or a 403 from something else listening on
+ * 9000 is not the point and pinning it would make this check a description
+ * of one environment. What is asserted is the thing an operator cares about:
+ * clicking Download produces the bytes that were uploaded.
+ *
+ * Uses page.request rather than a click so the assertion is about the HTTP
+ * result rather than about browser download plumbing: it follows redirects,
+ * carries the session cookies, and hands back the body to hash. A click that
+ * opened a save dialog would prove less and be harder to read when it broke.
+ */
+async function checkDownloadReturnsTheUploadedBytes(page, phase) {
+  const name = 'DoccumSmokeDownloadTarget.txt';
+  const body = 'Downloaded bytes must match these exactly, byte for byte.\n';
+  const expected = crypto.createHash('sha256').update(body).digest('hex');
+
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+
+  await uploadAndProveStored(page, name, body, phase);
+
+  // Re-navigate before reading the row, for the reason recorded on
+  // checkReplaceAddsASecondVersion(): straight after an upload the form's
+  // file input still displays the chosen name, so the page carries it twice.
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+
+  const row = page.locator('tr[data-test="file-row"]').filter({ hasText: name });
+  await row.waitFor({ state: 'visible', timeout: 10000 });
+
+  const href = await row.getByRole('link', { name: 'Download', exact: true }).getAttribute('href');
+
+  if (! href) {
+    dumpContainerState(`[${phase}] ${name}'s row renders no Download link`);
+    throw Object.assign(new Error(`no Download href for ${name}`), { dumped: true });
+  }
+
+  console.log(`[${phase}] following the Download link for ${name}: ${href}`);
+
+  const response = await page.request
+    .get(href, { maxRedirects: 5, timeout: 20000 })
+    .catch((error) => ({ failed: String(error && error.message).split('\n')[0] }));
+
+  if (response.failed !== undefined) {
+    dumpContainerState(
+      `[${phase}] Download for ${name} never produced a response: ${response.failed}` +
+      ' -- the redirect target is unreachable from the browser (issue #74)',
+    );
+    throw Object.assign(new Error(`Download unreachable for ${name}: ${response.failed}`), { dumped: true });
+  }
+
+  if (! response.ok()) {
+    dumpContainerState(`[${phase}] Download for ${name} answered HTTP ${response.status()} (issue #74)`);
+    throw Object.assign(new Error(`Download answered HTTP ${response.status()} for ${name}`), { dumped: true });
+  }
+
+  const got = crypto.createHash('sha256').update(await response.body()).digest('hex');
+
+  if (got !== expected) {
+    dumpContainerState(
+      `[${phase}] Download for ${name} answered ${response.status()} but the bytes hash to ${got},` +
+      ` expected ${expected} -- something answered that is not the document`,
+    );
+    throw Object.assign(new Error(`Download body mismatch for ${name}`), { dumped: true });
+  }
+
+  console.log(`[${phase}] Download returned the uploaded bytes for ${name} -- OK`);
+}
+
+/**
  * item/files-list-sort-select (issue #103): drives the files table's
  * multi-select and bulk-trash control against the real container. Uploads
  * three distinct files, selects exactly two of them -- a plain click then a
@@ -1515,6 +1604,9 @@ async function runSetup() {
 
     console.log('[setup] replacing a file through the detail panel and confirming a second version appears');
     await checkReplaceAddsASecondVersion(page, 'setup');
+
+    console.log('[setup] following a Download link and checking the bytes come back (issue #74)');
+    await checkDownloadReturnsTheUploadedBytes(page, 'setup');
 
     console.log('[setup] bulk-trashing two of three uploaded files and confirming the third survives');
     await checkBulkTrashLeavesUnselectedFilesAlone(page, 'setup');
