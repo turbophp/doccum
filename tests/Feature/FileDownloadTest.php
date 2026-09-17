@@ -69,3 +69,58 @@ it('does not expose a trashed file', function () {
 
     $this->actingAs($user)->get(route('files.download', $this->file))->assertNotFound();
 });
+
+/**
+ * item/download-reaches-the-browser (issue #74). The presigned redirect is
+ * spec 6's design and is kept wherever it can work; these cover the case
+ * where it cannot, which is the shipped single container.
+ */
+it('streams the bytes itself when the storage endpoint is one the browser cannot reach', function () {
+    config(['filesystems.disks.documents.endpoint' => 'http://127.0.0.1:9000']);
+    Storage::disk('documents')->put($this->version->object_key, 'the bytes themselves');
+
+    $user = User::factory()->create();
+    allow($this->dir, $user, AccessLevel::View);
+
+    $response = $this->actingAs($user)->get(route('files.download', $this->file));
+
+    $response->assertOk();
+    expect($response->streamedContent())->toBe('the bytes themselves');
+});
+
+it('still redirects to a presigned url when the endpoint is publicly reachable', function () {
+    config(['filesystems.disks.documents.endpoint' => 'https://objects.example.test']);
+
+    $user = User::factory()->create();
+    allow($this->dir, $user, AccessLevel::View);
+
+    $this->actingAs($user)
+        ->get(route('files.download', $this->file))
+        ->assertRedirectContains('https://minio.test/'.$this->version->object_key);
+});
+
+it('redirects when no endpoint is configured at all, which is plain AWS S3', function () {
+    config(['filesystems.disks.documents.endpoint' => null]);
+
+    $user = User::factory()->create();
+    allow($this->dir, $user, AccessLevel::View);
+
+    $this->actingAs($user)
+        ->get(route('files.download', $this->file))
+        ->assertRedirectContains('https://minio.test/'.$this->version->object_key);
+});
+
+it('treats localhost and 0.0.0.0 as unreachable too, not just 127.0.0.1', function () {
+    Storage::disk('documents')->put($this->version->object_key, 'unreachable host bytes');
+
+    $user = User::factory()->create();
+    allow($this->dir, $user, AccessLevel::View);
+
+    foreach (['http://localhost:9000', 'http://0.0.0.0:9000', 'http://LOCALHOST:9000'] as $endpoint) {
+        config(['filesystems.disks.documents.endpoint' => $endpoint]);
+
+        $response = $this->actingAs($user)->get(route('files.download', $this->file));
+
+        expect($response->getStatusCode())->toBe(200, "endpoint {$endpoint} should have streamed");
+    }
+});
