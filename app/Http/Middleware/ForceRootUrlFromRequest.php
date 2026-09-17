@@ -44,14 +44,19 @@ class ForceRootUrlFromRequest
     public function handle(Request $request, Closure $next): Response
     {
         if ($this->appUrlIsUnset) {
-            // forceRootUrl() alone is enough: UrlGenerator::formatRoot()
-            // replaces whatever scheme is already in the forced root with
-            // whichever scheme the current call asks for, defaulting to
-            // $request->isSecure() when nothing overrides it -- which, once
-            // TrustProxies has honoured X-Forwarded-Proto for this request,
-            // already agrees with the https:// this line just put in the
-            // root. Forcing the scheme a second time would be redundant.
             URL::forceRootUrl($request->getSchemeAndHttpHost());
+
+            // Not redundant, which is what an earlier version of this
+            // assumed. forceRootUrl() sets the root, but
+            // UrlGenerator::formatRoot() then re-applies a scheme from
+            // formatScheme(), which reads the generator's OWN request rather
+            // than the one this middleware was handed -- so the https:// just
+            // written into the root gets overwritten with whatever that
+            // request reports. In production the two are normally the same
+            // object and it would happen to agree; relying on that is
+            // inheriting a framework default instead of stating the
+            // semantic, which decision/0010 rules out. State it.
+            URL::forceScheme($request->getScheme());
         }
 
         return $next($request);

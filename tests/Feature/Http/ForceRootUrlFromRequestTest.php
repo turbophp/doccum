@@ -24,6 +24,10 @@ afterEach(function () {
     // rest of the suite, unlike production where nothing forces it at all
     // when this middleware never runs).
     URL::forceRootUrl('');
+
+    // forceScheme() is sticky for the process in the same way, so it has to
+    // be cleared too or every later test in this run inherits https.
+    URL::forceScheme(null);
 });
 
 it('forces the root url and scheme from the request when APP_URL is unset', function () {
