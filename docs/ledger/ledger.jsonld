@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T13:30:00Z",
+  "dateModified": "2026-09-17T13:45:00Z",
   "latestRun": "run/0011",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -319,8 +319,8 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "doccum:user:reset-password sets a password or prints a one-time link with no mailer configured; the forgot-password page says mail is not configured when the mailer is log or array instead of claiming it sent one; both are exercised in the shipped image, not only in tests.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-17T13:40:00Z",
       "endTime": null,
       "result": []
     },
@@ -381,8 +381,8 @@
         "item/trash-directory"
       ],
       "doneWhen": "Requires files.delete and manage; objects removed through DocumentStorage; refusal tests for legal hold and for an archived period.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-17T13:40:00Z",
       "endTime": null,
       "result": []
     },
