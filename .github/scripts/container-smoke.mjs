@@ -807,9 +807,15 @@ async function searchUntilFoundByName(page, name) {
   const deadline = Date.now() + SEARCH_TIMEOUT_MS;
   const field = page.getByLabel('Search', { exact: true });
 
+  // Type the name WITHOUT its extension. Terms::words() splits on anything
+  // that is not a letter, digit or underscore, so "X.txt" becomes the two
+  // terms "X" and "txt" ANDed together (app/Search/Terms.php); the stem
+  // alone is one term and cannot fail on the join.
+  const stem = name.replace(/\.[^.]+$/, '');
+
   while (Date.now() < deadline) {
     await field.fill('');
-    await field.fill(name);
+    await field.fill(stem);
 
     const found = await page
       .getByText(name, { exact: true })
@@ -820,8 +826,27 @@ async function searchUntilFoundByName(page, name) {
     if (found) return;
   }
 
-  dumpContainerState(`search never found ${name} within ${SEARCH_TIMEOUT_MS}ms`);
-  throw Object.assign(new Error(`search timed out for ${name}`), { dumped: true });
+  // Say WHICH of the three things is missing rather than only that the search
+  // came back empty: the file row, its search projection, or the match. Two
+  // runs were spent on this check without knowing which.
+  let state = '(could not be read)';
+  try {
+    state = tinker([
+      `$f = \\App\\Models\\File::where('name', '${name}')->first();`,
+      "if (!$f) { echo 'FILE:no'; } else {",
+      "echo 'FILE:yes';",
+      "$d = \\App\\Models\\SearchDocument::where('subject_type', 'file')->where('subject_id', $f->id)->first();",
+      "echo ' DOC:' . ($d ? 'yes title=[' . $d->title . ']' : 'no');",
+      '}',
+    ].join(' ')).trim();
+  } catch (e) {
+    state = e.message;
+  }
+
+  dumpContainerState(
+    `search never found ${name} (typed "${stem}") within ${SEARCH_TIMEOUT_MS}ms\n  container says: ${state}`,
+  );
+  throw Object.assign(new Error(`search timed out for ${name}; container says: ${state}`), { dumped: true });
 }
 
 async function runSetup() {
