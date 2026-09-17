@@ -1,6 +1,10 @@
 <?php
 
+use App\Enums\AccessLevel;
+use App\Models\Directory;
+use App\Models\DirectoryGrant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /*
@@ -44,7 +48,21 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Grant a user or a role access to a directory.
+ *
+ * This lived at the top of DirectoryAccessTest, which meant it only existed
+ * when that file happened to be loaded: a full run declared it, and
+ * `--filter` on any other file that calls it died with "Call to undefined
+ * function grant()" -- a confusing failure, in a workflow CLAUDE.md documents
+ * as ordinary. Three test files call it now, so it belongs here.
+ */
+function grant(Directory $dir, $grantee, AccessLevel $level): DirectoryGrant
 {
-    // ..
+    return DirectoryGrant::create([
+        'directory_id' => $dir->id,
+        'grantee_type' => $grantee instanceof Role ? 'role' : 'user',
+        'grantee_id' => $grantee->id,
+        'level' => $level,
+    ]);
 }

@@ -21,16 +21,6 @@ beforeEach(function () {
     $this->user = User::factory()->create();
 });
 
-function grant(Directory $dir, $grantee, AccessLevel $level): DirectoryGrant
-{
-    return DirectoryGrant::create([
-        'directory_id' => $dir->id,
-        'grantee_type' => $grantee instanceof Role ? 'role' : 'user',
-        'grantee_id' => $grantee->id,
-        'level' => $level,
-    ]);
-}
-
 it('returns null where nothing is granted', function () {
     expect(app(DirectoryAccess::class)->levelFor($this->user, $this->leaf))->toBeNull();
 });
