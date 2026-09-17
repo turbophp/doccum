@@ -36,6 +36,7 @@
 
 import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -65,6 +66,13 @@ const FILE_MARKER = env('SMOKE_FILE_MARKER');
 // that check for a completely unrelated reason. No new env var: a fixed,
 // distinctive literal is enough since nothing else needs to agree on it.
 const TRASH_CHECK_FILE_NAME = 'DoccumSmokeTrashTarget.txt';
+
+// item/files-versions-replace (issue #102): a dedicated document for
+// checkReplaceAddsASecondVersion() below, deliberately NOT FILE_NAME. The
+// 'verify' phase re-finds FILE_NAME by FILE_MARKER inside its body -- if
+// this replaced that file's bytes with a v2 body carrying no marker,
+// 'verify' would fail for a reason that looks nothing like this item.
+const VERSIONS_CHECK_FILE_NAME = 'DoccumSmokeVersionTarget.txt';
 
 const EXTRACTION_TIMEOUT_MS = Number(env('EXTRACTION_TIMEOUT_MS', '60000'));
 const POLL_INTERVAL_MS = Number(env('POLL_INTERVAL_MS', '2000'));
@@ -844,6 +852,172 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
 }
 
 /**
+ * item/files-versions-replace (issue #102): drives the Replace control this
+ * item wires into the file detail panel, against the real container, and
+ * proves it adds a version rather than creating a second file or silently
+ * overwriting the first one. tests/Feature/FileBrowserActionsTest.php
+ * already covers the authorisation and the version bookkeeping through the
+ * test renderer; what only a browser against the real image can see is
+ * whether the wire:submit reaches replaceFile() at all, and whether the
+ * page renders a second `input[type="file"]` in a way real Flux/Livewire JS
+ * can actually drive (a broken asset build or an unresolved Flux component
+ * leaves every Blade assertion green and this control unusable).
+ *
+ * Uses its OWN document, VERSIONS_CHECK_FILE_NAME, for the same reason
+ * TRASH_CHECK_FILE_NAME exists: FILE_NAME/FILE_MARKER survive into the
+ * 'verify' phase to prove persistence, and replacing that file's bytes here
+ * would falsify that unrelated check.
+ *
+ * THE DIFFERING FILENAME IS THE PROOF. The replacement is deliberately saved
+ * to disk and uploaded as 'DoccumSmokeReplacement.txt' -- a different name
+ * from the document it replaces. If it instead shared the document's own
+ * name, StoreFileVersion would version it anyway (that is what versioning
+ * BY NAME means, see StoreFileVersionTest), and this check would pass
+ * whether or not Browser::replaceFile() actually threads the selected
+ * file's name through to the action -- exactly the bug this item's mutation
+ * (browser-replace-file's sibling in spirit, though that entry mutates the
+ * authorize() call, not this line) is about: if replaceFile() ever passed
+ * $this->replacement's OWN client name to StoreFileVersion instead of
+ * $this->selectedFile->name, the call would go through the CREATE path --
+ * a second File row named 'DoccumSmokeReplacement.txt' -- and only a
+ * differing name makes that observable from the outside.
+ *
+ * The proof is a checksum triple read through tinker(), not DOM text:
+ *
+ *   1. the document's OWN currentVersion->checksum equals sha256(the
+ *      REPLACEMENT body). This is the half that fails on the mutated image:
+ *      there, the create path leaves VERSIONS_CHECK_FILE_NAME's current
+ *      version pointing at the ORIGINAL body forever, because nothing ever
+ *      touched that file's own row.
+ *   2. version 1's checksum still equals sha256(the ORIGINAL body) --
+ *      proves "adds a version, never overwrites", which is the issue's
+ *      stated requirement, not merely "the current version changed".
+ *   3. File::where('name', 'DoccumSmokeReplacement.txt')->doesntExist() --
+ *      names the create-path mutation's symptom directly, rather than
+ *      inferring it from the other two.
+ *
+ * max(version_number) is asserted with >= 2, not === 2: issue #106's upload
+ * race means a retried interaction can legitimately land a third version if
+ * an earlier attempt silently landed one after all. The DOM count of
+ * [data-test="file-version-row"] IS asserted at exactly 2, but subordinate
+ * to the tinker checks above -- it is the only thing here proving the
+ * version list actually renders in the shipped image (asset build, Flux
+ * resolution), which is why CLAUDE.md wants a browser-driven check for a UI
+ * item at all, but a mutation that broke replaceFile() itself while leaving
+ * the (already-populated) version list rendering fine would sail through a
+ * DOM-only assertion.
+ *
+ * TODO: mutated run URL (recorded by the orchestrator, see
+ * checkTrashRemovesFileFromListingAndSearch()'s docblock for the shape of
+ * that record).
+ */
+async function checkReplaceAddsASecondVersion(page, phase) {
+  const originalBody = 'Version 1 body, unique to the replace smoke check.\n';
+  const replacementBody = 'Version 2 body, deliberately different from version 1.\n';
+  const replacementFileName = 'DoccumSmokeReplacement.txt';
+
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+
+  await uploadAndProveStored(page, VERSIONS_CHECK_FILE_NAME, originalBody, phase);
+
+  await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).click();
+
+  // Two input[type="file"] elements exist on the page from this point on --
+  // the main upload form's and this now-visible Replace form's. Selecting
+  // by data-test rather than page.locator('input[type="file"]') is what
+  // keeps this from throwing on Playwright's strict-mode "resolved to 2
+  // elements" the moment a file is selected. See CLAUDE.md and the Blade
+  // template's own comment on these attributes.
+  const replaceInput = page.locator('[data-test="replace-file-input"]');
+  await replaceInput.waitFor({ state: 'attached', timeout: 10000 });
+
+  const replacementPath = path.join(os.tmpdir(), replacementFileName);
+  fs.writeFileSync(replacementPath, replacementBody);
+  await replaceInput.setInputFiles(replacementPath);
+
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  await page.locator('[data-test="replace-file-button"]').click();
+
+  // The version list is what render() re-queries on every update -- this is
+  // the assertion that requires the feature to actually DO something
+  // (CLAUDE.md), kept subordinate to the tinker checks below per this
+  // function's own docblock.
+  await page
+    .locator('[data-test="file-version-row"]')
+    .nth(1)
+    .waitFor({ state: 'visible', timeout: 10000 });
+  const rowCount = await page.locator('[data-test="file-version-row"]').count();
+  if (rowCount !== 2) {
+    dumpContainerState(`[${phase}] expected exactly 2 [data-test="file-version-row"] elements after replacing ${VERSIONS_CHECK_FILE_NAME}, found ${rowCount}`);
+    throw Object.assign(new Error(`expected 2 version rows, found ${rowCount}`), { dumped: true });
+  }
+  console.log(`[${phase}] the version list rendered 2 rows after Replace -- the panel actually renders in this image`);
+
+  const expectedV2Checksum = crypto.createHash('sha256').update(replacementBody).digest('hex');
+  const expectedV1Checksum = crypto.createHash('sha256').update(originalBody).digest('hex');
+
+  const php = [
+    `$f = \\App\\Models\\File::where('name', '${VERSIONS_CHECK_FILE_NAME}')->first();`,
+    "if (!$f) { echo 'FILE:no'; } else {",
+    '$f->refresh();',
+    "echo 'CURRENT_CHECKSUM:' . $f->currentVersion->checksum;",
+    "$v1 = $f->versions()->where('version_number', 1)->first();",
+    "echo ' V1_CHECKSUM:' . ($v1 ? $v1->checksum : 'MISSING');",
+    "echo ' MAX_VERSION:' . $f->versions()->max('version_number');",
+    '}',
+    `echo ' REPLACEMENT_NAME_EXISTS:' . (\\App\\Models\\File::where('name', '${replacementFileName}')->exists() ? 'yes' : 'no');`,
+  ].join(' ');
+
+  const output = tinker(php);
+
+  if (/FILE:no/.test(output)) {
+    dumpContainerState(`[${phase}] ${VERSIONS_CHECK_FILE_NAME} disappeared before the replace checksum check could run -- raw output: ${output}`);
+    throw Object.assign(new Error(`no files row for ${VERSIONS_CHECK_FILE_NAME} at the replace checksum check`), { dumped: true });
+  }
+
+  const currentChecksum = /CURRENT_CHECKSUM:(\S+)/.exec(output)?.[1];
+  const v1Checksum = /V1_CHECKSUM:(\S+)/.exec(output)?.[1];
+  const maxVersion = Number(/MAX_VERSION:(\d+)/.exec(output)?.[1] ?? '0');
+  const replacementNameExists = /REPLACEMENT_NAME_EXISTS:(\S+)/.exec(output)?.[1] === 'yes';
+
+  // 1. This is the half that fails on the mutated image: there, the
+  // document's own current checksum never changes, because Replace took the
+  // create path and wrote a SECOND file instead.
+  if (currentChecksum !== expectedV2Checksum) {
+    dumpContainerState(
+      `[${phase}] ${VERSIONS_CHECK_FILE_NAME}'s current version checksum is "${currentChecksum}", expected sha256(replacement body) = "${expectedV2Checksum}" -- Replace did not update the document's own current version`,
+    );
+    throw Object.assign(new Error('replace did not update the document\'s own current version checksum'), { dumped: true });
+  }
+  console.log(`[${phase}] ${VERSIONS_CHECK_FILE_NAME}'s current version now hashes to the REPLACEMENT body -- Replace touched the right file`);
+
+  // 2. Proves "adds a version, never overwrites" -- the issue's stated
+  // requirement -- not merely "something changed".
+  if (v1Checksum !== expectedV1Checksum) {
+    dumpContainerState(
+      `[${phase}] version 1 of ${VERSIONS_CHECK_FILE_NAME} now hashes to "${v1Checksum}", expected the untouched original sha256 = "${expectedV1Checksum}" -- version 1 was overwritten instead of a new version being added`,
+    );
+    throw Object.assign(new Error('version 1 was overwritten instead of a new version being added'), { dumped: true });
+  }
+  console.log(`[${phase}] version 1 of ${VERSIONS_CHECK_FILE_NAME} still hashes to the ORIGINAL body -- nothing was overwritten`);
+
+  // 3. Names the create-path mutation's symptom directly.
+  if (replacementNameExists) {
+    dumpContainerState(`[${phase}] a File row named "${replacementFileName}" exists -- Replace created a second file instead of a version`);
+    throw Object.assign(new Error(`a File row named "${replacementFileName}" exists`), { dumped: true });
+  }
+  console.log(`[${phase}] no File row is named "${replacementFileName}" -- Replace did not create a second file`);
+
+  if (maxVersion < 2) {
+    dumpContainerState(`[${phase}] ${VERSIONS_CHECK_FILE_NAME}'s max version_number is ${maxVersion}, expected at least 2`);
+    throw Object.assign(new Error(`max version_number is ${maxVersion}, expected at least 2`), { dumped: true });
+  }
+  console.log(`[${phase}] ${VERSIONS_CHECK_FILE_NAME} has max(version_number) = ${maxVersion} (>= 2, per issue #106's retry note) -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -975,6 +1149,9 @@ async function runSetup() {
 
     console.log('[setup] trashing a file through the detail panel and confirming it disappears from the listing and from search');
     await checkTrashRemovesFileFromListingAndSearch(page, 'setup');
+
+    console.log('[setup] replacing a file through the detail panel and confirming a second version appears');
+    await checkReplaceAddsASecondVersion(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();

@@ -145,5 +145,26 @@
     "file": "app/Jobs/ReindexSearchDocument.php",
     "remove": "        if (method_exists($this->subject, 'trashed') && $this->subject->trashed()) {\n            $indexer->forget($this->subject);\n\n            return;\n        }\n\n",
     "expectFailing": "does not resurrect a trashed file when a reindex lands after the trash"
+  },
+  {
+    "id": "file-policy-replace-refuses-trashed-directory",
+    "why": "item/files-versions-replace (issue #102): replace() must refuse outright when a file's directory was cascade-trashed, the same as view()/update()/move()/legalHold(). Without this, a grant that predates the trash would let a new version be written into a file inside a subtree that browsing and search already treat as invisible -- writing where nobody can see is the same reveal-and-modify those four methods already refuse, and Replace would reopen it.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($directory === null) {\n            // Same refusal as view()/update()/move()/legalHold(): a trashed\n            // subtree is already invisible to browsing and search, and\n            // writing a new version into a file nobody can see would come\n            // back resurrected blind on restore. See the class docblock.\n            return false;\n        }\n",
+    "expectFailing": "refuses to replace a file whose directory is cascade-trashed, even with access that would otherwise allow it"
+  },
+  {
+    "id": "browser-replace-file",
+    "why": "item/files-versions-replace (issue #102): replacing a file through the panel must require files.upload and edit access, and StoreFileVersion itself never checks -- actions never authorise (CLAUDE.md). Without this the Replace control would let anyone who can open the file's detail panel overwrite it with a new version.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        $this->authorize('replace', $this->selectedFile);\n\n",
+    "expectFailing": "refuses to replace a file without files.upload"
+  },
+  {
+    "id": "file-version-download-cross-file-404",
+    "why": "A version id that belongs to a different file must 404, never redirect to that file's object. {version} carries no directory_id of its own to check against the viewer's reach, so without this abort_if() anyone who can view ANY file could download the bytes of ANY version in the instance merely by guessing its id -- the cross-file hole authorize('download', $file) alone cannot close, because it only ever asks about $file, never about which file $version actually belongs to.",
+    "file": "app/Http/Controllers/FileVersionDownloadController.php",
+    "remove": "        abort_if((int) $fileVersion->file_id !== (int) $file->getKey(), 404);\n",
+    "expectFailing": "404s a version id belonging to a different file"
   }
 ]

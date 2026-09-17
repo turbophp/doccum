@@ -17,8 +17,10 @@ use App\Enums\AccessLevel;
 use App\Exceptions\CannotMoveDirectoryIntoItself;
 use App\Exceptions\DuplicateDirectoryName;
 use App\Exceptions\DuplicateFileName;
+use App\Exceptions\PeriodIsArchived;
 use App\Models\Directory;
 use App\Models\File;
+use App\Models\FileVersion;
 use App\Services\DirectoryAccess;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Layout;
@@ -53,6 +55,16 @@ class Browser extends Component
     public string $newDirectoryName = '';
 
     public $upload;
+
+    /**
+     * Deliberately its OWN property, never reused from $upload. With one
+     * shared property, choosing a file to replace and then clicking the
+     * main Upload button would post that same file through store() --
+     * creating a second file rather than a new version of the selected
+     * one -- which is the exact bug this item's mutation is about, and it
+     * is reachable by an ordinary user, not just a test double.
+     */
+    public $replacement;
 
     /** Shared by renameFile() and renameDirectory() -- only one of the two subjects is ever selected at a time. */
     public string $renameValue = '';
@@ -143,6 +155,53 @@ class Browser extends Component
         );
 
         $this->upload = null;
+    }
+
+    /**
+     * Uploads a new version under the selected file's own name, rather than
+     * creating a second file. See FilePolicy::replace() for why this is
+     * gated as an upload into the file's directory plus a check on the
+     * file's own trashed state, and see the $replacement property above for
+     * why this never touches $upload.
+     */
+    public function replaceFile(StoreFileVersion $action): void
+    {
+        abort_if($this->selectedFile === null, 404);
+
+        $this->authorize('replace', $this->selectedFile);
+
+        $this->validate(['replacement' => ['required', 'file', 'max:102400']]);
+
+        // Resolved from the FILE, never from $this->directory. After
+        // moveFile() the selected file lives somewhere else while
+        // $this->directory is unchanged, and handing StoreFileVersion the
+        // browsed directory would make its (directory_id, name_key) lookup
+        // miss and CREATE A NEW FILE in the wrong directory -- the create
+        // path, with no mutation needed.
+        $directory = Directory::query()->findOrFail($this->selectedFile->directory_id);
+
+        try {
+            $this->selectedFile = $action->handle(
+                auth()->user(),
+                $directory,
+                $this->replacement->getRealPath(),
+                // The selected file's OWN name, never the uploaded file's
+                // client name. This single argument is what makes Replace
+                // append a version instead of creating a second file, and it
+                // is also what keeps v2's object key named after the
+                // document rather than after whatever the operator happened
+                // to call the new upload (see App\Support\ObjectKey). It is
+                // the line the container smoke's mutation flips.
+                $this->selectedFile->name,
+                $this->replacement->getMimeType(),
+            );
+        } catch (PeriodIsArchived $e) {
+            $this->addError('replacement', $e->getMessage());
+
+            return;
+        }
+
+        $this->replacement = null;
     }
 
     public function renameFile(RenameFile $action): void
@@ -274,6 +333,20 @@ class Browser extends Component
             'moveDirectoryDestinations' => $this->selectedDirectory === null
                 ? new Collection
                 : $this->editableDestinations($access, $viewable),
+            // Queried fresh here rather than through $selectedFile->versions,
+            // a relation that may have been loaded earlier in the request
+            // (e.g. before replaceFile() added one) and would then render
+            // stale. Ordered by version_number -- the domain key
+            // StoreFileVersion computes -- rather than created_at (ties at
+            // second resolution) or id (an implementation detail that only
+            // happens to agree with it today).
+            'versions' => $this->selectedFile === null
+                ? new Collection
+                : FileVersion::query()
+                    ->where('file_id', $this->selectedFile->getKey())
+                    ->with('uploader')
+                    ->orderByDesc('version_number')
+                    ->get(),
         ]);
     }
 

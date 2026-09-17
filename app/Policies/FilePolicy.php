@@ -24,11 +24,11 @@ use App\Services\DirectoryAccess;
  * Two helpers below do the resolving: liveDirectory() finds nothing for a
  * trashed directory, directoryEvenIfTrashed() finds it regardless. Every
  * method decides on purpose which one it wants, rather than one rule for
- * all of them. view(), update(), move() and legalHold() use
+ * all of them. view(), update(), move(), legalHold() and replace() use
  * liveDirectory() and refuse outright when it comes back null: a trashed
  * subtree is already invisible to browsing and search
  * (DirectoryAccess::resolveViewable()), and resolving withTrashed() in any
- * of these four would reopen exactly the reveal that hides. restore(),
+ * of these five would reopen exactly the reveal that hides. restore(),
  * delete() and purge() use directoryEvenIfTrashed() and let DirectoryAccess
  * decide as usual, because all three are how a file gets out of a trashed
  * subtree for good, one way or the other, and a blanket refusal would make a
@@ -77,6 +77,53 @@ class FilePolicy
         }
 
         return $this->access->can($user, $directory, AccessLevel::Edit);
+    }
+
+    /**
+     * Replacing a file uploads a new version under the file's existing name,
+     * so it is gated exactly like a fresh upload into the file's own
+     * directory: files.upload plus edit reach, nothing more and nothing
+     * less. Delegating to create() rather than restating those two checks
+     * follows the download() -> view() precedent already above -- a third
+     * condition create() grows later cannot then drift out of step with
+     * Replace, which would happen the moment the two checks were
+     * duplicated by hand.
+     *
+     * The liveDirectory() refusal below matches view()/update()/move()/
+     * legalHold(): writing a new object into a file nobody can see would
+     * either come back resurrected blind on restore, or sit there until
+     * purged with nobody the wiser. Restore-then-replace is the sanctioned
+     * path, the same argument move()'s own comment already makes for
+     * moving rather than reaching into a trashed subtree directly.
+     *
+     * The trashed() refusal just below is separate on purpose, and it is
+     * about the FILE, not its directory: StoreFileVersion::handle() looks
+     * a file up with the default (non-trashed) query, so calling it for a
+     * file that is independently trashed -- its OWN directory still live --
+     * would find no row and CREATE A FRESH FILE with the same name
+     * (StoreFileVersionTest's "does not resurrect a trashed file of the
+     * same name" proves that is the action's designed behaviour, not a
+     * bug this policy should paper over). A later RestoreFile would then
+     * collide with that fresh file on the name. Refusing replace() outright
+     * for a trashed file forces restore-then-replace here too.
+     */
+    public function replace(User $user, File $file): bool
+    {
+        if ($file->trashed()) {
+            return false;
+        }
+
+        $directory = $this->liveDirectory($file);
+
+        if ($directory === null) {
+            // Same refusal as view()/update()/move()/legalHold(): a trashed
+            // subtree is already invisible to browsing and search, and
+            // writing a new version into a file nobody can see would come
+            // back resurrected blind on restore. See the class docblock.
+            return false;
+        }
+
+        return $this->create($user, $directory);
     }
 
     /**
@@ -220,8 +267,8 @@ class FilePolicy
 
     /**
      * The file's directory, or null if it is trashed (or gone). Used by
-     * view(), update(), move() and legalHold(), which must all refuse
-     * outright rather than see into a trashed subtree. See the class
+     * view(), update(), move(), legalHold() and replace(), which must all
+     * refuse outright rather than see into a trashed subtree. See the class
      * docblock for why delete(), restore() and purge() use
      * directoryEvenIfTrashed() instead.
      */

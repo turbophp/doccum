@@ -27,6 +27,7 @@ class FileVersion extends Model
     protected function casts(): array
     {
         return [
+            'file_id' => 'integer',
             'version_number' => 'integer',
             'size' => 'integer',
         ];
@@ -41,5 +42,18 @@ class FileVersion extends Model
     public function text(): HasOne
     {
         return $this->hasOne(FileText::class);
+    }
+
+    /**
+     * uploaded_by is a foreign key to users, but nothing before this item
+     * turned it into a relation -- a template that reached for it got the
+     * raw integer. See FileVersionDownloadController, which casts file_id
+     * on both sides of a strict comparison rather than trust a driver to
+     * hand it back as an int; this cast is the model-level half of that
+     * same belt-and-braces pair.
+     */
+    public function uploader(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
     }
 }

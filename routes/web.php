@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\FileDownloadController;
+use App\Http\Controllers\FileVersionDownloadController;
 use App\Livewire\Admin\PropertyDefinitions;
 use App\Livewire\Files\Browser;
 use App\Livewire\Search\Results;
@@ -18,6 +19,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::get('/files/{file}/download', FileDownloadController::class)
     ->middleware('auth')
     ->name('files.download');
+
+Route::get('/files/{file}/versions/{version}/download', FileVersionDownloadController::class)
+    ->middleware('auth')
+    ->name('files.versions.download');
 
 Route::livewire('/files/{directory?}', Browser::class)
     ->middleware('auth')
