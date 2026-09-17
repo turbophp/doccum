@@ -106,7 +106,11 @@ class Directory extends Model
         ])->saveQuietly();
     }
 
-    /** Every node beneath this one, excluding itself. */
+    /**
+     * Every node beneath this one, excluding itself.
+     *
+     * @return Builder<Directory>
+     */
     public function descendants(): Builder
     {
         return static::query()
