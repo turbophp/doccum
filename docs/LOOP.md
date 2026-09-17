@@ -31,12 +31,33 @@ Every hour, the loop wakes and runs these steps in order.
    A red `main` is this iteration's first work, and the next iteration's,
    ahead of picking a new item.
 
-   Only the **newest** `main` run speaks for `main`, and a run counts only
-   when the full set of checks reported. Merging two PRs a few minutes apart
-   lets the concurrency group cancel the first merge commit's run: `ba799a9`
-   carries two green check runs and nine cancelled ones, so "are this
-   commit's checks all green?" answers yes about a commit nothing verified.
-   Check the tip, and check that the count is complete.
+   Only the **newest** `main` run speaks for `main`. Ask for workflow *runs*
+   at the merge SHA and filter them to `main`, not for check runs on the SHA:
+
+   ```
+   GET /repos/turbophp/doccum/actions/runs?head_sha=<merge sha>
+   keep head_branch == "main" and event == "push"
+   require the `tests` and `ledger` runs to both conclude "success"
+   ```
+
+   Those two are the whole of what a `main` push triggers — `format` is
+   `claude/**` and `ledger/**` only, `phpstan-baseline` is `baseline/**`,
+   `security` is pull requests and a weekly cron, `release` is tags. A run's
+   own conclusion already aggregates its jobs, so this needs no count of
+   checks, and a cancelled run reports `cancelled` rather than looking green.
+
+   Counting check runs on the SHA instead gets both directions wrong, and
+   both have happened. **Too few:** merging two PRs minutes apart lets the
+   concurrency group cancel the first merge commit's run — `ba799a9` carries
+   two green check runs and nine cancelled ones, so "are this commit's checks
+   all green?" answers yes about a commit nothing verified. **Too many:**
+   check runs attach to a SHA, not to a ref, so any branch pointing at the
+   same commit contributes its own workflows. `a0cf122` read as twelve checks
+   where `58399dc` read as eleven, and the twelfth was `pint` from a
+   `claude/**` push of a branch that had been reset onto `main` — a workflow
+   that never runs on `main` at all. A threshold like "at least eleven" can
+   therefore be satisfied entirely by another ref's checks while `main`'s own
+   `tests` run is still going.
 4. **Pick the next item.** The first backlog item whose dependencies are all
    `Completed`. Ties break toward whatever unblocks the most other items.
 5. **Execute.** Hand the item to a Sonnet worker with its plan, the relevant
@@ -63,7 +84,10 @@ Every hour, the loop wakes and runs these steps in order.
   thirty-eight `tests.yml` runs had failed — five of them after CI was
   established, every one on a merge commit whose PR had been fully green —
   while the loop reported `main` green each iteration, because the merge step
-  checked the PR and nothing afterwards ever looked again.
+  checked the PR and nothing afterwards ever looked again. It is a claim about
+  `main`'s *ref*, too, not about its commit: a SHA's check runs are whatever
+  refs happen to point there, so the read is by workflow run filtered to
+  `main` (step 3), never by counting checks on the SHA.
 - **A green suite is necessary and not sufficient.** The `image` job exists
   because several bugs in this codebase were invisible to a fully green suite.
 - **Never skip, disable or quarantine a test** to get a PR green.
