@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T17:40:00Z",
-  "latestRun": "run/0013",
+  "dateModified": "2026-09-17T18:45:00Z",
+  "latestRun": "run/0014",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -430,10 +430,12 @@
         "item/trash-directory"
       ],
       "doneWhen": "Selecting a file or directory row opens the detail panel -- the existing PropertyPanel plus Download, Rename, Move, Trash and set/clear legal hold -- with every control authorised in the Livewire method through a Policy, never in the action; a viewer holding view alone sees no Rename, Move or Trash control and is refused server-side when the method is called directly, with one mutations.json entry per authorize call, each shown failing; the Move destination list is filtered by DirectoryAccess::viewableDirectoryIds inside the query, not in the view; the container smoke trashes the uploaded file through the panel and asserts it leaves the listing and stops appearing in search, and that smoke assertion is shown failing against an image built with the trash method emptied, with the run recorded in the check docblock.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T17:21:00Z",
+      "endTime": "2026-09-17T18:40:02Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/108"
+      ]
     },
     {
       "@id": "item/files-versions-replace",
@@ -1583,6 +1585,70 @@
       "mergedAt": "2026-09-17T17:01:44Z",
       "mergeSha": "e8686a0fb9df00d7e9498a241d743646c847a22f",
       "mergedIn": "run/0013"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/98",
+      "@type": "PullRequest",
+      "identifier": 98,
+      "name": "fix: land the operator in doccum after installing it, not on Laravel's starter page",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0013",
+      "state": "merged",
+      "dateCreated": "2026-09-17T17:10:05Z",
+      "headSha": "1fb529ce1654fbd2bd3175337a202f2b7938cc4d",
+      "mergedAt": "2026-09-17T18:25:49Z",
+      "mergeSha": "d410474d01142502dc9a24959be4d76204e5220d",
+      "mergedIn": "run/0014"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/107",
+      "@type": "PullRequest",
+      "identifier": 107,
+      "name": "test: make the smoke prove a file was stored, and say why when it was not",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0014",
+      "state": "merged",
+      "dateCreated": "2026-09-17T17:46:20Z",
+      "headSha": "6e979fd34ad46801d702b91357fe0eb7469a5e95",
+      "mergedAt": "2026-09-17T17:49:16Z",
+      "mergeSha": "c083484f2a11b7042617628e8333e8c4b43b3b49",
+      "mergedIn": "run/0014"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/108",
+      "@type": "PullRequest",
+      "identifier": 108,
+      "name": "feat: selection and a detail panel that reaches the actions",
+      "implements": [
+        "item/files-actions-ui"
+      ],
+      "run": "run/0014",
+      "state": "merged",
+      "dateCreated": "2026-09-17T17:51:13Z",
+      "headSha": "07830109fb7cdd0290c10d4058e2da5e66b5366a",
+      "mergedAt": "2026-09-17T18:40:02Z",
+      "mergeSha": "c3b85c0efae8c36fba798cf1831e5b3b88eb3712",
+      "mergedIn": "run/0014"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/110",
+      "@type": "PullRequest",
+      "identifier": 110,
+      "name": "test: upload until a files row exists, and say which attempt stored it",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0014",
+      "state": "merged",
+      "dateCreated": "2026-09-17T18:09:17Z",
+      "headSha": "010c489c7336eab20452297b1e095d02705a602e",
+      "mergedAt": "2026-09-17T18:15:28Z",
+      "mergeSha": "4ec09ac6012d38b36bd551dcfe4984cbc1dd0c55",
+      "mergedIn": "run/0014"
     }
   ],
   "decisions": [
@@ -1867,6 +1933,38 @@
       "affects": [
         "item/extract-text-flake",
         "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0018",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T18:45:00Z",
+      "run": "run/0014",
+      "name": "A refusal that two mechanisms both produce proves neither of them",
+      "rationale": "browser-select-directory-view was a mutations.json entry like any other: an authorize('view', ...) call in selectDirectory(), and a test asserting that selecting an unviewable directory is forbidden. It passed review -- mine -- and the harness rejected it, reporting that the test STILL PASSES with the guard deleted. The reason, read out of the code rather than guessed: selecting a directory renders the detail panel, PropertyPanel::mount() authorises view on the same subject, and it refuses first. The 403 arrives either way and the test cannot tell which produced it. This is decision/0012's sharper corollary. decision/0012 says an assertion must require the feature to DO something rather than observe a resting state; this one says an assertion can require action and still prove nothing, when a second mechanism produces the same observable outcome. No amount of reading the test reveals that -- only mutation does. The resolution matters as much as the finding: the authorize call STAYS, because PropertyPanel refusing is PropertyPanel's concern and this line is what remains true if that ever changes, but its mutations.json entry is deleted, because the entry claimed a proof that did not exist. CLAUDE.md's rule that a guard whose test passes without it is worse than none is about false protection; here the protection was real and the PROOF was the fiction, so the claim was deleted rather than the guard. item/files-actions-ui's doneWhen asked for one entry per authorize call, each shown failing; that is satisfied for seven of eight, with the eighth documented in the code and the test docblock rather than faked.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/files-actions-ui",
+        "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0019",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T18:45:00Z",
+      "run": "run/0014",
+      "name": "Build the instrument before the hypothesis, because in this environment nothing else can be checked",
+      "rationale": "The container smoke cannot be run locally: there is no vendor/, composer install is blocked by the organisation's egress policy (403 on codeload.github.com, which composer reports as \"Could not authenticate against github.com\"), and the Docker daemon is unavailable. Every smoke change is therefore a speculative push with a three-minute feedback loop, and \"one validated push beats three speculative ones\" is unachievable as stated. This run paid for learning that. An eight-line redirect fix took fifteen CI rounds, and four consecutive hypotheses about the failure were wrong: that waitForResponse('/livewire/upload-file') would settle it (an endpoint assumed about a Livewire version that cannot be inspected here, which on two runs BECAME the failure); that waiting for window.Livewire would (it is set when the script first loads, so after a wire:navigate DOM swap the condition was already true and could not fail); that reproducing main's page sequence would (it did not); and that the two branches showing the symptom were one deterministic defect (one of them did not reproduce). What resolved it was not a better hypothesis but three instruments, each answering in one run what guessing had failed to answer in nine: waitForFileRow(), which distinguished \"nothing was stored\" from an extraction timeout sixty seconds downstream; tinker() raising status, signal and stderr instead of echoing the command back; and uploadAndProveStored(), which reported that attempt 1 stores nothing and attempt 2, 2.5 seconds later, succeeds. The rule this records is ordering, not attitude: when the loop cannot run the thing it is changing, the first push should be the one that makes the next failure legible, not the one that might fix it. The hourly routine now says so.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/container-smoke-ci",
+        "item/ci-green-baseline"
       ],
       "supersedes": null
     }
