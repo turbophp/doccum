@@ -112,7 +112,7 @@
       ],
       "doneWhen": "tests.yml matrix green on sqlite, pgsql and mysql; the FTS5 migration is a no-op off SQLite and the LikeSearchIndex path is covered.",
       "actionStatus": "CompletedActionStatus",
-      "startTime": "2026-09-16T17:00:01Z",
+      "startTime": "2026-09-17T05:40:00Z",
       "endTime": "2026-09-17T06:45:00Z",
       "result": [
         "https://github.com/turbophp/doccum/pull/2"
