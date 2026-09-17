@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T18:55:00Z",
-  "latestRun": "run/0014",
+  "dateModified": "2026-09-17T21:30:00Z",
+  "latestRun": "run/0015",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -452,10 +452,12 @@
         "item/files-actions-ui"
       ],
       "doneWhen": "The detail panel lists a file version history newest first with size, uploader and date; Replace uploads through StoreFileVersion and the list then shows version 2 under an unchanged name; a per-version download route authorises through FilePolicy::download and returns 404 for a version id belonging to a different file, with that cross-file check mutation-checked; the container smoke replaces the uploaded file and asserts a second version row appears, shown failing against an image whose Replace posts to the create path instead.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T20:50:00Z",
+      "endTime": "2026-09-17T21:20:00Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/117"
+      ]
     },
     {
       "@id": "item/files-list-sort-select",
@@ -1649,6 +1651,54 @@
       "mergedAt": "2026-09-17T18:15:28Z",
       "mergeSha": "4ec09ac6012d38b36bd551dcfe4984cbc1dd0c55",
       "mergedIn": "run/0014"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/114",
+      "@type": "PullRequest",
+      "identifier": 114,
+      "name": "docs: read main's greenness by workflow ref, not by checks on the SHA",
+      "implements": [
+        "item/ci-green-baseline"
+      ],
+      "run": "run/0015",
+      "state": "merged",
+      "dateCreated": "2026-09-17T18:58:00Z",
+      "headSha": "2ff5ba7241596578afcc747132391c50507f39d9",
+      "mergedAt": "2026-09-17T20:44:55Z",
+      "mergeSha": "447459f3a5ea5126c9afc171acff43d0575c2531",
+      "mergedIn": "run/0015"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/117",
+      "@type": "PullRequest",
+      "identifier": 117,
+      "name": "item/files-versions-replace: version history and replace-in-place",
+      "implements": [
+        "item/files-versions-replace"
+      ],
+      "run": "run/0015",
+      "state": "merged",
+      "dateCreated": "2026-09-17T20:59:00Z",
+      "headSha": "4e429ed2693909e4c812df18d4320bd9a53dd4e9",
+      "mergedAt": "2026-09-17T21:20:00Z",
+      "mergeSha": "0948c6d622cd1b66520ea51a0aba2bb6833af2dc",
+      "mergedIn": "run/0015"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/118",
+      "@type": "PullRequest",
+      "identifier": 118,
+      "name": "MUTATION PROOF -- DO NOT MERGE -- Replace posts to the create path",
+      "implements": [
+        "item/files-versions-replace"
+      ],
+      "run": "run/0015",
+      "state": "closed",
+      "dateCreated": "2026-09-17T20:59:30Z",
+      "headSha": "cb6d8bd95d881bccc3a91f2f894ac24f1d1ace5e",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -1982,6 +2032,55 @@
         "item/files-actions-ui",
         "item/container-smoke-ci",
         "item/trash-directory"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0021",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T18:58:00Z",
+      "run": "run/0015",
+      "name": "\"main is green\" is a claim about main's ref, not about main's commit",
+      "rationale": "LOOP.md step 3 told the loop to count check runs on the merge commit and satisfy itself that the count was complete. Check runs attach to a COMMIT, not to a ref, so every branch pointing at that commit contributes its own workflows. After #113 merged, main at a0cf122 read as twelve checks where 58399dc had read as eleven, and the twelfth was pint from format.yml -- which triggers on claude/** and ledger/** and never on main. It was there because this loop's own development branch had been reset onto main and pushed. No wrong conclusion followed: both reads were genuinely green, and eleven was genuinely main's own complete set. The method was wrong, not the answer, which is the only reason it was caught at leisure rather than after a bad merge. The failure it would eventually have produced is the serious one: a threshold like \"at least eleven\" can be satisfied ENTIRELY by another ref's checks while main's own tests run is still in flight, so the loop would report main green on a run nothing had read -- decision/0016's error arriving from the opposite direction, and invisible in exactly the same way. The replacement cannot conflate refs: ask for workflow runs at the SHA, keep head_branch main and event push, and require the tests and ledger runs to conclude success. Those two are the whole of what a main push triggers; format is claude/**|ledger/**, phpstan-baseline is baseline/**, security is pull_request plus a weekly cron, release is tags. A run's own conclusion aggregates its jobs, so no count of checks is needed at all, and a cancelled run reports cancelled rather than looking green -- which also closes the ba799a9 direction the old text had described and left standing.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/ci-green-baseline",
+        "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0022",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T21:05:00Z",
+      "run": "run/0015",
+      "name": "Replace resolves its directory from the file, and replace() is its own ability delegating to create()",
+      "rationale": "The obvious shape for a Replace control is to authorise create on the directory being browsed and hand StoreFileVersion that same directory. It is broken with no mutation required. After moveFile() the selected file lives in its destination while $this->directory still names the directory being browsed, and the panel goes on showing the moved file -- so the action's (directory_id, name_key) lookup misses, and it takes the create path and writes a NEW file into the browsed directory. The bug the item exists to prevent, reachable by an ordinary user in the unmutated build. So the directory is resolved from the file. Resolving it inline in the component would mean copying liveDirectory() out of the policy, which is the one thing FilePolicy's class docblock exists to prevent, so the resolution lives in a replace() ability that delegates to create() rather than restating files.upload plus Edit -- the same shape download() already uses to delegate to view(), and the property that matters: a future third condition on create(), a quota or a per-directory upload lock, cannot drift away from Replace without someone noticing. replace() carries two refusals, not one, and they are about different things. A cascade-trashed DIRECTORY is refused for the reason view()/update()/move()/legalHold() refuse it. A trashed FILE is refused because StoreFileVersion looks files up through the default non-trashed query, so for a trashed file it would create a fresh file under the same name -- StoreFileVersionTest already proves that is the action's designed behaviour -- and a later RestoreFile would then collide on that name, leaving the trashed original permanently unrestorable. The better fix is structural and is deliberately not taken here: a StoreFileVersion::replace() entry point would make the create path unreachable by type rather than by which string the caller passes. It is filed as issue 115 and blocked on issue 106, because restructuring the seam every upload crosses while a silent-discard bug inside that seam is unexplained would make that bug harder to find, not easier.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface",
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/files-versions-replace",
+        "item/files-actions-ui"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0023",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T21:15:00Z",
+      "run": "run/0015",
+      "name": "A smoke mutation is read in both directions, because a check can fail for reasons of its own",
+      "rationale": "decision/0012 established that a smoke assertion is worth only what a mutation says it is, and described the procedure as pushing a branch with the feature broken and reading the image job. That describes half of a proof. The replace check was written with a checksum triple as its stated evidence and a rendered-row count its own docblock called subordinate. The mutated image failed on the row count and never reached a checksum -- and the correct build failed there too, identically, both timing out on the same selector. A check that fails in both directions proves nothing at all, and this one was minutes from being recorded as evidence with a run URL attached. mutation-check.php has asserted both directions for suite guards since it was written, precisely because a test that fails either way is just broken; the smoke procedure inherited only the failing half, and nothing in the loop compared the two. The cause here was mundane and already known: straight after an upload the main form's file input still displays the chosen filename, so the page carries that text twice and getByText() does not reliably land on the listing's link, so selectFile() never fires and there is no version list to wait for. Issue 107 recorded that same behaviour fooling an upload assertion, and checkTrashRemovesFileFromListingAndSearch() re-navigates before selecting for exactly this reason. Two things follow and both are now in the check. The mutation record names BOTH runs, the passing build and the failing one, because either alone is the same mistake. And the check was reordered so the evidence claimed to be load-bearing is the evidence that fires: it polls the database and reports the checksum triple before touching the DOM, so the mutation names its symptom -- \"replace did not update the document's own current version checksum\" -- instead of timing out on a selector, while the rendered-row assertion survives as its own separate claim about the image. That ordering is run 0014's topbar lesson applied before the fact rather than after it.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/container-smoke-ci",
+        "item/files-versions-replace"
       ],
       "supersedes": null
     }
