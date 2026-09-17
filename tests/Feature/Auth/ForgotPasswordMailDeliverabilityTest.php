@@ -98,18 +98,25 @@ it('leaves the forgot-password flow unaffected when a real mailer is configured'
     // RegistrationTest and AuthenticationTest already rely on for Fortify's
     // stock validation-style failure responses) restored untouched, not a
     // specific status code this repo has no source available to confirm.
-    $forRealAccount = $this->post(route('password.email'), ['email' => $user->email]);
-    $forNoAccount = $this->post(route('password.email'), ['email' => 'definitely-not-a-real-account@example.test']);
-
+    // Each response is asserted BEFORE the next request is made. Laravel's
+    // session assertions read the live session store rather than a snapshot
+    // taken when the response was created, so making both posts first and
+    // asserting afterwards checks the second request's session twice --
+    // which is how this test first failed, reading "We can't find a user"
+    // out of the no-account request while asserting about the real one.
+    //
     // With a real mailer configured the two branches are NOT expected to
-    // agree any more -- Fortify's stock behaviour (whatever it already
-    // reveals or does not reveal) is restored untouched. This is the
-    // contrast case for the tests above: same two inputs, opposite outcome,
-    // once the mailer stops being the reason to hide the difference.
-    $forRealAccount->assertSessionHasNoErrors();
+    // agree any more: Fortify's stock behaviour is restored untouched. This
+    // is the contrast case for the tests above -- same two inputs, opposite
+    // outcome, once the mailer stops being the reason to hide the
+    // difference.
+    $this->post(route('password.email'), ['email' => $user->email])
+        ->assertSessionHasNoErrors();
+
     expect(session('status'))
         ->not->toBeNull()
         ->not->toContain('Mail is not configured');
 
-    $forNoAccount->assertSessionHasErrors('email');
+    $this->post(route('password.email'), ['email' => 'definitely-not-a-real-account@example.test'])
+        ->assertSessionHasErrors('email');
 });
