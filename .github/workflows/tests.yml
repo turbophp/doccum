@@ -433,6 +433,11 @@ jobs:
             echo "SMOKE_ADMIN_PASSWORD=Doccum-Smoke-${RUN_ID}!Aa9"
             echo "SMOKE_FILE_NAME=smoke-${RUN_ID}.txt"
             echo "SMOKE_FILE_MARKER=smokeword${DIGITS}"
+            # A host that is obviously not the one curl/tinker actually
+            # connect to (127.0.0.1:8080) -- if it shows up in a response
+            # or a generated URL, that can only be because X-Forwarded-Host
+            # was honoured, not because it was already there.
+            echo "SMOKE_FORWARDED_HOST=smoke-proxy-${DIGITS}.invalid"
           } >> "$GITHUB_ENV"
 
       - name: Install Playwright (smoke-test driver only, not a project dependency)
@@ -453,7 +458,50 @@ jobs:
           # Queue::fake(), so it gets real headroom rather than a tight poll.
           EXTRACTION_TIMEOUT_MS: '60000'
           SEARCH_TIMEOUT_MS: '20000'
+          # Set by "Generate smoke test fixtures" above via GITHUB_ENV; named
+          # here too so it is obvious this step (specifically the forwarded
+          # password-reset URL check added for item/reverse-proxy-ready)
+          # depends on it.
+          SMOKE_FORWARDED_HOST: ${{ env.SMOKE_FORWARDED_HOST }}
         run: node .github/scripts/container-smoke.mjs setup
+
+      # item/reverse-proxy-ready (issue #58): TRUSTED_PROXIES and the
+      # APP_URL-unset fallback (bootstrap/app.php, ForceRootUrlFromRequest)
+      # only matter once something actually sits in front of this container
+      # rewriting scheme and host -- so this sends the same headers a real
+      # Caddy/nginx/Traefik would and checks the rendered page came out
+      # https:// on the forwarded host, not http:// on 127.0.0.1:8080.
+      #
+      # Plain curl, no Playwright: this only needs the raw HTML doccum's own
+      # server rendered, and Playwright cannot reliably set Host-class
+      # headers on a top-level navigation. The container has a real user by
+      # now (the previous step's installer run), so /login renders the form
+      # instead of redirecting to /setup.
+      - name: Verify X-Forwarded-Proto/-Host are honoured (login form + assets)
+        timeout-minutes: 2
+        run: |
+          set -e
+
+          body="$(curl -sS --max-time 10 \
+            -H "X-Forwarded-Proto: https" \
+            -H "X-Forwarded-Host: ${SMOKE_FORWARDED_HOST}" \
+            http://127.0.0.1:8080/login)"
+
+          if ! echo "$body" | grep -qF "action=\"https://${SMOKE_FORWARDED_HOST}/login\""; then
+            echo "::error::login form action did not honour X-Forwarded-Proto/-Host"
+            echo "--- action attributes found ---"
+            echo "$body" | grep -o 'action="[^"]*"' || true
+            exit 1
+          fi
+          echo "login form action is https on the forwarded host -- OK"
+
+          if ! echo "$body" | grep -qE "(src|href)=\"https://${SMOKE_FORWARDED_HOST}/build/"; then
+            echo "::error::no asset URL on the login page honoured X-Forwarded-Proto/-Host"
+            echo "--- build/ references found ---"
+            echo "$body" | grep -oE '(src|href)="[^"]*build/[^"]*"' || true
+            exit 1
+          fi
+          echo "at least one asset URL is https on the forwarded host -- OK"
 
       # `storage/` does not survive a rebuild, but this is a restart of the
       # SAME container against the SAME named volume, not a rebuild -- the
