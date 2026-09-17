@@ -97,7 +97,11 @@ function dumpContainerState(reason) {
   try {
     console.error('\n--- supervisorctl status (queue workers) ---');
     console.error(
-      execFileSync('docker', ['exec', CONTAINER_NAME, 'supervisorctl', 'status'], { encoding: 'utf8' }),
+      // -c matters: supervisord runs with this config (see the image's CMD),
+      // and without it supervisorctl looks for a socket at a default path that
+      // does not exist here, so the diagnostic reported nothing on the one
+      // run where it was needed.
+      execFileSync('docker', ['exec', CONTAINER_NAME, 'supervisorctl', '-c', '/etc/supervisor/conf.d/doccum.conf', 'status'], { encoding: 'utf8' }),
     );
   } catch (e) {
     console.error(`(could not fetch supervisorctl status: ${e.message})`);
@@ -159,6 +163,45 @@ async function waitForExtraction() {
   throw err;
 }
 
+// Searching once and waiting is not enough, and the reason is worth knowing.
+// ExtractText writes file_texts.status = done and only THEN dispatches
+// ReindexSearchDocument as a separate queued job (app/Jobs/ExtractText.php),
+// so "extraction finished" genuinely precedes "findable". The default queue
+// worker runs without --sleep (docker/supervisor/doccum.conf), which means
+// Laravel's 3-second idle poll: an upload can sit unindexed for a few seconds
+// after its status flips.
+//
+// The search page has no wire:poll, so a page that rendered "no results"
+// stays that way forever -- the first run failed against a 20s timeout that
+// could never have expired usefully, because nothing was going to re-render.
+// Refilling the same value does not retrigger Livewire's debounced
+// wire:model.live either, hence clearing first to force a fresh request.
+//
+// This still asserts the document becomes findable. It just stops assuming
+// that happens synchronously.
+async function searchUntilFound(page, phase) {
+  const deadline = Date.now() + SEARCH_TIMEOUT_MS;
+  const field = page.getByLabel('Search', { exact: true });
+
+  while (Date.now() < deadline) {
+    await field.fill('');
+    await field.fill(FILE_MARKER);
+
+    const found = await page
+      .getByText(FILE_NAME, { exact: true })
+      .waitFor({ timeout: 2000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (found) {
+      return;
+    }
+  }
+
+  dumpContainerState(`[${phase}] search never found ${FILE_NAME} within ${SEARCH_TIMEOUT_MS}ms`);
+  throw Object.assign(new Error(`search timed out for ${FILE_NAME}`), { dumped: true });
+}
+
 async function runSetup() {
   const browser = await chromium.launch();
   try {
@@ -218,8 +261,7 @@ async function runSetup() {
 
     console.log('[setup] searching for the document by a word inside it');
     await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
-    await page.getByLabel('Search', { exact: true }).fill(FILE_MARKER);
-    await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: SEARCH_TIMEOUT_MS });
+    await searchUntilFound(page, 'setup');
     console.log('[setup] search found the uploaded document -- OK');
   } finally {
     await browser.close();
@@ -251,8 +293,7 @@ async function runVerify() {
     console.log('[verify] the uploaded file is still listed -- object storage persisted');
 
     await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
-    await page.getByLabel('Search', { exact: true }).fill(FILE_MARKER);
-    await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: SEARCH_TIMEOUT_MS });
+    await searchUntilFound(page, 'verify');
     console.log('[verify] search still finds it -- the search index persisted -- OK');
   } finally {
     await browser.close();

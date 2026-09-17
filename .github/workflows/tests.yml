@@ -494,4 +494,4 @@ jobs:
           echo "--- docker ps -a ---"
           docker ps -a || true
           echo "--- supervisorctl status ---"
-          docker exec doccum-smoke supervisorctl status || true
+          docker exec doccum-smoke supervisorctl -c /etc/supervisor/conf.d/doccum.conf status || true
