@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T11:20:00Z",
-  "latestRun": "run/0008",
+  "dateModified": "2026-09-17T11:55:00Z",
+  "latestRun": "run/0009",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -215,10 +215,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "A SchemaPortabilityTest runs on all six legs: it computes each index key width against utf8mb4 worst case and asserts it fits InnoDB 3072 and PostgreSQL 2704 or is an explicitly listed driver-conditional expression; it round-trips a maximum-length 4-byte-character value through every indexed varchar, shown failing on pgsql for properties.value_string first; every foreign key column has an index leading with that column; a checked-in inventory names every raw-SQL or collation-dependent site and the test fails when one is not registered; every column compared against user input for equality or uniqueness is listed with its folding rule.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T11:24:00Z",
+      "endTime": "2026-09-17T11:53:08Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/66"
+      ]
     },
     {
       "@id": "item/pgsql-value-string-index",
@@ -241,9 +243,29 @@
       "result": []
     },
     {
-      "@id": "item/email-folding",
+      "@id": "item/fk-index-coverage",
       "@type": "Action",
       "order": 12,
+      "name": "Every foreign key column keeps an index outside MySQL too",
+      "url": "https://github.com/turbophp/doccum/issues/65",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/schema-query-audit"
+      ],
+      "doneWhen": "Each of the six uncovered foreign key columns has an index leading with that column or a recorded reason it does not need one; the corresponding entries are removed from SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS so the audit asserts the rule rather than recording the exception; any new index is created before one it supersedes is dropped, per decision/0008.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/email-folding",
+      "@type": "Action",
+      "order": 13,
       "name": "One email-comparison rule all three drivers agree on",
       "url": "https://github.com/turbophp/doccum/issues/59",
       "isBasedOn": [
@@ -261,7 +283,7 @@
     {
       "@id": "item/reverse-proxy-ready",
       "@type": "Action",
-      "order": 13,
+      "order": 14,
       "name": "Serve correct URLs from behind a TLS-terminating proxy",
       "url": "https://github.com/turbophp/doccum/issues/58",
       "isBasedOn": [
@@ -279,7 +301,7 @@
     {
       "@id": "item/user-reset-password-command",
       "@type": "Action",
-      "order": 14,
+      "order": 15,
       "name": "A locked-out admin can get back in",
       "url": "https://github.com/turbophp/doccum/issues/61",
       "isBasedOn": [
@@ -297,7 +319,7 @@
     {
       "@id": "item/extract-text-flake",
       "@type": "Action",
-      "order": 15,
+      "order": 16,
       "name": "Extraction does not fail terminally on a transient read",
       "url": "https://github.com/turbophp/doccum/issues/57",
       "isBasedOn": [
@@ -315,7 +337,7 @@
     {
       "@id": "item/file-policy-null-directory",
       "@type": "Action",
-      "order": 16,
+      "order": 17,
       "name": "FilePolicy survives a file whose directory was cascade-trashed",
       "url": "https://github.com/turbophp/doccum/issues/62",
       "isBasedOn": [
@@ -335,7 +357,7 @@
     {
       "@id": "item/trash-purge-manual",
       "@type": "Action",
-      "order": 17,
+      "order": 18,
       "name": "Permanently delete one trashed item",
       "url": "https://github.com/turbophp/doccum/issues/11",
       "isBasedOn": [
@@ -355,7 +377,7 @@
     {
       "@id": "item/topbar-shell",
       "@type": "Action",
-      "order": 18,
+      "order": 19,
       "name": "Replace the starter sidebar with the doccum topbar shell",
       "url": "https://github.com/turbophp/doccum/issues/12",
       "isBasedOn": [
@@ -377,7 +399,7 @@
     {
       "@id": "item/files-three-pane",
       "@type": "Action",
-      "order": 19,
+      "order": 20,
       "name": "Three-pane file browser: tree, list, detail panel",
       "url": "https://github.com/turbophp/doccum/issues/13",
       "isBasedOn": [
@@ -400,7 +422,7 @@
     {
       "@id": "item/directory-access-ui",
       "@type": "Action",
-      "order": 20,
+      "order": 21,
       "name": "Grant and revoke directory access from the UI",
       "url": "https://github.com/turbophp/doccum/issues/14",
       "isBasedOn": [
@@ -420,7 +442,7 @@
     {
       "@id": "item/trash-view",
       "@type": "Action",
-      "order": 21,
+      "order": 22,
       "name": "A Trash page with restore and purge",
       "url": "https://github.com/turbophp/doccum/issues/15",
       "isBasedOn": [
@@ -442,7 +464,7 @@
     {
       "@id": "item/home-dashboard",
       "@type": "Action",
-      "order": 22,
+      "order": 23,
       "name": "Home dashboard: recents, storage by period, quick search",
       "url": "https://github.com/turbophp/doccum/issues/16",
       "isBasedOn": [
@@ -462,7 +484,7 @@
     {
       "@id": "item/search-filters",
       "@type": "Action",
-      "order": 23,
+      "order": 24,
       "name": "Type, mime, period and property filters on search",
       "url": "https://github.com/turbophp/doccum/issues/17",
       "isBasedOn": [
@@ -482,7 +504,7 @@
     {
       "@id": "item/admin-users",
       "@type": "Action",
-      "order": 24,
+      "order": 25,
       "name": "Settings: users",
       "url": "https://github.com/turbophp/doccum/issues/18",
       "isBasedOn": [
@@ -502,7 +524,7 @@
     {
       "@id": "item/admin-roles",
       "@type": "Action",
-      "order": 25,
+      "order": 26,
       "name": "Settings: roles and their permission matrix",
       "url": "https://github.com/turbophp/doccum/issues/19",
       "isBasedOn": [
@@ -522,7 +544,7 @@
     {
       "@id": "item/admin-periods",
       "@type": "Action",
-      "order": 26,
+      "order": 27,
       "name": "Settings: periods, closing, purge plan and purge",
       "url": "https://github.com/turbophp/doccum/issues/20",
       "isBasedOn": [
@@ -543,7 +565,7 @@
     {
       "@id": "item/admin-instance-settings",
       "@type": "Action",
-      "order": 27,
+      "order": 28,
       "name": "Settings: instance name, signup, retention, limits",
       "url": "https://github.com/turbophp/doccum/issues/21",
       "isBasedOn": [
@@ -563,7 +585,7 @@
     {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
-      "order": 28,
+      "order": 29,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -583,7 +605,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 29,
+      "order": 30,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -606,7 +628,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 30,
+      "order": 31,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -626,7 +648,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 31,
+      "order": 32,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -646,7 +668,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 32,
+      "order": 33,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -667,7 +689,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 33,
+      "order": 34,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -687,7 +709,7 @@
     {
       "@id": "item/compose-secret",
       "@type": "Action",
-      "order": 34,
+      "order": 35,
       "name": "Remove the known-value secret from compose.yaml",
       "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
@@ -705,7 +727,7 @@
     {
       "@id": "item/version-from-tag",
       "@type": "Action",
-      "order": 35,
+      "order": 36,
       "name": "The version pill reports the released tag",
       "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
@@ -723,7 +745,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 36,
+      "order": 37,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -741,7 +763,7 @@
     {
       "@id": "item/changelog-release-notes",
       "@type": "Action",
-      "order": 37,
+      "order": 38,
       "name": "A changelog that becomes the release notes",
       "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
@@ -759,7 +781,7 @@
     {
       "@id": "item/release-v0-1-0",
       "@type": "Action",
-      "order": 38,
+      "order": 39,
       "name": "Tag v0.1.0 to prove the release pipeline",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
@@ -781,7 +803,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 39,
+      "order": 40,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -803,7 +825,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 40,
+      "order": 41,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -834,7 +856,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 41,
+      "order": 42,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -1241,6 +1263,22 @@
       "mergedAt": "2026-09-17T11:18:20Z",
       "mergeSha": "38b4ba56199b4bad7f153584cf6270cb949f3ce9",
       "mergedIn": "run/0008"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/66",
+      "@type": "PullRequest",
+      "identifier": 66,
+      "name": "test: assert the semantics doccum relies on instead of inheriting them",
+      "implements": [
+        "item/schema-query-audit"
+      ],
+      "run": "run/0009",
+      "state": "merged",
+      "dateCreated": "2026-09-17T11:45:00Z",
+      "headSha": "7a77e9ebd7974f28c010724a82f0a26e7650571f",
+      "mergedAt": "2026-09-17T11:53:08Z",
+      "mergeSha": "f102df2672d1855e37e2c33a4993d9efb5166fec",
+      "mergedIn": "run/0009"
     }
   ],
   "decisions": [
