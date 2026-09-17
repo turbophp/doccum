@@ -22,6 +22,7 @@ use App\Models\Directory;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Services\DirectoryAccess;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -83,6 +84,53 @@ class Browser extends Component
 
     /** '' means "the root" -- MoveDirectory accepts a null destination, and a <select> option cannot carry null directly. */
     public string $moveDirectoryDestinationId = '';
+
+    /**
+     * The column a header click sorts by, resolved through SORTABLE below --
+     * NEVER interpolated into orderBy() directly, which is how an
+     * unwhitelisted column becomes SQL injection (issue #103's own note).
+     * An unknown value falls back to 'name'; see resolveSortColumn().
+     */
+    public string $sort = 'name';
+
+    /** An unknown value falls back to 'asc'; see resolveSortDirection(). */
+    public string $direction = 'asc';
+
+    /**
+     * Every id currently ticked in the files table, independent of which
+     * (if any) row's detail panel is open -- $selectedFile/$selectedDirectory
+     * above are about the property panel, this is about bulkTrash()'s
+     * target set. See selectRow() and bulkTrash().
+     *
+     * @var array<int, int>
+     */
+    public array $selectedIds = [];
+
+    /**
+     * The anchor for a shift-click range -- the id from the last PLAIN or
+     * ctrl click, deliberately left untouched BY a shift-click itself. See
+     * selectRow()'s docblock for why.
+     */
+    public ?int $lastClickedId = null;
+
+    /**
+     * Maps a sort key the view can pass to sortBy()/wire:click to the
+     * actual column orderBy() sees. This is the whitelist: resolveSortColumn()
+     * below is the only thing that may ever read it, and nothing else may
+     * hand a raw $sort value to the query builder.
+     *
+     * 'owner' orders by the joined users.name -- see the leftJoin in
+     * filesQuery() -- never by files.created_by, which would sort by
+     * whichever integer ids happened to be assigned rather than by name.
+     *
+     * @var array<string, string>
+     */
+    private const SORTABLE = [
+        'name' => 'files.name',
+        'owner' => 'users.name',
+        'modified' => 'files.updated_at',
+        'size' => 'files.size',
+    ];
 
     public function mount(?Directory $directory = null): void
     {
@@ -313,6 +361,158 @@ class Browser extends Component
         $this->selectedDirectory = null;
     }
 
+    /**
+     * A header cell click. A second click on the SAME column flips
+     * direction (the common "click again to reverse" convention); a click
+     * on a DIFFERENT column switches to it, always starting ascending --
+     * whatever the previous column's direction was carries no meaning for
+     * a column nothing has been sorted by yet.
+     *
+     * $column is not validated against SORTABLE here -- there is nothing to
+     * protect yet, since $sort is only ever turned into a query column
+     * inside filesQuery() via resolveSortColumn(), which is the one place
+     * that whitelist has to be enforced. An absurd value typed into
+     * ->set('sort', ...) directly (bypassing this method entirely, as the
+     * fallback test does) reaches that same resolution, so the guard lives
+     * there rather than being duplicated here too.
+     */
+    public function sortBy(string $column): void
+    {
+        if ($this->sort === $column) {
+            $this->direction = $this->direction === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sort = $column;
+            $this->direction = 'asc';
+        }
+    }
+
+    /**
+     * The row-click handler behind multi-select. Livewire's own wire:click
+     * has no access to the DOM event, so the Blade template drives this
+     * through Alpine instead, reading the real click's modifier keys and
+     * calling $wire.selectRow(id, $event.shiftKey, $event.ctrlKey ||
+     * $event.metaKey) -- see the table row in the view.
+     *
+     * - plain click: replace the selection with just this row.
+     * - ctrl/cmd-click: toggle this row, leaving the rest of the selection
+     *   alone.
+     * - shift-click: select the INCLUSIVE range between $lastClickedId (the
+     *   anchor) and this row, computed over the id list the query
+     *   currently produces -- i.e. in whatever order the table is
+     *   presently sorted, never raw id order. See rangeBetween().
+     *
+     * $lastClickedId is deliberately left unmoved by a shift-click itself
+     * -- only a plain or ctrl click ever moves the anchor -- so a second,
+     * further shift-click extends or shrinks the range from the ORIGINAL
+     * anchor, the same as a spreadsheet or file manager, rather than from
+     * wherever the previous shift-click happened to land.
+     */
+    public function selectRow(int $id, bool $shift, bool $ctrl): void
+    {
+        if ($shift && $this->lastClickedId !== null) {
+            $this->selectedIds = $this->rangeBetween($this->lastClickedId, $id);
+
+            return;
+        }
+
+        if ($ctrl) {
+            $this->selectedIds = in_array($id, $this->selectedIds, true)
+                ? array_values(array_diff($this->selectedIds, [$id]))
+                : [...$this->selectedIds, $id];
+        } else {
+            $this->selectedIds = [$id];
+        }
+
+        $this->lastClickedId = $id;
+    }
+
+    /**
+     * Bulk-trashes every currently selected file. This is the security core
+     * of this item (issue #103): CLAUDE.md is explicit that Actions never
+     * authorise -- TrashFile::handle() below trashes unconditionally, the
+     * same as it always has -- so THIS method is the only thing standing
+     * between a manipulated $selectedIds and every file in the instance
+     * being trashed by whoever can reach this component at all.
+     *
+     * Two passes, deliberately never merged into one loop:
+     *
+     * 1. Authorise EVERY selected file first, through FilePolicy::delete()
+     *    -- the same policy method, and the same two independent layers
+     *    (files.delete, directory_access), that trashFile() above already
+     *    uses for a single file. authorize() throws on the first refusal,
+     *    which is exactly the point: if even one id in the selection is
+     *    refused, execution never reaches pass 2 and NOTHING has been
+     *    trashed yet, for any of them. A single combined
+     *    authorise-then-trash loop would not give this guarantee -- it
+     *    would trash every id it happened to reach before the refused one,
+     *    then throw with those already gone.
+     * 2. Only once every one of them has cleared pass 1 does pass 2 trash
+     *    them.
+     *
+     * Resolved by id alone -- File::whereIn('id', ...), not additionally
+     * filtered by $this->directory -- on purpose. In ordinary use
+     * $selectedIds only ever contains ids selectRow() offered from the
+     * directory currently being rendered, so that filter would be
+     * redundant there; but FilePolicy::delete() already resolves and
+     * checks each file's OWN directory, whichever directory that
+     * genuinely is, so it is the authorisation pass above that has to
+     * answer for an id outside the browsed directory, not a second,
+     * narrower query here quietly excluding it beforehand and making the
+     * authorize() call look load-bearing when it was never reached.
+     */
+    public function bulkTrash(TrashFile $action): void
+    {
+        abort_if($this->directory === null, 404);
+
+        // Scoped to the directory being browsed, exactly as selectFile()
+        // scopes its own lookup and for the same reason: $selectedIds
+        // arrives from the client, and the listing this component renders
+        // only ever contains files from this directory, so an id from
+        // anywhere else did not come from the UI.
+        $files = File::query()
+            ->where('directory_id', $this->directory->getKey())
+            ->whereIn('id', $this->selectedIds)
+            ->get();
+
+        // Every selected id must resolve, or nothing happens at all.
+        // Without this, an id that resolves to nothing -- crafted, or a file
+        // someone else trashed or moved since the listing rendered -- is
+        // silently dropped by whereIn(), and the method trashes a SUBSET of
+        // the selection while reporting success. "Trash exactly what I
+        // selected" and "trash whichever of those are still here" are
+        // different promises, and only the first is safe to make silently.
+        abort_if($files->count() !== count(array_unique($this->selectedIds)), 404);
+
+        // Two passes, deliberately. Authorising and trashing in a single
+        // loop would leave every file before the refusal already trashed,
+        // which satisfies "trashes nothing if any one is refused" in wording
+        // only.
+        //
+        // What that structure can and cannot be shown to do is worth stating
+        // plainly, because the mutation entry deliberately claims less than
+        // the backlog item's wording does. FilePolicy::delete() is
+        // files.delete -- a global permission -- plus
+        // DirectoryAccess::can(Edit) on the file's directory, and nothing
+        // per-file. Every file resolved above is in the SAME directory, so
+        // delete() answers identically for all of them: the refusal is
+        // all-or-nothing today, and a case where exactly one of several is
+        // refused cannot be constructed. The two passes are therefore
+        // defensive rather than demonstrable, and worth keeping for when
+        // delete() grows a per-file condition -- PurgeFile already refuses a
+        // file under legal hold and trash plausibly should too. The mutation
+        // entry claims only what is provable: delete the authorize pass and
+        // a viewer holding view alone trashes every file in the directory.
+        foreach ($files as $file) {
+            $this->authorize('delete', $file);
+        }
+
+        foreach ($files as $file) {
+            $action->handle($file);
+        }
+
+        $this->selectedIds = [];
+    }
+
     public function render()
     {
         $access = app(DirectoryAccess::class);
@@ -326,12 +526,15 @@ class Browser extends Component
                 ->whereIn('id', $viewable)
                 ->orderBy('name')
                 ->get(),
+            // filesQuery() carries the join + whitelisted orderBy this
+            // listing sorts by; ->with('creator') alongside it eager-loads
+            // the owner column so the view never queries per row -- the
+            // leftJoin filesQuery() applies exists to sort by it, not to
+            // fetch it, which is why this is a SEPARATE eager load rather
+            // than reading $item->created_by off the joined row.
             'files' => $this->directory === null
                 ? collect()
-                : File::query()
-                    ->where('directory_id', $this->directory->getKey())
-                    ->orderBy('name')
-                    ->get(),
+                : $this->filesQuery()->with('creator')->get(),
             // Both destination lists are built from $viewable -- resolved by
             // DirectoryAccess::viewableDirectoryIds() above and applied with
             // whereIn() right here in the query -- never filtered down in the
@@ -380,5 +583,125 @@ class Browser extends Component
             ->get()
             ->filter(fn (Directory $candidate): bool => $access->can($user, $candidate, AccessLevel::Edit))
             ->values();
+    }
+
+    /**
+     * The files table's query: the currently browsed directory, sorted by
+     * the whitelisted column resolveSortColumn() resolves $sort to. Callers
+     * decide what to eager-load and how many rows to take.
+     *
+     * The leftJoin is applied UNCONDITIONALLY, not only when sorting by
+     * owner: render() always renders an owner column regardless of $sort,
+     * this is the one query both render() and rangeBetween()/sortedFileIds()
+     * below share, and branching its shape by $sort would mean two
+     * different id orderings existing in the codebase for the "same"
+     * query. ->select('files.*') is what keeps that join from leaking
+     * users.id/users.name into the hydrated File models -- without it a
+     * File whose creator shares no columns with `users` would still come
+     * out fine, but here every file's creator is a real row, so the
+     * join's columns silently win and $item->id becomes the OWNER's id.
+     *
+     * @return Builder<File>
+     */
+    private function filesQuery(): Builder
+    {
+        abort_if($this->directory === null, 404);
+
+        return File::query()
+            ->leftJoin('users', 'files.created_by', '=', 'users.id')
+            ->where('files.directory_id', $this->directory->getKey())
+            ->select('files.*')
+            ->orderBy($this->resolveSortColumn(), $this->resolveSortDirection());
+    }
+
+    /**
+     * $sort resolved against the SORTABLE whitelist, falling back to
+     * 'name' for anything that is not one of its keys -- including a value
+     * set directly (bypassing sortBy() entirely, which is how the
+     * fallback test proves this rather than sortBy()'s own behaviour).
+     * This, not sortBy(), is the ONE place a column reaches orderBy(), so
+     * it is the one place that has to enforce the whitelist.
+     */
+    private function resolveSortColumn(): string
+    {
+        return self::SORTABLE[$this->sort] ?? self::SORTABLE['name'];
+    }
+
+    /** $direction resolved to a literal 'asc'/'desc', falling back to 'asc' for anything else. */
+    /**
+     * Narrowed to the two literals rather than plain string, because
+     * Builder::orderBy() is typed 'asc'|'desc'|SortDirection and a bare
+     * string is not assignable to it. The annotation is not decoration: it
+     * is the type this method has always actually returned, and writing it
+     * down is what lets phpstan check the call site instead of adding
+     * another entry to the baseline.
+     *
+     * @return 'asc'|'desc'
+     */
+    private function resolveSortDirection(): string
+    {
+        return $this->direction === 'desc' ? 'desc' : 'asc';
+    }
+
+    /**
+     * Every file id in the directory currently being browsed, in the
+     * CURRENT sort order -- the order selectRow()'s shift-range is defined
+     * over. Deliberately re-derived from filesQuery() rather than reusing
+     * whatever $files render() last handed the view: that Collection is
+     * built once per request and this can be called from selectRow(),
+     * a wholly separate Livewire action call with no render() in between.
+     *
+     * @return array<int, int>
+     */
+    private function sortedFileIds(): array
+    {
+        if ($this->directory === null) {
+            return [];
+        }
+
+        // Cast explicitly rather than trust pluck() to hand back int: it
+        // reads the raw column through the query builder, not through
+        // Eloquent's own attribute casting, so what a driver returns for an
+        // integer column is the driver's choice, not this model's.
+        return $this->filesQuery()
+            ->pluck('files.id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
+    }
+
+    /**
+     * The inclusive range between the shift-click anchor and the row just
+     * clicked, computed over sortedFileIds() -- i.e. over the id list in
+     * whatever order the table is PRESENTLY sorted, never over the two
+     * ids' own numeric values. A range computed from min($anchorId,
+     * $targetId) to max($anchorId, $targetId) would silently be correct
+     * only by coincidence whenever sort order and id order happen to
+     * agree, and wrong the moment they do not -- which is exactly what
+     * FileBrowserListTest's shift-range test sorts descending to prove.
+     *
+     * If either endpoint is no longer part of the current listing (moved,
+     * trashed, or simply stale after a sort or directory change since
+     * $lastClickedId was set), this falls back to selecting just the row
+     * that was actually clicked rather than guessing at a range that no
+     * longer means anything.
+     *
+     * @return array<int, int>
+     */
+    private function rangeBetween(int $anchorId, int $targetId): array
+    {
+        $ids = $this->sortedFileIds();
+
+        $anchorIndex = array_search($anchorId, $ids, true);
+        $targetIndex = array_search($targetId, $ids, true);
+
+        if ($anchorIndex === false || $targetIndex === false) {
+            return [$targetId];
+        }
+
+        [$start, $end] = $anchorIndex <= $targetIndex
+            ? [$anchorIndex, $targetIndex]
+            : [$targetIndex, $anchorIndex];
+
+        return array_slice($ids, $start, $end - $start + 1);
     }
 }

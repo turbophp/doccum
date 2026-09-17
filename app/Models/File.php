@@ -98,6 +98,20 @@ class File extends Model
         return $this->belongsTo(Directory::class);
     }
 
+    /**
+     * The user who created this file -- its OWNER, in the listing's sense.
+     * Mirrors FileVersion::uploader() (created_by -> users, uploaded_by ->
+     * users): both are foreign keys nothing before this item turned into a
+     * relation, so a caller reached for the raw integer instead. See
+     * app/Livewire/Files/Browser.php's owner column.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     /** @return MorphMany<Property, $this> */
     public function properties(): MorphMany
     {
