@@ -979,10 +979,6 @@ async function checkReplaceAddsASecondVersion(page, phase) {
 
   const replacementPath = path.join(os.tmpdir(), replacementFileName);
   fs.writeFileSync(replacementPath, replacementBody);
-  await replaceInput.setInputFiles(replacementPath);
-
-  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-  await page.locator('[data-test="replace-file-button"]').click();
 
   const expectedV2Checksum = crypto.createHash('sha256').update(replacementBody).digest('hex');
   const expectedV1Checksum = crypto.createHash('sha256').update(originalBody).digest('hex');
@@ -1010,16 +1006,52 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   // went unproven. That is decision/0012's lesson repeating: which half is
   // load-bearing is not something to reason about, only to measure.
   //
-  // So the wait is now a poll on the rows themselves, and its failure path
+  // So the wait is a poll on the rows themselves, and its failure path
   // carries all three pieces of evidence. On the create-path mutation this
   // reports "a File row named DoccumSmokeReplacement.txt exists" rather than
   // a selector timeout -- the symptom named, not merely detected.
-  const replaceDeadline = Date.now() + REPLACE_TIMEOUT_MS;
-  let output = tinker(php);
+  //
+  // THE INTERACTION IS RETRIED, not just polled, and that distinction is the
+  // whole point. uploadAndProveStored() retries its upload three times
+  // because of issue #106 -- an upload issued soon after navigation is
+  // silently discarded, with no request and no error, roughly one attempt in
+  // two. Replace posts through the same Livewire upload path and is subject
+  // to the same bug, but the first version of this check set the file and
+  // clicked exactly ONCE and then polled. Polling cannot rescue a click
+  // whose upload was discarded: there is nothing in flight to wait for, so
+  // it spent the whole window waiting for something that was never coming
+  // and then reported "replace did not update the document's own current
+  // version checksum" -- which reads like a product failure and was not one.
+  //
+  // That is not hypothetical. It went red exactly this way on a LEDGER-ONLY
+  // pull request, whose diff was two .jsonld files and could not have
+  // touched the container at all. A check that fails on a diff it cannot
+  // possibly be affected by is a check that will be believed when it should
+  // not be, and disbelieved when it should be.
+  let output = '';
+  let landed = false;
 
-  while (Date.now() < replaceDeadline && Number(/MAX_VERSION:(\d+)/.exec(output)?.[1] ?? '0') < 2) {
-    await sleep(POLL_INTERVAL_MS);
+  for (let attempt = 1; attempt <= 3 && ! landed; attempt += 1) {
+    await replaceInput.setInputFiles(replacementPath);
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    await page.locator('[data-test="replace-file-button"]').click();
+
+    const replaceDeadline = Date.now() + REPLACE_TIMEOUT_MS;
     output = tinker(php);
+
+    while (Date.now() < replaceDeadline && Number(/MAX_VERSION:(\d+)/.exec(output)?.[1] ?? '0') < 2) {
+      await sleep(POLL_INTERVAL_MS);
+      output = tinker(php);
+    }
+
+    landed = Number(/MAX_VERSION:(\d+)/.exec(output)?.[1] ?? '0') >= 2;
+
+    if (landed) {
+      console.log(`[${phase}] the replacement landed a second version (attempt ${attempt})`);
+    } else {
+      console.log(`[${phase}] attempt ${attempt} left ${VERSIONS_CHECK_FILE_NAME} on one version -- retrying, see issue #106`);
+      await sleep(2000);
+    }
   }
 
   if (/FILE:no/.test(output)) {
