@@ -59,6 +59,12 @@ const EXTRACTION_TIMEOUT_MS = Number(env('EXTRACTION_TIMEOUT_MS', '60000'));
 const POLL_INTERVAL_MS = Number(env('POLL_INTERVAL_MS', '2000'));
 const SEARCH_TIMEOUT_MS = Number(env('SEARCH_TIMEOUT_MS', '20000'));
 
+// Only used by checkForwardedPasswordResetUrl() below (item/reverse-proxy-ready,
+// issue #58), which only the 'setup' phase calls -- read with a fallback here
+// so the 'verify' phase (whose step sets no such env var at all) never trips
+// env()'s "missing required variable" check just by loading this module.
+const SMOKE_FORWARDED_HOST = env('SMOKE_FORWARDED_HOST', '');
+
 const phase = process.argv[2];
 if (phase !== 'setup' && phase !== 'verify') {
   console.error('Usage: node container-smoke.mjs <setup|verify>');
@@ -202,6 +208,65 @@ async function searchUntilFound(page, phase) {
   throw Object.assign(new Error(`search timed out for ${FILE_NAME}`), { dumped: true });
 }
 
+// item/reverse-proxy-ready (issue #58): proves bootstrap/app.php's
+// TRUSTED_PROXIES default and ForceRootUrlFromRequest reach all the way to a
+// password-reset link, not just a page rendered straight to a browser (the
+// curl-based check in the workflow step covers that one).
+//
+// tinker() has no incoming HTTP request at all, so a plain `route(...)` call
+// there would just fall back to config('app.url') regardless of whether
+// TRUSTED_PROXIES or APP_URL are wired up correctly -- CLAUDE.md's mutation
+// check for a security guard applies just as well to a done-when assertion:
+// one that would pass even with the fix reverted is worse than none, because
+// it looks like coverage. So this dispatches one synthetic request through
+// the app's *real* HTTP kernel first -- the same TrustProxies configuration
+// and the same ForceRootUrlFromRequest middleware a real reverse-proxied
+// request goes through -- then generates the password-reset URL immediately
+// afterwards, in the same PHP process, while the 'url' generator still has
+// that request's trusted, forwarded scheme and host. Symfony's TrustProxies
+// match is by REMOTE_ADDR, not by which route was requested, so it does not
+// matter that the dispatched request targets /login rather than
+// /forgot-password.
+//
+// If TRUSTED_PROXIES were not honoured, or APP_URL were not falling back to
+// the request, this produces http://ignored.invalid/... instead: it fails
+// without either fix landed, it does not just pass by construction.
+function checkForwardedPasswordResetUrl() {
+  if (!SMOKE_FORWARDED_HOST) {
+    throw new Error('SMOKE_FORWARDED_HOST is required for checkForwardedPasswordResetUrl()');
+  }
+
+  const php = [
+    '$kernel = app(\\Illuminate\\Contracts\\Http\\Kernel::class);',
+    "$request = \\Illuminate\\Http\\Request::create('http://ignored.invalid/login', 'GET');",
+    "$request->server->set('REMOTE_ADDR', '127.0.0.1');",
+    "$request->headers->set('X-Forwarded-Proto', 'https');",
+    `$request->headers->set('X-Forwarded-Host', '${SMOKE_FORWARDED_HOST}');`,
+    '$kernel->handle($request);',
+    "echo 'RESET_URL:' . route('password.reset', ['token' => 'smoke-token', 'email' => 'smoke@example.test']);",
+  ].join(' ');
+
+  const output = tinker(php);
+  const match = /RESET_URL:(\S+)/.exec(output);
+
+  if (!match) {
+    dumpContainerState(`tinker produced no password-reset URL -- raw output: ${output}`);
+    throw Object.assign(new Error('tinker produced no RESET_URL'), { dumped: true });
+  }
+
+  const url = match[1];
+  const expectedPrefix = `https://${SMOKE_FORWARDED_HOST}/`;
+
+  if (!url.startsWith(expectedPrefix)) {
+    dumpContainerState(
+      `password-reset URL "${url}" did not honour X-Forwarded-Proto/-Host (expected it to start with ${expectedPrefix})`,
+    );
+    throw Object.assign(new Error(`password-reset URL is not https on the forwarded host: ${url}`), { dumped: true });
+  }
+
+  console.log(`[setup] generated password-reset URL honours the forwarded host -- ${url}`);
+}
+
 async function runSetup() {
   const browser = await chromium.launch();
   try {
@@ -263,6 +328,9 @@ async function runSetup() {
     await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
     await searchUntilFound(page, 'setup');
     console.log('[setup] search found the uploaded document -- OK');
+
+    console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
+    checkForwardedPasswordResetUrl();
   } finally {
     await browser.close();
   }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Http\Middleware\ForceRootUrlFromRequest;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
@@ -56,6 +57,15 @@ class DoccumServiceProvider extends ServiceProvider
         // every `app(ProcessRunner::class)` resolved afterwards, including
         // the one inside the extraction strategy under test.
         $this->app->singleton(ProcessRunner::class);
+
+        // Not a singleton: middleware is resolved fresh per request, and
+        // this reads the raw environment at that moment, not once at boot,
+        // so it can never be the stale value from whichever request booted
+        // the process. See ForceRootUrlFromRequest's own docblock for why
+        // that matters.
+        $this->app->bind(ForceRootUrlFromRequest::class, static fn (): ForceRootUrlFromRequest => new ForceRootUrlFromRequest(
+            appUrlIsUnset: env('APP_URL') === null,
+        ));
     }
 
     public function boot(): void
