@@ -1087,6 +1087,161 @@ async function checkReplaceAddsASecondVersion(page, phase) {
 }
 
 /**
+ * Clicks a files-table row identified by its exact filename, through the
+ * OWNER column's plain <td> rather than the name link. The name link ALSO
+ * calls wire:click="selectFile(...)" (see the Blade template's comment on
+ * this row) -- harmless, but unrelated to what any caller of this helper is
+ * proving, and clicking a plain cell keeps every call here about exactly
+ * one thing: the row's Alpine click handler, x-on:click="$wire.selectRow(...)".
+ *
+ * Optionally applies Shift/Control so the click Playwright dispatches
+ * carries the modifier keys that handler reads
+ * ($event.shiftKey, $event.ctrlKey || $event.metaKey) -- neither of which a
+ * Livewire test-renderer ->call('selectRow', ...) can exercise, only an
+ * actual browser click. This is the reason checkBulkTrashLeavesUnselectedFilesAlone()
+ * below drives the UI at all rather than calling the component method
+ * directly the way tests/Feature/FileBrowserListTest.php does.
+ */
+async function clickFileRow(page, name, { shift = false, ctrl = false } = {}) {
+  const row = page.locator('tr[data-test="file-row"]').filter({ hasText: name });
+  await row.waitFor({ state: 'visible', timeout: 10000 });
+
+  const modifiers = [];
+  if (shift) modifiers.push('Shift');
+  if (ctrl) modifiers.push('Control');
+
+  // The row's own checkbox, not a cell: a cell click lands wherever the
+  // bounding box happens to centre, which can be the name link, and the
+  // checkbox is the control a real operator uses to multi-select anyway.
+  // It carries .stop, so exactly one selectRow() call leaves the browser.
+  await row.locator('[data-test="file-row-checkbox"]').click({ modifiers });
+}
+
+/**
+ * item/files-list-sort-select (issue #103): drives the files table's
+ * multi-select and bulk-trash control against the real container. Uploads
+ * three distinct files, selects exactly two of them -- a plain click then a
+ * ctrl-click, via clickFileRow() above -- bulk-trashes the selection, and
+ * proves the THIRD, unselected file survives.
+ *
+ * Modelled on checkReplaceAddsASecondVersion() above -- read that function's
+ * docblock first, it encodes two lessons this reuses rather than re-learns:
+ *
+ *   1. Re-navigate before selecting an uploaded row. Straight after an
+ *      upload the main form's file input still displays the just-chosen
+ *      filename, so the page carries that text twice and a text-based
+ *      locator does not reliably land on the right element -- it fooled an
+ *      upload assertion (issue #107) and a replace-panel selection
+ *      (issue #103's own note on checkReplaceAddsASecondVersion) the same
+ *      way, so this re-navigates before clicking any uploaded row too.
+ *   2. Database evidence first, DOM checks second. tinker() is polled for
+ *      every file's trashed state before touching the page at all, so a
+ *      broken build reports which file was (or was not) trashed by name,
+ *      rather than timing out on a selector for a reason that looks
+ *      nothing like the cause.
+ *
+ * THE SURVIVOR ASSERTION IS THE LOAD-BEARING ONE, not the two "was trashed"
+ * assertions. The mutation this has to fail against is "bulkTrash ignores
+ * the selection and trashes every file in the directory" -- and that
+ * mutation trashes both selected files exactly as well as a correct build
+ * does, so a check that only asked about the two SELECTED files would pass
+ * identically on both. Only "the THIRD, unselected file is still live"
+ * tells them apart -- the same reasoning CLAUDE.md's note on the topbar
+ * check makes: which half of a check is load-bearing is not something to
+ * argue about, only to measure. TODO: mutated run URL.
+ */
+async function checkBulkTrashLeavesUnselectedFilesAlone(page, phase) {
+  const survivorName = 'DoccumSmokeBulkSurvivor.txt';
+  const victimOneName = 'DoccumSmokeBulkVictimOne.txt';
+  const victimTwoName = 'DoccumSmokeBulkVictimTwo.txt';
+
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+
+  await uploadAndProveStored(page, survivorName, 'Must still be listed after the bulk trash below.\n', phase);
+  await uploadAndProveStored(page, victimOneName, 'Selected for bulk trash -- must end up trashed.\n', phase);
+  await uploadAndProveStored(page, victimTwoName, 'Also selected for bulk trash -- must end up trashed.\n', phase);
+
+  // Re-navigate before selecting anything, exactly as
+  // checkReplaceAddsASecondVersion() does above and for the identical
+  // reason: the upload form's file input still shows victimTwoName's
+  // filename until the page is reloaded, so the listing carries that text
+  // twice and clickFileRow()'s hasText filter does not reliably land on
+  // the table row alone.
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('tr[data-test="file-row"]').filter({ hasText: survivorName }).waitFor({ timeout: 10000 });
+
+  // Select victimOne and victimTwo, NOT survivor. Both clicks land on the
+  // row's checkbox, so both are TOGGLES -- selectRow(id, shift, ctrl) is
+  // called with ctrl true unless shift is held, because ticking a box means
+  // "add this one", not "replace the selection with this one". The second
+  // click additionally holds Control, which is the gesture a user reaches
+  // for on the row itself; the box makes it redundant rather than wrong,
+  // and exercising it here keeps the modifier path covered.
+  //
+  // What matters for this check either way is the state it leaves: exactly
+  // two of the three rows selected, and the survivor untouched.
+  await clickFileRow(page, victimOneName);
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  await clickFileRow(page, victimTwoName, { ctrl: true });
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+
+  const bulkTrashButton = page.locator('[data-test="bulk-trash-button"]');
+  await bulkTrashButton.waitFor({ state: 'visible', timeout: 10000 });
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await bulkTrashButton.click();
+
+  const php = [
+    `$survivor = \\App\\Models\\File::where('name', '${survivorName}')->first();`,
+    `$v1 = \\App\\Models\\File::withTrashed()->where('name', '${victimOneName}')->first();`,
+    `$v2 = \\App\\Models\\File::withTrashed()->where('name', '${victimTwoName}')->first();`,
+    "echo 'SURVIVOR_LIVE:' . ($survivor && !$survivor->trashed() ? 'yes' : 'no');",
+    "echo ' V1_TRASHED:' . ($v1 && $v1->trashed() ? 'yes' : 'no');",
+    "echo ' V2_TRASHED:' . ($v2 && $v2->trashed() ? 'yes' : 'no');",
+  ].join(' ');
+
+  // Synchronised on the DATABASE, not on the DOM -- see the docblock above.
+  const deadline = Date.now() + REPLACE_TIMEOUT_MS;
+  let output = tinker(php);
+
+  while (Date.now() < deadline && !/V1_TRASHED:yes/.test(output)) {
+    await sleep(POLL_INTERVAL_MS);
+    output = tinker(php);
+  }
+
+  const survivorLive = /SURVIVOR_LIVE:(\S+)/.exec(output)?.[1] === 'yes';
+  const v1Trashed = /V1_TRASHED:(\S+)/.exec(output)?.[1] === 'yes';
+  const v2Trashed = /V2_TRASHED:(\S+)/.exec(output)?.[1] === 'yes';
+
+  // THE LOAD-BEARING ASSERTION. See the docblock above: "trash everything in
+  // the directory, ignore the selection" leaves both victims trashed too --
+  // only the survivor tells that mutation apart from a correct build.
+  if (!survivorLive) {
+    dumpContainerState(`[${phase}] ${survivorName} was NOT left live by bulkTrash() -- raw output: ${output}`);
+    throw Object.assign(new Error(`${survivorName} is not live after a bulk trash that should not have selected it`), { dumped: true });
+  }
+  console.log(`[${phase}] ${survivorName} is still live -- bulk trash did not touch an unselected file`);
+
+  if (!v1Trashed || !v2Trashed) {
+    dumpContainerState(`[${phase}] bulk trash did not trash both selected files -- raw output: ${output}`);
+    throw Object.assign(new Error('bulk trash did not trash both selected files'), { dumped: true });
+  }
+  console.log(`[${phase}] both selected files (${victimOneName}, ${victimTwoName}) were trashed -- OK`);
+
+  // Only now the DOM: the listing Browser::render() re-queries on every
+  // update must show the survivor and must NOT show either trashed file.
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.getByText(survivorName, { exact: true }).waitFor({ timeout: 10000 });
+  await page.getByText(victimOneName, { exact: true }).waitFor({ state: 'detached', timeout: 10000 });
+  await page.getByText(victimTwoName, { exact: true }).waitFor({ state: 'detached', timeout: 10000 });
+  console.log(`[${phase}] the listing shows only the survivor -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -1221,6 +1376,9 @@ async function runSetup() {
 
     console.log('[setup] replacing a file through the detail panel and confirming a second version appears');
     await checkReplaceAddsASecondVersion(page, 'setup');
+
+    console.log('[setup] bulk-trashing two of three uploaded files and confirming the third survives');
+    await checkBulkTrashLeavesUnselectedFilesAlone(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();

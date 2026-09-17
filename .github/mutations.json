@@ -168,6 +168,13 @@
     "expectFailing": "refuses to replace a file without files.upload"
   },
   {
+    "id": "browser-bulk-trash-authorises-every-id",
+    "why": "item/files-list-sort-select (issue #103): bulk trash must re-authorise every selected id through FilePolicy::delete, and TrashFile authorises nothing on its own -- actions never authorise (CLAUDE.md). Without this pass the Trash-selected control would soft-delete every file in the directory for a viewer holding view alone. The entry deliberately claims less than the item's wording does: delete() is a global permission plus directory access with no per-file component, so every file in one directory answers identically for one user and a 'one of several refused' case cannot be constructed at all. What is provable is that removing the pass lets a view-only member trash the lot, and that is what the named test asserts. The two-pass authorise-then-trash structure stays regardless, because a single loop would leave the files before a refusal already trashed.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "            $this->authorize('delete', $file);\n",
+    "expectFailing": "refuses a bulk trash for a viewer without edit access, and trashes nothing"
+  },
+  {
     "id": "file-version-download-cross-file-404",
     "why": "A version id that belongs to a different file must 404, never redirect to that file's object. {version} carries no directory_id of its own to check against the viewer's reach, so without this abort_if() anyone who can view ANY file could download the bytes of ANY version in the instance merely by guessing its id -- the cross-file hole authorize('download', $file) alone cannot close, because it only ever asks about $file, never about which file $version actually belongs to.",
     "file": "app/Http/Controllers/FileVersionDownloadController.php",
