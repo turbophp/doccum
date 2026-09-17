@@ -15,7 +15,6 @@ use App\Models\User;
  * message, so the tests below assert the two branches are byte-identical,
  * not merely that each one is "some error".
  */
-
 it('says mail is not configured for a real account when the mailer is log', function () {
     config()->set('mail.default', 'log');
 
