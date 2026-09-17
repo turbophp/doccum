@@ -23,9 +23,9 @@ use Illuminate\Support\Str;
  * purging a period a single coherent operation. See spec §6.
  *
  * @property string|null $name_key The comparison key behind sibling name
- *     uniqueness, maintained by the saving hook below. Nullable because the
- *     column is, so a row written around Eloquent is visibly keyless rather
- *     than silently colliding. See App\Support\NameKey.
+ *                                 uniqueness, maintained by the saving hook below. Nullable because the
+ *                                 column is, so a row written around Eloquent is visibly keyless rather
+ *                                 than silently colliding. See App\Support\NameKey.
  */
 #[Fillable([
     'uuid', 'directory_id', 'name', 'current_version_id',
