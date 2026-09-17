@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Providers;
 
+use App\Actions\Fortify\AuthenticateUser;
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -38,6 +41,13 @@ class FortifyServiceProvider extends ServiceProvider
     {
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
         Fortify::createUsersUsing(CreateNewUser::class);
+
+        // Not container-resolved like the callbacks above -- Fortify calls
+        // this one via call_user_func(), so it is resolved out of the
+        // container explicitly here. See App\Actions\Fortify\AuthenticateUser
+        // for why this exists instead of leaning on
+        // config('fortify.lowercase_usernames').
+        Fortify::authenticateUsing(fn (Request $request) => app(AuthenticateUser::class)($request));
     }
 
     /**

@@ -41,6 +41,23 @@ class AuthenticationTest extends TestCase
         $this->assertAuthenticated();
     }
 
+    // General coverage for the rule App\Actions\Fortify\AuthenticateUser
+    // states explicitly (App\Support\EmailKey), independent of whichever
+    // write path stored this particular row: a login attempt in different
+    // case than the stored email still resolves to the same account.
+    public function test_users_can_authenticate_with_a_differently_cased_email(): void
+    {
+        $user = User::factory()->create(['email' => 'dana@example.com']);
+
+        $response = $this->post(route('login.store'), [
+            'email' => 'Dana@Example.com',
+            'password' => 'password',
+        ]);
+
+        $response->assertSessionHasNoErrors();
+        $this->assertAuthenticatedAs($user);
+    }
+
     public function test_users_can_not_authenticate_with_invalid_password(): void
     {
         $user = User::factory()->create();
