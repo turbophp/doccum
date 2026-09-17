@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-16T18:30:00Z",
-  "latestRun": "run/0002",
+  "dateModified": "2026-09-17T06:50:00Z",
+  "latestRun": "run/0004",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -89,10 +89,12 @@
         "item/ci-green-baseline"
       ],
       "doneWhen": "A workflow runs on PRs and main: build image, run from an empty volume, complete the installer over HTTP, upload a file, wait for extraction, find it by search, restart and confirm persistence.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-16T18:30:01Z",
+      "endTime": "2026-09-17T06:45:00Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/44"
+      ]
     },
     {
       "@id": "item/ci-db-matrix",
@@ -109,10 +111,12 @@
         "item/ci-green-baseline"
       ],
       "doneWhen": "tests.yml matrix green on sqlite, pgsql and mysql; the FTS5 migration is a no-op off SQLite and the LikeSearchIndex path is covered.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-16T17:00:01Z",
+      "endTime": "2026-09-17T06:45:00Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/2"
+      ]
     },
     {
       "@id": "item/content-actions",
@@ -977,6 +981,22 @@
       "mergedAt": "2026-09-16T18:27:00Z",
       "mergeSha": "de51dc6790a0ee577a8fcce0a2aaef1931799337",
       "mergedIn": "run/0002"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/44",
+      "@type": "PullRequest",
+      "identifier": 44,
+      "name": "ci: drive the shipped container the way an operator would",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0003",
+      "state": "merged",
+      "dateCreated": "2026-09-16T18:54:00Z",
+      "headSha": "397f886f54d4c1d7cc26d93574b4bd6af7fee0a2",
+      "mergedAt": "2026-09-17T06:45:00Z",
+      "mergeSha": "6b293b40109827e69858d7804792b161554de0af",
+      "mergedIn": "run/0004"
     }
   ],
   "decisions": [
