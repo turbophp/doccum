@@ -48,16 +48,25 @@ it('is gone from the default query, not merely filtered', function () {
         ->and(File::query()->whereKey($this->leafFile->id)->exists())->toBeFalse();
 });
 
-it('stamps every cascaded row with the same deleted_at as the root', function () {
+it('stamps every cascaded row with the same trashed_batch as the root', function () {
+    // Asserted on trashed_batch, not deleted_at. The cascade used to pin an
+    // identical deleted_at across every row, and this test asserted that;
+    // trashed_batch replaced it because a timestamp cannot tell a cascade
+    // from a file trashed in the same second (see RestoreDirectory). Each
+    // row now takes its own deleted_at at delete() time, so comparing them
+    // passes only while the whole cascade lands inside one tick of the
+    // column's precision -- true on a fast SQLite run, false on PostgreSQL
+    // the moment it crosses a boundary. The batch is what actually carries
+    // "these rows went together", so that is what is asserted.
     $trashed = app(TrashDirectory::class)->handle($this->root->fresh());
-    $rootDeletedAt = $trashed->deleted_at;
+    $batch = $trashed->trashed_batch;
 
-    expect($rootDeletedAt)->not->toBeNull()
-        ->and(Directory::withTrashed()->findOrFail($this->mid->id)->deleted_at)->toEqual($rootDeletedAt)
-        ->and(Directory::withTrashed()->findOrFail($this->leaf->id)->deleted_at)->toEqual($rootDeletedAt)
-        ->and(File::withTrashed()->findOrFail($this->rootFile->id)->deleted_at)->toEqual($rootDeletedAt)
-        ->and(File::withTrashed()->findOrFail($this->midFile->id)->deleted_at)->toEqual($rootDeletedAt)
-        ->and(File::withTrashed()->findOrFail($this->leafFile->id)->deleted_at)->toEqual($rootDeletedAt);
+    expect($batch)->not->toBeNull()
+        ->and(Directory::withTrashed()->findOrFail($this->mid->id)->trashed_batch)->toBe($batch)
+        ->and(Directory::withTrashed()->findOrFail($this->leaf->id)->trashed_batch)->toBe($batch)
+        ->and(File::withTrashed()->findOrFail($this->rootFile->id)->trashed_batch)->toBe($batch)
+        ->and(File::withTrashed()->findOrFail($this->midFile->id)->trashed_batch)->toBe($batch)
+        ->and(File::withTrashed()->findOrFail($this->leafFile->id)->trashed_batch)->toBe($batch);
 });
 
 it('forgets the search projection of every directory and file in the subtree', function () {
