@@ -26,7 +26,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * written around Eloquent is visibly keyless rather than silently colliding.
  * See App\Support\NameKey.
  *
+ * `trashed_batch` identifies the TrashDirectory cascade a soft-deleted row
+ * belongs to, so RestoreDirectory can reverse exactly that cascade and leave
+ * independently trashed rows alone. Null when the row was not trashed by a
+ * cascade. See App\Actions\Directories\TrashDirectory.
+ *
  * @property string|null $name_key
+ * @property string|null $trashed_batch
  */
 #[Fillable(['parent_id', 'name', 'home_user_id', 'created_by'])]
 class Directory extends Model
@@ -100,7 +106,11 @@ class Directory extends Model
         ])->saveQuietly();
     }
 
-    /** Every node beneath this one, excluding itself. */
+    /**
+     * Every node beneath this one, excluding itself.
+     *
+     * @return Builder<static>
+     */
     public function descendants(): Builder
     {
         return static::query()

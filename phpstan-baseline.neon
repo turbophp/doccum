@@ -1,18 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$properties\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Actions/Directories/MoveDirectory.php
-
-		-
-			message: '#^Parameter \#1 \$subject of job class App\\Jobs\\ReindexSearchDocument constructor expects App\\Models\\Directory\|App\\Models\\File\|App\\Models\\Property in App\\Jobs\\ReindexSearchDocument\:\:dispatch\(\), Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Actions/Directories/MoveDirectory.php
-
-		-
 			message: '#^Cannot call method cast\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 1
@@ -80,12 +68,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Models\\Directory\:\:children\(\) return type with generic class Illuminate\\Database\\Eloquent\\Relations\\HasMany does not specify its types\: TRelatedModel, TDeclaringModel$#'
-			identifier: missingType.generics
-			count: 1
-			path: app/Models/Directory.php
-
-		-
-			message: '#^Method App\\Models\\Directory\:\:descendants\(\) return type with generic class Illuminate\\Database\\Eloquent\\Builder does not specify its types\: TModel$#'
 			identifier: missingType.generics
 			count: 1
 			path: app/Models/Directory.php

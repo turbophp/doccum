@@ -63,4 +63,16 @@ class DirectoryPolicy
     {
         return $this->access->can($user, $directory, AccessLevel::Manage);
     }
+
+    /**
+     * Restoring is undoing delete() (a directory is only ever soft-deleted,
+     * so delete() is trashing it), so it is gated the same shape: the same
+     * capability and the same level -- whoever may hide the subtree may
+     * bring it back.
+     */
+    public function restore(User $user, Directory $directory): bool
+    {
+        return $user->can('directories.manage')
+            && $this->access->can($user, $directory, AccessLevel::Manage);
+    }
 }

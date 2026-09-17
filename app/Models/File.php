@@ -27,7 +27,13 @@ use Illuminate\Support\Str;
  * written around Eloquent is visibly keyless rather than silently colliding.
  * See App\Support\NameKey.
  *
+ * `trashed_batch` identifies the TrashDirectory cascade a soft-deleted row
+ * belongs to, so RestoreDirectory can reverse exactly that cascade and leave
+ * independently trashed rows alone. Null when the row was not trashed by a
+ * cascade. See App\Actions\Directories\TrashDirectory.
+ *
  * @property string|null $name_key
+ * @property string|null $trashed_batch
  */
 #[Fillable([
     'uuid', 'directory_id', 'name', 'current_version_id',

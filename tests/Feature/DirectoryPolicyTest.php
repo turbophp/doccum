@@ -101,3 +101,39 @@ it('allows moving to the root with no destination to check', function () {
 
     expect($this->user->fresh()->can('move', [$this->dir, null]))->toBeTrue();
 });
+
+it('requires directories.manage to trash a directory (delete() gates it), manage access alone is not enough', function () {
+    give($this->dir, $this->user, AccessLevel::Manage);
+
+    expect($this->user->can('delete', $this->dir))->toBeFalse();
+
+    $this->user->givePermissionTo('directories.manage');
+    expect($this->user->fresh()->can('delete', $this->dir))->toBeTrue();
+});
+
+it('requires manage access to trash a directory, directories.manage alone is not enough', function () {
+    $this->user->givePermissionTo('directories.manage');
+
+    expect($this->user->can('delete', $this->dir))->toBeFalse();
+
+    give($this->dir, $this->user, AccessLevel::Manage);
+    expect($this->user->fresh()->can('delete', $this->dir))->toBeTrue();
+});
+
+it('requires directories.manage to restore a directory, manage access alone is not enough', function () {
+    give($this->dir, $this->user, AccessLevel::Manage);
+
+    expect($this->user->can('restore', $this->dir))->toBeFalse();
+
+    $this->user->givePermissionTo('directories.manage');
+    expect($this->user->fresh()->can('restore', $this->dir))->toBeTrue();
+});
+
+it('requires manage access to restore a directory, directories.manage alone is not enough', function () {
+    $this->user->givePermissionTo('directories.manage');
+
+    expect($this->user->can('restore', $this->dir))->toBeFalse();
+
+    give($this->dir, $this->user, AccessLevel::Manage);
+    expect($this->user->fresh()->can('restore', $this->dir))->toBeTrue();
+});
