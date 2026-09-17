@@ -33,5 +33,33 @@
     "file": "app/Services/DirectoryAccess.php",
     "remove": "            ->when($trashedPaths !== [], function (Builder $query) use ($trashedPaths): void {\n                foreach ($trashedPaths as $trashedPath) {\n                    $query->where('path', 'not like', $trashedPath.'%');\n                }\n            })\n",
     "expectFailing": "excludes a live descendant of a trashed directory from viewableDirectoryIds"
+  },
+  {
+    "id": "file-policy-view-refuses-trashed-directory",
+    "why": "view() must refuse outright when a file's directory was cascade-trashed, not resolve it withTrashed() and fall back on the normal grant. A trashed subtree is already invisible to browsing and search (DirectoryAccess::resolveViewable()); letting view() see through that with a grant that predates the trash would reopen exactly the reveal trashing a directory exists to close.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($directory === null) {\n            // A trashed directory is already invisible to browsing and\n            // search (DirectoryAccess::resolveViewable()); viewing a file\n            // inside it one at a time must not become a side door around\n            // that. See the class docblock.\n            return false;\n        }\n",
+    "expectFailing": "refuses to view a file whose directory is cascade-trashed, even with access that would otherwise allow it"
+  },
+  {
+    "id": "file-policy-update-refuses-trashed-directory",
+    "why": "update() must refuse outright when a file's directory was cascade-trashed. Editing a file's metadata in place inside a trashed subtree is the same reveal-and-modify that view() refuses, and without this guard the call falls through to DirectoryAccess::can() with a null directory, which either throws or, if that ever stopped throwing, would need a real answer -- refusing outright is the deliberate one.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($directory === null) {\n            // Editing metadata in place on a file inside a trashed subtree\n            // is the same reveal-and-modify that view() refuses. See the\n            // class docblock.\n            return false;\n        }\n",
+    "expectFailing": "refuses to update a file whose directory is cascade-trashed, even with access that would otherwise allow it"
+  },
+  {
+    "id": "file-policy-move-refuses-trashed-directory",
+    "why": "move() must refuse outright when a file's source directory was cascade-trashed, even when the caller has access to the destination. move() assumes a live file in a live tree; without this guard a grant on the destination alone could move a file out of a trashed subtree, which is restore()'s job, not move()'s.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($directory === null) {\n            // move() assumes a live file in a live tree, the same as\n            // view() and update(); restoring it out of a trashed subtree is\n            // restore()'s job, done before a move rather than instead of\n            // one. See the class docblock.\n            return false;\n        }\n",
+    "expectFailing": "refuses to move a file whose source directory is cascade-trashed, even with access to a live destination"
+  },
+  {
+    "id": "file-policy-legal-hold-refuses-trashed-directory",
+    "why": "legalHold() must refuse outright when a file's directory was cascade-trashed, even for a periods.manage holder. The view-reach requirement above exists so a capability holder with no reach into a directory learns nothing about what is in it; resolving withTrashed() here would turn the hold check itself into a side channel around exactly that.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($directory === null) {\n            // Resolving withTrashed() here would turn the hold check itself\n            // into the side channel the view-reach requirement above exists\n            // to close: a trashed directory is hidden from view precisely\n            // so a capability holder cannot learn what is in it, and legal\n            // hold must not carve out an exception to that. See the class\n            // docblock.\n            return false;\n        }\n",
+    "expectFailing": "refuses a legal hold on a file whose directory is cascade-trashed, even for a periods.manage holder with access"
   }
 ]
