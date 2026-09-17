@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 use App\Actions\Files\StoreFileVersion;
 use App\Enums\ExtractionStatus;
+use App\Extraction\ExtractorChain;
 use App\Jobs\ExtractText;
 use App\Models\Directory;
 use App\Models\FileText;
+use App\Models\FileVersion;
 use App\Models\User;
+use App\Services\DocumentStorage;
 use App\Support\ProcessRunner;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -106,4 +109,78 @@ it('leaves a successful extraction alone when retrying', function () {
     $this->artisan('doccum:extract:retry')->assertSuccessful();
 
     Queue::assertNotPushed(ExtractText::class);
+});
+
+it('gives a retry real spacing instead of retrying instantly', function () {
+    // No backoff meant three tries could burn in well under a second while
+    // MinIO was still coming up -- see the CI run in the job's docblock.
+    // This is what makes that impossible: a genuine gap before either retry.
+    $job = new ExtractText(FileVersion::factory()->make());
+
+    expect($job->backoff)->not->toBeEmpty();
+
+    foreach ($job->backoff as $seconds) {
+        expect($seconds)->toBeGreaterThan(0);
+    }
+});
+
+it('retries a storage read that fails once, rather than settling as failed', function () {
+    // Queue::fake() so storeText()'s own dispatch does not run extraction and
+    // leave a settled row behind -- handle() returns early on one.
+    Queue::fake();
+    $file = storeText('a.txt', 'hello');
+    $version = $file->currentVersion;
+
+    $recovered = tempnam(sys_get_temp_dir(), 'doccum-retry');
+    file_put_contents($recovered, 'hello world');
+
+    // handle() is called directly with an explicit double, rather than
+    // through dispatchSync() and a container binding. Two earlier attempts
+    // at this went through the bus and reported only "exception not thrown",
+    // which says nothing about WHICH of the queue fake, the container
+    // binding, or the double was responsible. Calling the method under test
+    // with its collaborator passed in has none of those between the
+    // assertion and the behaviour.
+    $job = new ExtractText($version);
+    $chain = app(ExtractorChain::class);
+
+    // Attempt 1: the object store is not serving the object. The exception
+    // must leave handle() uncaught -- swallowing it and writing a Failed row
+    // would spend the whole retry budget on a transient read, which is the
+    // bug this test guards against.
+    $failing = Mockery::mock(DocumentStorage::class);
+    $failing->shouldReceive('downloadToTemp')
+        ->once()
+        ->andThrow(new RuntimeException('Unable to read object from storage.'));
+
+    expect(fn () => $job->handle($failing, $chain))->toThrow(RuntimeException::class);
+    expect(FileText::where('file_version_id', $version->id)->exists())->toBeFalse();
+
+    // Attempt 2 -- what the run after $backoff's delay looks like: storage
+    // serves the object and extraction settles normally.
+    $serving = Mockery::mock(DocumentStorage::class);
+    $serving->shouldReceive('downloadToTemp')
+        ->once()
+        ->andReturn($recovered);
+
+    $job->handle($serving, $chain);
+
+    $text = FileText::where('file_version_id', $version->id)->firstOrFail();
+    expect($text->status)->toBe(ExtractionStatus::Done);
+});
+
+it('settles a genuinely unextractable document as failed on the first attempt', function () {
+    // A damaged document is not a transient read: the extractor chain
+    // reports Failed as a value and never throws, so this must settle on
+    // attempt one and never touch the retry budget $backoff now spaces out.
+    ProcessRunner::fake(['pdftotext' => ['exitCode' => 1, 'error' => 'damaged']]);
+    $file = storeText('a.pdf', '%PDF-1.4 broken', 'application/pdf');
+    $version = $file->currentVersion;
+
+    // No wrapping expectation: an uncaught exception here fails the test on
+    // its own, which is exactly what proves nothing here is retrying.
+    ExtractText::dispatchSync($version);
+
+    $text = FileText::where('file_version_id', $version->id)->firstOrFail();
+    expect($text->status)->toBe(ExtractionStatus::Failed);
 });
