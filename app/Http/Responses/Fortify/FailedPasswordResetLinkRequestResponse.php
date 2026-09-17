@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Responses\Fortify;
 
 use App\Support\MailDeliverability;
+use Illuminate\Http\Request;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse as FailedPasswordResetLinkRequestResponseContract;
 use Laravel\Fortify\Http\Responses\FailedPasswordResetLinkRequestResponse as StockFailedPasswordResetLinkRequestResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Wraps Fortify's stock "no reset link sent" response so that, when mail
@@ -27,18 +29,16 @@ use Laravel\Fortify\Http\Responses\FailedPasswordResetLinkRequestResponse as Sto
  */
 class FailedPasswordResetLinkRequestResponse implements FailedPasswordResetLinkRequestResponseContract
 {
-    public function __construct(private readonly string $status)
-    {
-    }
+    public function __construct(private readonly string $status) {}
 
     /**
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @param  Request  $request
+     * @return Response
      */
     public function toResponse($request)
     {
         if (MailDeliverability::unavailable()) {
-            return (new MailNotConfiguredResponse())->toResponse($request);
+            return (new MailNotConfiguredResponse)->toResponse($request);
         }
 
         return (new StockFailedPasswordResetLinkRequestResponse($this->status))->toResponse($request);

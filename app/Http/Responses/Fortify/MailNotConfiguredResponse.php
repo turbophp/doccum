@@ -6,6 +6,8 @@ namespace App\Http\Responses\Fortify;
 
 use Illuminate\Contracts\Support\Responsable;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * The one response both password-reset-link wrapper classes in this
@@ -26,8 +28,8 @@ use Illuminate\Http\JsonResponse;
 final class MailNotConfiguredResponse implements Responsable
 {
     /**
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Symfony\Component\HttpFoundation\Response
+     * @param  Request  $request
+     * @return Response
      */
     public function toResponse($request)
     {
