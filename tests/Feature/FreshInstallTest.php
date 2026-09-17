@@ -29,7 +29,7 @@ it('completes setup on a database that has never been seeded', function () {
         ->set('password_confirmation', 'Correct-Horse-Battery9')
         ->call('submit')
         ->assertHasNoErrors()
-        ->assertRedirect('/');
+        ->assertRedirect(route('files.browse'));
 
     $user = User::firstOrFail();
 

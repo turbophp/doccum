@@ -159,11 +159,21 @@ async function waitForExtraction() {
   const deadline = Date.now() + EXTRACTION_TIMEOUT_MS;
   let last = 'unknown';
 
+  // `last` comes from /STATUS:(\S+)/, which stops at the first space, so a
+  // thrown tinker error arrived as the single token "TINKER_ERROR(Command"
+  // and everything after "Command failed:" -- the actual reason -- was
+  // discarded. An image job failed exactly that way and said nothing usable.
+  // Keep the message whole, separately, and print it on the timeout: a
+  // diagnostic is worth only what someone can read off it (decision/0017).
+  let lastTinkerError = null;
+
   while (Date.now() < deadline) {
     let output;
     try {
       output = tinker(php);
+      lastTinkerError = null;
     } catch (e) {
+      lastTinkerError = e.message;
       output = `STATUS:TINKER_ERROR(${e.message})`;
     }
 
@@ -188,10 +198,14 @@ async function waitForExtraction() {
     await sleep(POLL_INTERVAL_MS);
   }
 
+  const tinkerDetail = lastTinkerError === null
+    ? ''
+    : `\nthe last tinker call failed, in full:\n${lastTinkerError}`;
+
   dumpContainerState(
-    `extraction for ${FILE_NAME} did not reach "done" within ${EXTRACTION_TIMEOUT_MS}ms (last status: ${last})`,
+    `extraction for ${FILE_NAME} did not reach "done" within ${EXTRACTION_TIMEOUT_MS}ms (last status: ${last})${tinkerDetail}`,
   );
-  const err = new Error(`timed out waiting for extraction (last status: ${last})`);
+  const err = new Error(`timed out waiting for extraction (last status: ${last})${tinkerDetail}`);
   err.dumped = true;
   throw err;
 }
