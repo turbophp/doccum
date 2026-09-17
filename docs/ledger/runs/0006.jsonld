@@ -1,0 +1,18 @@
+{
+  "@context": "../context.jsonld",
+  "@id": "run/0006",
+  "@type": "Run",
+  "identifier": 6,
+  "agent": "https://claude.ai/code/session_01ADCn2xmXjiP4pnatPFyF5r",
+  "startTime": "2026-09-17T08:05:01Z",
+  "endTime": "2026-09-17T08:40:00Z",
+  "outcome": "completed",
+  "touched": [
+    "item/name-key",
+    "item/topbar-shell"
+  ],
+  "commit": "91ef9b53a2f96c8da68ea61c0a972168d21e54c1",
+  "tests": 452,
+  "assertions": 921,
+  "description": "Two items landed. topbar-shell replaced the starter sidebar and unblocked the seven items waiting on it; reviewing it turned up that asserting a plain member sees no Settings link proves only that a link is not rendered, so tests were added against the destination itself. A mutation entry for that guard was written and then withdrawn: the destination is guarded twice and independently, by the route middleware and by PropertyDefinitions::mount, so removing either leaves the other refusing and the test still passes -- an entry takes one remove string, so none can prove either guard, and recording one would have asserted exactly the false confidence the mutation rule exists to prevent. name-key then settled the comparison question content-actions had been blocking on, and its first attempt failed on MySQL alone with errno 1553, having dropped a composite index that was silently carrying a foreign key. Diagnosis waited for the log rather than acting on a guess about lockForUpdate, which was wrong; the 410-second run that looked like a hang was 415 tests each re-running the failing migration. Both PHPStan and Pint also rejected the first fix for the annotation that made name_key visible to static analysis, and a CI workflow auto-applied Pint mid-review, so its commit was kept and the cleaner form applied on top rather than force-pushed over."
+}
