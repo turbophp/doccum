@@ -88,11 +88,31 @@ function sleep(ms) {
  * no shell), so the PHP source needs no shell escaping.
  */
 function tinker(php) {
-  return execFileSync(
-    'docker',
-    ['exec', CONTAINER_NAME, 'php', 'artisan', 'tinker', '--execute', php],
-    { encoding: 'utf8', timeout: 20000 },
-  );
+  try {
+    return execFileSync(
+      'docker',
+      ['exec', CONTAINER_NAME, 'php', 'artisan', 'tinker', '--execute', php],
+      { encoding: 'utf8', timeout: 20000 },
+    );
+  } catch (e) {
+    // execFileSync's `message` is only "Command failed: <the command>", so a
+    // caller that reports e.message reports the command back and says nothing
+    // about why. An image job did exactly that and cost several runs. The
+    // cause lives on the error OBJECT: `status` is the exit code,
+    // `signal`/`killed` separate the 20s timeout from a non-zero exit, and
+    // stdout/stderr carry what the process actually said. See issue #106.
+    const detail = [
+      `exit status: ${e.status ?? '(none)'}`,
+      `signal: ${e.signal ?? '(none)'}`,
+      `killed by timeout: ${e.killed === true}`,
+      `stdout: ${String(e.stdout ?? '').trim() || '(empty)'}`,
+      `stderr: ${String(e.stderr ?? '').trim() || '(empty)'}`,
+    ].join('\n    ');
+
+    const err = new Error(`artisan tinker failed inside ${CONTAINER_NAME}\n    ${detail}`);
+    err.cause = e;
+    throw err;
+  }
 }
 
 /**
@@ -133,6 +153,46 @@ function dumpContainerState(reason) {
 }
 
 /**
+ * Blocks until a files row actually exists for FILE_NAME.
+ *
+ * The upload step's own assertion is page.getByText(FILE_NAME), which matches
+ * the file input's displayed filename and Livewire's optimistic preview --
+ * neither of which needs anything to have been stored. It printed "upload
+ * accepted, file listed in the directory" through a run in which
+ * File::where('name', ...) returned null for the following sixty seconds,
+ * and the run then failed later and elsewhere, at extraction.
+ *
+ * decision/0012: prefer an assertion that requires the feature to DO
+ * something over one that observes a resting state. See issue #106.
+ */
+async function waitForFileRow() {
+  const php = [
+    `$f = \\App\\Models\\File::where('name', '${FILE_NAME}')->first();`,
+    "echo 'ROW:' . ($f ? 'yes' : 'no');",
+  ].join(' ');
+
+  const deadline = Date.now() + 30000;
+  let last = 'never answered';
+
+  while (Date.now() < deadline) {
+    try {
+      if (/ROW:yes/.test(tinker(php))) return;
+      last = 'no files row';
+    } catch (e) {
+      last = e.message;
+    }
+    await sleep(1000);
+  }
+
+  dumpContainerState(
+    `the upload step reported success but no files row exists for ${FILE_NAME}\n${last}`,
+  );
+  const err = new Error(`no files row for ${FILE_NAME} after the upload: ${last}`);
+  err.dumped = true;
+  throw err;
+}
+
+/**
  * Polls file_texts.status (via the File -> currentVersion -> text chain,
  * matching app/Models/File.php and app/Models/FileVersion.php) for the file
  * named FILE_NAME, bounded by EXTRACTION_TIMEOUT_MS. Never hangs: a status
@@ -141,12 +201,18 @@ function dumpContainerState(reason) {
  * forever.
  */
 async function waitForExtraction() {
+  // Branches rather than calling `exit`. PsySH leaves the process with status
+  // 1 when --execute code exits, so execFileSync threw and the NO_FILE and
+  // NO_VERSION readings -- the two most diagnostic answers this query has --
+  // were turned into "the tinker call failed" and never reached the poller.
+  // Both have been unreachable for as long as they have existed: one run
+  // carried STATUS:NO_FILE in stdout behind a thrown exception. Issue #106.
   const php = [
     `$f = \\App\\Models\\File::where('name', '${FILE_NAME}')->first();`,
-    "if (!$f) { echo 'STATUS:NO_FILE'; exit; }",
+    "if (!$f) { echo 'STATUS:NO_FILE'; } else {",
     '$f->refresh();',
     '$v = $f->currentVersion;',
-    "if (!$v) { echo 'STATUS:NO_VERSION'; exit; }",
+    "if (!$v) { echo 'STATUS:NO_VERSION'; } else {",
     '$t = $v->text;',
     "echo 'STATUS:' . ($t ? $t->status->value : 'NO_TEXT');",
     // ExtractText::failed() records why in file_texts.error. Without this the
@@ -154,6 +220,7 @@ async function waitForExtraction() {
     // failure in CI was diagnosed by guesswork rather than by reading the
     // exception -- see issue #57.
     "if ($t && $t->error) { echo ' ERROR:' . $t->error; }",
+    '} }',
   ].join(' ');
 
   const deadline = Date.now() + EXTRACTION_TIMEOUT_MS;
@@ -678,7 +745,11 @@ async function runSetup() {
     await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
     await page.getByRole('button', { name: 'Upload', exact: true }).click();
     await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-    console.log('[setup] upload accepted, file listed in the directory');
+
+    // The line above proves the NAME is on the page, which is not the claim
+    // this step makes. See waitForFileRow().
+    await waitForFileRow();
+    console.log('[setup] upload accepted, and a files row exists for it');
 
     console.log(`[setup] waiting up to ${EXTRACTION_TIMEOUT_MS}ms for extraction to finish`);
     await waitForExtraction();
