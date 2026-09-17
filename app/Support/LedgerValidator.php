@@ -60,7 +60,14 @@ final class LedgerValidator
 
     private const PULL_REQUEST_STATES = ['open', 'merged', 'closed'];
 
-    private const RUN_OUTCOMES = ['completed', 'failed', 'aborted'];
+    /**
+     * 'active' is the run currently being worked, and it exists because the
+     * schema previously had no way to say so: a run had to claim it had
+     * completed before it had, which is the one thing the ledger must never
+     * make convenient. Only the latest run may be active -- enforced below --
+     * so it cannot become a way to leave history unfinished.
+     */
+    private const RUN_OUTCOMES = ['completed', 'failed', 'aborted', 'active'];
 
     /**
      * Non-structural keys allowed per @type, beyond @id/@type/@context.
@@ -580,7 +587,7 @@ final class LedgerValidator
     private static function checkRun(string $id, array $node, array &$errors): void
     {
         if (isset($node['outcome']) && ! in_array($node['outcome'], self::RUN_OUTCOMES, true)) {
-            $errors[] = "enum: Run '$id'.outcome = ".self::describe($node['outcome']).' is not one of completed, failed, aborted.';
+            $errors[] = "enum: Run '$id'.outcome = ".self::describe($node['outcome']).' is not one of completed, failed, aborted, active.';
         }
         if (isset($node['commit']) && ! preg_match(self::SHA_PATTERN, (string) $node['commit'])) {
             $errors[] = "enum: Run '$id'.commit = ".self::describe($node['commit']).' is not a 40-character hex sha.';
@@ -983,6 +990,18 @@ final class LedgerValidator
         $numbers = array_keys($numbered);
         if ($numbers !== [] && ($numbers[0] !== 0 || $numbers !== range(0, count($numbers) - 1))) {
             $errors[] = 'run: run files are not numbered contiguously from 0000 with no gaps (found: '.implode(', ', $numbers).').';
+        }
+
+        // 'active' describes the run being worked right now, so only the
+        // newest run may carry it. An older run left active is an unfinished
+        // record, which is the thing the outcome field exists to prevent --
+        // the enum was widened to stop a run in progress having to claim it
+        // had completed, not to make completion optional.
+        $newest = $numbers === [] ? null : max($numbers);
+        foreach ($numbered as $number => $run) {
+            if (($run['outcome'] ?? null) === 'active' && $number !== $newest) {
+                $errors[] = sprintf('run: run %04d.outcome is active but it is not the latest run.', $number);
+            }
         }
 
         $previousEnd = null;
