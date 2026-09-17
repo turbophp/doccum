@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T21:30:00Z",
-  "latestRun": "run/0015",
+  "dateModified": "2026-09-17T22:25:00Z",
+  "latestRun": "run/0016",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -474,10 +474,12 @@
         "item/files-actions-ui"
       ],
       "doneWhen": "The listing is a table with name, owner, modified and size; sort is a whitelisted orderBy in the query and an unknown column falls back to name, tested; multi-select supports shift-range and ctrl-toggle; bulk trash re-authorises every selected id through FilePolicy::delete and trashes nothing if any one is refused, tested and mutation-checked; the container smoke uploads three files, selects two, bulk-trashes and asserts the third is still listed -- shown failing against an image whose bulk method ignores the selection, because \"bulk trash of exactly the selected files\" also describes an implementation that trashed all of them.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T21:35:00Z",
+      "endTime": "2026-09-17T22:12:26Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/120"
+      ]
     },
     {
       "@id": "item/files-three-pane",
@@ -1699,6 +1701,38 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/120",
+      "@type": "PullRequest",
+      "identifier": 120,
+      "name": "item/files-list-sort-select: dense table, column sort, multi-select and bulk trash",
+      "implements": [
+        "item/files-list-sort-select"
+      ],
+      "run": "run/0016",
+      "state": "merged",
+      "dateCreated": "2026-09-17T21:52:00Z",
+      "headSha": "0c6adf4ea0fa77586a4a523f12b32fbf90436219",
+      "mergedAt": "2026-09-17T22:12:26Z",
+      "mergeSha": "1f96f35989c6c00bd0e6b477bdac9ed8cfebd763",
+      "mergedIn": "run/0016"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/122",
+      "@type": "PullRequest",
+      "identifier": 122,
+      "name": "MUTATION PROOF -- DO NOT MERGE -- bulk trash ignores the selection",
+      "implements": [
+        "item/files-list-sort-select"
+      ],
+      "run": "run/0016",
+      "state": "closed",
+      "dateCreated": "2026-09-17T22:00:00Z",
+      "headSha": "5632724fd1b125c600884fb466e87d5274d5b8b0",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -2081,6 +2115,39 @@
       "affects": [
         "item/container-smoke-ci",
         "item/files-versions-replace"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0024",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T21:50:00Z",
+      "run": "run/0016",
+      "name": "A selection supplied by the client must resolve exactly, or nothing happens",
+      "rationale": "Browser::bulkTrash() took $selectedIds, resolved them with whereIn('id', ...) and trashed whatever came back. Two things were wrong with that and only the second is obvious in hindsight. It was not scoped to the directory being browsed, although selectFile() scopes its own lookup for precisely this reason -- $selectedIds arrives from the client, and the listing this component renders only ever holds files from one directory, so an id from anywhere else did not come from the UI. Authorisation still gated every file, so nothing was ever exposed, but the reachable surface was wider than the interface implies. The scope had been dropped deliberately, to make a test constructible; that is the wrong direction, and decision/0025 records the half of the problem that motivated it. The second is worse and was found only by reading the first: whereIn() SILENTLY DROPS an id that matches nothing. A crafted id, or a file another user trashed or moved between the listing rendering and the button being clicked, therefore made the method trash a SUBSET of the selection and report success. \"Trash exactly what I selected\" and \"trash whichever of those are still here\" are different promises to make to someone deleting documents, and only the first is safe to make silently. Resolution is now scoped AND exact: the resolved count must equal the selected count or the whole call aborts, with tests for an id from another directory and for one that no longer exists. A concurrent trash by someone else now fails the call rather than half-performing it, which is the right way round -- the selection no longer describes reality, and this method's entire purpose is to be all-or-nothing.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface",
+        "spec:5-access-control"
+      ],
+      "affects": [
+        "item/files-list-sort-select"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0025",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T21:51:00Z",
+      "run": "run/0016",
+      "name": "A doneWhen clause that cannot be constructed is recorded as unprovable, not worked around",
+      "rationale": "item/files-list-sort-select asks that bulk trash \"trashes nothing if any ONE is refused\". That case cannot be built. FilePolicy::delete() is files.delete -- a global permission -- plus DirectoryAccess::can(Edit) on the file's directory, and has no per-file component at all, so every file in one directory answers identically for one user: the refusal is all-or-nothing, and one-of-several does not exist. There were three ways out and only one is honest. Weakening the resolution so a file from another directory could be selected makes the case constructible, and that is what was originally done -- it widens the component's reach to satisfy a sentence, which is decision/0024. Writing a mutation entry that claims the stronger property anyway would be a proof of something that cannot happen, which is exactly the fiction run 0014's browser-select-directory-view and run 0015's file-policy-replace-refuses-trashed-directory were both caught being. So the entry claims only what is provable -- remove the authorize pass and a viewer holding view alone trashes every file in the directory -- and that test is isolated, since both files resolve, the exact-resolution guard cannot fire, and TrashFile authorises nothing. The two-pass authorise-all-then-trash-all structure stays regardless of what can be proved about it, because a single loop leaves every file before the refusal already trashed, which satisfies the clause in wording only; it is defensive for when delete() grows a per-file condition, and PurgeFile already refuses a file under legal hold, so trash plausibly should too. LOOP.md step 4 has always said that a clause which cannot be satisfied as written gets said plainly rather than faked. This is the first run that had to do it, and the general rule is worth stating: the item's wording is a claim about the product, and when the product cannot make that claim the ledger records the gap rather than the backlog quietly getting what it asked for.",
+      "isBasedOn": [
+        "spec:14-testing",
+        "spec:5-access-control"
+      ],
+      "affects": [
+        "item/files-list-sort-select",
+        "item/files-actions-ui"
       ],
       "supersedes": null
     }
