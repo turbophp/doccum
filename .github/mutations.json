@@ -26,5 +26,12 @@
     "file": "app/Policies/FilePolicy.php",
     "remove": "        if (! $user->can('periods.manage')) {\n            return false;\n        }\n\n",
     "expectFailing": "refuses a caller with directory access but no periods.manage"
+  },
+  {
+    "id": "directory-access-trashed-subtree-guard",
+    "why": "A live directory beneath a trashed one must never be listed as viewable, no matter where the grant that would otherwise reach it hangs -- on a live ancestor above the trashed node, or on the trashed node itself. Without this, trashing a directory does not hide the files beneath it, which defeats the point of trashing it.",
+    "file": "app/Services/DirectoryAccess.php",
+    "remove": "            ->when($trashedPaths !== [], function (Builder $query) use ($trashedPaths): void {\n                foreach ($trashedPaths as $trashedPath) {\n                    $query->where('path', 'not like', $trashedPath.'%');\n                }\n            })\n",
+    "expectFailing": "excludes a live descendant of a trashed directory from viewableDirectoryIds"
   }
 ]
