@@ -55,28 +55,39 @@ return new class extends Migration
         $this->logCollisions('directories', 'parent_id');
         $this->logCollisions('files', 'directory_id');
 
+        // Create before dropping, and in that order on purpose. parent_id and
+        // directory_id are foreign keys, and InnoDB requires an index whose
+        // leading column is the constrained one. The old composite index was
+        // serving that role, so dropping it first leaves the constraint
+        // unindexed and MySQL refuses with errno 1553. The new composite
+        // index leads with the same column, so once it exists the old one is
+        // redundant and can go. PostgreSQL and SQLite do not require an index
+        // for a foreign key at all, which is why only MySQL objects.
         Schema::table('directories', function (Blueprint $table) {
-            $table->dropIndex(['parent_id', 'name']);
             $table->index(['parent_id', 'name_key']);
+            $table->dropIndex(['parent_id', 'name']);
         });
 
         Schema::table('files', function (Blueprint $table) {
-            $table->dropIndex(['directory_id', 'name']);
             $table->index(['directory_id', 'name_key']);
+            $table->dropIndex(['directory_id', 'name']);
         });
     }
 
     public function down(): void
     {
+        // Same ordering constraint as up(), reversed: the index the foreign
+        // key will fall back on has to exist before the one it is using now
+        // is dropped.
         Schema::table('directories', function (Blueprint $table) {
-            $table->dropIndex(['parent_id', 'name_key']);
             $table->index(['parent_id', 'name']);
+            $table->dropIndex(['parent_id', 'name_key']);
             $table->dropColumn('name_key');
         });
 
         Schema::table('files', function (Blueprint $table) {
-            $table->dropIndex(['directory_id', 'name_key']);
             $table->index(['directory_id', 'name']);
+            $table->dropIndex(['directory_id', 'name_key']);
             $table->dropColumn('name_key');
         });
     }
