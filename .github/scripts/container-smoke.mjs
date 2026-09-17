@@ -24,9 +24,11 @@
 //             wait for extraction, confirm it is findable by search. Run
 //             once, against a freshly booted, empty-volume container.
 //   verify -- log in again and confirm the file and its search hit survived
-//             a restart, then log out through the account menu. Run in a
-//             fresh browser context (no cookies carried over), against the
-//             SAME container after `docker restart`.
+//             the container being replaced, then log out through the account
+//             menu. Run in a fresh browser context (no cookies carried over),
+//             against a NEW container started from the same image on the same
+//             named volume -- not `docker restart`, which would keep the old
+//             container's writable layer and prove nothing (issue #91).
 //
 // All credentials and the marker text searched for come from the environment
 // (set by the workflow step that invokes this), so both phases agree on them
@@ -301,7 +303,7 @@ function checkForwardedPasswordResetUrl() {
 // The account it resets is a throwaway created here, not the smoke admin:
 // reusing the admin would change its password out from under the "verify"
 // phase's later login, which authenticates with SMOKE_ADMIN_PASSWORD
-// unchanged after a restart.
+// unchanged across the container replacement.
 //
 // User::create(), not User::factory(): fakerphp/faker backs fake() and is a
 // require-dev dependency (composer.json), so it is not autoloadable at all
@@ -704,12 +706,12 @@ async function runVerify() {
   const browser = await chromium.launch();
   try {
     // A brand new context: no cookies carried over from the setup phase, so
-    // reaching the file genuinely proves the DATA survived the restart, not
-    // just that this process kept a session alive.
+    // reaching the file genuinely proves the DATA survived the container
+    // being replaced, not just that this process kept a session alive.
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    console.log('[verify] logging back in after the restart');
+    console.log('[verify] logging back in against the replacement container');
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
     await page.getByLabel('Email address', { exact: true }).fill(ADMIN_EMAIL);
     await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD);
