@@ -61,5 +61,19 @@
     "file": "app/Policies/FilePolicy.php",
     "remove": "        if ($directory === null) {\n            // Resolving withTrashed() here would turn the hold check itself\n            // into the side channel the view-reach requirement above exists\n            // to close: a trashed directory is hidden from view precisely\n            // so a capability holder cannot learn what is in it, and legal\n            // hold must not carve out an exception to that. See the class\n            // docblock.\n            return false;\n        }\n",
     "expectFailing": "refuses a legal hold on a file whose directory is cascade-trashed, even for a periods.manage holder with access"
+  },
+  {
+    "id": "purge-file-guard-legal-hold",
+    "why": "A file under legal hold must never be permanently deleted through the single-file purge door. PeriodPurger already blocks a whole period containing one; without this, that hold could be routed around one file at a time.",
+    "file": "app/Actions/Files/PurgeFile.php",
+    "remove": "        if ($file->legal_hold) {\n            throw FileUnderLegalHold::for((int) $file->getKey(), (string) $file->name);\n        }\n\n",
+    "expectFailing": "refuses to purge a file under legal hold"
+  },
+  {
+    "id": "purge-file-guard-archived-period",
+    "why": "A file whose period is archived must never be purged one file at a time. Archived periods are read-only, the same rule RestoreFile and StoreFileVersion already enforce, and the only sanctioned way to reclaim an archived period's storage is the retention-gated PeriodPurger.",
+    "file": "app/Actions/Files/PurgeFile.php",
+    "remove": "        if (ArchivePeriod::isArchivedFor((int) $file->period_year, (int) $file->period_month)) {\n            throw PeriodIsArchived::forPeriod((int) $file->period_year, (int) $file->period_month);\n        }\n\n",
+    "expectFailing": "refuses to purge a file whose period is archived"
   }
 ]

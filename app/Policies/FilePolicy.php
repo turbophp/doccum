@@ -28,10 +28,10 @@ use App\Services\DirectoryAccess;
  * liveDirectory() and refuse outright when it comes back null: a trashed
  * subtree is already invisible to browsing and search
  * (DirectoryAccess::resolveViewable()), and resolving withTrashed() in any
- * of these four would reopen exactly the reveal that hides. restore() and
- * delete() use directoryEvenIfTrashed() and let DirectoryAccess decide as
- * usual, because both are how a file gets out of a trashed subtree for
- * good, one way or the other, and a blanket refusal would make a
+ * of these four would reopen exactly the reveal that hides. restore(),
+ * delete() and purge() use directoryEvenIfTrashed() and let DirectoryAccess
+ * decide as usual, because all three are how a file gets out of a trashed
+ * subtree for good, one way or the other, and a blanket refusal would make a
  * cascade-trashed file permanently unrecoverable and unpurgeable. See issue
  * #62 and spec §5.
  */
@@ -104,6 +104,35 @@ class FilePolicy
         }
 
         return $this->access->can($user, $directory, AccessLevel::Edit);
+    }
+
+    /**
+     * Permanently deleting a trashed file needs files.delete, the same
+     * capability as trashing it, but manage rather than edit on its
+     * directory: trashing (see delete()) is reversible, this destroys
+     * objects and rows for good, and the bar for reach into the directory
+     * is the highest level DirectoryAccess grants. See PurgeFile and spec
+     * §9.
+     *
+     * Resolved the same way as delete() and restore() --
+     * directoryEvenIfTrashed(), withTrashed() -- for the same reason: a
+     * file cascade-trashed alongside its own directory must still be
+     * purgeable, not stranded because its directory query now finds
+     * nothing. See the class docblock.
+     */
+    public function purge(User $user, File $file): bool
+    {
+        if (! $user->can('files.delete')) {
+            return false;
+        }
+
+        $directory = $this->directoryEvenIfTrashed($file);
+
+        if ($directory === null) {
+            return false;
+        }
+
+        return $this->access->can($user, $directory, AccessLevel::Manage);
     }
 
     /**
@@ -193,8 +222,8 @@ class FilePolicy
      * The file's directory, or null if it is trashed (or gone). Used by
      * view(), update(), move() and legalHold(), which must all refuse
      * outright rather than see into a trashed subtree. See the class
-     * docblock for why delete() and restore() use directoryEvenIfTrashed()
-     * instead.
+     * docblock for why delete(), restore() and purge() use
+     * directoryEvenIfTrashed() instead.
      */
     private function liveDirectory(File $file): ?Directory
     {
@@ -202,9 +231,9 @@ class FilePolicy
     }
 
     /**
-     * The file's directory, trashed or not. Used only by delete() and
-     * restore(), which must still be able to answer for a file whose
-     * directory was cascade-trashed alongside it.
+     * The file's directory, trashed or not. Used only by delete(),
+     * restore() and purge(), which must still be able to answer for a file
+     * whose directory was cascade-trashed alongside it.
      */
     private function directoryEvenIfTrashed(File $file): ?Directory
     {
