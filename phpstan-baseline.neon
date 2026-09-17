@@ -43,20 +43,8 @@ parameters:
 			path: app/Livewire/Search/Results.php
 
 		-
-			message: '#^Method App\\Livewire\\Setup\\FirstRun\:\:emailRules\(\) should return array\<int, array\<mixed\>\|Illuminate\\Contracts\\Validation\\ValidationRule\|string\> but returns array\<int, Illuminate\\Validation\\Rules\\Unique\|string\>\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Livewire/Setup/FirstRun.php
-
-		-
 			message: '#^Method App\\Livewire\\Setup\\FirstRun\:\:render\(\) has no return type specified\.$#'
 			identifier: missingType.return
-			count: 1
-			path: app/Livewire/Setup/FirstRun.php
-
-		-
-			message: '#^Method App\\Livewire\\Setup\\FirstRun\:\:usernameRules\(\) should return array\<int, array\<mixed\>\|Illuminate\\Contracts\\Validation\\ValidationRule\|string\> but returns array\<int, Illuminate\\Validation\\Rules\\Unique\|string\>\.$#'
-			identifier: return.type
 			count: 1
 			path: app/Livewire/Setup/FirstRun.php
 

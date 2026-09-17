@@ -105,7 +105,15 @@ class RegistrationTest extends TestCase
             'password_confirmation' => 'password',
         ])->assertSessionHasNoErrors();
 
-        $this->assertTrue(User::where('email', 'alice@example.com')->exists());
-        $this->assertFalse(User::where('email', 'Alice@Example.com')->exists());
+        // Read the stored value back and compare it in PHP. Asserting this
+        // with where('email', 'Alice@Example.com')->exists() would be the
+        // exact driver-dependent comparison this item exists to remove:
+        // MySQL's utf8mb4_unicode_ci folds case at comparison time, so that
+        // query matches the folded row and the assertion fails on MySQL
+        // while passing on SQLite and PostgreSQL. See decision/0010.
+        $this->assertSame(
+            'alice@example.com',
+            User::query()->where('username', 'alice')->value('email'),
+        );
     }
 }

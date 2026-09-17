@@ -30,7 +30,7 @@ class CreateNewUser implements CreatesNewUsers
         // column verbatim, so uniqueness only means the same thing on every
         // driver if the value it compares is already folded. See issue #59
         // and App\Support\EmailKey.
-        if (isset($input['email']) && is_string($input['email'])) {
+        if (isset($input['email'])) {
             $input['email'] = EmailKey::of($input['email']);
         }
 

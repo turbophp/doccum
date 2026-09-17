@@ -53,8 +53,12 @@ it('folds the first admin\'s email to lowercase even when submitted with capital
         ->call('submit')
         ->assertHasNoErrors();
 
-    expect(User::where('email', 'ada@example.com')->exists())->toBeTrue()
-        ->and(User::where('email', 'Ada@Example.com')->exists())->toBeFalse();
+    // Compared in PHP, not through a where() on the folded column: MySQL's
+    // utf8mb4_unicode_ci makes where('email', 'Ada@Example.com') match the
+    // folded row, so a query-based assertion here would be the very
+    // driver-dependent comparison this item removes. See decision/0010.
+    expect(User::query()->where('username', 'ada')->value('email'))
+        ->toBe('ada@example.com');
 });
 
 // Issue #59's finding #1, and the real headline: this installer is the one
