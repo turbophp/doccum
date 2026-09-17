@@ -342,9 +342,30 @@ it('refuses to replace a file whose directory is cascade-trashed, even with acce
     $file = File::factory()->for($this->dir, 'directory')->create();
 
     app(TrashDirectory::class)->handle($this->dir->fresh());
-    $trashedFile = File::withTrashed()->findOrFail($file->id);
 
-    expect($this->user->fresh()->can('replace', $trashedFile))->toBeFalse();
+    // The file is restored and the DIRECTORY left trashed, deliberately.
+    //
+    // TrashDirectory cascades onto every descendant file, so a plain cascade
+    // also leaves $file->trashed() true -- and replace()'s trashed-FILE
+    // guard, which runs first, would then refuse on its own. This test
+    // passed with the liveDirectory() guard deleted for exactly that reason,
+    // and the mutation harness said so: "STILL PASSES with the guard
+    // deleted. The guard is not load-bearing, or the test does not exercise
+    // it." It was the second.
+    //
+    // Restoring just the file isolates the directory guard as the only thing
+    // left that can refuse. It is a reachable state, not a contrivance:
+    // restore(), delete() and purge() resolve the directory withTrashed() on
+    // purpose (see the FilePolicy class docblock) precisely so a
+    // cascade-trashed file can be restored one at a time, which leaves it
+    // live beneath a directory that is still trashed.
+    $file = File::withTrashed()->findOrFail($file->id);
+    $file->restore();
+
+    $live = File::findOrFail($file->id);
+    expect($live->trashed())->toBeFalse();
+
+    expect($this->user->fresh()->can('replace', $live))->toBeFalse();
 });
 
 it('refuses to replace a trashed file, live directory, full access', function () {

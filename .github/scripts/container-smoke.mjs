@@ -77,6 +77,7 @@ const VERSIONS_CHECK_FILE_NAME = 'DoccumSmokeVersionTarget.txt';
 const EXTRACTION_TIMEOUT_MS = Number(env('EXTRACTION_TIMEOUT_MS', '60000'));
 const POLL_INTERVAL_MS = Number(env('POLL_INTERVAL_MS', '2000'));
 const SEARCH_TIMEOUT_MS = Number(env('SEARCH_TIMEOUT_MS', '20000'));
+const REPLACE_TIMEOUT_MS = Number(env('REPLACE_TIMEOUT_MS', '20000'));
 
 // Only used by checkForwardedPasswordResetUrl() below (item/reverse-proxy-ready,
 // issue #58), which only the 'setup' phase calls -- read with a fallback here
@@ -922,6 +923,25 @@ async function checkReplaceAddsASecondVersion(page, phase) {
 
   await uploadAndProveStored(page, VERSIONS_CHECK_FILE_NAME, originalBody, phase);
 
+  // Re-navigate before selecting the row, exactly as
+  // checkTrashRemovesFileFromListingAndSearch() does, and for a reason worth
+  // stating because omitting it cost a whole mutation cycle here.
+  //
+  // Straight after an upload the main form's file input still displays the
+  // name of the file just chosen, so the page carries that text TWICE: once
+  // as the listing's select link and once as the input's own rendering of
+  // its filename. getByText() then does not reliably land on the link, and
+  // selectFile() never fires -- no detail panel, no version list, and the
+  // wait below times out. It timed out identically on the correct build and
+  // on the create-path mutation, which is precisely a check that proves
+  // nothing: mutation-check.php asserts BOTH directions for the same
+  // reason, and this check has to earn its keep the same way. A fresh
+  // navigation clears the input and leaves exactly one match. Issue #107
+  // recorded this same input-draws-the-filename behaviour fooling an
+  // upload assertion; it fools a selection the same way.
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
   await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).click();
 
   // Two input[type="file"] elements exist on the page from this point on --
@@ -947,21 +967,6 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   await page.locator('[data-test="replace-file-button"]').click();
 
-  // The version list is what render() re-queries on every update -- this is
-  // the assertion that requires the feature to actually DO something
-  // (CLAUDE.md), kept subordinate to the tinker checks below per this
-  // function's own docblock.
-  await page
-    .locator('[data-test="file-version-row"]')
-    .nth(1)
-    .waitFor({ state: 'visible', timeout: 10000 });
-  const rowCount = await page.locator('[data-test="file-version-row"]').count();
-  if (rowCount !== 2) {
-    dumpContainerState(`[${phase}] expected exactly 2 [data-test="file-version-row"] elements after replacing ${VERSIONS_CHECK_FILE_NAME}, found ${rowCount}`);
-    throw Object.assign(new Error(`expected 2 version rows, found ${rowCount}`), { dumped: true });
-  }
-  console.log(`[${phase}] the version list rendered 2 rows after Replace -- the panel actually renders in this image`);
-
   const expectedV2Checksum = crypto.createHash('sha256').update(replacementBody).digest('hex');
   const expectedV1Checksum = crypto.createHash('sha256').update(originalBody).digest('hex');
 
@@ -977,7 +982,28 @@ async function checkReplaceAddsASecondVersion(page, phase) {
     `echo ' REPLACEMENT_NAME_EXISTS:' . (\\App\\Models\\File::where('name', '${replacementFileName}')->exists() ? 'yes' : 'no');`,
   ].join(' ');
 
-  const output = tinker(php);
+  // Synchronised on the DATABASE, not on the DOM, and deliberately so.
+  //
+  // The first version of this check waited on [data-test="file-version-row"]
+  // .nth(1) before reading anything, and called that wait "subordinate" to
+  // the checksum triple below. The mutated image then failed on exactly that
+  // wait -- a bare 10s Playwright timeout naming a selector -- and never
+  // reached a single checksum. The assertion that fired was the one the
+  // docblock called secondary, and the evidence the docblock called primary
+  // went unproven. That is decision/0012's lesson repeating: which half is
+  // load-bearing is not something to reason about, only to measure.
+  //
+  // So the wait is now a poll on the rows themselves, and its failure path
+  // carries all three pieces of evidence. On the create-path mutation this
+  // reports "a File row named DoccumSmokeReplacement.txt exists" rather than
+  // a selector timeout -- the symptom named, not merely detected.
+  const replaceDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  let output = tinker(php);
+
+  while (Date.now() < replaceDeadline && Number(/MAX_VERSION:(\d+)/.exec(output)?.[1] ?? '0') < 2) {
+    await sleep(POLL_INTERVAL_MS);
+    output = tinker(php);
+  }
 
   if (/FILE:no/.test(output)) {
     dumpContainerState(`[${phase}] ${VERSIONS_CHECK_FILE_NAME} disappeared before the replace checksum check could run -- raw output: ${output}`);
@@ -1022,6 +1048,25 @@ async function checkReplaceAddsASecondVersion(page, phase) {
     throw Object.assign(new Error(`max version_number is ${maxVersion}, expected at least 2`), { dumped: true });
   }
   console.log(`[${phase}] ${VERSIONS_CHECK_FILE_NAME} has max(version_number) = ${maxVersion} (>= 2, per issue #106's retry note) -- OK`);
+
+  // Only now the DOM, and only as its own distinct claim: the database says
+  // two versions exist, so the panel must actually render them. This is what
+  // catches a version list that a broken asset build or an unresolved Flux
+  // component leaves blank while every row sits in the database -- the one
+  // failure a Blade assertion in the suite cannot see, and the reason
+  // CLAUDE.md wants a browser here at all. It is no longer carrying the
+  // create-path mutation; the checksum triple above does that.
+  const versionRows = page.locator('[data-test="file-version-row"]');
+  await versionRows.nth(1).waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+  const rowCount = await versionRows.count();
+
+  if (rowCount < 2) {
+    dumpContainerState(
+      `[${phase}] the database reports max(version_number) = ${maxVersion} for ${VERSIONS_CHECK_FILE_NAME}, but the panel rendered ${rowCount} [data-test="file-version-row"] element(s) -- the version list is not reaching the browser in this image`,
+    );
+    throw Object.assign(new Error(`version list rendered ${rowCount} rows for ${maxVersion} versions`), { dumped: true });
+  }
+  console.log(`[${phase}] the version list rendered ${rowCount} rows -- the panel genuinely renders in this image`);
 }
 
 /**

@@ -80,7 +80,20 @@ it('404s a version id belonging to a different file', function () {
         ->get(route('files.versions.download', [$this->fileA, $this->versionB1]));
 
     $response->assertNotFound();
-    expect($response->headers->get('Location'))->not->toContain($this->versionB1->object_key);
+
+    // Belt and braces alongside assertNotFound(): whatever the status, the
+    // response must not carry a signed URL for a version of a file this
+    // caller cannot reach.
+    //
+    // str_contains() rather than expect()->not->toContain(): this Pest
+    // restricts toContain() to iterables, so on a header string it raises
+    // InvalidExpectationValue and the assertion never actually runs -- a
+    // test that errors instead of checking, which is the same failure mode
+    // CLAUDE.md warns about for toThrow() on an interface.
+    expect(str_contains(
+        (string) $response->headers->get('Location'),
+        (string) $this->versionB1->object_key,
+    ))->toBeFalse();
 });
 
 it('404s a cross-file version id even when the caller can view both files', function () {

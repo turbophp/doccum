@@ -154,6 +154,13 @@
     "expectFailing": "refuses to replace a file whose directory is cascade-trashed, even with access that would otherwise allow it"
   },
   {
+    "id": "file-policy-replace-refuses-trashed-file",
+    "why": "item/files-versions-replace (issue #102): replace() must refuse a file that is itself trashed, separately from whether its directory is. StoreFileVersion::handle() finds a file by (directory_id, name_key) through the default, non-trashed query, so for a trashed file it takes the CREATE path and writes a fresh file under the same name -- StoreFileVersionTest's 'does not resurrect a trashed file of the same name' proves that is the action's designed behaviour. A later RestoreFile would then collide on that name, and the trashed original becomes unrestorable. Refusing here is what keeps restore-then-replace the only route.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($file->trashed()) {\n            return false;\n        }\n\n",
+    "expectFailing": "refuses to replace a trashed file, live directory, full access"
+  },
+  {
     "id": "browser-replace-file",
     "why": "item/files-versions-replace (issue #102): replacing a file through the panel must require files.upload and edit access, and StoreFileVersion itself never checks -- actions never authorise (CLAUDE.md). Without this the Replace control would let anyone who can open the file's detail panel overwrite it with a new version.",
     "file": "app/Livewire/Files/Browser.php",
