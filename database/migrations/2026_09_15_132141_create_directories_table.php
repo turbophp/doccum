@@ -29,6 +29,12 @@ return new class extends Migration
             // portable to MySQL. Uniqueness among non-trashed siblings is
             // enforced in the application.
             $table->index(['parent_id', 'name']);
+
+            // foreignId()->constrained() does not index the column itself --
+            // only MySQL/MariaDB gets one, auto-created by InnoDB because the
+            // constraint requires it. SQLite and PostgreSQL leave it bare.
+            // See tests/Feature/SchemaPortabilityTest.php (decision/0008).
+            $table->index('created_by');
         });
     }
 

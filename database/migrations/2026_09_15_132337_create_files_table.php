@@ -30,6 +30,12 @@ return new class extends Migration
             $table->softDeletes();
 
             $table->index(['directory_id', 'name']);
+
+            // foreignId()->constrained() does not index the column itself --
+            // only MySQL/MariaDB gets one, auto-created by InnoDB because the
+            // constraint requires it. SQLite and PostgreSQL leave it bare.
+            // See tests/Feature/SchemaPortabilityTest.php (decision/0008).
+            $table->index('created_by');
         });
     }
 

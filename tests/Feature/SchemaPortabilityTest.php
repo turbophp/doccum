@@ -85,36 +85,31 @@ const SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES = [
 /**
  * Foreign-key columns with no index leading with that column, on the legs
  * that do not require one (InnoDB does; SQLite and PostgreSQL do not --
- * see decision/0008). Every one of these was found while building this
- * audit, none by design: nothing here was fixed inline, per this item's
- * brief. Each is reported alongside this work for its own issue.
+ * see decision/0008).
+ *
+ * Empty as of item/fk-index-coverage (issue #65). Six columns were found
+ * here while building this audit -- directories.created_by,
+ * files.created_by, file_versions.uploaded_by, search_documents.owner_id
+ * and settings.updated_by each gained an explicit index in their original
+ * create-table migration (doccum's own tables, and nothing has been
+ * released yet -- the same practice #38 and #69 already used);
+ * role_has_permissions.role_id gained one via its own additive migration
+ * instead (database/migrations/2026_09_17_120000_add_role_id_index_to_role_has_permissions_table.php),
+ * because that table's create migration is a published copy of
+ * spatie/laravel-permission's own and CLAUDE.md's upgrade seam forbids
+ * editing a framework or package migration -- an upgrade would overwrite
+ * it. None of the six needed dropping any existing index, so decision/0008's
+ * create-before-drop rule was never in play here.
+ *
+ * Kept as a real (if empty) exclusion list, not deleted, so a future
+ * regression has somewhere to be named again rather than a re-introduced
+ * gap failing with no place to record why it is temporarily accepted.
  *
  * Keyed by "table.column" for a single-column foreign key.
  *
  * @var array<string, string>
  */
-const SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS = [
-    'directories.created_by' => 'foreignId(\'created_by\')->constrained(\'users\') carries no index of its own -- only '.
-        'MySQL/MariaDB gets one, auto-created by InnoDB because the constraint requires it. '.
-        'SQLite and PostgreSQL leave the column entirely unindexed. Verified empirically against '.
-        'both (PRAGMA index_list / pg_indexes) while building this audit.',
-    'files.created_by' => 'Same gap as directories.created_by, same column, same migration pattern '.
-        '(database/migrations/2026_09_15_132337_create_files_table.php).',
-    'file_versions.uploaded_by' => 'foreignId(\'uploaded_by\')->constrained(\'users\') in '.
-        'database/migrations/2026_09_15_132338_create_file_versions_table.php has no covering '.
-        'index outside MySQL/MariaDB\'s auto-created one; file_id is covered by the '.
-        '(file_id, version_number) unique index, uploaded_by is not.',
-    'search_documents.owner_id' => 'database/migrations/2026_09_16_140000_create_search_documents_table.php indexes '.
-        'directory_id explicitly but not owner_id, which carries its own foreign key to users.',
-    'settings.updated_by' => 'foreignId(\'updated_by\')->constrained(\'users\') in '.
-        'database/migrations/2026_09_15_131320_create_settings_table.php has no index at all '.
-        'outside MySQL/MariaDB\'s auto-created one.',
-    'role_has_permissions.role_id' => "spatie/laravel-permission's own migration (database/migrations/2026_09_15_134326_"
-        .'create_permission_tables.php) gives role_has_permissions a composite primary key '
-        .'(permission_id, role_id) -- it leads with permission_id, so only that column is covered. '
-        .'role_id is the trailing column of that primary key, never the leading column of any '
-        .'index, except on MySQL/MariaDB where InnoDB auto-creates one for it.',
-];
+const SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS = [];
 
 /**
  * Every raw-SQL or collation-dependent site under app/ and database/, found
