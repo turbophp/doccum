@@ -220,21 +220,35 @@ async function searchUntilFound(page, phase) {
 
 /**
  * Drives the topbar shell (item/topbar-shell, issue #12) in the real
- * container. The layout test that shipped it asserts rendered Blade, which
- * cannot see either of the things checked here:
+ * container, because the layout test that shipped it renders Blade through
+ * the test renderer and cannot see the image at all.
  *
- *   - The version pill is compared against what the RUNNING IMAGE reports,
- *     not against the constant the view already read. A config cache baked
- *     at image-build time against a different value is invisible to any
- *     assertion that reads the same source the pill did.
- *   - The account dropdown opens only if @fluxScripts actually loaded and
- *     Alpine booted. A broken asset build leaves every Blade assertion green
- *     while logout becomes unreachable in a browser -- the exact shape of
- *     "a green suite is necessary and not sufficient" in CLAUDE.md.
+ * What each assertion is actually worth, measured rather than assumed. The
+ * whole function was mutation-checked by removing @fluxScripts from the
+ * layout and running the smoke against the resulting image:
+ * https://github.com/turbophp/doccum/actions/runs/35223275581
  *
- * The menu is asserted HIDDEN before the click and visible after. Asserting
- * only "visible after the click" would pass on a container shipping no JS at
- * all, because with Alpine absent nothing hides the menu to begin with.
+ *   - "the account menu opens on click" is the LOAD-BEARING assertion. With
+ *     @fluxScripts gone it timed out here, so it genuinely proves the
+ *     scripts loaded and booted in the image. A broken asset build leaves
+ *     every Blade assertion green while logout is unreachable in a browser.
+ *
+ *   - "the menu is hidden before the click" proves NOTHING on its own, and
+ *     the earlier claim that it did was wrong. In that same mutated image,
+ *     with no JavaScript at all, the menu was still hidden -- so this check
+ *     passes on a container shipping no scripts. It is kept only as a cheap
+ *     sanity check that the click is what changes the state, and must never
+ *     be cited as evidence the page is alive.
+ *
+ *   - The version pill check is WEAK and is not a cross-source comparison.
+ *     tinker reads config('doccum.version') and so does the Blade: same
+ *     process, same source. The Dockerfile runs no config:cache, so the
+ *     stale-cache scenario an earlier version of this comment described
+ *     does not exist. What it does prove is narrow but real: the pill
+ *     renders the configured value rather than a literal baked into the
+ *     view. It becomes a genuine assertion once item/version-from-tag (36)
+ *     gives an external source -- the image's
+ *     org.opencontainers.image.version label -- to compare against.
  */
 async function checkTopbar(page, phase) {
   const version = versionFromContainer();
@@ -248,7 +262,7 @@ async function checkTopbar(page, phase) {
         `config('doccum.version') = "${version}"`,
     );
   }
-  console.log(`[${phase}] version pill agrees with the container's own config: ${pillText}`);
+  console.log(`[${phase}] version pill renders the configured value: ${pillText}`);
 
   // The administrator holds properties.manage, so all three are expected.
   // A plain member seeing Settings is covered by the layout test; what is
@@ -259,17 +273,17 @@ async function checkTopbar(page, phase) {
   }
   console.log(`[${phase}] topbar shows Home, Files and Settings for the administrator`);
 
+  // Cheap sanity check only -- see the docblock. This passes with no JS in
+  // the image at all, so it is evidence that the click changes something,
+  // never evidence that the page is alive.
   const logout = page.locator('[data-test="logout-button"]');
   if (await logout.isVisible()) {
-    throw new Error(
-      'the account menu was already visible before its trigger was clicked -- nothing is ' +
-        'hiding it, so this check cannot distinguish a working dropdown from absent JS',
-    );
+    throw new Error('the account menu was already visible before its trigger was clicked');
   }
 
   await page.locator('[data-test="account-menu-trigger"]').click();
   await logout.waitFor({ state: 'visible', timeout: 10000 });
-  console.log(`[${phase}] account menu opens on click -- @fluxScripts booted in the image`);
+  console.log(`[${phase}] account menu opens on click -- scripts booted in the image`);
 
   return logout;
 }
