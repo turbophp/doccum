@@ -453,7 +453,25 @@ Under `prefers-reduced-motion: reduce`, `move()` short-circuits: Reveal,
 Unfold, Fold, Lift, Settle, Stamp and Sheet become instant state changes; Menu
 and Confirm keep an opacity-only 60ms fade; Progress remains, because it is
 information; Accept remains, because a drop target with no indication is
-unusable. CSS transitions use Tailwind's `motion-reduce:transition-none`.
+unusable.
+
+CSS transitions were originally specified to carry Tailwind's
+`motion-reduce:transition-none` on each animating element. That is
+per-element, which means it can be forgotten, and it was: the tree's
+disclosure chevrons rotated through `transition-transform` with no variant, so
+reduced motion was honoured by the JavaScript half of the shell and ignored by
+the CSS half. A blanket `@media (prefers-reduced-motion: reduce)` block in
+`app.css` now collapses every transition and animation to 0.01ms, with
+`!important` -- without it a Tailwind duration utility wins on specificity.
+The variants are harmless where they already appear, but nothing depends on
+remembering them.
+
+The trade-off is worth stating: the blanket rule cannot be opted out of from
+CSS. Anything that must keep moving under reduced motion because it carries
+information rather than decoration -- Progress and Accept, above -- has to run
+through `move()` with `keepUnderReducedMotion`, which is the only escape hatch.
+That is the right place for the exception to live, since it forces a caller to
+say out loud that the motion is information.
 
 ### Livewire choreography
 
@@ -745,7 +763,7 @@ Not in Flux free and therefore hand-built: context menu positioning, tabs,
 | `MovePicker` | Modal with the tree; the touch and keyboard route to Move |
 | `Sheet` | Left / right / bottom sheets for phone and tablet |
 | `EmptyState` | One sentence, one action: "Nothing here yet. Drop files or choose Upload." / "No results." (identical for no-match and no-access, as the search view already does) |
-| `move()` | The one motion helper; owns reduced-motion |
+| `move()` | The one motion helper; owns reduced-motion for scripted animation, and holds the only opt-out (`keepUnderReducedMotion`). CSS is covered separately by the blanket block in `app.css` |
 
 Where things live: Livewire components under `app/Livewire/Files/` (Browser
 stays the root and keeps filtering in the query, never in the view); Alpine
