@@ -47,7 +47,9 @@ class EmailVerificationTest extends TestCase
         Event::assertDispatched(Verified::class);
 
         $this->assertTrue($user->fresh()->hasVerifiedEmail());
-        $response->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+        // Files is the default landing after login (spec §10,
+        // "Destinations"), not the dashboard.
+        $response->assertRedirect(route('files.browse', absolute: false).'?verified=1');
     }
 
     public function test_email_is_not_verified_with_invalid_hash(): void
@@ -80,7 +82,9 @@ class EmailVerificationTest extends TestCase
         );
 
         $this->actingAs($user)->get($verificationUrl)
-            ->assertRedirect(route('dashboard', absolute: false).'?verified=1');
+            // Files is the default landing after login (spec §10,
+            // "Destinations"), not the dashboard.
+            ->assertRedirect(route('files.browse', absolute: false).'?verified=1');
 
         $this->assertTrue($user->fresh()->hasVerifiedEmail());
         Event::assertNotDispatched(Verified::class);
