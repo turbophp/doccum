@@ -722,6 +722,24 @@ async function runSetup() {
 
     checkEmbeddedSqlitePragmas();
 
+    // '/' and THEN '/files'. That is main's page sequence, and the only one
+    // CI has ever shown green here.
+    //
+    // This is not decoration, and it is not the fix for the underlying
+    // problem either. With the installer now landing on /files, the goto
+    // below became a same-URL navigation, and on this branch the upload that
+    // follows silently stores nothing: eight runs, every one of them
+    // "no files row", while #108 -- same main, same smoke, installer still
+    // landing on '/' -- uploads fine. A Livewire-readiness wait was tried
+    // here and refuted; it changed nothing. So the cause is not understood,
+    // only located, and this restores the sequence that works rather than
+    // pretending to have solved it. The race belongs to the smoke, not to
+    // the redirect this pull request is about, and it stays open on #106.
+    //
+    // The proof of issue #97 is untouched: waitForURL('/files') above runs
+    // before any of this and still fails if the installer redirects to '/'.
+    await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded' });
+
     console.log('[setup] opening the home directory');
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
 
@@ -736,20 +754,6 @@ async function runSetup() {
     // true -- see config/doccum.php), so it is the one link on this page.
     await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
     await page.locator('input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
-
-    // Wait for Livewire to be up before touching the input. The input being
-    // ATTACHED is not the input being BOUND: wire:navigate swaps the DOM and
-    // Livewire binds afterwards, and setting files in that window fires a
-    // change event with no listener on it -- no upload request, no error, no
-    // log line, and a files row that never appears.
-    //
-    // Why this branch and not main: main reaches /files from '/', a real
-    // cross-page fetch. Here the installer already lands on /files, so the
-    // goto above is a same-URL navigation served from cache and finishes far
-    // sooner -- setInputFiles landed ~0.8s after it, and lost. The race is
-    // main's too; this branch only stopped hiding it. Issue #106.
-    await page.waitForFunction(() => Boolean(window.Livewire), { timeout: 15000 });
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
 
     console.log(`[setup] uploading ${FILE_NAME}`);
     const tmpFile = path.join(os.tmpdir(), FILE_NAME);
