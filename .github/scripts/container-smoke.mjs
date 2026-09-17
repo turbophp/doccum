@@ -161,43 +161,76 @@ function dumpContainerState(reason) {
 }
 
 /**
- * Blocks until a files row actually exists for FILE_NAME.
+ * Whether a files row exists for this name, asked once. No waiting, no
+ * retrying -- callers decide what to do about a `false`.
  *
- * The upload step's own assertion is page.getByText(FILE_NAME), which matches
- * the file input's displayed filename and Livewire's optimistic preview --
- * neither of which needs anything to have been stored. It printed "upload
- * accepted, file listed in the directory" through a run in which
- * File::where('name', ...) returned null for the following sixty seconds,
- * and the run then failed later and elsewhere, at extraction.
+ * This is the question the upload step must actually ask. Its own assertion,
+ * page.getByText(name), matches the file input's displayed filename and
+ * Livewire's optimistic preview, neither of which needs anything to have been
+ * stored: it reported "upload accepted, file listed in the directory" through
+ * a run in which File::where('name', ...) returned null for the next sixty
+ * seconds, and the run then failed elsewhere, at extraction, for a reason
+ * that looked nothing like the cause.
  *
  * decision/0012: prefer an assertion that requires the feature to DO
  * something over one that observes a resting state. See issue #106.
  */
-async function waitForFileRow() {
+function fileRowExists(name) {
   const php = [
-    `$f = \\App\\Models\\File::where('name', '${FILE_NAME}')->first();`,
+    `$f = \\App\\Models\\File::where('name', '${name}')->first();`,
     "echo 'ROW:' . ($f ? 'yes' : 'no');",
   ].join(' ');
 
-  const deadline = Date.now() + 30000;
-  let last = 'never answered';
+  return /ROW:yes/.test(tinker(php));
+}
 
-  while (Date.now() < deadline) {
-    try {
-      if (/ROW:yes/.test(tinker(php))) return;
-      last = 'no files row';
-    } catch (e) {
-      last = e.message;
+/**
+ * Uploads a file through the browser and does not return until a files row
+ * exists for it, retrying the interaction rather than the assertion.
+ *
+ * The retry is the point, and it is a diagnosis as much as a fix. Setting a
+ * file on the input shortly after navigating into a directory sometimes
+ * stores NOTHING -- no request, no error, no console output, and a listing
+ * that still shows the name because the file input draws it. Reproduced in
+ * two independent places: issue #98's first upload, and the trash target in
+ * issue #108, both reported FILE:no. What separates them from the upload that
+ * works is only how much happens between the navigation and setInputFiles.
+ *
+ * Waiting on window.Livewire was tried and proves nothing -- it is set when
+ * the script first loads, so after a wire:navigate DOM swap it is already
+ * true. Reproducing main's page sequence was tried too, and did not help.
+ * Neither the cause nor a sound wait condition is known, so this retries the
+ * whole interaction and SAYS which attempt worked: if attempt 2 routinely
+ * succeeds the window is transient, and if no attempt ever does it is
+ * structural. Either answer is worth more than another guess. Issue #106.
+ *
+ * Not a quarantine and not a skip: the assertion still has to pass, and the
+ * run still fails loudly if no attempt stores the file.
+ */
+async function uploadAndProveStored(page, name, contents, phase) {
+  const tmpFile = path.join(os.tmpdir(), name);
+  fs.writeFileSync(tmpFile, contents);
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await page.locator('input[type="file"]').setInputFiles(tmpFile);
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    await page.getByRole('button', { name: 'Upload', exact: true }).click();
+    await page
+      .getByText(name, { exact: true })
+      .waitFor({ timeout: 10000 })
+      .catch(() => {});
+
+    if (fileRowExists(name)) {
+      console.log(`[${phase}] ${name} stored, confirmed by a files row (attempt ${attempt})`);
+      return;
     }
-    await sleep(1000);
+
+    console.log(`[${phase}] attempt ${attempt} left no files row for ${name}`);
+    await sleep(2000);
   }
 
-  dumpContainerState(
-    `the upload step reported success but no files row exists for ${FILE_NAME}\n${last}`,
-  );
-  const err = new Error(`no files row for ${FILE_NAME} after the upload: ${last}`);
-  err.dumped = true;
-  throw err;
+  dumpContainerState(`${name} was uploaded three times and never produced a files row`);
+  throw Object.assign(new Error(`no files row for ${name} after three upload attempts`), { dumped: true });
 }
 
 /**
@@ -897,23 +930,12 @@ async function runSetup() {
     await page.locator('input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
     console.log(`[setup] uploading ${FILE_NAME}`);
-    const tmpFile = path.join(os.tmpdir(), FILE_NAME);
-    fs.writeFileSync(
-      tmpFile,
+    await uploadAndProveStored(
+      page,
+      FILE_NAME,
       `This is a doccum container smoke test document containing the marker word ${FILE_MARKER}.\n`,
+      'setup',
     );
-    await page.locator('input[type="file"]').setInputFiles(tmpFile);
-    // Livewire uploads the file to its temporary-upload endpoint as soon as
-    // the input changes, asynchronously; give that request a moment to land
-    // before submitting the form that references it.
-    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
-    await page.getByRole('button', { name: 'Upload', exact: true }).click();
-    await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-
-    // The line above proves the NAME is on the page, which is not the claim
-    // this step makes. See waitForFileRow().
-    await waitForFileRow();
-    console.log('[setup] upload accepted, and a files row exists for it');
 
     console.log(`[setup] waiting up to ${EXTRACTION_TIMEOUT_MS}ms for extraction to finish`);
     await waitForExtraction();
