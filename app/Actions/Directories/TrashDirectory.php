@@ -6,7 +6,6 @@ namespace App\Actions\Directories;
 
 use App\Models\Directory;
 use App\Models\File;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -37,18 +36,29 @@ class TrashDirectory
         DB::transaction(function () use ($directory): void {
             $batch = (string) Str::uuid();
 
-            $subtree = (new Collection([$directory]))->concat($directory->descendants()->get());
+            // Snapshotted before anything is deleted, and walked as two
+            // concrete loops rather than one concatenated collection: the
+            // concat erases the element type, and the root and its
+            // descendants are the same work either way.
+            $descendants = $directory->descendants()->get();
 
-            foreach ($subtree as $node) {
-                $this->trash($node, $batch);
+            $this->trashWithFiles($directory, $batch);
 
-                foreach (File::query()->where('directory_id', $node->getKey())->get() as $file) {
-                    $this->trash($file, $batch);
-                }
+            foreach ($descendants as $descendant) {
+                $this->trashWithFiles($descendant, $batch);
             }
         });
 
         return $directory->refresh();
+    }
+
+    private function trashWithFiles(Directory $directory, string $batch): void
+    {
+        $this->trash($directory, $batch);
+
+        foreach (File::query()->where('directory_id', $directory->getKey())->get() as $file) {
+            $this->trash($file, $batch);
+        }
     }
 
     /**
