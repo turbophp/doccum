@@ -396,6 +396,57 @@ staggered entrances on page load; skeleton shimmer (static `rule`-coloured
 blocks instead); pulsing on pending glyphs; springs on opacity; parallax;
 transitions on colour-scheme change.
 
+### Micro-interactions
+
+The twelve motions above explain *changes*. This tier is smaller and different
+in kind: it acknowledges a *touch*. Every one is under 120ms and moves
+something by a few pixels or a few percent, because its job is to feel
+responsive rather than to be noticed.
+
+| Trigger | Response |
+|---|---|
+| Button press (`:active`) | scale 0.97, 80ms `cubic-bezier(0.2, 0, 0, 1)`; releases on the same curve |
+| Icon button hover | glyph opacity `ink-2` → `ink`, 80ms; no background, no lift |
+| Checkbox / switch toggle | the check or knob travels 120ms `cubic-bezier(0.2, 0, 0, 1)`; the box border goes to `select` on the same frame |
+| Chevron (tree, sort, disclosure) | rotate 90°, 120ms — the same curve as **Unfold**, so they read as one gesture |
+| Focus ring | 2px `select` outline fades in over 60ms; never animates on mouse focus, only keyboard |
+| Toolbar / menu item hover | background to `chrome`, 60ms; items in an open menu respond instantly, since the pointer is already committed |
+| Sort column click | the arrow flips 180°, 120ms |
+| Tab change (detail pane) | the 2px `select` underline slides between tabs, 160ms spring (stiffness 500, damping 40) |
+| Copy / small confirmation | glyph swaps to a tick for 1.2s, 100ms crossfade both ways |
+
+**The restraint that keeps this from being noise.** Rows are exempt: hover
+background changes instantly, and selection never animates. A file manager is
+scanned at speed, and hundreds of rows each easing under the pointer is the
+single fastest way to make a dense list feel slow and busy. Micro-interaction
+belongs to things you press — buttons, chevrons, checkboxes, tabs — not to
+things you sweep across.
+
+Nothing in this tier is a spring except the tab underline. Springs are for
+motion that carries weight; a press is a tap, not a throw.
+
+### Icons
+
+**Heroicons**, via `flux:icon` — 318 of them already ship with Flux, so no
+library is added. One family across the whole shell.
+
+| Context | Variant | Size |
+|---|---|---|
+| Row glyphs: file type, folder, hold, archived, extraction state | `micro` | 16px |
+| Tree chevrons, toolbar, menu items, detail-pane tabs | `mini` | 20px |
+| Empty states, the desktop-file dropzone | `outline` | 24px |
+| Never used | `solid` | — |
+
+`solid` is excluded deliberately: at row size a filled glyph reads as a colour
+block and fights the rule that only three things in this interface carry
+colour. Outline and its smaller cuts stay quiet enough to sit in a dense list.
+
+State glyphs, fixed so they are learnable: `lock-closed` for legal hold (in
+`hold`), `archive-box` for an archived period (in `ink-2`),
+`exclamation-triangle` for failed extraction (in `attention`), `clock` hollow
+in `ink-2` for extraction pending, and nothing at all for extraction done — a
+tick on every healthy row is noise.
+
 ### Reduced motion
 
 Under `prefers-reduced-motion: reduce`, `move()` short-circuits: Reveal,
