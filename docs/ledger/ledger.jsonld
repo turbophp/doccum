@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T08:05:00Z",
-  "latestRun": "run/0005",
+  "dateModified": "2026-09-17T08:40:00Z",
+  "latestRun": "run/0006",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -151,10 +151,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "Support\\NameKey is unit-tested directly; File and Directory maintain name_key in a saving hook and expose whereNamed(), which replaces every where('name', ...) collision check; the migration applies utf8mb4_bin only on mysql and mariadb; three tests -- a differently-cased upload adds a version, an accented name creates a second file, and an NFD name matches its NFC twin -- are each shown failing on at least one driver before the fix and green on all six legs after; the stored name is unchanged when an upload versions an existing file.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T08:13:00Z",
+      "endTime": "2026-09-17T08:39:26Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/53"
+      ]
     },
     {
       "@id": "item/content-actions",
@@ -231,10 +233,12 @@
         "item/ci-green-baseline"
       ],
       "doneWhen": "Layout test asserts the nav items and that Settings is absent for a plain member; login lands on the file browser; the version pill shows config('doccum.version').",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T07:55:00Z",
+      "endTime": "2026-09-17T08:12:48Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/52"
+      ]
     },
     {
       "@id": "item/files-three-pane",
@@ -1057,6 +1061,38 @@
       "mergedAt": "2026-09-17T07:52:59Z",
       "mergeSha": "e4ae10ca8339a5d085388ab6c8dbbc9717559a7e",
       "mergedIn": "run/0005"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/52",
+      "@type": "PullRequest",
+      "identifier": 52,
+      "name": "feat: replace the starter sidebar with the doccum topbar shell",
+      "implements": [
+        "item/topbar-shell"
+      ],
+      "run": "run/0006",
+      "state": "merged",
+      "dateCreated": "2026-09-17T08:08:00Z",
+      "headSha": "8632450ca7da17d4dd99fa853c8a263eb692ff3e",
+      "mergedAt": "2026-09-17T08:12:48Z",
+      "mergeSha": "534679b6f1bd15c37946c9dfe87a0b56e89ee942",
+      "mergedIn": "run/0006"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/53",
+      "@type": "PullRequest",
+      "identifier": 53,
+      "name": "feat: one name-comparison rule all three drivers agree on",
+      "implements": [
+        "item/name-key"
+      ],
+      "run": "run/0006",
+      "state": "merged",
+      "dateCreated": "2026-09-17T08:22:00Z",
+      "headSha": "e589fcbd875ed5c147220e8ee743e9b164eaa65d",
+      "mergedAt": "2026-09-17T08:39:26Z",
+      "mergeSha": "91ef9b53a2f96c8da68ea61c0a972168d21e54c1",
+      "mergedIn": "run/0006"
     }
   ],
   "decisions": [
@@ -1175,6 +1211,22 @@
         "item/trash-view",
         "item/files-three-pane",
         "item/api-content"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0008",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T08:40:00Z",
+      "run": "run/0006",
+      "name": "A replacement index is created before the one it supersedes is dropped",
+      "rationale": "The name_key migration dropped the composite (parent_id, name) and (directory_id, name) indexes before creating their name_key equivalents, and MySQL refused with errno 1553: the index was needed by a foreign key constraint. InnoDB requires an index whose leading column is the constrained one, and the old composite index had been quietly serving that role since the tables were created -- nothing named it as the foreign key's index, so nothing suggested it could not simply be replaced. PostgreSQL and SQLite do not require an index for a foreign key at all, so all four of their legs passed and reported nothing; only the two MySQL legs failed, and they took 415 of 452 tests with them because every test runs migrations. Creating the replacement first fixes it, because it leads with the same column and so can carry the constraint before the old index goes. Recorded as a rule rather than a one-off fix: this is the second time a constraint MySQL enforces and the other two drivers ignore has reached a green pull request, after the properties key-length failure, and any future index swap on a constrained column has the same trap.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/name-key",
+        "item/pgsql-value-string-index"
       ],
       "supersedes": null
     }
