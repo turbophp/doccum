@@ -131,16 +131,19 @@ it('retries a storage read that fails once, rather than settling as failed', fun
     $recovered = tempnam(sys_get_temp_dir(), 'doccum-retry');
     file_put_contents($recovered, 'hello world');
 
+    // One expectation consuming two behaviours in order, not two expectations.
+    // Mockery merges repeated shouldReceive() for the same method and argument
+    // list rather than queueing them, so declaring them separately let the
+    // second overwrite the first: the read never threw and the test asserted
+    // an exception that could not happen.
     $this->mock(DocumentStorage::class, function ($mock) use ($version, $recovered) {
         $mock->shouldReceive('downloadToTemp')
-            ->once()
+            ->twice()
             ->with($version)
-            ->andThrow(new RuntimeException('Unable to read object from storage.'));
-
-        $mock->shouldReceive('downloadToTemp')
-            ->once()
-            ->with($version)
-            ->andReturn($recovered);
+            ->andReturnUsing(
+                fn () => throw new RuntimeException('Unable to read object from storage.'),
+                fn () => $recovered,
+            );
     });
 
     // Attempt 1: the object store is not yet serving the object. The
