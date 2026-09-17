@@ -86,7 +86,7 @@ doccum must stay on stock Laravel's upgrade path.
 
 ## Docker
 
-- Base image `serversideup/php:8.4-frankenphp-bookworm` — no s6, so `supervisor`
+- Base image `serversideup/php:8.5-frankenphp-bookworm` — no s6, so `supervisor`
   runs FrankenPHP, MinIO, both queue workers and the scheduler.
 - MinIO's binary is copied from a pinned `quay.io/minio/minio` image; it is not
   downloadable any more.
