@@ -34,14 +34,24 @@ class ExtractText implements ShouldQueue
     /**
      * Real spacing between attempts, in seconds.
      *
-     * Without this, a retry is immediate: three tries can burn in well under
-     * a second while the object store is still coming up (MinIO starts in
-     * the same container, and nothing gates the workers on it being ready
-     * to serve). That is a transient read, not an unextractable document --
-     * the extractor chain never throws for the latter, it returns a Failed
-     * ExtractionResult on the first attempt, so this spacing only ever
-     * delays a retry after a storage-layer exception. See CI run
-     * https://github.com/turbophp/doccum/actions/runs/35223806664.
+     * Without this, a retry is immediate: all three tries can burn in well
+     * under a second, so `$tries = 3` bought nothing at all against any
+     * condition that takes longer than that to clear.
+     *
+     * Only a storage-layer exception is ever retried. The extractor chain
+     * does not throw for a document it cannot read -- it returns a Failed or
+     * Unsupported ExtractionResult as a value, settled on the first attempt
+     * -- so this spacing never delays a genuine verdict.
+     *
+     * What it does NOT claim is a diagnosis. The CI failure that prompted
+     * this
+     * (https://github.com/turbophp/doccum/actions/runs/35223806664) was put
+     * down to MinIO not yet serving, but the smoke had already uploaded the
+     * file through the web UI, which writes to MinIO, so MinIO was demonstrably
+     * serving before the read failed. The real cause is still unknown; it
+     * passed on re-run. Spacing retries is right on its own merits, and the
+     * smoke now prints file_texts.error so the next occurrence is diagnosed
+     * from the exception rather than from a guess.
      *
      * @var list<int>
      */
