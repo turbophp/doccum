@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\Directories\MoveDirectory;
 use App\Actions\Files\StoreFileVersion;
 use App\Jobs\ExtractText;
+use App\Jobs\ReindexSearchDocument;
 use App\Models\Directory;
 use App\Models\File;
 use App\Models\SearchDocument;
@@ -71,4 +72,33 @@ it('reindexes a file when its text is extracted', function () {
 
     expect(SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->value('body'))
         ->toContain('tenant shall maintain');
+});
+
+it('does not resurrect a trashed file when a reindex lands after the trash', function () {
+    // The container, not the suite, found this. In production the queue is
+    // real: the reindex dispatched by an upload, or one dispatched by an
+    // ExtractText still in flight, can RUN after the file has been trashed.
+    // SearchProjectionObserver::deleted() forgets the projection inline, but
+    // ReindexSearchDocument::handle() used to call index() unconditionally,
+    // and index() is an updateOrCreate -- so the row came back and the trashed
+    // file answered searches again.
+    //
+    // This test has to stage the ordering by hand, because QUEUE_CONNECTION is
+    // sync here: every dispatch runs inline and in order, so the race cannot
+    // occur on its own. Dispatching explicitly after the delete is what
+    // reproduces what the workers do.
+    $file = File::factory()->create();
+
+    expect(SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->exists())
+        ->toBeTrue();
+
+    $file->delete();
+
+    expect(SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->exists())
+        ->toBeFalse();
+
+    ReindexSearchDocument::dispatch(File::withTrashed()->findOrFail($file->id));
+
+    expect(SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->exists())
+        ->toBeFalse();
 });
