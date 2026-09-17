@@ -324,3 +324,69 @@ it('refuses purge of a file nested beneath the trashed batch root, even with acc
 
     expect($this->user->fresh()->can('purge', $trashedFile))->toBeFalse();
 });
+
+// item/files-versions-replace (issue #102): replace() delegates to create(),
+// so it needs both layers create() needs -- files.upload and edit -- plus its
+// own two refusals: the file's OWN trashed state (independent of its
+// directory) and a cascade-trashed directory. See FilePolicy::replace()'s
+// own docblock for why each is separate.
+//
+// $this->user carries files.upload through the 'member' role assigned in
+// this file's top-level beforeEach() (RolesAndPermissionsSeeder::
+// MEMBER_PERMISSIONS), so the "no files.upload" case below uses a fresh,
+// roleless $stranger instead -- the same shape as "requires the capability
+// as well as the level" above, which is create()'s own version of this test.
+
+it('refuses to replace a file whose directory is cascade-trashed, even with access that would otherwise allow it', function () {
+    giveAccess($this->dir, $this->user, AccessLevel::Manage);
+    $file = File::factory()->for($this->dir, 'directory')->create();
+
+    app(TrashDirectory::class)->handle($this->dir->fresh());
+
+    // The file is restored and the DIRECTORY left trashed, deliberately.
+    //
+    // TrashDirectory cascades onto every descendant file, so a plain cascade
+    // also leaves $file->trashed() true -- and replace()'s trashed-FILE
+    // guard, which runs first, would then refuse on its own. This test
+    // passed with the liveDirectory() guard deleted for exactly that reason,
+    // and the mutation harness said so: "STILL PASSES with the guard
+    // deleted. The guard is not load-bearing, or the test does not exercise
+    // it." It was the second.
+    //
+    // Restoring just the file isolates the directory guard as the only thing
+    // left that can refuse. It is a reachable state, not a contrivance:
+    // restore(), delete() and purge() resolve the directory withTrashed() on
+    // purpose (see the FilePolicy class docblock) precisely so a
+    // cascade-trashed file can be restored one at a time, which leaves it
+    // live beneath a directory that is still trashed.
+    $file = File::withTrashed()->findOrFail($file->id);
+    $file->restore();
+
+    $live = File::findOrFail($file->id);
+    expect($live->trashed())->toBeFalse();
+
+    expect($this->user->fresh()->can('replace', $live))->toBeFalse();
+});
+
+it('refuses to replace a trashed file, live directory, full access', function () {
+    giveAccess($this->dir, $this->user, AccessLevel::Manage);
+    $file = File::factory()->for($this->dir, 'directory')->create();
+    $file->delete();
+
+    expect($this->user->fresh()->can('replace', $file->fresh()))->toBeFalse();
+});
+
+it('allows replace for a user with files.upload and edit', function () {
+    giveAccess($this->dir, $this->user, AccessLevel::Edit);
+    $file = File::factory()->for($this->dir, 'directory')->create();
+
+    expect($this->user->fresh()->can('replace', $file))->toBeTrue();
+});
+
+it('refuses replace for a user with edit but no files.upload permission, proving the delegation to create() carries both layers', function () {
+    $stranger = User::factory()->create();
+    giveAccess($this->dir, $stranger, AccessLevel::Edit);
+    $file = File::factory()->for($this->dir, 'directory')->create();
+
+    expect($stranger->can('replace', $file))->toBeFalse();
+});

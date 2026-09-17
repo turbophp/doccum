@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use App\Enums\AccessLevel;
 use App\Livewire\Files\Browser;
+use App\Models\ArchivePeriod;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
+use App\Models\FileVersion;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
@@ -208,6 +211,131 @@ it('refuses to trash a file without edit access', function () {
         ->assertForbidden();
 
     expect($file->fresh()->trashed())->toBeFalse();
+});
+
+// --- replace a file, version history -----------------------------------------
+
+it('replaces a file through the browser', function () {
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+    FileVersion::factory()->for($file)->create(['version_number' => 1]);
+    $file->update(['current_version_id' => $file->versions()->first()->id]);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectFile', $file->id)
+        // The client name deliberately differs from the document's own name
+        // ('a.txt'). This is the unit-level shadow of the container smoke's
+        // mutation: StoreFileVersion is handed $selectedFile->name, never
+        // this upload's client name, so if that argument were ever swapped
+        // for the upload's own name, this would create A SECOND FILE named
+        // 'replacement-body.txt' instead of a version of 'a.txt', and the
+        // "no File row" assertion below would fail.
+        ->set('replacement', UploadedFile::fake()->create('replacement-body.txt', 4))
+        ->call('replaceFile')
+        ->assertHasNoErrors();
+
+    $file->refresh();
+
+    expect($file->name)->toBe('a.txt')
+        ->and($file->versions()->count())->toBe(2)
+        ->and($file->currentVersion->version_number)->toBe(2)
+        ->and(File::where('name', 'replacement-body.txt')->doesntExist())->toBeTrue();
+});
+
+it('lists versions newest first', function () {
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+    FileVersion::factory()->for($file)->create(['version_number' => 1]);
+    $file->update(['current_version_id' => $file->versions()->first()->id]);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectFile', $file->id)
+        ->set('replacement', UploadedFile::fake()->create('v2.txt', 4))
+        ->call('replaceFile')
+        ->assertHasNoErrors()
+        // A count assertion cannot distinguish "ordered" from "SQLite
+        // happened to return rowid order" -- assertSeeInOrder fails against
+        // the unordered default, a plain assertSee for both would not.
+        ->assertSeeInOrder(['Version 2', 'Version 1']);
+});
+
+it("shows the uploader's name and the version size", function () {
+    $uploader = User::factory()->create(['name' => 'Distinctive Uploader Wozniak']);
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+    $version = FileVersion::factory()->for($file)->create([
+        'version_number' => 1,
+        'size' => 2048,
+        'uploaded_by' => $uploader->id,
+        'created_at' => '2026-03-14 00:00:00',
+    ]);
+    $file->update(['current_version_id' => $version->id]);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectFile', $file->id)
+        ->assertSee('Distinctive Uploader Wozniak')
+        ->assertSee('2 KB')
+        ->assertSee('2026-03-14');
+});
+
+it('refuses to replace a file without files.upload', function () {
+    // A directory-manage viewer whose ROLE carries no files.upload -- the
+    // shape FilePolicyTest's own replace() coverage uses for the same
+    // refusal. See viewOnlyMember() just above for why a fresh, roleless
+    // user rather than $this->user (a 'member', which does carry
+    // files.upload) is what proves this.
+    $stranger = User::factory()->create();
+    DirectoryGrant::create([
+        'directory_id' => $this->mine->id,
+        'grantee_type' => 'user',
+        'grantee_id' => $stranger->id,
+        'level' => AccessLevel::Manage,
+    ]);
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+    FileVersion::factory()->for($file)->create(['version_number' => 1]);
+    $file->update(['current_version_id' => $file->versions()->first()->id]);
+
+    Livewire::actingAs($stranger)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectFile', $file->id)
+        ->set('replacement', UploadedFile::fake()->create('v2.txt', 4))
+        ->call('replaceFile')
+        ->assertForbidden();
+
+    expect($file->fresh()->versions()->count())->toBe(1);
+});
+
+it('hides the Replace control from a viewer holding view only', function () {
+    $viewer = viewOnlyMember($this->mine);
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+    FileVersion::factory()->for($file)->create(['version_number' => 1]);
+    $file->update(['current_version_id' => $file->versions()->first()->id]);
+
+    Livewire::actingAs($viewer)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectFile', $file->id)
+        ->assertDontSeeHtml('data-test="replace-file-button"');
+});
+
+it('adds an error instead of a 500 when the file\'s period is archived', function () {
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+    FileVersion::factory()->for($file)->create(['version_number' => 1]);
+    $file->update(['current_version_id' => $file->versions()->first()->id]);
+
+    ArchivePeriod::factory()->create([
+        'year' => $file->period_year,
+        'month' => $file->period_month,
+        'archived_at' => now(),
+    ]);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectFile', $file->id)
+        ->set('replacement', UploadedFile::fake()->create('v2.txt', 4))
+        ->call('replaceFile')
+        ->assertHasErrors('replacement');
+
+    expect($file->fresh()->versions()->count())->toBe(1);
 });
 
 // --- legal hold --------------------------------------------------------------

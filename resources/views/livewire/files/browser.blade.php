@@ -42,7 +42,11 @@
             </form>
 
             @if ($directory)
-                <form wire:submit="store" class="flex items-end gap-4">
+                {{-- Named for the same reason the Replace form above is: once a file is
+                     selected there are two file inputs on the page, and the container
+                     smoke's shared uploadAndProveStored() helper must be able to say
+                     which one it means. --}}
+                <form wire:submit="store" class="flex items-end gap-4" data-test="upload-form">
                     <flux:input wire:model="upload" :label="__('Upload a file')" type="file" />
                     <flux:button type="submit" variant="primary">{{ __('Upload') }}</flux:button>
                 </form>
@@ -68,6 +72,47 @@
                 @if ($selectedFile)
                     <div class="space-y-4" data-test="file-actions">
                         <flux:link :href="route('files.download', $selectedFile)">{{ __('Download') }}</flux:link>
+
+                        <div class="space-y-2">
+                            <flux:heading level="3">{{ __('Version history') }}</flux:heading>
+
+                            @foreach ($versions as $version)
+                                <div class="flex items-center gap-4 text-sm" data-test="file-version-row">
+                                    <span>{{ __('Version :number', ['number' => $version->version_number]) }}</span>
+                                    <span>{{ \Illuminate\Support\Number::fileSize($version->size) }}</span>
+                                    <span>{{ $version->uploader?->name }}</span>
+                                    <span>{{ $version->created_at?->format('Y-m-d') }}</span>
+                                    {{-- Per-version links need no extra @can: download == view, and this
+                                         panel only opens after view already passed for $selectedFile,
+                                         and every version shares its file's directory/period/uuid. --}}
+                                    <flux:link :href="route('files.versions.download', [$selectedFile, $version])">{{ __('Download') }}</flux:link>
+                                </div>
+                            @endforeach
+                        </div>
+
+                        @can('replace', $selectedFile)
+                            {{-- data-test goes on the <form>, which is plain HTML, NOT on the
+                                 <flux:input>. Flux is known to forward arbitrary attributes on
+                                 flux:button -- data-test="trash-file-button" below is driven by
+                                 exactly that selector in a container-smoke check that has passed
+                                 and been mutation-proven -- but there is no such precedent for
+                                 flux:input, which renders a label/wrapper around the real
+                                 <input>, and an attribute that lands on the wrapper cannot be
+                                 handed to Playwright's setInputFiles(). Scoping a plain
+                                 `input[type="file"]` under this form sidesteps the question
+                                 entirely, and it has to be scoped to SOMETHING regardless:
+                                 whenever a file is selected this is the second file input on
+                                 the page, and a bare locator would trip Playwright's strict
+                                 mode. --}}
+                            <form wire:submit="replaceFile" class="flex items-end gap-2" data-test="replace-form">
+                                <flux:input
+                                    wire:model="replacement"
+                                    :label="__('Replace with a new version')"
+                                    type="file"
+                                />
+                                <flux:button type="submit" data-test="replace-file-button">{{ __('Replace') }}</flux:button>
+                            </form>
+                        @endcan
 
                         @can('update', $selectedFile)
                             <form wire:submit="renameFile" class="flex items-end gap-2">
