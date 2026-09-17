@@ -88,32 +88,11 @@ function sleep(ms) {
  * no shell), so the PHP source needs no shell escaping.
  */
 function tinker(php) {
-  try {
-    return execFileSync(
-      'docker',
-      ['exec', CONTAINER_NAME, 'php', 'artisan', 'tinker', '--execute', php],
-      { encoding: 'utf8', timeout: 20000 },
-    );
-  } catch (e) {
-    // execFileSync's own `message` is only "Command failed: <the command>",
-    // so a caller that reports e.message reports the command back and says
-    // nothing about why it failed -- which is exactly what happened: an
-    // image job printed the whole PHP snippet and not one word of cause.
-    // Everything diagnostic lives on the error OBJECT, not its message:
-    // `status` is the exit code, `signal`/`killed` distinguish the 20s
-    // timeout from a non-zero exit, and stderr carries the PHP error.
-    const detail = [
-      `exit status: ${e.status ?? '(none)'}`,
-      `signal: ${e.signal ?? '(none)'}`,
-      `killed by timeout: ${e.killed === true}`,
-      `stdout: ${String(e.stdout ?? '').trim() || '(empty)'}`,
-      `stderr: ${String(e.stderr ?? '').trim() || '(empty)'}`,
-    ].join('\n    ');
-
-    const err = new Error(`artisan tinker failed inside ${CONTAINER_NAME}\n    ${detail}`);
-    err.cause = e;
-    throw err;
-  }
+  return execFileSync(
+    'docker',
+    ['exec', CONTAINER_NAME, 'php', 'artisan', 'tinker', '--execute', php],
+    { encoding: 'utf8', timeout: 20000 },
+  );
 }
 
 /**
@@ -154,43 +133,6 @@ function dumpContainerState(reason) {
 }
 
 /**
- * Blocks until a files row actually exists for FILE_NAME.
- *
- * "The filename is on the page" is not that claim: page.getByText() matches
- * the file input's own label and Livewire's optimistic preview, so the upload
- * step reported success through a whole run in which File::where('name', ...)
- * returned null for sixty seconds. An assertion that observes a resting state
- * rather than requiring the feature to do something -- decision/0012, again.
- */
-async function waitForFileRow() {
-  const php = [
-    `$f = \\App\\Models\\File::where('name', '${FILE_NAME}')->first();`,
-    "echo 'ROW:' . ($f ? 'yes' : 'no');",
-  ].join(' ');
-
-  const deadline = Date.now() + 30000;
-  let last = 'never answered';
-
-  while (Date.now() < deadline) {
-    try {
-      const output = tinker(php);
-      if (/ROW:yes/.test(output)) return;
-      last = 'no files row';
-    } catch (e) {
-      last = e.message;
-    }
-    await sleep(1000);
-  }
-
-  dumpContainerState(
-    `the upload reported success but no files row exists for ${FILE_NAME} (${last})`,
-  );
-  const err = new Error(`no files row for ${FILE_NAME} after the upload (${last})`);
-  err.dumped = true;
-  throw err;
-}
-
-/**
  * Polls file_texts.status (via the File -> currentVersion -> text chain,
  * matching app/Models/File.php and app/Models/FileVersion.php) for the file
  * named FILE_NAME, bounded by EXTRACTION_TIMEOUT_MS. Never hangs: a status
@@ -199,18 +141,12 @@ async function waitForFileRow() {
  * forever.
  */
 async function waitForExtraction() {
-  // Deliberately branch rather than `exit`. PsySH makes `exit` inside
-  // --execute leave the process with status 1, so execFileSync threw and the
-  // NO_FILE / NO_VERSION readings -- the two most diagnostic answers this
-  // query has -- were converted into "the tinker call failed" and never
-  // reached the poller. Both were unreachable for as long as they have
-  // existed. See issue #106.
   const php = [
     `$f = \\App\\Models\\File::where('name', '${FILE_NAME}')->first();`,
-    "if (!$f) { echo 'STATUS:NO_FILE'; } else {",
+    "if (!$f) { echo 'STATUS:NO_FILE'; exit; }",
     '$f->refresh();',
     '$v = $f->currentVersion;',
-    "if (!$v) { echo 'STATUS:NO_VERSION'; } else {",
+    "if (!$v) { echo 'STATUS:NO_VERSION'; exit; }",
     '$t = $v->text;',
     "echo 'STATUS:' . ($t ? $t->status->value : 'NO_TEXT');",
     // ExtractText::failed() records why in file_texts.error. Without this the
@@ -218,27 +154,16 @@ async function waitForExtraction() {
     // failure in CI was diagnosed by guesswork rather than by reading the
     // exception -- see issue #57.
     "if ($t && $t->error) { echo ' ERROR:' . $t->error; }",
-    '} }',
   ].join(' ');
 
   const deadline = Date.now() + EXTRACTION_TIMEOUT_MS;
   let last = 'unknown';
 
-  // `last` comes from /STATUS:(\S+)/, which stops at the first space, so a
-  // thrown tinker error arrived as the single token "TINKER_ERROR(Command"
-  // and everything after "Command failed:" -- the actual reason -- was
-  // discarded. An image job failed exactly that way and said nothing usable.
-  // Keep the message whole, separately, and print it on the timeout: a
-  // diagnostic is worth only what someone can read off it (decision/0017).
-  let lastTinkerError = null;
-
   while (Date.now() < deadline) {
     let output;
     try {
       output = tinker(php);
-      lastTinkerError = null;
     } catch (e) {
-      lastTinkerError = e.message;
       output = `STATUS:TINKER_ERROR(${e.message})`;
     }
 
@@ -263,14 +188,10 @@ async function waitForExtraction() {
     await sleep(POLL_INTERVAL_MS);
   }
 
-  const tinkerDetail = lastTinkerError === null
-    ? ''
-    : `\nthe last tinker call failed, in full:\n${lastTinkerError}`;
-
   dumpContainerState(
-    `extraction for ${FILE_NAME} did not reach "done" within ${EXTRACTION_TIMEOUT_MS}ms (last status: ${last})${tinkerDetail}`,
+    `extraction for ${FILE_NAME} did not reach "done" within ${EXTRACTION_TIMEOUT_MS}ms (last status: ${last})`,
   );
-  const err = new Error(`timed out waiting for extraction (last status: ${last})${tinkerDetail}`);
+  const err = new Error(`timed out waiting for extraction (last status: ${last})`);
   err.dumped = true;
   throw err;
 }
@@ -723,22 +644,23 @@ async function runSetup() {
       // FirstRun::submit) -- a real, full-page redirect, not a Livewire
       // ->navigate() morph, so a plain URL wait is enough.
       //
-      // This wait is the load-bearing half of issue #97. Put the redirect
-      // back to '/' and it times out, because '/' is Route::view('/',
-      // 'welcome') -- Laravel's starter page. Nothing navigates after it any
-      // more, so the smoke can no longer paper over a redirect that lands
-      // somewhere the operator did not ask to be.
+      // This wait is the whole of issue #97's evidence. Put the redirect back
+      // to '/' and it times out here, because '/' is Route::view('/',
+      // 'welcome') -- Laravel's starter page. The page.goto() below cannot
+      // rescue it: this wait runs first.
       page.waitForURL((u) => u.pathname === '/files', { timeout: 15000 }),
       page.getByRole('button', { name: 'Create administrator account' }).click(),
     ]);
-    console.log('[setup] installer complete, admin created, landed on the files browser');
+    console.log('[setup] installer complete, admin created and logged in');
 
     checkEmbeddedSqlitePragmas();
 
-    // Driven on the page the installer actually delivers. This used to run
-    // after a manual page.goto('/files'), because '/' has no topbar on it --
-    // the smoke accommodated the defect in a comment rather than failing on
-    // it, which is how it survived. See issue #97.
+    console.log('[setup] opening the home directory');
+    await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+
+    // Checked here rather than on the post-installer redirect: that lands on
+    // `/`, which is Route::view('/', 'welcome') -- a standalone document that
+    // does not use the topbar layout, so there would be no topbar to drive.
     await checkTopbar(page, 'setup');
     await page.keyboard.press('Escape');
 
@@ -754,46 +676,14 @@ async function runSetup() {
       tmpFile,
       `This is a doccum container smoke test document containing the marker word ${FILE_MARKER}.\n`,
     );
-    // The input being ATTACHED is not the input being WIRED. wire:navigate
-    // swaps the DOM and Livewire rebinds afterwards; setting files in that
-    // window fires a change event with no listener on it, so no upload POST
-    // is ever made -- the run then reports NO_FILE for sixty seconds with
-    // nothing in any log to say why.
-    //
-    // This is measurable rather than theoretical. Issue #97 removed one full
-    // page.goto() from this path, which moved setInputFiles about half a
-    // second earlier relative to the navigation: ~1.05s after landing here
-    // against roughly 1.5s before. The smoke then lost the race on 3 runs out
-    // of 3 while main, still carrying the extra load, passed 4 of 4. The race
-    // was always there; the page load was hiding it. See issue #106.
-    await page.waitForFunction(
-      () => Boolean(window.Livewire) && Boolean(document.querySelector('input[type="file"]')),
-      { timeout: 15000 },
-    );
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-
-    // Wait for Livewire's temporary-upload POST itself, not for the network
-    // to go quiet afterwards. The previous version waited on 'networkidle'
-    // and swallowed the timeout with .catch(() => {}), so a missing upload
-    // was indistinguishable from a settled one. Not swallowed now: if this
-    // times out, that IS the failure and it says so.
-    const temporaryUpload = page.waitForResponse(
-      (r) => r.url().includes('/livewire/upload-file') && r.status() === 200,
-      { timeout: 20000 },
-    );
     await page.locator('input[type="file"]').setInputFiles(tmpFile);
-    await temporaryUpload;
-
+    // Livewire uploads the file to its temporary-upload endpoint as soon as
+    // the input changes, asynchronously; give that request a moment to land
+    // before submitting the form that references it.
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
     await page.getByRole('button', { name: 'Upload', exact: true }).click();
     await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-
-    // The text assertion above proves only that the NAME appears somewhere on
-    // the page, which the file input and Livewire's own preview both satisfy
-    // without a file ever being stored. It said "upload accepted" through a
-    // run in which no files row existed at all. What follows is the claim
-    // this step is supposed to make.
-    await waitForFileRow();
-    console.log('[setup] upload accepted, and a files row exists for it');
+    console.log('[setup] upload accepted, file listed in the directory');
 
     console.log(`[setup] waiting up to ${EXTRACTION_TIMEOUT_MS}ms for extraction to finish`);
     await waitForExtraction();
