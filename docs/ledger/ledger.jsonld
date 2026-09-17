@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T12:20:00Z",
-  "latestRun": "run/0010",
+  "dateModified": "2026-09-17T13:30:00Z",
+  "latestRun": "run/0011",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -279,10 +279,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "Email is folded explicitly in the application rather than by the column collation; login resolves through the same rule so a differently-cased login succeeds on every driver; a test asserting the chosen semantics runs on all six legs and is shown failing on at least one driver first; the choice is recorded as a behaviour change.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:52:00Z",
+      "endTime": "2026-09-17T13:03:14Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/80"
+      ]
     },
     {
       "@id": "item/reverse-proxy-ready",
@@ -297,10 +299,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "TRUSTED_PROXIES is honoured through bootstrap/app.php; APP_URL falls back to the incoming request when unset; the image job sends X-Forwarded-Proto and X-Forwarded-Host and asserts the login form action, one asset URL and a generated password-reset URL are https on the forwarded host.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:30:00Z",
+      "endTime": "2026-09-17T13:12:24Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/82"
+      ]
     },
     {
       "@id": "item/user-reset-password-command",
@@ -333,10 +337,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "The intermittent ExtractText failure is reproduced or the object-store race is ruled out by reading the ingest path, and which is stated; if it is the race, the job retries rather than failing terminally, with the policy tested through a faked storage failure rather than by waiting; a terminal extraction failure surfaces where an operator can see it; if the smoke test was racing rather than the app, the test is fixed and the issue says so.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:58:00Z",
+      "endTime": "2026-09-17T13:26:20Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/83"
+      ]
     },
     {
       "@id": "item/file-policy-null-directory",
@@ -353,10 +359,12 @@
         "item/trash-directory"
       ],
       "doneWhen": "FilePolicy decides deliberately whether a file in a trashed subtree is refused or consulted withTrashed, with the reasoning recorded; a test covers every FilePolicy method that dereferences file->directory; the answer holds for delete as well as restore.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:30:00Z",
+      "endTime": "2026-09-17T12:58:18Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/79"
+      ]
     },
     {
       "@id": "item/trash-purge-manual",
@@ -1315,6 +1323,120 @@
       "mergedAt": "2026-09-17T12:17:32Z",
       "mergeSha": "02813272271f704ffada85fb09216de2afc35b6c",
       "mergedIn": "run/0010"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/72",
+      "@type": "PullRequest",
+      "identifier": 72,
+      "name": "test: drive the topbar shell in the container smoke",
+      "implements": [
+        "item/container-smoke-ci",
+        "item/topbar-shell"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:28:24Z",
+      "headSha": "5ad8744a1b062d9457136a6cfc0dffc82367a51e",
+      "mergedAt": "2026-09-17T12:32:30Z",
+      "mergeSha": "f0a96421236ef916993fab6e8050a42e903bfa81",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/73",
+      "@type": "PullRequest",
+      "identifier": 73,
+      "name": "ci: make the ledger validation job actually validate",
+      "implements": [
+        "item/ci-green-baseline"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:45:00Z",
+      "headSha": "592575b04e4461e6c3136b08cc86b7235f8382f8",
+      "mergedAt": "2026-09-17T13:04:01Z",
+      "mergeSha": "59aa03c08c4853eca1144f66e70bd449b1f02102",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/79",
+      "@type": "PullRequest",
+      "identifier": 79,
+      "name": "fix: decide deliberately what a trashed directory means for FilePolicy",
+      "implements": [
+        "item/file-policy-null-directory"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:50:34Z",
+      "headSha": "4702b595ead582eff07dd4c96820b6345c796f35",
+      "mergedAt": "2026-09-17T12:58:18Z",
+      "mergeSha": "7363bbd3dbe443dc5ae0003fcac01391a410922a",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/80",
+      "@type": "PullRequest",
+      "identifier": 80,
+      "name": "fix: fold email to lowercase-on-write, everywhere, not by column collation",
+      "implements": [
+        "item/email-folding"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:52:49Z",
+      "headSha": "59959411630a0eb8e1ec10664a6ccadeb4d97c69",
+      "mergedAt": "2026-09-17T13:03:14Z",
+      "mergeSha": "96cefc662944672acd62d5987def7f8df5ddec3b",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/81",
+      "@type": "PullRequest",
+      "identifier": 81,
+      "name": "docs: correct what the topbar smoke assertions actually prove",
+      "implements": [
+        "item/container-smoke-ci",
+        "item/topbar-shell"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:54:18Z",
+      "headSha": "94dd703303d151975e79994823deab421e89adc1",
+      "mergedAt": "2026-09-17T13:03:46Z",
+      "mergeSha": "69b2c7060d358e9bb83ed7a09668362432ad1c43",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/82",
+      "@type": "PullRequest",
+      "identifier": 82,
+      "name": "feat: honour TRUSTED_PROXIES and fall back APP_URL to the request",
+      "implements": [
+        "item/reverse-proxy-ready"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T13:02:35Z",
+      "headSha": "98cd656776cf8b784e2dc7efffc8a7be41cdce1e",
+      "mergedAt": "2026-09-17T13:12:24Z",
+      "mergeSha": "370283fe721ecfcb3c3ce940b7c35140915c04d0",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/83",
+      "@type": "PullRequest",
+      "identifier": 83,
+      "name": "fix: give ExtractText retries real backoff, and make the smoke say why extraction failed",
+      "implements": [
+        "item/extract-text-flake"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T13:14:40Z",
+      "headSha": "0ce8f0085e466d1a1da09935c33f194655830c52",
+      "mergedAt": "2026-09-17T13:26:20Z",
+      "mergeSha": "52fbc261f3011f2d98303ceefa25b77352a23d48",
+      "mergedIn": "run/0011"
     }
   ],
   "decisions": [
@@ -1500,6 +1622,43 @@
         "item/pgsql-value-string-index",
         "item/search-filters",
         "item/schema-query-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0012",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T13:25:00Z",
+      "run": "run/0011",
+      "name": "A container-smoke assertion is worth only what a mutation says it is worth",
+      "rationale": "The rule added with the topbar smoke said to assert the hidden state before an interaction as well as the visible state after, on the reasoning that asserting only the visible state would pass on a container shipping no JavaScript. That reasoning was never tested, and it was wrong. Removing @fluxScripts from the layout and running the smoke against the resulting image failed inside the topbar check on the click, so the visible-after-click assertion is the load-bearing one; the hidden-before assertion passed in that same image with no JavaScript in it at all, because nothing was there to reveal the menu in the first place. A rule derived by argument had been written into CLAUDE.md where fourteen remaining UI items would have copied it. The rule is now the experiment rather than the argument: break the feature deliberately, run the smoke against that image, record the run, and prefer an assertion that requires the feature to do something over one that observes a resting state. The same experiment retired a second unfounded claim, that comparing the version pill against the container catches a stale config cache: tinker and the Blade read the same config in the same process, and the image runs no config:cache, so the check proves only that the pill renders the configured value rather than a literal. It becomes a real cross-source comparison once item/version-from-tag supplies the image label to compare against.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/container-smoke-ci",
+        "item/topbar-shell",
+        "item/files-three-pane",
+        "item/directory-access-ui",
+        "item/trash-view",
+        "item/home-dashboard",
+        "item/search-filters",
+        "item/admin-users"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0013",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T13:25:00Z",
+      "run": "run/0011",
+      "name": "Email is folded to lowercase on write by the application, and existing rows are not backfilled",
+      "rationale": "Email comparison was left to whatever each driver did: MySQL folded case in the utf8mb4_unicode_ci collation, SQLite and PostgreSQL compared bytes. The defect that hid behind that divergence was worse than a comparison inconsistency. Fortify lowercases a submitted credential before authenticating, and its own registration controller folds before creating, so /register was accidentally safe; but the installer and the self-service email change bypass that controller and stored the address exactly as typed, so an administrator who installed as a mixed-case address could not log in at all on SQLite or PostgreSQL. The account that bootstraps the instance was the one that could be locked out of it. Folding is therefore doccum's own stated rule now, applied by a saving hook on the model and by the same rule at login through Fortify::authenticateUsing, rather than inherited from a config flag this application happens also to set or from a column collation only one driver has. The rule is case only, trim then mb_strtolower: deliberately not NameKey's, which normalises to NFC and is accent-sensitive, because nothing motivates accent folding for an address and inventing a semantic no report backs is what decision/0010 forbids. mb_strtolower rather than SQL LOWER, which is ASCII-only on SQLite without ICU. Rows written before this change keep whatever case they have until next saved, and no backfill migration was written: a bulk lowercase collides with the unique constraint on exactly the installations that have the duplicate-account bug this fixes, and nothing can mechanically choose which of two real accounts wins when roles, directory ownership and audit history all hang off the id. That reconciliation is its own work, filed as issue 76, following the precedent decision/0006 set for name_key of leaving a visible gap rather than a silent one.",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "affects": [
+        "item/email-folding"
       ],
       "supersedes": null
     }
