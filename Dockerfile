@@ -82,6 +82,19 @@ ENV DOCCUM_EMBEDDED_STORAGE=true \
     DOCCUM_RUN_WORKERS=true \
     DOCCUM_RUN_SCHEDULER=true
 
+# Without this the database lands wherever config/database.php's fallback
+# puts it -- database_path('database.sqlite'), inside the image layer -- and
+# `docker run -v doccum:/data` loses every user, grant, file row and search
+# index the moment the container is replaced, while objects and minio.env
+# survive on the volume. The instance comes back half-alive rather than
+# empty, which is worse. compose.yaml has always set this; the image never
+# did, so the run command documented in CLAUDE.md was the broken one.
+#
+# entrypoint.d/49-doccum-init.sh already creates this exact path, and has
+# been creating a file nothing then opened.
+ENV DB_CONNECTION=sqlite \
+    DB_DATABASE=/data/doccum.sqlite
+
 # supervisord replaces frankenphp as PID 1's command, but serversideup's own
 # entrypoint still runs first and ends with `exec "$@"` -- so every
 # entrypoint.d script (migrations, storage link, our own credential

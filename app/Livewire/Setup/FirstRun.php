@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\ConnectionProbe;
 use App\Services\InstanceState;
 use App\Services\Settings;
+use App\Support\EmailKey;
 use App\Support\RuntimeConfig;
 use App\Support\SupervisedProcesses;
 use Illuminate\Http\RedirectResponse;
@@ -371,6 +372,12 @@ class FirstRun extends Component
         // migrated a DIFFERENT database -- one the entrypoint never saw. Roles
         // are structure, and seeding is idempotent, so ensure them here too.
         Artisan::call('doccum:ensure-roles');
+
+        // Fold before validating: this form bypasses Fortify's own
+        // RegisteredUserController entirely (see App\Actions\Fortify\
+        // CreateNewUser for why that matters), so nothing upstream folds the
+        // admin's email for it. See App\Support\EmailKey and issue #59.
+        $this->email = EmailKey::of($this->email);
 
         $validated = $this->validate([
             'instance_name' => ['required', 'string', 'max:191'],

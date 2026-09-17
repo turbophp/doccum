@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T06:50:00Z",
-  "latestRun": "run/0004",
+  "dateModified": "2026-09-17T16:25:00Z",
+  "latestRun": "run/0012",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -119,27 +119,9 @@
       ]
     },
     {
-      "@id": "item/content-actions",
-      "@type": "Action",
-      "order": 6,
-      "name": "Rename, move and trash actions for directories and files",
-      "url": "https://github.com/turbophp/doccum/issues/9",
-      "isBasedOn": [
-        "spec:4-data-model"
-      ],
-      "size": "M",
-      "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "Each action has a test that a caller lacking edit or manage is refused; name collisions throw the existing Duplicate exceptions; a trashed directory's files vanish from the browser and from search at query level; restore reverses it.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
       "@id": "item/legal-hold",
       "@type": "Action",
-      "order": 7,
+      "order": 6,
       "name": "Set and clear a file's legal hold",
       "url": "https://github.com/turbophp/doccum/issues/10",
       "isBasedOn": [
@@ -149,15 +131,247 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "Policy test gated on periods.manage plus view; PeriodPurger::plan() names the held file as a blocker.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T07:20:00Z",
+      "endTime": "2026-09-17T07:52:59Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/48"
+      ]
+    },
+    {
+      "@id": "item/name-key",
+      "@type": "Action",
+      "order": 7,
+      "name": "One name-comparison rule all three drivers agree on",
+      "url": "https://github.com/turbophp/doccum/issues/50",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Support\\NameKey is unit-tested directly; File and Directory maintain name_key in a saving hook and expose whereNamed(), which replaces every where('name', ...) collision check; the migration applies utf8mb4_bin only on mysql and mariadb; three tests -- a differently-cased upload adds a version, an accented name creates a second file, and an NFD name matches its NFC twin -- are each shown failing on at least one driver before the fix and green on all six legs after; the stored name is unchanged when an upload versions an existing file.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T08:13:00Z",
+      "endTime": "2026-09-17T08:39:26Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/53"
+      ]
+    },
+    {
+      "@id": "item/content-actions",
+      "@type": "Action",
+      "order": 8,
+      "name": "Rename and move actions for directories and files",
+      "url": "https://github.com/turbophp/doccum/issues/9",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/name-key"
+      ],
+      "doneWhen": "Each action has a test that a caller lacking edit or manage is refused, through a Policy rather than in the action; a rename or move into a name a live sibling already holds throws the existing Duplicate exceptions under the NameKey rule, asserted on all three matrix legs; the pre-existing MoveDirectory, TrashFile and RestoreFile gain the same refusal coverage.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T08:45:00Z",
+      "endTime": "2026-09-17T10:42:13Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/55"
+      ]
+    },
+    {
+      "@id": "item/trash-directory",
+      "@type": "Action",
+      "order": 9,
+      "name": "Trashing a directory hides everything beneath it",
+      "url": "https://github.com/turbophp/doccum/issues/49",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/name-key"
+      ],
+      "doneWhen": "A file in a live descendant of a trashed directory is absent from Services\\Search results and from the browser for a viewer granted on an ancestor, asserted against the query rather than the rendered view; that test fails on main with no code change and is mutation-checked; TrashDirectory cascades through Eloquent so each projection is forgotten; RestoreDirectory reverses it and leaves independently trashed files trashed; both require manage, refused through a Policy.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T10:40:00Z",
+      "endTime": "2026-09-17T11:18:20Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/63"
+      ]
+    },
+    {
+      "@id": "item/schema-query-audit",
+      "@type": "Action",
+      "order": 10,
+      "name": "Audit every semantic inherited from a driver default instead of stated",
+      "url": "https://github.com/turbophp/doccum/issues/60",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "A SchemaPortabilityTest runs on all six legs: it computes each index key width against utf8mb4 worst case and asserts it fits InnoDB 3072 and PostgreSQL 2704 or is an explicitly listed driver-conditional expression; it round-trips a maximum-length 4-byte-character value through every indexed varchar, shown failing on pgsql for properties.value_string first; every foreign key column has an index leading with that column; a checked-in inventory names every raw-SQL or collation-dependent site and the test fails when one is not registered; every column compared against user input for equality or uniqueness is listed with its folding rule.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T11:24:00Z",
+      "endTime": "2026-09-17T11:53:08Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/66"
+      ]
+    },
+    {
+      "@id": "item/pgsql-value-string-index",
+      "@type": "Action",
+      "order": 11,
+      "name": "Give PostgreSQL an index strategy for value_string",
+      "url": "https://github.com/turbophp/doccum/issues/39",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/schema-query-audit"
+      ],
+      "doneWhen": "A test inserts a value_string of roughly a thousand multi-byte characters and asserts it round-trips, failing on the PostgreSQL leg first; an index strategy is then chosen with that test green on all three drivers and the reasoning recorded, including which queries the chosen index can and cannot serve.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T11:55:01Z",
+      "endTime": "2026-09-17T12:08:41Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/69"
+      ]
+    },
+    {
+      "@id": "item/fk-index-coverage",
+      "@type": "Action",
+      "order": 12,
+      "name": "Every foreign key column keeps an index outside MySQL too",
+      "url": "https://github.com/turbophp/doccum/issues/65",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/schema-query-audit"
+      ],
+      "doneWhen": "Each of the six uncovered foreign key columns has an index leading with that column or a recorded reason it does not need one; the corresponding entries are removed from SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS so the audit asserts the rule rather than recording the exception; any new index is created before one it supersedes is dropped, per decision/0008.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:09:00Z",
+      "endTime": "2026-09-17T12:17:32Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/70"
+      ]
+    },
+    {
+      "@id": "item/email-folding",
+      "@type": "Action",
+      "order": 13,
+      "name": "One email-comparison rule all three drivers agree on",
+      "url": "https://github.com/turbophp/doccum/issues/59",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Email is folded explicitly in the application rather than by the column collation; login resolves through the same rule so a differently-cased login succeeds on every driver; a test asserting the chosen semantics runs on all six legs and is shown failing on at least one driver first; the choice is recorded as a behaviour change.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:52:00Z",
+      "endTime": "2026-09-17T13:03:14Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/80"
+      ]
+    },
+    {
+      "@id": "item/reverse-proxy-ready",
+      "@type": "Action",
+      "order": 14,
+      "name": "Serve correct URLs from behind a TLS-terminating proxy",
+      "url": "https://github.com/turbophp/doccum/issues/58",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "TRUSTED_PROXIES is honoured through bootstrap/app.php; APP_URL falls back to the incoming request when unset; the image job sends X-Forwarded-Proto and X-Forwarded-Host and asserts the login form action, one asset URL and a generated password-reset URL are https on the forwarded host.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:30:00Z",
+      "endTime": "2026-09-17T13:12:24Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/82"
+      ]
+    },
+    {
+      "@id": "item/user-reset-password-command",
+      "@type": "Action",
+      "order": 15,
+      "name": "A locked-out admin can get back in",
+      "url": "https://github.com/turbophp/doccum/issues/61",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "doccum:user:reset-password sets a password or prints a one-time link with no mailer configured; the forgot-password page says mail is not configured when the mailer is log or array instead of claiming it sent one; both are exercised in the shipped image, not only in tests.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T13:40:00Z",
+      "endTime": "2026-09-17T16:20:29Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/89"
+      ]
+    },
+    {
+      "@id": "item/extract-text-flake",
+      "@type": "Action",
+      "order": 16,
+      "name": "Extraction does not fail terminally on a transient read",
+      "url": "https://github.com/turbophp/doccum/issues/57",
+      "isBasedOn": [
+        "spec:7-text-extraction"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "The intermittent ExtractText failure is reproduced or the object-store race is ruled out by reading the ingest path, and which is stated; if it is the race, the job retries rather than failing terminally, with the policy tested through a faked storage failure rather than by waiting; a terminal extraction failure surfaces where an operator can see it; if the smoke test was racing rather than the app, the test is fixed and the issue says so.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:58:00Z",
+      "endTime": "2026-09-17T13:26:20Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/83"
+      ]
+    },
+    {
+      "@id": "item/file-policy-null-directory",
+      "@type": "Action",
+      "order": 17,
+      "name": "FilePolicy survives a file whose directory was cascade-trashed",
+      "url": "https://github.com/turbophp/doccum/issues/62",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/trash-directory"
+      ],
+      "doneWhen": "FilePolicy decides deliberately whether a file in a trashed subtree is refused or consulted withTrashed, with the reasoning recorded; a test covers every FilePolicy method that dereferences file->directory; the answer holds for delete as well as restore.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T12:30:00Z",
+      "endTime": "2026-09-17T12:58:18Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/79"
+      ]
     },
     {
       "@id": "item/trash-purge-manual",
       "@type": "Action",
-      "order": 8,
+      "order": 18,
       "name": "Permanently delete one trashed item",
       "url": "https://github.com/turbophp/doccum/issues/11",
       "isBasedOn": [
@@ -166,18 +380,20 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [
-        "item/content-actions"
+        "item/trash-directory"
       ],
       "doneWhen": "Requires files.delete and manage; objects removed through DocumentStorage; refusal tests for legal hold and for an archived period.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T13:40:00Z",
+      "endTime": "2026-09-17T15:48:44Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/87"
+      ]
     },
     {
       "@id": "item/topbar-shell",
       "@type": "Action",
-      "order": 9,
+      "order": 19,
       "name": "Replace the starter sidebar with the doccum topbar shell",
       "url": "https://github.com/turbophp/doccum/issues/12",
       "isBasedOn": [
@@ -189,15 +405,17 @@
         "item/ci-green-baseline"
       ],
       "doneWhen": "Layout test asserts the nav items and that Settings is absent for a plain member; login lands on the file browser; the version pill shows config('doccum.version').",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T07:55:00Z",
+      "endTime": "2026-09-17T08:12:48Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/52"
+      ]
     },
     {
       "@id": "item/files-three-pane",
       "@type": "Action",
-      "order": 10,
+      "order": 20,
       "name": "Three-pane file browser: tree, list, detail panel",
       "url": "https://github.com/turbophp/doccum/issues/13",
       "isBasedOn": [
@@ -208,7 +426,8 @@
       "dependsOn": [
         "item/content-actions",
         "item/legal-hold",
-        "item/topbar-shell"
+        "item/topbar-shell",
+        "item/trash-directory"
       ],
       "doneWhen": "FileBrowserTest keeps its unreachable-directory guarantees and adds column sort, panel-on-select, version list, replace-adds-a-version and bulk trash of exactly the selected files.",
       "actionStatus": "PotentialActionStatus",
@@ -219,7 +438,7 @@
     {
       "@id": "item/directory-access-ui",
       "@type": "Action",
-      "order": 11,
+      "order": 21,
       "name": "Grant and revoke directory access from the UI",
       "url": "https://github.com/turbophp/doccum/issues/14",
       "isBasedOn": [
@@ -239,7 +458,7 @@
     {
       "@id": "item/trash-view",
       "@type": "Action",
-      "order": 12,
+      "order": 22,
       "name": "A Trash page with restore and purge",
       "url": "https://github.com/turbophp/doccum/issues/15",
       "isBasedOn": [
@@ -248,8 +467,8 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [
-        "item/content-actions",
         "item/topbar-shell",
+        "item/trash-directory",
         "item/trash-purge-manual"
       ],
       "doneWhen": "Another user's trashed items never appear, asserted at query level; restore and purge are wired to the actions.",
@@ -261,7 +480,7 @@
     {
       "@id": "item/home-dashboard",
       "@type": "Action",
-      "order": 13,
+      "order": 23,
       "name": "Home dashboard: recents, storage by period, quick search",
       "url": "https://github.com/turbophp/doccum/issues/16",
       "isBasedOn": [
@@ -281,7 +500,7 @@
     {
       "@id": "item/search-filters",
       "@type": "Action",
-      "order": 14,
+      "order": 24,
       "name": "Type, mime, period and property filters on search",
       "url": "https://github.com/turbophp/doccum/issues/17",
       "isBasedOn": [
@@ -301,7 +520,7 @@
     {
       "@id": "item/admin-users",
       "@type": "Action",
-      "order": 15,
+      "order": 25,
       "name": "Settings: users",
       "url": "https://github.com/turbophp/doccum/issues/18",
       "isBasedOn": [
@@ -321,7 +540,7 @@
     {
       "@id": "item/admin-roles",
       "@type": "Action",
-      "order": 16,
+      "order": 26,
       "name": "Settings: roles and their permission matrix",
       "url": "https://github.com/turbophp/doccum/issues/19",
       "isBasedOn": [
@@ -341,7 +560,7 @@
     {
       "@id": "item/admin-periods",
       "@type": "Action",
-      "order": 17,
+      "order": 27,
       "name": "Settings: periods, closing, purge plan and purge",
       "url": "https://github.com/turbophp/doccum/issues/20",
       "isBasedOn": [
@@ -362,7 +581,7 @@
     {
       "@id": "item/admin-instance-settings",
       "@type": "Action",
-      "order": 18,
+      "order": 28,
       "name": "Settings: instance name, signup, retention, limits",
       "url": "https://github.com/turbophp/doccum/issues/21",
       "isBasedOn": [
@@ -382,7 +601,7 @@
     {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
-      "order": 19,
+      "order": 29,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -402,7 +621,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 20,
+      "order": 30,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -413,7 +632,8 @@
       "dependsOn": [
         "item/api-sanctum-tokens",
         "item/content-actions",
-        "item/search-filters"
+        "item/search-filters",
+        "item/trash-directory"
       ],
       "doneWhen": "Per-endpoint three-gate matrix: a missing ability is 403 despite the permission, a denied ACL is 404 or 403, and revoking the owner's role narrows an existing token on the next request; a test asserts no /api route touches users, roles, definition writes or periods.",
       "actionStatus": "PotentialActionStatus",
@@ -424,7 +644,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 21,
+      "order": 31,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -444,7 +664,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 22,
+      "order": 32,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -464,7 +684,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 23,
+      "order": 33,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -485,7 +705,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 24,
+      "order": 34,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -505,7 +725,7 @@
     {
       "@id": "item/compose-secret",
       "@type": "Action",
-      "order": 25,
+      "order": 35,
       "name": "Remove the known-value secret from compose.yaml",
       "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
@@ -523,7 +743,7 @@
     {
       "@id": "item/version-from-tag",
       "@type": "Action",
-      "order": 26,
+      "order": 36,
       "name": "The version pill reports the released tag",
       "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
@@ -541,7 +761,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 27,
+      "order": 37,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -559,7 +779,7 @@
     {
       "@id": "item/changelog-release-notes",
       "@type": "Action",
-      "order": 28,
+      "order": 38,
       "name": "A changelog that becomes the release notes",
       "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
@@ -577,7 +797,7 @@
     {
       "@id": "item/release-v0-1-0",
       "@type": "Action",
-      "order": 29,
+      "order": 39,
       "name": "Tag v0.1.0 to prove the release pipeline",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
@@ -599,7 +819,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 30,
+      "order": 40,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -621,7 +841,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 31,
+      "order": 41,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -652,7 +872,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 32,
+      "order": 42,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -664,24 +884,6 @@
         "item/v1-audit"
       ],
       "doneWhen": "docker run of the 1.0.0 image boots to the installer on amd64 and arm64; the GitHub Release exists; the ledger's about.version reads 1.0.0.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
-      "@id": "item/pgsql-value-string-index",
-      "@type": "Action",
-      "order": 33,
-      "name": "Index properties.value_string safely on PostgreSQL",
-      "url": "https://github.com/turbophp/doccum/issues/39",
-      "isBasedOn": [
-        "spec:4-data-model"
-      ],
-      "size": "S",
-      "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "A test inserting roughly a thousand multi-byte characters into value_string round-trips on all three drivers, having first failed on PostgreSQL; and the chosen index strategy is recorded along with which queries it can and cannot serve.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -997,6 +1199,280 @@
       "mergedAt": "2026-09-17T06:45:00Z",
       "mergeSha": "6b293b40109827e69858d7804792b161554de0af",
       "mergedIn": "run/0004"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/48",
+      "@type": "PullRequest",
+      "identifier": 48,
+      "name": "feat: let an operator place and lift a legal hold",
+      "implements": [
+        "item/legal-hold"
+      ],
+      "run": "run/0005",
+      "state": "merged",
+      "dateCreated": "2026-09-17T07:49:00Z",
+      "headSha": "e3a65e4bceb02ed65b131a78fe74683c40fd9be4",
+      "mergedAt": "2026-09-17T07:52:59Z",
+      "mergeSha": "e4ae10ca8339a5d085388ab6c8dbbc9717559a7e",
+      "mergedIn": "run/0005"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/52",
+      "@type": "PullRequest",
+      "identifier": 52,
+      "name": "feat: replace the starter sidebar with the doccum topbar shell",
+      "implements": [
+        "item/topbar-shell"
+      ],
+      "run": "run/0006",
+      "state": "merged",
+      "dateCreated": "2026-09-17T08:08:00Z",
+      "headSha": "8632450ca7da17d4dd99fa853c8a263eb692ff3e",
+      "mergedAt": "2026-09-17T08:12:48Z",
+      "mergeSha": "534679b6f1bd15c37946c9dfe87a0b56e89ee942",
+      "mergedIn": "run/0006"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/53",
+      "@type": "PullRequest",
+      "identifier": 53,
+      "name": "feat: one name-comparison rule all three drivers agree on",
+      "implements": [
+        "item/name-key"
+      ],
+      "run": "run/0006",
+      "state": "merged",
+      "dateCreated": "2026-09-17T08:22:00Z",
+      "headSha": "e589fcbd875ed5c147220e8ee743e9b164eaa65d",
+      "mergedAt": "2026-09-17T08:39:26Z",
+      "mergeSha": "91ef9b53a2f96c8da68ea61c0a972168d21e54c1",
+      "mergedIn": "run/0006"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/55",
+      "@type": "PullRequest",
+      "identifier": 55,
+      "name": "feat: rename and move actions, and the collision check MoveDirectory never had",
+      "implements": [
+        "item/content-actions"
+      ],
+      "run": "run/0007",
+      "state": "merged",
+      "dateCreated": "2026-09-17T08:56:00Z",
+      "headSha": "831e0ca6f1c5aa8c186d5d70850ffb9cb1b80919",
+      "mergedAt": "2026-09-17T10:42:13Z",
+      "mergeSha": "3702b8fc27d7da2f9157faddb8fa210315932976",
+      "mergedIn": "run/0007"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/63",
+      "@type": "PullRequest",
+      "identifier": 63,
+      "name": "fix: cascade a directory's trash to its subtree, and close the reach gap",
+      "implements": [
+        "item/trash-directory"
+      ],
+      "run": "run/0008",
+      "state": "merged",
+      "dateCreated": "2026-09-17T11:04:00Z",
+      "headSha": "aba4b6a1485f435fb11ee8f632a6ddc41e7a6d94",
+      "mergedAt": "2026-09-17T11:18:20Z",
+      "mergeSha": "38b4ba56199b4bad7f153584cf6270cb949f3ce9",
+      "mergedIn": "run/0008"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/66",
+      "@type": "PullRequest",
+      "identifier": 66,
+      "name": "test: assert the semantics doccum relies on instead of inheriting them",
+      "implements": [
+        "item/schema-query-audit"
+      ],
+      "run": "run/0009",
+      "state": "merged",
+      "dateCreated": "2026-09-17T11:45:00Z",
+      "headSha": "7a77e9ebd7974f28c010724a82f0a26e7650571f",
+      "mergedAt": "2026-09-17T11:53:08Z",
+      "mergeSha": "f102df2672d1855e37e2c33a4993d9efb5166fec",
+      "mergedIn": "run/0009"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/69",
+      "@type": "PullRequest",
+      "identifier": 69,
+      "name": "fix: index md5(value_string) on PostgreSQL instead of the column whole",
+      "implements": [
+        "item/pgsql-value-string-index"
+      ],
+      "run": "run/0010",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:04:00Z",
+      "headSha": "068b295624b24536e7c30e89f0bf6b5860c4afbe",
+      "mergedAt": "2026-09-17T12:08:41Z",
+      "mergeSha": "2aafd0686a8bf77bee7254a0012574a318827c8d",
+      "mergedIn": "run/0010"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/70",
+      "@type": "PullRequest",
+      "identifier": 70,
+      "name": "fix: index every foreign key column that had none",
+      "implements": [
+        "item/fk-index-coverage"
+      ],
+      "run": "run/0010",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:13:00Z",
+      "headSha": "647313bdf051536ebc33523a9e58852e89c55bc9",
+      "mergedAt": "2026-09-17T12:17:32Z",
+      "mergeSha": "02813272271f704ffada85fb09216de2afc35b6c",
+      "mergedIn": "run/0010"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/72",
+      "@type": "PullRequest",
+      "identifier": 72,
+      "name": "test: drive the topbar shell in the container smoke",
+      "implements": [
+        "item/container-smoke-ci",
+        "item/topbar-shell"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:28:24Z",
+      "headSha": "5ad8744a1b062d9457136a6cfc0dffc82367a51e",
+      "mergedAt": "2026-09-17T12:32:30Z",
+      "mergeSha": "f0a96421236ef916993fab6e8050a42e903bfa81",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/73",
+      "@type": "PullRequest",
+      "identifier": 73,
+      "name": "ci: make the ledger validation job actually validate",
+      "implements": [
+        "item/ci-green-baseline"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:45:00Z",
+      "headSha": "592575b04e4461e6c3136b08cc86b7235f8382f8",
+      "mergedAt": "2026-09-17T13:04:01Z",
+      "mergeSha": "59aa03c08c4853eca1144f66e70bd449b1f02102",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/79",
+      "@type": "PullRequest",
+      "identifier": 79,
+      "name": "fix: decide deliberately what a trashed directory means for FilePolicy",
+      "implements": [
+        "item/file-policy-null-directory"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:50:34Z",
+      "headSha": "4702b595ead582eff07dd4c96820b6345c796f35",
+      "mergedAt": "2026-09-17T12:58:18Z",
+      "mergeSha": "7363bbd3dbe443dc5ae0003fcac01391a410922a",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/80",
+      "@type": "PullRequest",
+      "identifier": 80,
+      "name": "fix: fold email to lowercase-on-write, everywhere, not by column collation",
+      "implements": [
+        "item/email-folding"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:52:49Z",
+      "headSha": "59959411630a0eb8e1ec10664a6ccadeb4d97c69",
+      "mergedAt": "2026-09-17T13:03:14Z",
+      "mergeSha": "96cefc662944672acd62d5987def7f8df5ddec3b",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/81",
+      "@type": "PullRequest",
+      "identifier": 81,
+      "name": "docs: correct what the topbar smoke assertions actually prove",
+      "implements": [
+        "item/container-smoke-ci",
+        "item/topbar-shell"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T12:54:18Z",
+      "headSha": "94dd703303d151975e79994823deab421e89adc1",
+      "mergedAt": "2026-09-17T13:03:46Z",
+      "mergeSha": "69b2c7060d358e9bb83ed7a09668362432ad1c43",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/82",
+      "@type": "PullRequest",
+      "identifier": 82,
+      "name": "feat: honour TRUSTED_PROXIES and fall back APP_URL to the request",
+      "implements": [
+        "item/reverse-proxy-ready"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T13:02:35Z",
+      "headSha": "98cd656776cf8b784e2dc7efffc8a7be41cdce1e",
+      "mergedAt": "2026-09-17T13:12:24Z",
+      "mergeSha": "370283fe721ecfcb3c3ce940b7c35140915c04d0",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/83",
+      "@type": "PullRequest",
+      "identifier": 83,
+      "name": "fix: give ExtractText retries real backoff, and make the smoke say why extraction failed",
+      "implements": [
+        "item/extract-text-flake"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T13:14:40Z",
+      "headSha": "0ce8f0085e466d1a1da09935c33f194655830c52",
+      "mergedAt": "2026-09-17T13:26:20Z",
+      "mergeSha": "52fbc261f3011f2d98303ceefa25b77352a23d48",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/87",
+      "@type": "PullRequest",
+      "identifier": 87,
+      "name": "feat: permanently delete one trashed file",
+      "implements": [
+        "item/trash-purge-manual"
+      ],
+      "run": "run/0012",
+      "state": "merged",
+      "dateCreated": "2026-09-17T15:45:10Z",
+      "headSha": "a706277b91381f66d8ce599079ad7bc0757593b9",
+      "mergedAt": "2026-09-17T15:48:44Z",
+      "mergeSha": "5ce044fa7768d55318abc0a193490b9375f7e170",
+      "mergedIn": "run/0012"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/89",
+      "@type": "PullRequest",
+      "identifier": 89,
+      "name": "feat: a locked-out admin can get back in without a mailer",
+      "implements": [
+        "item/user-reset-password-command"
+      ],
+      "run": "run/0012",
+      "state": "merged",
+      "dateCreated": "2026-09-17T16:10:40Z",
+      "headSha": "ba3b11e0bf81102e0a94e1b7a9673d8e7deace93",
+      "mergedAt": "2026-09-17T16:20:29Z",
+      "mergeSha": "75a3013b56a498e334dce0cf135e243da77254bf",
+      "mergedIn": "run/0012"
     }
   ],
   "decisions": [
@@ -1078,6 +1554,163 @@
       ],
       "affects": [
         "item/pgsql-value-string-index"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0006",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T08:05:00Z",
+      "run": "run/0005",
+      "name": "Sibling names are compared case-insensitively and accent-sensitively, on a persisted normalised key",
+      "rationale": "Three actions asked \"does a sibling already hold this name\" with a plain equality comparison, which meant three different things on three drivers: MySQL's utf8mb4_unicode_ci folds case and accents, while SQLite and PostgreSQL compare bytes. Uploading Report.pdf beside report.pdf therefore added a version to the existing document on MySQL and created a second, separate document on the other two -- silently, in both directions. Case-insensitive won because StoreFileVersion is built on \"same name in the same directory is a new version\", so the strict drivers silently fork a document when a tool re-saves it with different casing; because the filesystems people upload from are case-insensitive, making a directory holding both names undownloadable as a folder; and because it ratifies what the driver most likely to be deployed already does. Accent-insensitivity was rejected: resume.pdf and résumé.pdf are distinct names to every filesystem, and MySQL is the outlier in folding them. NFC normalisation is part of the rule rather than an exception to it, because macOS clients submit NFD filenames and byte-comparing the two encodings would split one abstract name in two. The comparison is done on a persisted name_key column rather than in SQL or in PHP: LOWER(name) inherits the column collation on MySQL so it stays accent-insensitive, and SQLite's lower() is ASCII-only without ICU so it would turn SQLite case-sensitive for any non-ASCII letter -- the expression that looks portable is wrong on two of three drivers. Comparing in PHP is correct but cannot use an index to narrow candidates, because on MySQL the prefilter is itself the bug. A persisted key is the only option that also leaves a path to a real database constraint.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/name-key",
+        "item/content-actions"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0007",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T08:05:00Z",
+      "run": "run/0005",
+      "name": "content-actions is split three ways, because two of its clauses could not be satisfied as written",
+      "rationale": "The item bundled rename, move and trash behind a doneWhen with two clauses that no implementation could honour. \"Name collisions throw the existing Duplicate exceptions\" named an outcome that differed by driver and had no agreed meaning until decision/0006; it is now item/name-key and blocks the rest. \"A trashed directory's files vanish from the browser and from search at query level\" described behaviour the codebase does not have and would not gain by soft-deleting one row: DirectoryAccess::resolveViewable collects granted directories' paths and returns every directory prefix-matching one, so a live grandchild of a trashed directory still matches a grant held on a live ancestor, and its files were never removed from search_documents. A file directly inside the trashed directory is hidden only incidentally, by the SoftDeletes global scope on the query that builds the reachable set, which nothing asserts and nobody designed. The answer is also inconsistent: a grant sitting on the trashed directory itself drops the entire subtree, live descendants included, so the same tree resolves differently depending on where the grant hangs. That is a defect, not missing work, so it became item/trash-directory with a test that must fail on main before it passes. The fix belongs in DirectoryAccess and in a cascade at trash time, not in Services\\Search: reach already has exactly one home, and a second reach rule inside Search would fix search alone while leaving the browser and the policy path open. What remains of content-actions is rename and move, which is an S -- MoveDirectory, TrashFile and RestoreFile already exist.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/content-actions",
+        "item/name-key",
+        "item/trash-directory",
+        "item/trash-purge-manual",
+        "item/trash-view",
+        "item/files-three-pane",
+        "item/api-content"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0008",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T08:40:00Z",
+      "run": "run/0006",
+      "name": "A replacement index is created before the one it supersedes is dropped",
+      "rationale": "The name_key migration dropped the composite (parent_id, name) and (directory_id, name) indexes before creating their name_key equivalents, and MySQL refused with errno 1553: the index was needed by a foreign key constraint. InnoDB requires an index whose leading column is the constrained one, and the old composite index had been quietly serving that role since the tables were created -- nothing named it as the foreign key's index, so nothing suggested it could not simply be replaced. PostgreSQL and SQLite do not require an index for a foreign key at all, so all four of their legs passed and reported nothing; only the two MySQL legs failed, and they took 415 of 452 tests with them because every test runs migrations. Creating the replacement first fixes it, because it leads with the same column and so can carry the constraint before the old index goes. Recorded as a rule rather than a one-off fix: this is the second time a constraint MySQL enforces and the other two drivers ignore has reached a green pull request, after the properties key-length failure, and any future index swap on a constrained column has the same trap.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/name-key",
+        "item/pgsql-value-string-index"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0009",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T10:45:00Z",
+      "run": "run/0007",
+      "name": "A pre-existing action missing a guard is fixed inside the item that names the guard",
+      "rationale": "MoveDirectory had no name collision check at all: moving a directory into a parent that already held that name silently succeeded, leaving two live siblings sharing a name, which spec section 4 says cannot exist. CreateDirectory checked and the move path never did. The rescoped content-actions issue said MoveDirectory already existed and needed only refusal-test coverage, which was wrong, and the subagent implementing the item flagged the contradiction between its brief and the issue rather than silently resolving it either way. The fix belongs in this item and not a new one, because the item's own doneWhen says a rename or move into a taken name throws the existing Duplicate exceptions, and MoveDirectory is one of the two move paths: filing it separately would have satisfied that sentence for MoveFile while the directory equivalent stayed broken. The general rule is that when an item names a guarantee, a pre-existing action that silently lacks it is inside that item's scope, and the issue text is corrected rather than the scope narrowed to match what was already written.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/content-actions"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0010",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T11:20:00Z",
+      "run": "run/0008",
+      "name": "doccum states every semantic it relies on; none is inherited from a driver or framework default",
+      "rationale": "Seven defects now share one root cause, and decision/0008's index-ordering rule is a special case of it: the code inherited a semantic from a driver or framework default instead of stating it. MySQL's utf8mb4_unicode_ci decided what the same name meant; InnoDB's 3072-byte key limit and PostgreSQL's 2704-byte btree tuple limit decided which values could be stored; InnoDB's rule that a foreign key needs an index was satisfied by an index nobody knew was carrying it; PostgreSQL's LIKE decided that search was case-sensitive; Eloquent's SoftDeletes global scope was accidentally the reach filter for a trashed directory's own files; and deleted_at's second precision was relied on to identify a trash cascade, so a file trashed in the same second as its directory was indistinguishable from one trashed by it. That last one was found by CI inside the very item that fixed the SoftDeletes instance, which is the argument for stating the rule rather than fixing instances. Three rules follow: any comparison of user-supplied text states its folding rule in code and proves it on all six legs; every index is sized against utf8mb4 worst case and expressed driver-conditionally in one place when it exceeds a limit; every foreign key column keeps an index leading with that column that no later swap drops. A fourth, from this run: identity and grouping are carried by a column that means it, never by a timestamp, a collation's opinion, or the absence of a row. item/schema-query-audit makes the next instance fail at CI rather than in an install.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/schema-query-audit",
+        "item/name-key",
+        "item/trash-directory",
+        "item/email-folding",
+        "item/pgsql-value-string-index"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0011",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T12:20:00Z",
+      "run": "run/0010",
+      "name": "The properties value_string index is equality-only on PostgreSQL, and search-filters must spell it",
+      "rationale": "decision/0005 deferred this choice because every remedy cost something and none could be judged without a test. With the test in hand the answer was not a close call: reproducing the failure against a real PostgreSQL returned the engine's own HINT suggesting a function index on an md5 hash, so the chosen fix is the database's recommendation rather than a pick among three guesses. A truncation expression was rejected because PostgreSQL only uses an expression index when the query is spelled with that identical expression, and it stays an approximation needing the real predicate for correctness whenever two values share the truncated prefix -- a cost with no offsetting benefit, since spec section 4 defines this index for equality lookup alone: ordering and ranges live in value_number and value_date, prefix and substring search in search_documents. The index therefore serves equality only, written as md5(value_string) = md5(?) alongside the real value_string = ? predicate, and cannot serve ordering or LIKE at all. item/search-filters must add that second predicate for the string, text and select data types on PostgreSQL or the planner will never pick this index; that obligation is written into the migration where whoever implements it will read it, and was confirmed by EXPLAIN rather than assumed. The regression test was nearly worthless before review: a value built by repeating one character is pglz-compressed by TOAST before storage, so it never reaches the byte width the test means to exercise and passes against the unfixed index. It uses a thousand distinct codepoints instead, and says why.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/pgsql-value-string-index",
+        "item/search-filters",
+        "item/schema-query-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0012",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T13:25:00Z",
+      "run": "run/0011",
+      "name": "A container-smoke assertion is worth only what a mutation says it is worth",
+      "rationale": "The rule added with the topbar smoke said to assert the hidden state before an interaction as well as the visible state after, on the reasoning that asserting only the visible state would pass on a container shipping no JavaScript. That reasoning was never tested, and it was wrong. Removing @fluxScripts from the layout and running the smoke against the resulting image failed inside the topbar check on the click, so the visible-after-click assertion is the load-bearing one; the hidden-before assertion passed in that same image with no JavaScript in it at all, because nothing was there to reveal the menu in the first place. A rule derived by argument had been written into CLAUDE.md where fourteen remaining UI items would have copied it. The rule is now the experiment rather than the argument: break the feature deliberately, run the smoke against that image, record the run, and prefer an assertion that requires the feature to do something over one that observes a resting state. The same experiment retired a second unfounded claim, that comparing the version pill against the container catches a stale config cache: tinker and the Blade read the same config in the same process, and the image runs no config:cache, so the check proves only that the pill renders the configured value rather than a literal. It becomes a real cross-source comparison once item/version-from-tag supplies the image label to compare against.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/container-smoke-ci",
+        "item/topbar-shell",
+        "item/files-three-pane",
+        "item/directory-access-ui",
+        "item/trash-view",
+        "item/home-dashboard",
+        "item/search-filters",
+        "item/admin-users"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0013",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T13:25:00Z",
+      "run": "run/0011",
+      "name": "Email is folded to lowercase on write by the application, and existing rows are not backfilled",
+      "rationale": "Email comparison was left to whatever each driver did: MySQL folded case in the utf8mb4_unicode_ci collation, SQLite and PostgreSQL compared bytes. The defect that hid behind that divergence was worse than a comparison inconsistency. Fortify lowercases a submitted credential before authenticating, and its own registration controller folds before creating, so /register was accidentally safe; but the installer and the self-service email change bypass that controller and stored the address exactly as typed, so an administrator who installed as a mixed-case address could not log in at all on SQLite or PostgreSQL. The account that bootstraps the instance was the one that could be locked out of it. Folding is therefore doccum's own stated rule now, applied by a saving hook on the model and by the same rule at login through Fortify::authenticateUsing, rather than inherited from a config flag this application happens also to set or from a column collation only one driver has. The rule is case only, trim then mb_strtolower: deliberately not NameKey's, which normalises to NFC and is accent-sensitive, because nothing motivates accent folding for an address and inventing a semantic no report backs is what decision/0010 forbids. mb_strtolower rather than SQL LOWER, which is ASCII-only on SQLite without ICU. Rows written before this change keep whatever case they have until next saved, and no backfill migration was written: a bulk lowercase collides with the unique constraint on exactly the installations that have the duplicate-account bug this fixes, and nothing can mechanically choose which of two real accounts wins when roles, directory ownership and audit history all hang off the id. That reconciliation is its own work, filed as issue 76, following the precedent decision/0006 set for name_key of leaving a visible gap rather than a silent one.",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "affects": [
+        "item/email-folding"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0014",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T16:25:00Z",
+      "run": "run/0012",
+      "name": "A directory row must never be force-deleted while files.directory_id cascades",
+      "rationale": "files.directory_id is declared with cascadeOnDelete, so force-deleting a directory row removes every descendant file row in SQL, in the database, without any PHP running per file. That path never reaches Services\\DocumentStorage, so every object those files owned is left in the store with nothing referencing it -- and it looks like it worked, because the rows vanish and the interface updates. PeriodPurger is safe only because it walks files one at a time and deletes their objects before their rows; a cascade skips exactly the step that makes it safe. Nothing force-deletes a Directory today, so this is latent rather than live, which is why item/trash-purge-manual deliberately covers files only and says so in its own docblock rather than quietly choosing. It is recorded here because the next work to touch this area is item/trash-view, where purging a directory is the obvious thing to reach for and the obvious implementation is the unsafe one. A safe directory purge walks every descendant file through the file path first; whether the foreign key should stop cascading, so the database refuses the shortcut rather than silently performing it, is open and is the decision/0010 posture applied to a driver convenience. Filed as issue 86.",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "affects": [
+        "item/trash-purge-manual",
+        "item/trash-view"
       ],
       "supersedes": null
     }

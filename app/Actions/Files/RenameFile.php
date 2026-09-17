@@ -10,32 +10,36 @@ use App\Models\ArchivePeriod;
 use App\Models\File;
 
 /**
- * Renames a file within its current directory.
+ * Renames a file in place. Authorisation is the CALLER's job, through
+ * FilePolicy.
  *
- * This action never authorises -- the caller does, through FilePolicy.
+ * A plain save() is enough to keep search current: SearchProjectionObserver
+ * reindexes the file itself on its `saved` event, and a rename touches
+ * neither `directory_id` nor any property, so nothing else can go stale.
  */
 class RenameFile
 {
-    public function handle(File $file, string $name): File
+    public function handle(File $file, string $newName): File
     {
-        // A file's period is fixed at creation, so renaming it is writing
-        // back into that same period: an archived one must refuse it exactly
-        // as it refuses a new version.
+        // A file's period is fixed at creation, so this writes back into that
+        // same period: an archived one must refuse it exactly as it refuses a
+        // new version.
         if (ArchivePeriod::isArchivedFor((int) $file->period_year, (int) $file->period_month)) {
             throw PeriodIsArchived::forPeriod((int) $file->period_year, (int) $file->period_month);
         }
 
         $taken = File::query()
             ->where('directory_id', $file->directory_id)
-            ->where('name', $name)
+            ->whereNamed($newName)
             ->whereKeyNot($file->getKey())
             ->exists();
 
         if ($taken) {
-            throw DuplicateFileName::in((int) $file->directory_id, $name);
+            throw DuplicateFileName::in((int) $file->directory_id, $newName);
         }
 
-        $file->update(['name' => $name]);
+        $file->name = $newName;
+        $file->save();
 
         return $file->refresh();
     }

@@ -33,21 +33,25 @@ it('renders layouts::shell for a signed-in user as a full-bleed grid with no flu
         // 44px topbar / 1fr body / 24px status bar (Task 2, exactly as specified).
         ->and($html)->toContain('grid-rows-[44px_1fr_24px]')
         ->and($html)->not->toContain('flux:main')
-        // Design plan §10: the topbar layout must drop the hardcoded dark
-        // class and let @fluxAppearance decide, unlike the two starter
-        // layouts (which this task must not touch).
-        ->and($html)->not->toContain('class="dark"');
+        // Design plan §1: both themes are first-class, so the shell starts
+        // from an un-classed <html> and lets @fluxAppearance apply the
+        // viewer's saved preference. The other layouts still hardcode dark;
+        // this one deliberately does not.
+        ->and($html)->not->toContain('<html lang="en" class="dark"');
 });
 
-it('leaves layouts::app and its sidebar serving settings and admin pages, untouched', function () {
+it('leaves layouts::app serving settings and admin pages, untouched', function () {
+    // The sidebar shell this originally asserted against was replaced on main
+    // by a full-width topbar (spec §10) while this branch was in flight. The
+    // property being protected is unchanged: the shell layout is additive, and
+    // the layout serving settings and admin pages still exists and is not the
+    // shell.
     expect(view()->exists('layouts::app'))->toBeTrue()
-        ->and(view()->exists('layouts::app.sidebar'))->toBeTrue();
+        ->and(view()->exists('layouts::app.topbar'))->toBeTrue();
 
-    $sidebar = file_get_contents(resource_path('views/layouts/app/sidebar.blade.php'));
+    $topbar = file_get_contents(resource_path('views/layouts/app/topbar.blade.php'));
 
-    // This task must not disturb the existing layout: it still hardcodes
-    // dark, unlike the new shell layout.
-    expect($sidebar)->toContain('class="dark"');
+    expect($topbar)->toContain('class="dark"');
 });
 
 it('defines every shell token (design plan §1) with both a light default and a dark override', function () {

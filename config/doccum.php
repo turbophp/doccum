@@ -5,6 +5,15 @@ declare(strict_types=1);
 return [
     'version' => env('DOCCUM_VERSION', '0.1.0'),
 
+    // Whether the operator set APP_URL at all, as opposed to the framework
+    // falling back to config/app.php's 'http://localhost'. Recorded here, in
+    // config, because that is the one place env() is correct: a config cache
+    // is built with .env present, so this keeps its answer once cached, while
+    // a bare env('APP_URL') read from a provider would start returning null
+    // and silently flip the fallback on for an operator who HAD set it.
+    // ForceRootUrlFromRequest is the only consumer.
+    'app_url_is_set' => env('APP_URL') !== null,
+
     // Never under storage/: that path lives inside the container image, not on
     // the data volume, so anything written there is lost on the next rebuild.
     'runtime_config_path' => env('DOCCUM_RUNTIME_CONFIG', '/data/runtime.json'),

@@ -2,9 +2,9 @@
 
 use App\Http\Controllers\FileDownloadController;
 use App\Livewire\Admin\PropertyDefinitions;
-use App\Livewire\Files\Browser;
 use App\Livewire\Search\Results;
 use App\Livewire\Setup\FirstRun;
+use App\Livewire\Shell\Files as ShellFiles;
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/setup', FirstRun::class)->name('setup');
@@ -19,7 +19,7 @@ Route::get('/files/{file}/download', FileDownloadController::class)
     ->middleware('auth')
     ->name('files.download');
 
-Route::livewire('/files/{directory?}', Browser::class)
+Route::livewire('/files/{directory?}', ShellFiles::class)
     ->middleware('auth')
     ->name('files.browse');
 

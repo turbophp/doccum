@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Livewire\Settings;
 
 use App\Concerns\ProfileValidationRules;
+use App\Support\EmailKey;
 use Flux\Flux;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Support\Facades\Auth;
@@ -34,6 +37,11 @@ class Profile extends Component
     public function updateProfileInformation(): void
     {
         $user = Auth::user();
+
+        // Fold before validating, same as CreateNewUser and FirstRun: this
+        // component saves the user itself, so nothing upstream folds it.
+        // See App\Support\EmailKey and issue #59.
+        $this->email = EmailKey::of($this->email);
 
         $validated = $this->validate($this->profileRules($user->id));
 

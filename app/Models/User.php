@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\EmailKey;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -47,6 +50,21 @@ class User extends Authenticatable implements PasskeyUser
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        // The authoritative fold: every save, from any path -- the three
+        // application write sites also fold before validating (so
+        // Rule::unique() in ProfileValidationRules compares folded values
+        // too), but this is the one hook nothing can bypass, the same shape
+        // as File/Directory's name_key maintenance. See App\Support\EmailKey
+        // and issue #59. Unlike name_key, there is no separate column: the
+        // folded value IS the stored value, because nothing needs email's
+        // original casing preserved for display.
+        static::saving(static function (User $user): void {
+            $user->email = EmailKey::of((string) $user->email);
+        });
     }
 
     /**

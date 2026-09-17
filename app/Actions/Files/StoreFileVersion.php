@@ -42,9 +42,17 @@ class StoreFileVersion
         $mime ??= 'application/octet-stream';
 
         $file = DB::transaction(function () use ($uploader, $directory, $sourcePath, $originalName, $mime, $size, $checksum): File {
+            // Serialises writers within this directory on MySQL and
+            // PostgreSQL (SQLite is single-writer anyway). This does not
+            // make the same-name race impossible -- a real constraint needs
+            // a generated column on MySQL/MariaDB and partial indexes
+            // elsewhere, which is separate scheduled work -- but it closes
+            // the common case of two concurrent uploads of the same name.
+            Directory::query()->whereKey($directory->getKey())->lockForUpdate()->firstOrFail();
+
             $file = File::query()
                 ->where('directory_id', $directory->getKey())
-                ->where('name', $originalName)
+                ->whereNamed($originalName)
                 ->first();
 
             // A file's versions all live under its creation period (see

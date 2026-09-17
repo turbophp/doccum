@@ -22,7 +22,7 @@ class RestoreFile
 
         $taken = File::query()
             ->where('directory_id', $file->directory_id)
-            ->where('name', $file->name)
+            ->whereNamed((string) $file->name)
             ->whereKeyNot($file->getKey())
             ->exists();
 

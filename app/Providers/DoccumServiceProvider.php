@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Http\Middleware\ForceRootUrlFromRequest;
+use App\Http\Responses\Fortify\FailedPasswordResetLinkRequestResponse;
+use App\Http\Responses\Fortify\SuccessfulPasswordResetLinkRequestResponse;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
@@ -27,6 +30,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
+use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse as FailedPasswordResetLinkRequestResponseContract;
+use Laravel\Fortify\Contracts\SuccessfulPasswordResetLinkRequestResponse as SuccessfulPasswordResetLinkRequestResponseContract;
 use League\Flysystem\Filesystem;
 use Spatie\Permission\Models\Role;
 
@@ -56,6 +61,27 @@ class DoccumServiceProvider extends ServiceProvider
         // every `app(ProcessRunner::class)` resolved afterwards, including
         // the one inside the extraction strategy under test.
         $this->app->singleton(ProcessRunner::class);
+
+        // Not a singleton: middleware is resolved fresh per request, and
+        // this reads the raw environment at that moment, not once at boot,
+        // so it can never be the stale value from whichever request booted
+        // the process. See ForceRootUrlFromRequest's own docblock for why
+        // that matters.
+        $this->app->bind(ForceRootUrlFromRequest::class, static fn (): ForceRootUrlFromRequest => new ForceRootUrlFromRequest(
+            appUrlIsUnset: config('doccum.app_url_is_set') !== true,
+        ));
+
+        // Replaces Fortify's own bindings for these two contracts (set in
+        // Laravel\Fortify\FortifyServiceProvider, which registers before
+        // this provider does -- see Illuminate\Foundation\Application::
+        // registerConfiguredProviders(), which always runs package-
+        // discovered providers before the app's own). Singleton to match
+        // Fortify's own choice for the same contracts: each is resolved at
+        // most once per request regardless, since a single HTTP request
+        // only ever takes the success branch or the failure branch, never
+        // both.
+        $this->app->singleton(SuccessfulPasswordResetLinkRequestResponseContract::class, SuccessfulPasswordResetLinkRequestResponse::class);
+        $this->app->singleton(FailedPasswordResetLinkRequestResponseContract::class, FailedPasswordResetLinkRequestResponse::class);
     }
 
     public function boot(): void

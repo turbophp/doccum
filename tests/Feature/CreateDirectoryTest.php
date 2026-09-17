@@ -34,6 +34,31 @@ it('refuses a duplicate name among live siblings', function () {
         ->toThrow(DuplicateDirectoryName::class);
 });
 
+it('refuses a name that differs only by case from a live sibling', function () {
+    app(CreateDirectory::class)->handle($this->user, 'Invoices');
+
+    expect(fn () => app(CreateDirectory::class)->handle($this->user, 'invoices'))
+        ->toThrow(DuplicateDirectoryName::class);
+});
+
+it('allows a name that differs by an accent from a live sibling', function () {
+    app(CreateDirectory::class)->handle($this->user, "R\u{00E9}sum\u{00E9}s"); // NFC "Résumés"
+
+    $second = app(CreateDirectory::class)->handle($this->user, 'Resumes');
+
+    expect($second->name)->toBe('Resumes');
+});
+
+it('refuses a name that reappears in a different unicode normalisation form', function () {
+    $nfc = "R\u{00E9}sum\u{00E9}s"; // precomposed U+00E9
+    $nfd = "Re\u{0301}sume\u{0301}s"; // "e" + combining acute U+0301
+
+    app(CreateDirectory::class)->handle($this->user, $nfc);
+
+    expect(fn () => app(CreateDirectory::class)->handle($this->user, $nfd))
+        ->toThrow(DuplicateDirectoryName::class);
+});
+
 it('allows the same name under a different parent', function () {
     $a = app(CreateDirectory::class)->handle($this->user, 'A');
     $b = app(CreateDirectory::class)->handle($this->user, 'B');

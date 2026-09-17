@@ -29,6 +29,9 @@ class DirectoryAccess
     /** @var array<int, array<int, int>> */
     private array $viewable = [];
 
+    /** @var array<int, string>|null */
+    private ?array $trashedPaths = null;
+
     public function levelFor(User $user, Directory $directory): ?AccessLevel
     {
         $key = $user->getKey().':'.$directory->getKey();
@@ -68,6 +71,18 @@ class DirectoryAccess
             return AccessLevel::Manage;
         }
 
+        // A trashed directory hides its own subtree from every grant that
+        // reaches it from above, even one sitting on a live ancestor further
+        // up. This is deliberately checked against PROPER ancestors only --
+        // the directory's own id, always the last segment of its own path,
+        // is excluded -- because the directory's own trashed state must not
+        // block resolving access ON it: restoring it is exactly the manage
+        // check this guards, and it can only ever be reached while trashed.
+        // See issue #49.
+        if ($this->hasTrashedProperAncestor($directory)) {
+            return null;
+        }
+
         $levels = $this->grantsFor($user)
             ->whereIn('directory_id', $directory->ancestorIds())
             ->pluck('level')
@@ -91,14 +106,53 @@ class DirectoryAccess
             return [];
         }
 
+        $trashedPaths = $this->trashedPaths();
+
         return Directory::query()
             ->where(function (Builder $query) use ($paths): void {
                 foreach ($paths as $path) {
                     $query->orWhere('path', 'like', $path.'%');
                 }
             })
+            // A live directory whose path is prefixed by a trashed one is a
+            // descendant of something that no longer exists as far as the
+            // browser and search are concerned, no matter how it got there
+            // -- a grant made directly on it, or one inherited from a live
+            // ancestor above the trashed node. See issue #49.
+            ->when($trashedPaths !== [], function (Builder $query) use ($trashedPaths): void {
+                foreach ($trashedPaths as $trashedPath) {
+                    $query->where('path', 'not like', $trashedPath.'%');
+                }
+            })
             ->pluck('id')
             ->all();
+    }
+
+    /**
+     * True when some directory strictly above this one -- never this
+     * directory itself -- is trashed.
+     */
+    private function hasTrashedProperAncestor(Directory $directory): bool
+    {
+        foreach ($this->trashedPaths() as $trashedPath) {
+            if ($trashedPath !== $directory->path && str_starts_with($directory->path, $trashedPath)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Every trashed directory's path, memoised per request: this rule would
+     * otherwise cost one query per directory checked instead of one query
+     * total. See flush().
+     *
+     * @return array<int, string>
+     */
+    private function trashedPaths(): array
+    {
+        return $this->trashedPaths ??= Directory::onlyTrashed()->pluck('path')->all();
     }
 
     /**
@@ -116,6 +170,7 @@ class DirectoryAccess
     {
         $this->levels = [];
         $this->viewable = [];
+        $this->trashedPaths = null;
     }
 
     private function grantsFor(User $user): Builder

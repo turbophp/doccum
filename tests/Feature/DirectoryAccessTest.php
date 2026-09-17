@@ -159,6 +159,45 @@ it('sees a directory moved out of a granted subtree', function () {
     expect($access->levelFor($this->user, $this->leaf->fresh()))->toBeNull();
 });
 
+it('excludes a live descendant of a trashed directory even when the grant is on a live ancestor above it', function () {
+    grant($this->root, $this->user, AccessLevel::Edit);
+    $this->mid->delete();
+
+    $access = app(DirectoryAccess::class);
+
+    expect($access->levelFor($this->user, $this->leaf))->toBeNull()
+        ->and($access->viewableDirectoryIds($this->user))->not->toContain($this->leaf->id);
+});
+
+it('excludes a live descendant of a trashed directory even when the grant sits on the trashed directory itself', function () {
+    // Previously inconsistent with the case above: a grant made directly on
+    // the directory being trashed took a completely different path through
+    // resolveViewable() (the trashed row simply dropped out of the path
+    // lookup) than a grant made on a live ancestor above it. Both must hide
+    // the same live descendant the same way. See issue #49.
+    grant($this->mid, $this->user, AccessLevel::Manage);
+    $liveGrandchild = Directory::factory()->for($this->leaf, 'parent')->create();
+    $this->mid->delete();
+
+    $access = app(DirectoryAccess::class);
+
+    expect($access->levelFor($this->user, $liveGrandchild))->toBeNull()
+        ->and($access->viewableDirectoryIds($this->user))->not->toContain($liveGrandchild->id);
+});
+
+it('still resolves a grant made directly on the directory being trashed, checked against itself', function () {
+    // The manage check RestoreDirectory's caller needs to authorise restoring
+    // D depends on resolving access ON D while D is trashed -- the defensive
+    // rule above must not defeat that by treating D's own trashed state as
+    // disqualifying.
+    grant($this->mid, $this->user, AccessLevel::Manage);
+    $this->mid->delete();
+
+    $trashedMid = Directory::withTrashed()->findOrFail($this->mid->id);
+
+    expect(app(DirectoryAccess::class)->levelFor($this->user, $trashedMid))->toBe(AccessLevel::Manage);
+});
+
 it('caches a denial instead of re-querying it', function () {
     $access = app(DirectoryAccess::class);
 

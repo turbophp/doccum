@@ -83,6 +83,24 @@ doccum must stay on stock Laravel's upgrade path.
   it cascades failures into later tests.
 - The test queue is synchronous; production is not. A "before" assertion about
   queued work will not hold.
+- **A UI item is not done until the container smoke drives it.**
+  `.github/scripts/container-smoke.mjs` is the only place a Livewire surface is
+  exercised the way a browser meets it. A Blade assertion renders the view with
+  the test renderer, so it cannot see a broken asset build, a component Flux
+  fails to resolve in the image, or a dropdown whose JS never booted -- every
+  one of which leaves the suite green and the feature unusable.
+- **A smoke assertion is worth only what a mutation says it is.** Each v1 UI
+  item extends the smoke with at least one assertion that fails when the
+  feature is broken, and "at least one" means one that has been *shown* to
+  fail. Break the thing deliberately, run the smoke against that image, and
+  record the run. Reasoning about which half of a check carries the weight is
+  unreliable: the topbar check asserted the account menu hidden before the
+  click and visible after, and the hidden-before half was argued to be the
+  load-bearing one. Mutation proved the reverse -- with no JavaScript in the
+  image at all the menu was still hidden, so only the visible-after-click half
+  proves anything. Prefer an assertion that requires the feature to *do*
+  something over one that observes a resting state, and never cite an
+  unmutated assertion as evidence.
 
 ## Docker
 

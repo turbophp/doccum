@@ -23,7 +23,14 @@
         --}}
         <div class="grid h-dvh grid-rows-[44px_1fr_24px]">
             <header class="border-b border-rule bg-chrome">
-                @includeIf('layouts.app.topbar')
+                {{--
+                    `layouts.shell.topbar`, NOT `layouts.app.topbar`: main
+                    already has a view at that path, and it is a complete HTML
+                    document rather than a partial, so including it nested an
+                    entire page inside this header. Namespacing the shell's own
+                    partials keeps the two from colliding again.
+                --}}
+                @includeIf('layouts.shell.topbar')
             </header>
 
             <div class="min-h-0 overflow-hidden">

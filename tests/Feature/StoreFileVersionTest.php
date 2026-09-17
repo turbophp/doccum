@@ -61,6 +61,55 @@ it('adds a version when the same name is uploaded again', function () {
         ->and($second->size)->toBe(3);
 });
 
+it('adds a version when the same name reappears with different case', function () {
+    // Fails today on SQLite and PostgreSQL: their default collation is case
+    // sensitive, so this used to fork a second file instead of versioning
+    // the one already there. See issue #46's decision comment.
+    $first = app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('one'), 'report.pdf');
+    $second = app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('two'), 'Report.pdf');
+
+    expect($second->id)->toBe($first->id)
+        ->and(File::count())->toBe(1)
+        ->and($second->versions()->count())->toBe(2)
+        ->and($second->currentVersion->version_number)->toBe(2);
+});
+
+it('does not rename the file when a differently-cased upload versions it', function () {
+    // Name is identity: an upload must not rename the document it versions.
+    $first = app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('one'), 'report.pdf');
+    $second = app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('two'), 'Report.pdf');
+
+    expect($second->id)->toBe($first->id)
+        ->and($second->name)->toBe('report.pdf');
+});
+
+it('creates a second, separate file when only an accent differs', function () {
+    // Fails today on MySQL: utf8mb4_unicode_ci folds accents as well as
+    // case, so "résumé.pdf" and "resume.pdf" used to collide as one file.
+    // Accent-sensitivity is the axis MySQL gets wrong (issue #46).
+    $accented = "r\u{00E9}sum\u{00E9}.pdf"; // NFC "résumé.pdf"
+
+    app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('one'), $accented);
+    app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('two'), 'resume.pdf');
+
+    expect(File::count())->toBe(2);
+});
+
+it('adds a version when the same name reappears in a different unicode normalisation form', function () {
+    // Fails today on all three drivers: none of them normalise before
+    // comparing, so an NFD name (macOS's historical export form) used to
+    // fork a second file instead of versioning the NFC one already there.
+    $nfc = "r\u{00E9}sum\u{00E9}.pdf"; // precomposed U+00E9
+    $nfd = "re\u{0301}sume\u{0301}.pdf"; // "e" + combining acute U+0301
+
+    $first = app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('one'), $nfc);
+    $second = app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('two'), $nfd);
+
+    expect($second->id)->toBe($first->id)
+        ->and(File::count())->toBe(1)
+        ->and($second->versions()->count())->toBe(2);
+});
+
 it('keeps the earlier version retrievable', function () {
     app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('one'), 'a.txt');
     $file = app(StoreFileVersion::class)->handle($this->user, $this->dir, upload('two'), 'a.txt');

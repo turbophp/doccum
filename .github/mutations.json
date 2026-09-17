@@ -28,6 +28,69 @@
     "expectFailing": "refuses a caller with directory access but no periods.manage"
   },
   {
+    "id": "directory-access-trashed-subtree-guard",
+    "why": "A live directory beneath a trashed one must never be listed as viewable, no matter where the grant that would otherwise reach it hangs -- on a live ancestor above the trashed node, or on the trashed node itself. Without this, trashing a directory does not hide the files beneath it, which defeats the point of trashing it.",
+    "file": "app/Services/DirectoryAccess.php",
+    "remove": "            ->when($trashedPaths !== [], function (Builder $query) use ($trashedPaths): void {\n                foreach ($trashedPaths as $trashedPath) {\n                    $query->where('path', 'not like', $trashedPath.'%');\n                }\n            })\n",
+    "expectFailing": "excludes a live descendant of a trashed directory from viewableDirectoryIds"
+  },
+  {
+    "id": "file-policy-view-refuses-trashed-directory",
+    "why": "view() must refuse outright when a file's directory was cascade-trashed, not resolve it withTrashed() and fall back on the normal grant. A trashed subtree is already invisible to browsing and search (DirectoryAccess::resolveViewable()); letting view() see through that with a grant that predates the trash would reopen exactly the reveal trashing a directory exists to close.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($directory === null) {\n            // A trashed directory is already invisible to browsing and\n            // search (DirectoryAccess::resolveViewable()); viewing a file\n            // inside it one at a time must not become a side door around\n            // that. See the class docblock.\n            return false;\n        }\n",
+    "expectFailing": "refuses to view a file whose directory is cascade-trashed, even with access that would otherwise allow it"
+  },
+  {
+    "id": "file-policy-update-refuses-trashed-directory",
+    "why": "update() must refuse outright when a file's directory was cascade-trashed. Editing a file's metadata in place inside a trashed subtree is the same reveal-and-modify that view() refuses, and without this guard the call falls through to DirectoryAccess::can() with a null directory, which either throws or, if that ever stopped throwing, would need a real answer -- refusing outright is the deliberate one.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($directory === null) {\n            // Editing metadata in place on a file inside a trashed subtree\n            // is the same reveal-and-modify that view() refuses. See the\n            // class docblock.\n            return false;\n        }\n",
+    "expectFailing": "refuses to update a file whose directory is cascade-trashed, even with access that would otherwise allow it"
+  },
+  {
+    "id": "file-policy-move-refuses-trashed-directory",
+    "why": "move() must refuse outright when a file's source directory was cascade-trashed, even when the caller has access to the destination. move() assumes a live file in a live tree; without this guard a grant on the destination alone could move a file out of a trashed subtree, which is restore()'s job, not move()'s.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($directory === null) {\n            // move() assumes a live file in a live tree, the same as\n            // view() and update(); restoring it out of a trashed subtree is\n            // restore()'s job, done before a move rather than instead of\n            // one. See the class docblock.\n            return false;\n        }\n",
+    "expectFailing": "refuses to move a file whose source directory is cascade-trashed, even with access to a live destination"
+  },
+  {
+    "id": "file-policy-legal-hold-refuses-trashed-directory",
+    "why": "legalHold() must refuse outright when a file's directory was cascade-trashed, even for a periods.manage holder. The view-reach requirement above exists so a capability holder with no reach into a directory learns nothing about what is in it; resolving withTrashed() here would turn the hold check itself into a side channel around exactly that.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($directory === null) {\n            // Resolving withTrashed() here would turn the hold check itself\n            // into the side channel the view-reach requirement above exists\n            // to close: a trashed directory is hidden from view precisely\n            // so a capability holder cannot learn what is in it, and legal\n            // hold must not carve out an exception to that. See the class\n            // docblock.\n            return false;\n        }\n",
+    "expectFailing": "refuses a legal hold on a file whose directory is cascade-trashed, even for a periods.manage holder with access"
+  },
+  {
+    "id": "purge-file-guard-legal-hold",
+    "why": "A file under legal hold must never be permanently deleted through the single-file purge door. PeriodPurger already blocks a whole period containing one; without this, that hold could be routed around one file at a time.",
+    "file": "app/Actions/Files/PurgeFile.php",
+    "remove": "        if ($file->legal_hold) {\n            throw FileUnderLegalHold::for((int) $file->getKey(), (string) $file->name);\n        }\n\n",
+    "expectFailing": "refuses to purge a file under legal hold"
+  },
+  {
+    "id": "purge-file-guard-archived-period",
+    "why": "A file whose period is archived must never be purged one file at a time. Archived periods are read-only, the same rule RestoreFile and StoreFileVersion already enforce, and the only sanctioned way to reclaim an archived period's storage is the retention-gated PeriodPurger.",
+    "file": "app/Actions/Files/PurgeFile.php",
+    "remove": "        if (ArchivePeriod::isArchivedFor((int) $file->period_year, (int) $file->period_month)) {\n            throw PeriodIsArchived::forPeriod((int) $file->period_year, (int) $file->period_month);\n        }\n\n",
+    "expectFailing": "refuses to purge a file whose period is archived"
+  },
+  {
+    "id": "sqlite-busy-timeout-stated",
+    "why": "SQLite's own default busy timeout is zero: the loser of a write race fails immediately instead of waiting. The single container has four writers on one file (FrankenPHP, two queue workers, the scheduler), with queue, cache and session all on the database driver, and that default is what printed \"General error: 5 database is locked\" on the jobs table on main. Remove the stated value and the connector skips the pragma entirely -- back to zero, silently.",
+    "file": "config/database.php",
+    "remove": "            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),\n",
+    "expectFailing": "waits rather than failing when the embedded database is locked"
+  },
+  {
+    "id": "sqlite-wal-journal-stated",
+    "why": "Without WAL, a SQLite reader blocks every writer for the length of its read. Laravel leaves journal_mode null, which means the driver's rollback-journal default, so remove the stated value and the pragma is never issued -- the contention this fixes comes straight back, and the suite's own \":memory:\" connection cannot see it.",
+    "file": "config/database.php",
+    "remove": "            'journal_mode' => env('DB_JOURNAL_MODE', 'WAL'),\n",
+    "expectFailing": "journals the embedded database in WAL mode so readers do not block writers"
+  },
+  {
     "id": "trash-file-legal-hold",
     "why": "A legal hold must stop deletion outright. Without this, a file under hold could be trashed like any other, which makes the hold decoration rather than protection.",
     "file": "app/Actions/Files/TrashFile.php",
