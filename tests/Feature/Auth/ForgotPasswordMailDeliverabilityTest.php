@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use Illuminate\Support\Facades\Notification;
 
 /**
  * item/user-reset-password-command (issue #61): the forgot-password POST
@@ -89,6 +90,16 @@ it('gives a real account and a nonexistent one byte-identical JSON when mail can
 
 it('leaves the forgot-password flow unaffected when a real mailer is configured', function () {
     config()->set('mail.default', 'smtp');
+
+    // Without this the broker really tries to reach an SMTP server, which
+    // is not there, so the send throws: the request ends with neither a
+    // flashed status nor a session error, and the assertions below read a
+    // null status while assertSessionHasNoErrors() passes -- a confusing
+    // pair that says nothing about the behaviour under test. Faking
+    // notifications keeps the mailer a DELIVERING one as far as
+    // MailDeliverability is concerned, which is the only thing this test
+    // cares about, without depending on a mail server existing in CI.
+    Notification::fake();
 
     $user = User::factory()->create();
 
