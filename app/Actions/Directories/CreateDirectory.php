@@ -26,7 +26,7 @@ class CreateDirectory
         // partial unique indexes are not portable to MySQL.
         $taken = Directory::query()
             ->where('parent_id', $parentId)
-            ->where('name', $name)
+            ->whereNamed($name)
             ->exists();
 
         if ($taken) {
