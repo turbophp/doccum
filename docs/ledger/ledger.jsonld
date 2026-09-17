@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T22:40:00Z",
-  "latestRun": "run/0016",
+  "dateModified": "2026-09-17T23:50:00Z",
+  "latestRun": "run/0017",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -482,9 +482,65 @@
       ]
     },
     {
-      "@id": "item/files-three-pane",
+      "@id": "item/download-reaches-the-browser",
       "@type": "Action",
       "order": 23,
+      "name": "Download returns bytes the browser can actually fetch",
+      "url": "https://github.com/turbophp/doccum/issues/74",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/files-actions-ui"
+      ],
+      "doneWhen": "The container smoke follows a Download link and asserts the bytes arrive and match the uploaded checksum -- that assertion is pushed FIRST and shown red against today's main, demonstrating the defect through the product's own harness before anything changes. A Decision records how the collision between spec 11 (bytes never pass through PHP) and spec 13 (one container, one port) is resolved, and names what the chosen option costs. The presigned host follows X-Forwarded-Host, so it does not break behind a reverse proxy the way it breaks on 127.0.0.1. The per-version download route added by item/files-versions-replace is covered by the same assertion.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/sqlite-immediate-transactions",
+      "@type": "Action",
+      "order": 24,
+      "name": "Write transactions begin IMMEDIATE so busy_timeout can do its job",
+      "url": "https://github.com/turbophp/doccum/issues/121",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "config/database.php states an IMMEDIATE transaction_mode rather than the skeleton's DEFERRED, so the write lock is taken at BEGIN and busy_timeout covers the queue worker's SELECT-then-UPDATE; the container smoke prints transaction_mode alongside journal_mode and busy_timeout, so a silent revert is visible in the log; and sqlite-busy-timeout-stated's why is corrected, since it currently cites the jobs-table lock as something the stated timeout already fixes. The suite cannot reach this at all -- QUEUE_CONNECTION is sync, per decision/0020 -- and the item says so rather than inventing a test.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/upload-silent-discard",
+      "@type": "Action",
+      "order": 25,
+      "name": "Observe the silent upload discard, then give the operator recourse",
+      "url": "https://github.com/turbophp/doccum/issues/106",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "The container smoke carries request, requestfailed, response, console and pageerror listeners plus Livewire's upload events, and one instrumented run distinguishes the three bugs this has been treated as one of: never sent, sent and failed, or sent and answered with the state lost. Diagnosis is time-boxed to two CI rounds. Whether or not the cause is named, the operator gets recourse: a form that has not completed an upload within a stated interval re-enables its control and says so, instead of leaving a dead button with no error. If the cause is not named, it is filed as post-v1 with what the instrumented run did show.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/files-three-pane",
+      "@type": "Action",
+      "order": 26,
       "name": "Tree sidebar rooted at the viewer reach, and a real breadcrumb",
       "url": "https://github.com/turbophp/doccum/issues/104",
       "isBasedOn": [
@@ -504,7 +560,7 @@
     {
       "@id": "item/directory-access-ui",
       "@type": "Action",
-      "order": 24,
+      "order": 27,
       "name": "Grant and revoke directory access from the UI",
       "url": "https://github.com/turbophp/doccum/issues/14",
       "isBasedOn": [
@@ -524,7 +580,7 @@
     {
       "@id": "item/trash-view",
       "@type": "Action",
-      "order": 25,
+      "order": 28,
       "name": "A Trash page with restore and purge",
       "url": "https://github.com/turbophp/doccum/issues/15",
       "isBasedOn": [
@@ -547,7 +603,7 @@
     {
       "@id": "item/home-dashboard",
       "@type": "Action",
-      "order": 26,
+      "order": 29,
       "name": "Home dashboard: recents, storage by period, quick search",
       "url": "https://github.com/turbophp/doccum/issues/16",
       "isBasedOn": [
@@ -567,7 +623,7 @@
     {
       "@id": "item/search-filters",
       "@type": "Action",
-      "order": 27,
+      "order": 30,
       "name": "Type, mime, period and property filters on search",
       "url": "https://github.com/turbophp/doccum/issues/17",
       "isBasedOn": [
@@ -587,7 +643,7 @@
     {
       "@id": "item/admin-users",
       "@type": "Action",
-      "order": 28,
+      "order": 31,
       "name": "Settings: users",
       "url": "https://github.com/turbophp/doccum/issues/18",
       "isBasedOn": [
@@ -607,7 +663,7 @@
     {
       "@id": "item/admin-roles",
       "@type": "Action",
-      "order": 29,
+      "order": 32,
       "name": "Settings: roles and their permission matrix",
       "url": "https://github.com/turbophp/doccum/issues/19",
       "isBasedOn": [
@@ -627,7 +683,7 @@
     {
       "@id": "item/admin-periods",
       "@type": "Action",
-      "order": 30,
+      "order": 33,
       "name": "Settings: periods, closing, purge plan and purge",
       "url": "https://github.com/turbophp/doccum/issues/20",
       "isBasedOn": [
@@ -648,7 +704,7 @@
     {
       "@id": "item/admin-instance-settings",
       "@type": "Action",
-      "order": 31,
+      "order": 34,
       "name": "Settings: instance name, signup, retention, limits",
       "url": "https://github.com/turbophp/doccum/issues/21",
       "isBasedOn": [
@@ -668,7 +724,7 @@
     {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
-      "order": 32,
+      "order": 35,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -688,7 +744,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 33,
+      "order": 36,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -711,7 +767,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 34,
+      "order": 37,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -731,7 +787,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 35,
+      "order": 38,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -751,7 +807,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 36,
+      "order": 39,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -772,7 +828,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 37,
+      "order": 40,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -792,7 +848,7 @@
     {
       "@id": "item/compose-secret",
       "@type": "Action",
-      "order": 38,
+      "order": 41,
       "name": "Remove the known-value secret from compose.yaml",
       "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
@@ -810,7 +866,7 @@
     {
       "@id": "item/version-from-tag",
       "@type": "Action",
-      "order": 39,
+      "order": 42,
       "name": "The version pill reports the released tag",
       "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
@@ -828,7 +884,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 40,
+      "order": 43,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -846,7 +902,7 @@
     {
       "@id": "item/changelog-release-notes",
       "@type": "Action",
-      "order": 41,
+      "order": 44,
       "name": "A changelog that becomes the release notes",
       "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
@@ -864,7 +920,7 @@
     {
       "@id": "item/release-v0-1-0",
       "@type": "Action",
-      "order": 42,
+      "order": 45,
       "name": "Tag v0.1.0 to prove the release pipeline",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
@@ -886,7 +942,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 43,
+      "order": 46,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -908,7 +964,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 44,
+      "order": 47,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -939,7 +995,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 45,
+      "order": 48,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -2198,6 +2254,55 @@
         "item/container-smoke-ci",
         "item/files-versions-replace",
         "item/files-list-sort-select"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0027",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T23:46:00Z",
+      "run": "run/0017",
+      "name": "\"No request, no error\" was never observed, and decision/0026 should not have said it",
+      "rationale": "container-smoke.mjs carries no page.on() listeners of any kind and never has, so no request and no console message has ever been captured. What was observed is that no files row appears and that the form's submit button is left disabled. The absence of a request is a GUESS about the cause, and it has been steering every workaround: it points diagnosis at \"the request never left the browser\" when the evidence equally fits a request that was made and answered with the state lost. Supersedes the claim in decision/0026, not its finding about the wedge, which was observed on two forms.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/upload-silent-discard",
+        "item/container-smoke-ci"
+      ],
+      "supersedes": "decision/0026"
+    },
+    {
+      "@id": "decision/0028",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T23:47:00Z",
+      "run": "run/0017",
+      "name": "The embedded database's transaction mode is stated in this repository, and it is DEFERRED",
+      "rationale": "Issue 121 said Laravel's SQLite transaction mode could not be confirmed without vendor/. It is at config/database.php:69, shipped by the Laravel 13 skeleton, and PR 94 rewrote the pragma block three lines above it without touching it. busy_timeout cannot cover a deferred transaction that reads then writes, which is the queue worker reserving a job, so the run 0013 pragma fix was half a fix and the missing half was on the same screen. That makes issue 121 an S -- state IMMEDIATE -- rather than the choice between one worker and moving the queue off SQLite that the issue proposed.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/sqlite-immediate-transactions"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0029",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T23:48:00Z",
+      "run": "run/0017",
+      "name": "Reliability defects in the shipped container are backlog items, not interruptions",
+      "rationale": "Issues 74, 121 and 106 become items at orders 23 to 25, ahead of the remaining feature work, so LOOP.md step 4 picks them by its own rule rather than the loop arguing itself into an exception. Three reasons they go first. item/v1-audit is a verification item one place before the tag with no slack to fix anything, so deferring to it schedules a surprise rather than the work. Every remaining UI item extends the smoke and inherits the upload scaffolding and the ambiguity a locked jobs table puts into every mutation run. And all three are defects an operator meets: a Download link that returns an unreachable host, a document whose text is silently lost, a dead Upload button. Precedent exists -- items 13, 16 and 17 were defects given orders ahead of features.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/download-reaches-the-browser",
+        "item/sqlite-immediate-transactions",
+        "item/upload-silent-discard",
+        "item/v1-audit"
       ],
       "supersedes": null
     }
