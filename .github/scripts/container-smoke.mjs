@@ -754,12 +754,29 @@ async function runSetup() {
       tmpFile,
       `This is a doccum container smoke test document containing the marker word ${FILE_MARKER}.\n`,
     );
+    // The input being ATTACHED is not the input being WIRED. wire:navigate
+    // swaps the DOM and Livewire rebinds afterwards; setting files in that
+    // window fires a change event with no listener on it, so no upload POST
+    // is ever made -- the run then reports NO_FILE for sixty seconds with
+    // nothing in any log to say why.
+    //
+    // This is measurable rather than theoretical. Issue #97 removed one full
+    // page.goto() from this path, which moved setInputFiles about half a
+    // second earlier relative to the navigation: ~1.05s after landing here
+    // against roughly 1.5s before. The smoke then lost the race on 3 runs out
+    // of 3 while main, still carrying the extra load, passed 4 of 4. The race
+    // was always there; the page load was hiding it. See issue #106.
+    await page.waitForFunction(
+      () => Boolean(window.Livewire) && Boolean(document.querySelector('input[type="file"]')),
+      { timeout: 15000 },
+    );
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
+
     // Wait for Livewire's temporary-upload POST itself, not for the network
-    // to go quiet. The previous version waited on 'networkidle' and swallowed
-    // the timeout with .catch(() => {}), so when the upload had not landed
-    // yet the smoke clicked Upload anyway against a form referencing nothing.
-    // That is a race, and it is why this step could "pass" while no row was
-    // ever written. See issue #106.
+    // to go quiet afterwards. The previous version waited on 'networkidle'
+    // and swallowed the timeout with .catch(() => {}), so a missing upload
+    // was indistinguishable from a settled one. Not swallowed now: if this
+    // times out, that IS the failure and it says so.
     const temporaryUpload = page.waitForResponse(
       (r) => r.url().includes('/livewire/upload-file') && r.status() === 200,
       { timeout: 20000 },
