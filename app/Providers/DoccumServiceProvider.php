@@ -64,7 +64,7 @@ class DoccumServiceProvider extends ServiceProvider
         // the process. See ForceRootUrlFromRequest's own docblock for why
         // that matters.
         $this->app->bind(ForceRootUrlFromRequest::class, static fn (): ForceRootUrlFromRequest => new ForceRootUrlFromRequest(
-            appUrlIsUnset: env('APP_URL') === null,
+            appUrlIsUnset: config('doccum.app_url_is_set') !== true,
         ));
     }
 

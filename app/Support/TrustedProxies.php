@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use Illuminate\Support\Env;
+
 /**
  * Resolves TRUSTED_PROXIES into whatever Middleware::trustProxies()'s `at`
  * parameter expects. Pulled out of bootstrap/app.php so the parsing itself --
@@ -32,6 +34,27 @@ class TrustedProxies
         '127.0.0.1/8',
         '::1',
     ];
+
+    /**
+     * TRUSTED_PROXIES as the process was actually started with, already
+     * resolved into what trustProxies() wants.
+     *
+     * Read through Illuminate\Support\Env rather than the env() helper on
+     * purpose, and NOT through config(). Larastan's noEnvCallsOutsideOfConfig
+     * rule exists because env() returns null once the config is cached -- but
+     * that reasoning does not reach this call. bootstrap/app.php configures
+     * middleware while the application is still being constructed, before any
+     * configuration has been loaded, so there is no cached config to consult
+     * and config('...') here would resolve to null whether or not the
+     * operator set anything. The raw environment is the only source that
+     * exists at this point, and config caching never touches it.
+     */
+    public static function fromEnvironment(): array|string
+    {
+        $raw = Env::get('TRUSTED_PROXIES');
+
+        return self::resolve(is_string($raw) ? trim($raw) : null);
+    }
 
     /**
      * @return list<string>|string

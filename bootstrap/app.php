@@ -54,11 +54,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // terminates TLS at a cloud load balancer that sets these headers
         // itself), a comma-separated list of IPs/CIDRs trusts exactly those,
         // and an explicit empty string trusts none.
-        $trustedProxiesEnv = env('TRUSTED_PROXIES');
-        $trustedProxiesEnv = is_string($trustedProxiesEnv) ? trim($trustedProxiesEnv) : null;
-
+        // Reading the environment lives in TrustedProxies::fromEnvironment();
+        // see its docblock for why it does not go through config() here.
         $middleware->trustProxies(
-            at: TrustedProxies::resolve($trustedProxiesEnv),
+            at: TrustedProxies::fromEnvironment(),
             headers: Request::HEADER_X_FORWARDED_FOR
                 | Request::HEADER_X_FORWARDED_HOST
                 | Request::HEADER_X_FORWARDED_PORT
