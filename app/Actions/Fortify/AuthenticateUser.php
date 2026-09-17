@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Fortify;
 
 use App\Models\User;
+use App\Providers\FortifyServiceProvider;
 use App\Support\EmailKey;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,7 +33,7 @@ use Illuminate\Support\Facades\Auth;
  * when they collide) and is tracked as its own item rather than folded in
  * here.
  *
- * @see \App\Providers\FortifyServiceProvider
+ * @see FortifyServiceProvider
  */
 class AuthenticateUser
 {
