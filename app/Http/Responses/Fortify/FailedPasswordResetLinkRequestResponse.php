@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Responses\Fortify;
 
-use App\Support\MailDeliverability;
 use Illuminate\Http\Request;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse as FailedPasswordResetLinkRequestResponseContract;
 use Laravel\Fortify\Http\Responses\FailedPasswordResetLinkRequestResponse as StockFailedPasswordResetLinkRequestResponse;
