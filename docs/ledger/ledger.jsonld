@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T13:45:00Z",
-  "latestRun": "run/0011",
+  "dateModified": "2026-09-17T16:25:00Z",
+  "latestRun": "run/0012",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -319,10 +319,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "doccum:user:reset-password sets a password or prints a one-time link with no mailer configured; the forgot-password page says mail is not configured when the mailer is log or array instead of claiming it sent one; both are exercised in the shipped image, not only in tests.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-17T13:40:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-17T16:20:29Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/89"
+      ]
     },
     {
       "@id": "item/extract-text-flake",
@@ -381,10 +383,12 @@
         "item/trash-directory"
       ],
       "doneWhen": "Requires files.delete and manage; objects removed through DocumentStorage; refusal tests for legal hold and for an archived period.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-17T13:40:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-17T15:48:44Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/87"
+      ]
     },
     {
       "@id": "item/topbar-shell",
@@ -1437,6 +1441,38 @@
       "mergedAt": "2026-09-17T13:26:20Z",
       "mergeSha": "52fbc261f3011f2d98303ceefa25b77352a23d48",
       "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/87",
+      "@type": "PullRequest",
+      "identifier": 87,
+      "name": "feat: permanently delete one trashed file",
+      "implements": [
+        "item/trash-purge-manual"
+      ],
+      "run": "run/0012",
+      "state": "merged",
+      "dateCreated": "2026-09-17T15:45:10Z",
+      "headSha": "a706277b91381f66d8ce599079ad7bc0757593b9",
+      "mergedAt": "2026-09-17T15:48:44Z",
+      "mergeSha": "5ce044fa7768d55318abc0a193490b9375f7e170",
+      "mergedIn": "run/0012"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/89",
+      "@type": "PullRequest",
+      "identifier": 89,
+      "name": "feat: a locked-out admin can get back in without a mailer",
+      "implements": [
+        "item/user-reset-password-command"
+      ],
+      "run": "run/0012",
+      "state": "merged",
+      "dateCreated": "2026-09-17T16:10:40Z",
+      "headSha": "ba3b11e0bf81102e0a94e1b7a9673d8e7deace93",
+      "mergedAt": "2026-09-17T16:20:29Z",
+      "mergeSha": "75a3013b56a498e334dce0cf135e243da77254bf",
+      "mergedIn": "run/0012"
     }
   ],
   "decisions": [
@@ -1659,6 +1695,22 @@
       ],
       "affects": [
         "item/email-folding"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0014",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T16:25:00Z",
+      "run": "run/0012",
+      "name": "A directory row must never be force-deleted while files.directory_id cascades",
+      "rationale": "files.directory_id is declared with cascadeOnDelete, so force-deleting a directory row removes every descendant file row in SQL, in the database, without any PHP running per file. That path never reaches Services\\DocumentStorage, so every object those files owned is left in the store with nothing referencing it -- and it looks like it worked, because the rows vanish and the interface updates. PeriodPurger is safe only because it walks files one at a time and deletes their objects before their rows; a cascade skips exactly the step that makes it safe. Nothing force-deletes a Directory today, so this is latent rather than live, which is why item/trash-purge-manual deliberately covers files only and says so in its own docblock rather than quietly choosing. It is recorded here because the next work to touch this area is item/trash-view, where purging a directory is the obvious thing to reach for and the obvious implementation is the unsafe one. A safe directory purge walks every descendant file through the file path first; whether the foreign key should stop cascading, so the database refuses the shortcut rather than silently performing it, is open and is the decision/0010 posture applied to a driver convenience. Filed as issue 86.",
+      "isBasedOn": [
+        "spec:9-archive-and-purge"
+      ],
+      "affects": [
+        "item/trash-purge-manual",
+        "item/trash-view"
       ],
       "supersedes": null
     }
