@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T13:25:00Z",
+  "dateModified": "2026-09-17T13:30:00Z",
   "latestRun": "run/0011",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -337,10 +337,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "The intermittent ExtractText failure is reproduced or the object-store race is ruled out by reading the ingest path, and which is stated; if it is the race, the job retries rather than failing terminally, with the policy tested through a faked storage failure rather than by waiting; a terminal extraction failure surfaces where an operator can see it; if the smoke test was racing rather than the app, the test is fixed and the issue says so.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-17T12:58:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-17T13:26:20Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/83"
+      ]
     },
     {
       "@id": "item/file-policy-null-directory",
@@ -1418,6 +1420,22 @@
       "headSha": "98cd656776cf8b784e2dc7efffc8a7be41cdce1e",
       "mergedAt": "2026-09-17T13:12:24Z",
       "mergeSha": "370283fe721ecfcb3c3ce940b7c35140915c04d0",
+      "mergedIn": "run/0011"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/83",
+      "@type": "PullRequest",
+      "identifier": 83,
+      "name": "fix: give ExtractText retries real backoff, and make the smoke say why extraction failed",
+      "implements": [
+        "item/extract-text-flake"
+      ],
+      "run": "run/0011",
+      "state": "merged",
+      "dateCreated": "2026-09-17T13:14:40Z",
+      "headSha": "0ce8f0085e466d1a1da09935c33f194655830c52",
+      "mergedAt": "2026-09-17T13:26:20Z",
+      "mergeSha": "52fbc261f3011f2d98303ceefa25b77352a23d48",
       "mergedIn": "run/0011"
     }
   ],
