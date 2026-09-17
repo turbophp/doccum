@@ -52,8 +52,7 @@ const SCHEMA_AUDIT_KEY_WIDTH_LIMITS = [
  */
 const SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES = [
     'properties' => [
-        'properties_property_definition_id_value_string_index' =>
-            'database/migrations/2026_09_16_090100_create_properties_table.php creates this with a '.
+        'properties_property_definition_id_value_string_index' => 'database/migrations/2026_09_16_090100_create_properties_table.php creates this with a '.
             'raw DB::statement(), not a Blueprint index, specifically so MySQL/MariaDB can index '.
             "value_string(255) -- a 255-char prefix, safely under 3072 bytes even at utf8mb4's worst ".
             'case. Every other driver indexes value_string whole (1024 chars declared), which this '.
@@ -76,28 +75,22 @@ const SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES = [
  * @var array<string, string>
  */
 const SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS = [
-    'directories.created_by' =>
-        'foreignId(\'created_by\')->constrained(\'users\') carries no index of its own -- only '.
+    'directories.created_by' => 'foreignId(\'created_by\')->constrained(\'users\') carries no index of its own -- only '.
         'MySQL/MariaDB gets one, auto-created by InnoDB because the constraint requires it. '.
         'SQLite and PostgreSQL leave the column entirely unindexed. Verified empirically against '.
         'both (PRAGMA index_list / pg_indexes) while building this audit.',
-    'files.created_by' =>
-        'Same gap as directories.created_by, same column, same migration pattern '.
+    'files.created_by' => 'Same gap as directories.created_by, same column, same migration pattern '.
         '(database/migrations/2026_09_15_132337_create_files_table.php).',
-    'file_versions.uploaded_by' =>
-        'foreignId(\'uploaded_by\')->constrained(\'users\') in '.
+    'file_versions.uploaded_by' => 'foreignId(\'uploaded_by\')->constrained(\'users\') in '.
         'database/migrations/2026_09_15_132338_create_file_versions_table.php has no covering '.
         'index outside MySQL/MariaDB\'s auto-created one; file_id is covered by the '.
         '(file_id, version_number) unique index, uploaded_by is not.',
-    'search_documents.owner_id' =>
-        'database/migrations/2026_09_16_140000_create_search_documents_table.php indexes '.
+    'search_documents.owner_id' => 'database/migrations/2026_09_16_140000_create_search_documents_table.php indexes '.
         'directory_id explicitly but not owner_id, which carries its own foreign key to users.',
-    'settings.updated_by' =>
-        'foreignId(\'updated_by\')->constrained(\'users\') in '.
+    'settings.updated_by' => 'foreignId(\'updated_by\')->constrained(\'users\') in '.
         'database/migrations/2026_09_15_131320_create_settings_table.php has no index at all '.
         'outside MySQL/MariaDB\'s auto-created one.',
-    'role_has_permissions.role_id' =>
-        "spatie/laravel-permission's own migration (database/migrations/2026_09_15_134326_"
+    'role_has_permissions.role_id' => "spatie/laravel-permission's own migration (database/migrations/2026_09_15_134326_"
         .'create_permission_tables.php) gives role_has_permissions a composite primary key '
         .'(permission_id, role_id) -- it leads with permission_id, so only that column is covered. '
         .'role_id is the trailing column of that primary key, never the leading column of any '
@@ -116,64 +109,50 @@ const SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS = [
  * @var array<string, string>
  */
 const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
-    'app/Search/Fts5SearchIndex.php' =>
-        "SQLite's FTS5 MATCH operator and bm25() ranking function, both SQLite-only -- ".
+    'app/Search/Fts5SearchIndex.php' => "SQLite's FTS5 MATCH operator and bm25() ranking function, both SQLite-only -- ".
         'DoccumServiceProvider only resolves this class when getDriverName() === \'sqlite\'. '.
         'Raw DB::statement()/DB::select() because FTS5 virtual tables are not something the '.
         'query builder can target.',
-    'app/Search/LikeSearchIndex.php' =>
-        "PostgreSQL's LIKE is case-sensitive; SQLite's and MySQL's default utf8mb4 collation are ".
+    'app/Search/LikeSearchIndex.php' => "PostgreSQL's LIKE is case-sensitive; SQLite's and MySQL's default utf8mb4 collation are ".
         'not. Switches to ILIKE on pgsql specifically so search does not go silently empty there -- '.
         'the fix for issue #2/PR #2.',
-    'app/Search/SearchIndex.php' =>
-        'The word "LIKE" appears only in a docblock explaining LikeSearchIndex\'s relationship to '.
+    'app/Search/SearchIndex.php' => 'The word "LIKE" appears only in a docblock explaining LikeSearchIndex\'s relationship to '.
         'this interface -- prose, not a query. Not actually driver-dependent; registered because '.
         'the grep cannot tell the difference.',
-    'app/Actions/Directories/MoveDirectory.php' =>
-        'Two raw DB::statement() calls rewriting `path` and recomputing `depth` with REPLACE() and '.
-        "LENGTH() -- called out in the surrounding comment as \"the one expression that behaves ".
+    'app/Actions/Directories/MoveDirectory.php' => 'Two raw DB::statement() calls rewriting `path` and recomputing `depth` with REPLACE() and '.
+        'LENGTH() -- called out in the surrounding comment as "the one expression that behaves '.
         'identically on SQLite, MySQL, and Postgres\", so this is raw SQL by choice, not a raw SQL '.
         'that happens to only work on one driver.',
-    'app/Actions/Directories/RestoreDirectory.php' =>
-        "A 'like' prefix match against `path`, which is a materialised path of ids and '/' only -- ".
+    'app/Actions/Directories/RestoreDirectory.php' => "A 'like' prefix match against `path`, which is a materialised path of ids and '/' only -- ".
         "no letters ever appear in it, so LikeSearchIndex's case-sensitivity split does not apply ".
         'here. Registered because the operator is still raw and driver-conditional in general; '.
         'safe today only because of what this column happens to contain.',
-    'app/Models/Directory.php' =>
-        "Same 'like' prefix match against `path` (descendants(), scopeInSubtreeOf()) as "
+    'app/Models/Directory.php' => "Same 'like' prefix match against `path` (descendants(), scopeInSubtreeOf()) as "
         .'RestoreDirectory, same reasoning: safe because path is ids and slashes only.',
-    'app/Services/DirectoryAccess.php' =>
-        "resolveViewable()'s 'like'/'not like' prefix matches against `path`, expanding a granted ".
+    'app/Services/DirectoryAccess.php' => "resolveViewable()'s 'like'/'not like' prefix matches against `path`, expanding a granted ".
         'subtree and excluding a trashed one (issue #49). Same "path is ids only" reasoning as '.
         'Directory and RestoreDirectory -- named explicitly in this item\'s brief as a known site.',
-    'app/Support/NameKey.php' =>
-        'mb_strtolower() here is not a driver dependency -- it is the fix for one. It states the '.
+    'app/Support/NameKey.php' => 'mb_strtolower() here is not a driver dependency -- it is the fix for one. It states the '.
         "folding rule (NFC-normalise, then lowercase) in PHP so no driver's own collation gets to ".
         "decide what \"the same name\" means; see issue #46 and this file's own docblock. See the ".
         'folding-rule inventory below.',
-    'app/Console/Commands/ConfigShow.php' =>
-        'strtolower() here folds a config *key path* (e.g. "storage.KEY") before checking whether '.
+    'app/Console/Commands/ConfigShow.php' => 'strtolower() here folds a config *key path* (e.g. "storage.KEY") before checking whether '.
         'it should be masked as a secret -- pure PHP string matching, nothing stored, compared for '.
         'uniqueness, or touching a database. Registered as a false positive the grep cannot filter '.
         'out on its own.',
-    'app/Services/SearchIndexer.php' =>
-        'strtolower() here normalises a file *extension* for the search projection\'s `extension` '.
+    'app/Services/SearchIndexer.php' => 'strtolower() here normalises a file *extension* for the search projection\'s `extension` '.
         'column -- a value the application computes and writes, not one compared against '.
         'unnormalised user input, and no database function is involved. False positive.',
-    'app/Providers/FortifyServiceProvider.php' =>
-        'Str::lower() here folds the login rate-limiter\'s throttle key (an in-memory/cache lookup '.
+    'app/Providers/FortifyServiceProvider.php' => 'Str::lower() here folds the login rate-limiter\'s throttle key (an in-memory/cache lookup '.
         'key, not a database column) so "Alice" and "alice" share one bucket. Unrelated to schema '.
         'or SQL. False positive.',
-    'app/Support/LedgerValidator.php' =>
-        "mb_strtolower() here reproduces GitHub's own heading-to-anchor slug rule for validating ".
+    'app/Support/LedgerValidator.php' => "mb_strtolower() here reproduces GitHub's own heading-to-anchor slug rule for validating ".
         'docs/ledger cross-references -- dev tooling with no database involved at all. False '.
         'positive.',
-    'database/migrations/2026_09_16_090100_create_properties_table.php' =>
-        'The driver-conditional raw CREATE INDEX for value_string, described above in '.
+    'database/migrations/2026_09_16_090100_create_properties_table.php' => 'The driver-conditional raw CREATE INDEX for value_string, described above in '.
         'SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES -- the reason doccum could not be installed on '.
         'MySQL at all before this was added (issues #37/#38).',
-    'database/migrations/2026_09_16_110000_create_search_index_table.php' =>
-        "Creates SQLite's FTS5 virtual table with a raw DB::statement(), guarded by ".
+    'database/migrations/2026_09_16_110000_create_search_index_table.php' => "Creates SQLite's FTS5 virtual table with a raw DB::statement(), guarded by ".
         "getDriverName() !== 'sqlite' returning early -- would fail the migration outright on ".
         'every other driver if it ran unconditionally.',
 ];
@@ -189,34 +168,29 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
  * @var array<string, string>
  */
 const SCHEMA_AUDIT_FOLDING_RULES = [
-    'users.email' =>
-        'None today. App\Actions\Fortify\CreateNewUser stores the address exactly as submitted and '.
+    'users.email' => 'None today. App\Actions\Fortify\CreateNewUser stores the address exactly as submitted and '.
         'App\Concerns\ProfileValidationRules::emailRules() only checks format and Rule::unique() -- '.
-        "no normalisation happens anywhere, so uniqueness is decided entirely by the `email` ".
+        'no normalisation happens anywhere, so uniqueness is decided entirely by the `email` '.
         "column's driver collation, which folds case and accents differently per driver. Known "
         .'gap: issue #59, tracked there rather than fixed here.',
-    'users.username' =>
-        'App\Concerns\ProfileValidationRules::usernameRules() constrains input to '.
-        "/^[a-z0-9._-]+\$/ before Rule::unique() ever runs, so no two valid usernames can differ ".
+    'users.username' => 'App\Concerns\ProfileValidationRules::usernameRules() constrains input to '.
+        '/^[a-z0-9._-]+$/ before Rule::unique() ever runs, so no two valid usernames can differ '.
         'only by case or accent -- the column\'s own collation is never asked to fold anything, on '.
         'any driver. Asserted below directly against that regex.',
-    'settings.key' =>
-        'Not user input. Every caller of App\Services\Settings::set()/get() passes a literal '.
+    'settings.key' => 'Not user input. Every caller of App\Services\Settings::set()/get() passes a literal '.
         "dotted key it wrote itself in source (e.g. 'auth.default_role', 'storage.provider') -- ".
         'never a value an end user typed. The unique constraint on `settings.key` guards against '.
         'an application bug writing the wrong literal, not against two differently-cased user '.
         'inputs colliding, so there is no folding rule to state.',
-    'property_definitions.key' =>
-        'App\Livewire\Admin\PropertyDefinitions runs Str::slug($this->key, \'_\') before '.
+    'property_definitions.key' => 'App\Livewire\Admin\PropertyDefinitions runs Str::slug($this->key, \'_\') before '.
         'validating, so the value that ever reaches the `regex:/^[a-z0-9_]+$/` rule and '.
         "Rule::unique('property_definitions', 'key') is already lowercase ASCII -- covered by ".
         'tests/Feature/PropertyDefinitionAdminTest.php\'s "normalises a key to the allowed '.
         'character set".',
-    'directories.name / files.name' =>
-        'Folded by App\Support\NameKey::of(): NFC-normalise, then mb_strtolower(), persisted in '.
+    'directories.name / files.name' => 'Folded by App\Support\NameKey::of(): NFC-normalise, then mb_strtolower(), persisted in '.
         '`name_key` and compared there (Directory::scopeWhereNamed(), File\'s equivalent) instead '.
         'of on `name` directly -- deliberately never `LOWER(name) = ?`, which is exactly the '.
-        "collation-dependent comparison issue #46 found. Already done, and already covered by ".
+        'collation-dependent comparison issue #46 found. Already done, and already covered by '.
         'tests/Unit/NameKeyTest.php.',
 ];
 
