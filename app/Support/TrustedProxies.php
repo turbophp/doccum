@@ -48,6 +48,8 @@ class TrustedProxies
      * and config('...') here would resolve to null whether or not the
      * operator set anything. The raw environment is the only source that
      * exists at this point, and config caching never touches it.
+     *
+     * @return list<string>|string
      */
     public static function fromEnvironment(): array|string
     {
