@@ -52,14 +52,33 @@ const SCHEMA_AUDIT_KEY_WIDTH_LIMITS = [
  */
 const SCHEMA_AUDIT_DRIVER_CONDITIONAL_INDEXES = [
     'properties' => [
-        'properties_property_definition_id_value_string_index' => 'database/migrations/2026_09_16_090100_create_properties_table.php creates this with a '.
-            'raw DB::statement(), not a Blueprint index, specifically so MySQL/MariaDB can index '.
-            "value_string(255) -- a 255-char prefix, safely under 3072 bytes even at utf8mb4's worst ".
-            'case. Every other driver indexes value_string whole (1024 chars declared), which this '.
-            'generic check cannot see through the raw expression to size. On PostgreSQL that full '.
-            'column can exceed the ~2704-byte btree tuple limit -- closing that gap is '.
-            'item/pgsql-value-string-index (issue #39), a separate item this one depends on landing '.
-            'after. Not sized here on purpose; do not remove this entry until #39 lands.',
+        // database/migrations/2026_09_16_090100_create_properties_table.php
+        // creates this with a raw DB::statement(), not a Blueprint index, so
+        // each driver can be sized to its own key-length ceiling -- this
+        // generic column-length check cannot see through a raw expression
+        // to size it, on any of the three drivers below, which is why the
+        // entry stays rather than being removed now that #39 (this item)
+        // has landed for all of them:
+        //   - MySQL/MariaDB index value_string(255), a 255-char prefix,
+        //     safely under InnoDB's 3072-byte limit even at utf8mb4's worst
+        //     case (issue #37/#38).
+        //   - PostgreSQL indexes md5(value_string) instead of the column,
+        //     a fixed 32-character hash safely under its ~2704-byte btree
+        //     tuple limit regardless of how long value_string gets (issue
+        //     #39; decision/0005). This serves ONLY an equality lookup
+        //     written as `md5(value_string) = md5(?)` alongside the real
+        //     `value_string = ?` predicate -- never ordering, never
+        //     prefix/LIKE matching, and never a plain `value_string = ?` on
+        //     its own, which Postgres's planner will not match to this
+        //     index. tests/Feature/PropertyTest.php's "round-trips a
+        //     value_string built from three-byte characters" is the
+        //     regression test for the failure this replaced.
+        //   - SQLite indexes value_string whole -- it has no such ceiling
+        //     (see the note on SCHEMA_AUDIT_KEY_WIDTH_LIMITS above).
+        'properties_property_definition_id_value_string_index' => 'Driver-conditional raw index on value_string -- MySQL/MariaDB gets a 255-char prefix, '.
+            'PostgreSQL gets md5(value_string) (equality-only; issue #39/decision/0005), SQLite '.
+            'indexes the column whole. See the migration\'s own comment for the full reasoning '.
+            'behind each branch, including which queries the PostgreSQL branch can and cannot serve.',
     ],
 ];
 
