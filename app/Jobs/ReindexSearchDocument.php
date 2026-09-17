@@ -30,6 +30,26 @@ class ReindexSearchDocument implements ShouldQueue
 
     public function handle(SearchIndexer $indexer): void
     {
+        // A trashed subject must never come back. SearchProjectionObserver
+        // ::deleted() forgets the projection inline, but this job can be
+        // DISPATCHED before a trash and RUN after it -- the dispatch from the
+        // upload itself, or an ExtractText still in flight -- and index() does
+        // an updateOrCreate, so it would rebuild the row for a soft-deleted
+        // file and republish it to the index. The file then answers searches
+        // again, which is the exact thing that observer's docblock says an
+        // index must not become: a way to keep reading what was just deleted.
+        //
+        // Invisible to the suite by construction: QUEUE_CONNECTION is sync
+        // there, so every dispatch runs inline and in order, before the trash
+        // ever happens. CLAUDE.md says it plainly -- the test queue is
+        // synchronous and production is not. The container smoke caught it on
+        // main, not the 617 tests.
+        if (method_exists($this->subject, 'trashed') && $this->subject->trashed()) {
+            $indexer->forget($this->subject);
+
+            return;
+        }
+
         $indexer->index($this->subject);
     }
 }

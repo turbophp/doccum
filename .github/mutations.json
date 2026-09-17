@@ -138,5 +138,12 @@
     "file": "app/Livewire/Files/Browser.php",
     "remove": "        $this->authorize('delete', $this->selectedDirectory);\n\n",
     "expectFailing": "refuses to trash a directory without directories.manage, manage access alone is not enough"
+  },
+  {
+    "id": "reindex-refuses-trashed-subject",
+    "why": "A trashed file must never be resurrected into the search index. deleted() forgets the projection inline, but a reindex dispatched BEFORE a trash can run AFTER it -- the dispatch from the upload, or an ExtractText still in flight -- and index() is an updateOrCreate, so without this guard the row comes back and the trashed file answers searches again. Trashing is how a person hides something; an index that keeps serving it defeats the point. The suite cannot see this on its own because QUEUE_CONNECTION is sync, which is why the test stages the ordering explicitly and why the container found it first.",
+    "file": "app/Jobs/ReindexSearchDocument.php",
+    "remove": "        if (method_exists($this->subject, 'trashed') && $this->subject->trashed()) {\n            $indexer->forget($this->subject);\n\n            return;\n        }\n\n",
+    "expectFailing": "does not resurrect a trashed file when a reindex lands after the trash"
   }
 ]
