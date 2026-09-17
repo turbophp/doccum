@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T08:40:00Z",
-  "latestRun": "run/0006",
+  "dateModified": "2026-09-17T10:45:00Z",
+  "latestRun": "run/0007",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -173,10 +173,12 @@
         "item/name-key"
       ],
       "doneWhen": "Each action has a test that a caller lacking edit or manage is refused, through a Policy rather than in the action; a rename or move into a name a live sibling already holds throws the existing Duplicate exceptions under the NameKey rule, asserted on all three matrix legs; the pre-existing MoveDirectory, TrashFile and RestoreFile gain the same refusal coverage.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T08:45:00Z",
+      "endTime": "2026-09-17T10:42:13Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/55"
+      ]
     },
     {
       "@id": "item/trash-directory",
@@ -193,8 +195,8 @@
         "item/name-key"
       ],
       "doneWhen": "A file in a live descendant of a trashed directory is absent from Services\\Search results and from the browser for a viewer granted on an ancestor, asserted against the query rather than the rendered view; that test fails on main with no code change and is mutation-checked; TrashDirectory cascades through Eloquent so each projection is forgotten; RestoreDirectory reverses it and leaves independently trashed files trashed; both require manage, refused through a Policy.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-17T10:40:00Z",
       "endTime": null,
       "result": []
     },
@@ -1093,6 +1095,22 @@
       "mergedAt": "2026-09-17T08:39:26Z",
       "mergeSha": "91ef9b53a2f96c8da68ea61c0a972168d21e54c1",
       "mergedIn": "run/0006"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/55",
+      "@type": "PullRequest",
+      "identifier": 55,
+      "name": "feat: rename and move actions, and the collision check MoveDirectory never had",
+      "implements": [
+        "item/content-actions"
+      ],
+      "run": "run/0007",
+      "state": "merged",
+      "dateCreated": "2026-09-17T08:56:00Z",
+      "headSha": "831e0ca6f1c5aa8c186d5d70850ffb9cb1b80919",
+      "mergedAt": "2026-09-17T10:42:13Z",
+      "mergeSha": "3702b8fc27d7da2f9157faddb8fa210315932976",
+      "mergedIn": "run/0007"
     }
   ],
   "decisions": [
@@ -1227,6 +1245,21 @@
       "affects": [
         "item/name-key",
         "item/pgsql-value-string-index"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0009",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T10:45:00Z",
+      "run": "run/0007",
+      "name": "A pre-existing action missing a guard is fixed inside the item that names the guard",
+      "rationale": "MoveDirectory had no name collision check at all: moving a directory into a parent that already held that name silently succeeded, leaving two live siblings sharing a name, which spec section 4 says cannot exist. CreateDirectory checked and the move path never did. The rescoped content-actions issue said MoveDirectory already existed and needed only refusal-test coverage, which was wrong, and the subagent implementing the item flagged the contradiction between its brief and the issue rather than silently resolving it either way. The fix belongs in this item and not a new one, because the item's own doneWhen says a rename or move into a taken name throws the existing Duplicate exceptions, and MoveDirectory is one of the two move paths: filing it separately would have satisfied that sentence for MoveFile while the directory equivalent stayed broken. The general rule is that when an item names a guarantee, a pre-existing action that silently lacks it is inside that item's scope, and the issue text is corrected rather than the scope narrowed to match what was already written.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/content-actions"
       ],
       "supersedes": null
     }
