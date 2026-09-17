@@ -17,7 +17,11 @@ concurrency:
 
 env:
   # Kept in one place so bumping the default PHP version touches one line.
-  PRIMARY_PHP: '8.4'
+  # Tracks what the image ships (Dockerfile's base stage), so the jobs that
+  # run on one version only -- lint, guards, the asset build -- run on the
+  # version users actually get. It drifted to 8.4 the moment the base image
+  # moved to 8.5.
+  PRIMARY_PHP: '8.5'
 
 jobs:
   lint:
