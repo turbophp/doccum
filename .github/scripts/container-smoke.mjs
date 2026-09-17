@@ -770,20 +770,6 @@ async function runSetup() {
     await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
     await page.locator('input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
-    // Wait for Livewire to be up before touching the input. The input being
-    // ATTACHED is not the input being BOUND: wire:navigate swaps the DOM and
-    // Livewire binds afterwards, and setting files in that window fires a
-    // change event with no listener on it -- no upload request, no error, no
-    // log line, and a files row that never appears.
-    //
-    // Why this branch and not main: main reaches /files from '/', a real
-    // cross-page fetch. Here the installer already lands on /files, so the
-    // goto above is a same-URL navigation served from cache and finishes far
-    // sooner -- setInputFiles landed ~0.8s after it, and lost. The race is
-    // main's too; this branch only stopped hiding it. Issue #106.
-    await page.waitForFunction(() => Boolean(window.Livewire), { timeout: 15000 });
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-
     console.log(`[setup] uploading ${FILE_NAME}`);
     await uploadAndProveStored(
       page,
