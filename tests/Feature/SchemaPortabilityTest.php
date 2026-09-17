@@ -270,6 +270,25 @@ it('sizes every index against utf8mb4\'s worst case, or names the driver-conditi
     $driver = DB::connection()->getDriverName();
     $limit = SCHEMA_AUDIT_KEY_WIDTH_LIMITS[$driver] ?? null;
 
+    if ($limit === null) {
+        // SQLite imposes no index key length limit, so there is no ceiling
+        // here to size anything against -- and its implicit
+        // sqlite_autoindex_* entries are artefacts it generates for primary
+        // key and unique constraints, not indexes doccum declares or could
+        // shorten. Asserting width on this driver measures nothing.
+        //
+        // Named explicitly rather than skipped by absence, so a driver added
+        // to the matrix without a registered limit fails here instead of
+        // quietly opting out of the check.
+        expect($driver)->toBe(
+            'sqlite',
+            "Driver {$driver} has no entry in SCHEMA_AUDIT_KEY_WIDTH_LIMITS. Add its index ".
+            'key length ceiling, or record here why it has none.',
+        );
+
+        return;
+    }
+
     foreach (Schema::getTables() as $tableInfo) {
         $table = $tableInfo['name'];
         $columns = collect(Schema::getColumns($table))->keyBy('name');
