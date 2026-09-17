@@ -150,6 +150,10 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
         "folding rule (NFC-normalise, then lowercase) in PHP so no driver's own collation gets to ".
         "decide what \"the same name\" means; see issue #46 and this file's own docblock. See the ".
         'folding-rule inventory below.',
+    'app/Support/EmailKey.php' => 'Same reasoning as NameKey.php, one entry up: mb_strtolower() (plus its own docblock, which '.
+        "mentions SQLite's LOWER() by name to explain why it is not used) states email's folding ".
+        "rule in PHP instead of a driver's collation deciding it -- see issue #59 and this file's ".
+        'own docblock. See the folding-rule inventory below.',
     'app/Console/Commands/ConfigShow.php' => 'strtolower() here folds a config *key path* (e.g. "storage.KEY") before checking whether '.
         'it should be masked as a secret -- pure PHP string matching, nothing stored, compared for '.
         'uniqueness, or touching a database. Registered as a false positive the grep cannot filter '.
@@ -182,11 +186,23 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
  * @var array<string, string>
  */
 const SCHEMA_AUDIT_FOLDING_RULES = [
-    'users.email' => 'None today. App\Actions\Fortify\CreateNewUser stores the address exactly as submitted and '.
-        'App\Concerns\ProfileValidationRules::emailRules() only checks format and Rule::unique() -- '.
-        'no normalisation happens anywhere, so uniqueness is decided entirely by the `email` '.
-        "column's driver collation, which folds case and accents differently per driver. Known "
-        .'gap: issue #59, tracked there rather than fixed here.',
+    'users.email' => 'Folded by App\Support\EmailKey::of(): trim, then mb_strtolower() -- case only, '.
+        'deliberately not NameKey\'s NFC-normalise/accent-sensitive rule, which has no report '.
+        'behind it for email. Lowercase-on-write, straight into `email` itself (unlike names, no '.
+        'separate _key column: nothing needs email\'s original casing preserved for display), via '.
+        "User's saving hook, which nothing can bypass. Rule::unique() in "
+        .'App\Concerns\ProfileValidationRules::emailRules() still compares the submitted value '.
+        'verbatim, so CreateNewUser, FirstRun::submit() and Profile::updateProfileInformation() '.
+        'each fold the submitted value before validating too. Login resolves through the same '.
+        'rule via Fortify::authenticateUsing() (App\Actions\Fortify\AuthenticateUser), stated '.
+        "explicitly rather than left to depend on config('fortify.lowercase_usernames') -- see "
+        .'that config file\'s own comment. Fixed by issue #59; covered by tests/Unit/EmailKeyTest.php '.
+        'and tests/Feature/Auth/RegistrationTest.php, AuthenticationTest.php, '.
+        'Settings/ProfileUpdateTest.php and FirstRunSetupTest.php. Pre-existing rows written before '.
+        'this fix keep whatever case they already had until their next save -- deliberately not '.
+        'backfilled here; same choice item/name-key made for name_key on existing rows, and for '.
+        'the same reason: a bulk fold risks colliding two already-mis-folded rows, which is a '.
+        'reconciliation decision, not a mechanical one. See this item\'s report for the argument.',
     'users.username' => 'App\Concerns\ProfileValidationRules::usernameRules() constrains input to '.
         '/^[a-z0-9._-]+$/ before Rule::unique() ever runs, so no two valid usernames can differ '.
         'only by case or accent -- the column\'s own collation is never asked to fold anything, on '.

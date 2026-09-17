@@ -42,6 +42,62 @@ it('creates the first admin with a home directory', function () {
         ->and(auth()->check())->toBeTrue();
 });
 
+it('folds the first admin\'s email to lowercase even when submitted with capitals', function () {
+    Livewire::test(FirstRun::class)
+        ->set('instance_name', 'Acme Docs')
+        ->set('name', 'Ada Lovelace')
+        ->set('username', 'ada')
+        ->set('email', 'Ada@Example.com')
+        ->set('password', 'password-please')
+        ->set('password_confirmation', 'password-please')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(User::where('email', 'ada@example.com')->exists())->toBeTrue()
+        ->and(User::where('email', 'Ada@Example.com')->exists())->toBeFalse();
+});
+
+// Issue #59's finding #1, and the real headline: this installer is the one
+// path that creates doccum's very first user, and it bypasses Fortify's own
+// RegisteredUserController (and the lowercase_usernames fold that controller
+// applies) entirely -- so before this item, whatever case the operator typed
+// into the admin email field is exactly what got stored, verbatim.
+//
+// Fortify's login pipeline, separately, already folds the submitted login
+// credential to lowercase (config('fortify.lowercase_usernames'), wired in
+// via Laravel\Fortify\Actions\CanonicalizeUsername) -- so before the fix, an
+// admin who registered as "Ada@Example.com" and later logs in as
+// "ada@example.com" (or types it in any other case) hits a guard->attempt()
+// comparing the folded input against the UNfolded stored row: a byte
+// comparison on SQLite and PostgreSQL that never matches. That admin cannot
+// log in AT ALL on those two drivers -- worse than the uniqueness divergence
+// issue #59 itself describes, and the reason this item adds its own explicit
+// App\Actions\Fortify\AuthenticateUser rather than leaning on that config
+// flag (decision/0010).
+it('lets the first admin log back in with different case than they registered with', function () {
+    Livewire::test(FirstRun::class)
+        ->set('instance_name', 'Acme Docs')
+        ->set('name', 'Ada Lovelace')
+        ->set('username', 'ada')
+        ->set('email', 'Ada@Example.com')
+        ->set('password', 'password-please')
+        ->set('password_confirmation', 'password-please')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $this->assertAuthenticated();
+    $this->post(route('logout'));
+    $this->assertGuest();
+
+    $response = $this->post(route('login.store'), [
+        'email' => 'ada@example.com',
+        'password' => 'password-please',
+    ]);
+
+    $response->assertSessionHasNoErrors();
+    $this->assertAuthenticated();
+});
+
 it('validates the first admin', function () {
     Livewire::test(FirstRun::class)
         ->set('username', 'Not A Username!')
