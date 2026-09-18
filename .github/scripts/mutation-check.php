@@ -33,15 +33,16 @@ declare(strict_types=1);
  * place to happen, and so a test can prove it does not happen there without
  * running a real test suite.
  *
- * This file has no autoloader (it runs before `composer install` in CI), so
- * everything below the guard at the bottom is a plain function: a test may
- * `require_once` this file to get them without triggering the mutation
- * sweep. Only code reached through that guard performs a side effect.
+ * This file is a standalone CLI script with no autoloader of its own, so
+ * everything below is a plain function: a test may `require_once` this file
+ * to get them without triggering the mutation sweep. Only code reached
+ * through the guard at the bottom performs a side effect.
  */
 
 const MUTATION_RUN_PASSED = 'passed';
 const MUTATION_RUN_NO_TEST_MATCHED = 'no_test_matched';
 const MUTATION_RUN_TEST_FAILED = 'test_failed';
+const MUTATION_RUN_UNCLASSIFIABLE = 'unclassifiable';
 
 /**
  * Turns an expectFailing value -- a fragment of a test name, never anchored
@@ -57,7 +58,20 @@ const MUTATION_RUN_TEST_FAILED = 'test_failed';
  */
 function buildFilterPattern(string $expectFailing): string
 {
-    return preg_quote($expectFailing);
+    $pattern = $expectFailing;
+
+    // Deliberately a reassignment rather than a single
+    // `return preg_quote($expectFailing);`. Deleting this line then leaves a
+    // function that still returns a string -- the unescaped one -- so the
+    // mutation lands on the assertion about escaping. Written the short way,
+    // deleting it leaves a `: string` function that returns nothing, and the
+    // TypeError kills the test before its assertion runs: that proves the
+    // line is load-bearing for the function, not that the test checks the
+    // escaping. decision/0035 -- the failure must land AT the named
+    // assertion.
+    $pattern = preg_quote($pattern);
+
+    return $pattern;
 }
 
 /**
@@ -67,10 +81,14 @@ function buildFilterPattern(string $expectFailing): string
  * unlike Pest's prose summary, it does not depend on wording that could
  * change out from under this script.
  */
-function countJunitTestCases(string $junitXml): int
+function countJunitTestCases(string $junitXml): ?int
 {
+    // No log, or one that does not parse, is NOT "zero tests matched" -- it
+    // is no evidence at all. Conflating the two would report every entry in
+    // the manifest as a name error the moment --log-junit stopped working,
+    // which is the same misdiagnosis in a new costume.
     if (trim($junitXml) === '') {
-        return 0;
+        return null;
     }
 
     $previousSetting = libxml_use_internal_errors(true);
@@ -82,12 +100,12 @@ function countJunitTestCases(string $junitXml): int
     }
 
     if ($document === false) {
-        return 0;
+        return null;
     }
 
     $testCases = $document->xpath('//testcase');
 
-    return is_array($testCases) ? count($testCases) : 0;
+    return is_array($testCases) ? count($testCases) : null;
 }
 
 /**
@@ -99,9 +117,18 @@ function countJunitTestCases(string $junitXml): int
  * non-zero when nothing matches a filter, which is otherwise indistinguishable
  * from "matched a test that failed" -- exactly the ambiguity issue #180
  * describes ("does not pass with the guard in place" for either cause).
+ *
+ * A null count means no JUnit log came back at all, so there is no evidence
+ * to classify from. That is reported as its own outcome rather than as
+ * "matched no test": if --log-junit ever stops working, every entry in the
+ * manifest would otherwise be blamed for a name it has spelled correctly.
  */
-function classifyMutationRun(int $exitCode, int $testCaseCount): string
+function classifyMutationRun(int $exitCode, ?int $testCaseCount): string
 {
+    if ($testCaseCount === null) {
+        return MUTATION_RUN_UNCLASSIFIABLE;
+    }
+
     if ($testCaseCount === 0) {
         return MUTATION_RUN_NO_TEST_MATCHED;
     }
@@ -118,7 +145,7 @@ function classifyMutationRun(int $exitCode, int $testCaseCount): string
  * escapeshellarg() here is the shell layer only, same as before -- it does
  * not double as regex escaping and never did.
  *
- * @return array{exitCode: int, testCaseCount: int}
+ * @return array{exitCode: int, testCaseCount: int|null}
  */
 function runFilteredTest(string $root, string $pattern): array
 {
@@ -130,7 +157,7 @@ function runFilteredTest(string $root, string $pattern): array
 
     try {
         $command = sprintf(
-            'cd %s && php artisan test --filter=%s --log-junit %s 2>&1',
+            'cd %s && php artisan test --filter=%s --log-junit=%s 2>&1',
             escapeshellarg($root),
             escapeshellarg($pattern),
             escapeshellarg($junitPath),
@@ -158,11 +185,42 @@ function runFilteredTest(string $root, string $pattern): array
  */
 function describeUnproductiveRun(string $id, string $filter, string $classification): string
 {
+    if ($classification === MUTATION_RUN_UNCLASSIFIABLE) {
+        return "{$id}: no JUnit log came back from the run for \"{$filter}\", so this could not be classified at all. That is a problem with --log-junit or the runner, NOT with the name in .github/mutations.json -- do not go renaming entries over it.";
+    }
+
     if ($classification === MUTATION_RUN_NO_TEST_MATCHED) {
         return "{$id}: \"{$filter}\" matched no test at all (0 <testcase> entries in the JUnit log) -- check expectFailing against the real test name in .github/mutations.json; this is a manifest/name problem, not a failing test.";
     }
 
     return "{$id}: \"{$filter}\" matched a test, but it did not pass with the guard in place, so it cannot prove anything about removing it.";
+}
+
+/**
+ * Decides whether one deleted-guard run proved the guard load-bearing, and
+ * if not, says why. Returns null when it did.
+ *
+ * Only MUTATION_RUN_TEST_FAILED proves anything. A run that matched NO test
+ * with the guard deleted is red for a reason that has nothing to do with the
+ * guard -- the deletion stopped the file loading at all -- and accepting that
+ * as proof is the same mistake as an assertion that cannot fail: it looks
+ * like coverage and is not. The pre-#180 script accepted any non-pass here.
+ */
+function evaluateMutationRun(string $id, string $filter, string $afterClassification): ?string
+{
+    if ($afterClassification === MUTATION_RUN_PASSED) {
+        return "{$id}: \"{$filter}\" STILL PASSES with the guard deleted. The guard is not load-bearing, or the test does not exercise it.";
+    }
+
+    if ($afterClassification === MUTATION_RUN_NO_TEST_MATCHED) {
+        return "{$id}: with the guard deleted, \"{$filter}\" matched no test at all. The deletion stopped the file loading (a parse error, most likely) rather than failing an assertion, so this red proves nothing about the guard. Narrow the 'remove' text to something whose absence leaves loadable code.";
+    }
+
+    if ($afterClassification === MUTATION_RUN_UNCLASSIFIABLE) {
+        return "{$id}: no JUnit log came back from the deleted-guard run for \"{$filter}\", so it could not be classified. Fix --log-junit before reading anything into this entry.";
+    }
+
+    return null;
 }
 
 /**
@@ -249,8 +307,10 @@ function runMutationSweep(string $root): int
         file_put_contents($path, $original);
         unset($restore[$path]);
 
-        if ($afterClassification === MUTATION_RUN_PASSED) {
-            $failures[] = "{$id}: \"{$filter}\" STILL PASSES with the guard deleted. The guard is not load-bearing, or the test does not exercise it.";
+        $unproven = evaluateMutationRun($id, $filter, $afterClassification);
+
+        if ($unproven !== null) {
+            $failures[] = $unproven;
 
             continue;
         }
