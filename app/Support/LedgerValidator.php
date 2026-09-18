@@ -21,8 +21,8 @@ namespace App\Support;
  * Every method returns a list<string> of human-readable failures, each
  * prefixed with a category tag ("structural:", "id:", "ref:", "spec-anchor:",
  * "enum:", "order:", "canonical:", "graph:", "status:", "pr:", "decision:",
- * "run:", "fatal:") so a caller can group or filter by invariant. An empty
- * list means that invariant holds.
+ * "run:", "mutation:", "fatal:") so a caller can group or filter by
+ * invariant. An empty list means that invariant holds.
  *
  * Deliberately NOT checked here (needs git history or the network, which the
  * design consultation excluded from "the files alone"):
@@ -46,7 +46,11 @@ final class LedgerValidator
 
     private const DECISION_ID_PATTERN = '/^decision\/\d{4}$/';
 
+    private const MUTATION_ID_PATTERN = '/^mutation\/\d{4}$/';
+
     private const PULL_REQUEST_ID_PATTERN = '#^https://github\.com/turbophp/doccum/pull/\d+$#';
+
+    private const MAIN_RUN_URL_PATTERN = '#^https://github\.com/turbophp/doccum/actions/runs/\d+$#';
 
     private const SHA_PATTERN = '/^[0-9a-f]{40}$/';
 
@@ -59,6 +63,41 @@ final class LedgerValidator
     ];
 
     private const PULL_REQUEST_STATES = ['open', 'merged', 'closed'];
+
+    private const MUTATION_VERDICTS = ['negative', 'positive', 'void'];
+
+    /**
+     * GitHub's own workflow-run conclusions, per the Actions API. Not every
+     * value is reachable through this repo's config (e.g. no run here uses
+     * `action_required`), but the field is copied from GitHub's answer
+     * rather than narrowed to what has been observed.
+     */
+    private const MAIN_CONCLUSIONS = [
+        'success', 'failure', 'cancelled', 'skipped', 'timed_out', 'action_required', 'neutral', 'stale',
+    ];
+
+    /**
+     * item/ledger-mutation-nodes (issue #150) added the Mutation vocabulary
+     * and the rules below that lean on it. Every run up to and including
+     * this one was recorded before that vocabulary existed -- some items
+     * completed with an informal mutation check that never became a ledger
+     * node (item/upload-silent-discard, run/0017), others completed with
+     * none at all (item/topbar-shell, item/files-actions-ui,
+     * item/download-reaches-the-browser, item/sqlite-immediate-transactions),
+     * all in the same handful of runs, often the same run as an item that
+     * *did* get one. There is no timestamp or run boundary that separates
+     * "should have had a Mutation node" from "should not have" among that
+     * history -- the practice was adopted per-item, ahead of being a rule.
+     *
+     * Rather than weaken the new rules to tolerate that inconsistency
+     * forever, they simply do not look at runs at or before this one: a
+     * Completed item is required to carry mutation evidence, and a merged
+     * PullRequest is required to carry `mainConclusion`, only once its
+     * own run number is strictly greater than this constant. Everything
+     * already on the ledger is grandfathered by construction; the rule
+     * binds going forward, from the run after the one that introduced it.
+     */
+    private const MUTATION_RULES_EFFECTIVE_AFTER_RUN = 18;
 
     /**
      * 'active' is the run currently being worked, and it exists because the
@@ -83,7 +122,7 @@ final class LedgerValidator
      * @var array<string, list<string>>
      */
     private const ALLOWED_KEYS = [
-        'Ledger' => ['version', 'dateModified', 'latestRun', 'about', 'items', 'pullRequests', 'decisions'],
+        'Ledger' => ['version', 'dateModified', 'latestRun', 'about', 'items', 'pullRequests', 'decisions', 'mutations'],
         'SoftwareApplication' => ['name', 'description', 'version', 'url'],
         // `url` is the item's tracking issue on GitHub. Optional rather than
         // required: the ledger is the state of record and has to stand on its
@@ -96,11 +135,18 @@ final class LedgerValidator
             'identifier', 'agent', 'startTime', 'endTime', 'outcome', 'touched',
             'commit', 'tests', 'assertions', 'description',
         ],
-        'Decision' => ['dateCreated', 'run', 'name', 'description', 'rationale', 'isBasedOn', 'affects', 'supersedes'],
+        'Decision' => ['dateCreated', 'run', 'name', 'description', 'rationale', 'isBasedOn', 'affects', 'supersedes', 'evidence'],
         'PullRequest' => [
             'identifier', 'name', 'description', 'dateCreated', 'state', 'headSha',
-            'mergeSha', 'mergedAt', 'run', 'mergedIn', 'implements',
+            'mergeSha', 'mergedAt', 'run', 'mergedIn', 'implements', 'mainRunUrl', 'mainConclusion',
         ],
+        // Sibling to PullRequest and Decision: item/ledger-mutation-nodes
+        // (issue #150). `mutant` names what was broken; `check` names the
+        // assertion that must trip. `check` is nullable -- void carries none,
+        // because the run never reached one -- but the key is always present
+        // (see REQUIRED_KEYS's docblock on mirroring defaults with explicit
+        // null).
+        'Mutation' => ['implements', 'pullRequest', 'run', 'headSha', 'mutant', 'check', 'verdict', 'supersedes'],
     ];
 
     /**
@@ -112,7 +158,7 @@ final class LedgerValidator
      * @var array<string, list<string>>
      */
     private const REQUIRED_KEYS = [
-        'Ledger' => ['version', 'dateModified', 'latestRun', 'about', 'items', 'pullRequests', 'decisions'],
+        'Ledger' => ['version', 'dateModified', 'latestRun', 'about', 'items', 'pullRequests', 'decisions', 'mutations'],
         'SoftwareApplication' => ['name', 'version'],
         'Action' => [
             'order', 'name', 'isBasedOn', 'size', 'release', 'dependsOn',
@@ -121,6 +167,13 @@ final class LedgerValidator
         'Run' => ['identifier', 'agent', 'startTime', 'endTime', 'outcome', 'touched', 'commit', 'tests', 'assertions', 'description'],
         'Decision' => ['dateCreated', 'run', 'name', 'rationale', 'isBasedOn', 'affects', 'supersedes'],
         'PullRequest' => ['identifier', 'name', 'dateCreated', 'state', 'run', 'implements'],
+        // mainRunUrl/mainConclusion are deliberately NOT required: they
+        // describe main's push run after a merge, which item/ledger-
+        // mutation-nodes's own doneWhen backfills going forward rather than
+        // retroactively (see MUTATION_RULES_EFFECTIVE_AFTER_RUN) -- forcing
+        // the key on every historical PullRequest would fail the entire
+        // pre-existing ledger the moment this validator shipped.
+        'Mutation' => ['implements', 'pullRequest', 'run', 'headSha', 'mutant', 'check', 'verdict', 'supersedes'],
     ];
 
     /**
@@ -185,6 +238,7 @@ final class LedgerValidator
         $errors = array_merge($errors, self::actionStatusErrors($ledger, $nodes));
         $errors = array_merge($errors, self::pullRequestErrors($ledger, $runs, $nodes));
         $errors = array_merge($errors, self::decisionSupersedesErrors($ledger));
+        $errors = array_merge($errors, self::mutationErrors($ledger));
         $errors = array_merge($errors, self::runErrors($ledger, $runs));
         $errors = array_merge($errors, self::specAnchorErrors($ledger, $specPath));
 
@@ -286,7 +340,7 @@ final class LedgerValidator
 
     /**
      * Walks every node in the ledger and every run file, checking:
-     *   - exactly one @type, from the six known types;
+     *   - exactly one @type, from the known types (self::ALLOWED_KEYS's keys);
      *   - every non-JSON-LD key is a term context.jsonld defines AND is
      *     allowed on that type (self::ALLOWED_KEYS);
      *   - every required key for that type is present (self::REQUIRED_KEYS).
@@ -366,6 +420,14 @@ final class LedgerValidator
             $check(is_string($id) ? $id : "decisions[$index]", $decision, 'ledger decision');
         }
 
+        foreach (($ledger['mutations'] ?? []) as $index => $mutation) {
+            if (! is_array($mutation)) {
+                continue;
+            }
+            $id = $mutation['@id'] ?? "mutations[$index]";
+            $check(is_string($id) ? $id : "mutations[$index]", $mutation, 'ledger mutation');
+        }
+
         foreach ($runs as $filename => $run) {
             $id = $run['@id'] ?? $filename;
             $check(is_string($id) ? $id : $filename, $run, "run file $filename");
@@ -401,6 +463,7 @@ final class LedgerValidator
                 'Run' => self::RUN_ID_PATTERN,
                 'Decision' => self::DECISION_ID_PATTERN,
                 'PullRequest' => self::PULL_REQUEST_ID_PATTERN,
+                'Mutation' => self::MUTATION_ID_PATTERN,
                 default => null,
             };
 
@@ -433,6 +496,11 @@ final class LedgerValidator
     private static function decisionNumber(string $id): ?int
     {
         return preg_match('#^decision/(\d{4})$#', $id, $m) === 1 ? (int) $m[1] : null;
+    }
+
+    private static function mutationNumber(string $id): ?int
+    {
+        return preg_match('#^mutation/(\d{4})$#', $id, $m) === 1 ? (int) $m[1] : null;
     }
 
     // -- Reference resolution --------------------------------------------
@@ -508,6 +576,24 @@ final class LedgerValidator
             if (isset($decision['supersedes']) && is_string($decision['supersedes'])) {
                 $resolve($decision['supersedes'], 'Decision', "Decision '$id'.supersedes");
             }
+            $resolveEach($decision['evidence'] ?? [], 'Mutation', "Decision '$id'.evidence");
+        }
+
+        foreach (($ledger['mutations'] ?? []) as $mutation) {
+            if (! is_array($mutation) || ! is_string($mutation['@id'] ?? null)) {
+                continue;
+            }
+            $id = $mutation['@id'];
+            $resolveEach($mutation['implements'] ?? [], 'Action', "Mutation '$id'.implements");
+            if (isset($mutation['pullRequest']) && is_string($mutation['pullRequest'])) {
+                $resolve($mutation['pullRequest'], 'PullRequest', "Mutation '$id'.pullRequest");
+            }
+            if (isset($mutation['run']) && is_string($mutation['run'])) {
+                $resolve($mutation['run'], 'Run', "Mutation '$id'.run");
+            }
+            if (isset($mutation['supersedes']) && is_string($mutation['supersedes'])) {
+                $resolve($mutation['supersedes'], 'Mutation', "Mutation '$id'.supersedes");
+            }
         }
 
         foreach ($runs as $filename => $run) {
@@ -539,6 +625,7 @@ final class LedgerValidator
                 'Action' => self::checkAction($id, $node, $errors),
                 'PullRequest' => self::checkPullRequest($id, $node, $errors),
                 'Run' => self::checkRun($id, $node, $errors),
+                'Mutation' => self::checkMutation($id, $node, $errors),
                 default => null,
             };
         }
@@ -577,6 +664,29 @@ final class LedgerValidator
             if ($value !== null && ! preg_match(self::SHA_PATTERN, (string) $value)) {
                 $errors[] = "enum: PullRequest '$id'.$shaField = ".self::describe($value).' is not a 40-character hex sha.';
             }
+        }
+        $mainConclusion = $node['mainConclusion'] ?? null;
+        if ($mainConclusion !== null && ! in_array($mainConclusion, self::MAIN_CONCLUSIONS, true)) {
+            $errors[] = "enum: PullRequest '$id'.mainConclusion = ".self::describe($mainConclusion).' is not a known GitHub workflow-run conclusion.';
+        }
+        $mainRunUrl = $node['mainRunUrl'] ?? null;
+        if ($mainRunUrl !== null && ! preg_match(self::MAIN_RUN_URL_PATTERN, (string) $mainRunUrl)) {
+            $errors[] = "enum: PullRequest '$id'.mainRunUrl = ".self::describe($mainRunUrl).' is not a turbophp/doccum Actions run URL.';
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $node
+     * @param  list<string>  $errors
+     */
+    private static function checkMutation(string $id, array $node, array &$errors): void
+    {
+        if (isset($node['verdict']) && ! in_array($node['verdict'], self::MUTATION_VERDICTS, true)) {
+            $errors[] = "enum: Mutation '$id'.verdict = ".self::describe($node['verdict']).' is not one of negative, positive, void.';
+        }
+        $headSha = $node['headSha'] ?? null;
+        if ($headSha !== null && ! preg_match(self::SHA_PATTERN, (string) $headSha)) {
+            $errors[] = "enum: Mutation '$id'.headSha = ".self::describe($headSha).' is not a 40-character hex sha.';
         }
     }
 
@@ -774,6 +884,12 @@ final class LedgerValidator
      *   endTime is present iff status is Completed or Failed; when both are
      *   present, startTime <= endTime.
      * - item/tag-v1-0-0 Completed implies every v1.0.0 Action is Completed.
+     * - item/ledger-mutation-nodes (issue #150), for runs after
+     *   MUTATION_RULES_EFFECTIVE_AFTER_RUN only (see that constant):
+     *   a Completed item based on spec:10 is implements-referenced by at
+     *   least one negative Mutation with a non-empty check; and a positive
+     *   or void Mutation that implements an item blocks that item's
+     *   Completion until a later Mutation supersedes it.
      *
      * @param  array<string, mixed>  $ledger
      * @param  array<string, array{type: string, node: array<string, mixed>}>  $nodes
@@ -788,6 +904,25 @@ final class LedgerValidator
             $node = $nodes[$id]['node'] ?? null;
 
             return is_array($node) ? ($node['actionStatus'] ?? null) : null;
+        };
+
+        /** @var array<string, array<string, mixed>> $mutations id => node, Mutation entries only */
+        $mutations = [];
+        foreach ($nodes as $mutationId => $entry) {
+            if ($entry['type'] === 'Mutation') {
+                $mutations[$mutationId] = $entry['node'];
+            }
+        }
+
+        $superseded = [];
+        foreach ($mutations as $mutationNode) {
+            if (is_string($mutationNode['supersedes'] ?? null)) {
+                $superseded[$mutationNode['supersedes']] = true;
+            }
+        }
+
+        $implementsItem = static function (array $mutationNode, string $itemId): bool {
+            return in_array($itemId, array_filter($mutationNode['implements'] ?? [], 'is_string'), true);
         };
 
         foreach ($items as $item) {
@@ -833,6 +968,49 @@ final class LedgerValidator
                         $errors[] = "status: Action '$id' is Completed but result '$prId' is not merged.";
                     }
                 }
+
+                // Rule 2: an un-superseded positive/void Mutation implementing
+                // this item blocks its Completion, at any run -- there is no
+                // history to grandfather, since every backfilled positive/void
+                // node (mutation/0007) is already superseded.
+                foreach ($mutations as $mutationId => $mutationNode) {
+                    $verdict = $mutationNode['verdict'] ?? null;
+                    if (! in_array($verdict, ['positive', 'void'], true)) {
+                        continue;
+                    }
+                    if (isset($superseded[$mutationId])) {
+                        continue;
+                    }
+                    if ($implementsItem($mutationNode, $id)) {
+                        $errors[] = "status: Action '$id' is Completed but Mutation '$mutationId' (verdict $verdict) implements it and is not yet superseded.";
+                    }
+                }
+
+                // Rule 1: a Completed item based on spec:10, once its own run
+                // is past MUTATION_RULES_EFFECTIVE_AFTER_RUN, needs at least
+                // one negative Mutation with a non-empty check.
+                $isBasedOnSpec10 = false;
+                foreach (array_filter($item['isBasedOn'] ?? [], 'is_string') as $basis) {
+                    if (preg_match('/^spec:10(-|$)/', $basis) === 1) {
+                        $isBasedOnSpec10 = true;
+                        break;
+                    }
+                }
+                if ($isBasedOnSpec10 && self::itemCompletedAfterMutationRulesEffective($item, $nodes)) {
+                    $hasNegativeEvidence = false;
+                    foreach ($mutations as $mutationNode) {
+                        if (($mutationNode['verdict'] ?? null) === 'negative'
+                            && is_string($mutationNode['check'] ?? null)
+                            && $mutationNode['check'] !== ''
+                            && $implementsItem($mutationNode, $id)) {
+                            $hasNegativeEvidence = true;
+                            break;
+                        }
+                    }
+                    if (! $hasNegativeEvidence) {
+                        $errors[] = "status: Action '$id' is Completed and based on spec:10, but no negative Mutation with a non-empty check implements it.";
+                    }
+                }
             }
         }
 
@@ -847,6 +1025,46 @@ final class LedgerValidator
         }
 
         return $errors;
+    }
+
+    /**
+     * Resolves which run actually produced this item's Completion, through
+     * its result PullRequest(s)' mergedIn (falling back to run, though a
+     * merged PullRequest always carries mergedIn -- see pullRequestErrors),
+     * and compares the highest one found against
+     * MUTATION_RULES_EFFECTIVE_AFTER_RUN.
+     *
+     * An item whose run cannot be resolved at all (no result, or a result
+     * pointing at something other than a known PullRequest) is treated as
+     * NOT yet subject to the rule: this function only ever makes the rule
+     * apply to *more* history, never silently exempts a run once it is
+     * resolvable, so failing safe here cannot hide a real gap going forward.
+     *
+     * @param  array<string, mixed>  $item
+     * @param  array<string, array{type: string, node: array<string, mixed>}>  $nodes
+     */
+    private static function itemCompletedAfterMutationRulesEffective(array $item, array $nodes): bool
+    {
+        $runNumbers = [];
+        foreach (array_filter($item['result'] ?? [], 'is_string') as $prId) {
+            $prNode = $nodes[$prId]['node'] ?? null;
+            if (! is_array($prNode)) {
+                continue;
+            }
+            $runRef = $prNode['mergedIn'] ?? $prNode['run'] ?? null;
+            if (is_string($runRef)) {
+                $number = self::runNumber($runRef);
+                if ($number !== null) {
+                    $runNumbers[] = $number;
+                }
+            }
+        }
+
+        if ($runNumbers === []) {
+            return false;
+        }
+
+        return max($runNumbers) > self::MUTATION_RULES_EFFECTIVE_AFTER_RUN;
     }
 
     // -- PullRequest merge invariants ------------------------------------
@@ -944,6 +1162,56 @@ final class LedgerValidator
         return $errors;
     }
 
+    // -- Mutation.check / Mutation.supersedes -----------------------------
+
+    /**
+     * item/ledger-mutation-nodes (issue #150):
+     *   - `check` is required (non-empty) exactly when verdict is negative --
+     *     a failure that names no assertion is not evidence, and a positive
+     *     or void verdict has nothing confirmed to name.
+     *   - `implements` is non-empty, same reasoning as PullRequest.implements.
+     *   - `supersedes`, when set, names an earlier-numbered Mutation -- same
+     *     shape as Decision.supersedes.
+     *
+     * @param  array<string, mixed>  $ledger
+     * @return list<string>
+     */
+    private static function mutationErrors(array $ledger): array
+    {
+        $errors = [];
+
+        foreach (($ledger['mutations'] ?? []) as $mutation) {
+            if (! is_array($mutation) || ! is_string($mutation['@id'] ?? null)) {
+                continue;
+            }
+            $id = $mutation['@id'];
+            $verdict = $mutation['verdict'] ?? null;
+            $check = $mutation['check'] ?? null;
+
+            if ($verdict === 'negative' && (! is_string($check) || $check === '')) {
+                $errors[] = "mutation: '$id' has verdict negative but no non-empty check -- a failure that names no assertion is not evidence.";
+            }
+            if ($verdict !== 'negative' && $check !== null && ! is_string($check)) {
+                $errors[] = "mutation: '$id'.check = ".self::describe($check).' is neither a string nor null.';
+            }
+
+            if (array_filter($mutation['implements'] ?? [], 'is_string') === []) {
+                $errors[] = "mutation: '$id' implements no items.";
+            }
+
+            $supersedes = $mutation['supersedes'] ?? null;
+            if (is_string($supersedes)) {
+                $thisNumber = self::mutationNumber($id);
+                $otherNumber = self::mutationNumber($supersedes);
+                if ($thisNumber !== null && $otherNumber !== null && $otherNumber >= $thisNumber) {
+                    $errors[] = "mutation: '$id' supersedes '$supersedes', which is not a lower-numbered mutation.";
+                }
+            }
+        }
+
+        return $errors;
+    }
+
     // -- Runs --------------------------------------------------------------
 
     /**
@@ -954,6 +1222,9 @@ final class LedgerValidator
      * - touched is non-empty when outcome = completed.
      * - a Decision or PullRequest whose run is X has dateCreated within X's
      *   [startTime, endTime].
+     * - item/ledger-mutation-nodes (issue #150): a run past
+     *   MUTATION_RULES_EFFECTIVE_AFTER_RUN may not carry outcome completed
+     *   while a PullRequest merged in it lacks mainConclusion.
      *
      * @param  array<string, mixed>  $ledger
      * @param  array<string, array<string, mixed>>  $runs
@@ -962,6 +1233,17 @@ final class LedgerValidator
     private static function runErrors(array $ledger, array $runs): array
     {
         $errors = [];
+
+        $mainConclusionByMergedIn = [];
+        foreach (($ledger['pullRequests'] ?? []) as $pr) {
+            if (! is_array($pr) || ! is_string($pr['mergedIn'] ?? null)) {
+                continue;
+            }
+            $mainConclusionByMergedIn[$pr['mergedIn']][] = [
+                'id' => is_string($pr['@id'] ?? null) ? $pr['@id'] : '?',
+                'mainConclusion' => $pr['mainConclusion'] ?? null,
+            ];
+        }
 
         $numbered = [];
         foreach ($runs as $filename => $run) {
@@ -983,6 +1265,16 @@ final class LedgerValidator
             // nothing is indistinguishable from one that did.
             if ($number !== 0 && ($run['outcome'] ?? null) === 'completed' && array_filter($run['touched'] ?? [], 'is_string') === []) {
                 $errors[] = "run: '$expectedId' has outcome completed but an empty touched set.";
+            }
+
+            if ($number !== null
+                && $number > self::MUTATION_RULES_EFFECTIVE_AFTER_RUN
+                && ($run['outcome'] ?? null) === 'completed') {
+                foreach ($mainConclusionByMergedIn[$expectedId] ?? [] as $merged) {
+                    if ($merged['mainConclusion'] === null) {
+                        $errors[] = "run: '$expectedId' has outcome completed but merged PullRequest '{$merged['id']}' lacks mainConclusion.";
+                    }
+                }
             }
         }
 

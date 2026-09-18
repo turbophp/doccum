@@ -32,10 +32,12 @@
     "Run": "Run",
     "PullRequest": "PullRequest",
     "Decision": "Decision",
+    "Mutation": "Mutation",
 
     "items": { "@id": "items", "@container": "@list" },
     "pullRequests": { "@id": "pullRequests", "@container": "@list" },
     "decisions": { "@id": "decisions", "@container": "@list" },
+    "mutations": { "@id": "mutations", "@container": "@list" },
     "latestRun": { "@id": "latestRun", "@type": "@id" },
     "order": { "@id": "order", "@type": "xsd:integer" },
     "size": "size",
@@ -56,6 +58,14 @@
     "commit": "commit",
     "tests": { "@id": "tests", "@type": "xsd:integer" },
     "assertions": { "@id": "assertions", "@type": "xsd:integer" },
-    "outcome": "outcome"
+    "outcome": "outcome",
+
+    "pullRequest": { "@id": "pullRequest", "@type": "@id" },
+    "mutant": "mutant",
+    "check": "check",
+    "verdict": "verdict",
+    "evidence": { "@id": "evidence", "@type": "@id", "@container": "@set" },
+    "mainRunUrl": { "@id": "mainRunUrl", "@type": "@id" },
+    "mainConclusion": "mainConclusion"
   }
 }

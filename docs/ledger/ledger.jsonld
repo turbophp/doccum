@@ -2905,5 +2905,147 @@
       ],
       "supersedes": null
     }
+  ],
+  "mutations": [
+    {
+      "@id": "mutation/0001",
+      "@type": "Mutation",
+      "implements": [
+        "item/files-versions-replace"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/118",
+      "run": "run/0015",
+      "headSha": "cb6d8bd95d881bccc3a91f2f894ac24f1d1ace5e",
+      "mutant": "Browser::replaceFile() passed the uploaded file's own client name to StoreFileVersion instead of the selected file's name, so StoreFileVersion took its create path and wrote a second File row instead of appending a version.",
+      "check": "container-smoke.mjs checkReplaceAddsASecondVersion() -- the replaced document's current-version checksum",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0002",
+      "@type": "Mutation",
+      "implements": [
+        "item/files-list-sort-select"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/122",
+      "run": "run/0016",
+      "headSha": "5632724fd1b125c600884fb466e87d5274d5b8b0",
+      "mutant": "Browser's bulk trash dropped both the whereIn('id', $this->selectedIds) scope and its exact-resolution abort_if guard, so a bulk trash acted on the whole directory instead of the selection.",
+      "check": "container-smoke.mjs checkBulkTrashLeavesUnselectedFilesAlone() -- the survivor-file assertion",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0003",
+      "@type": "Mutation",
+      "implements": [
+        "item/upload-silent-discard"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/130",
+      "run": "run/0017",
+      "headSha": "a9a0fedbcc2d0d2cf15cacc80b635cc88ecc87fd",
+      "mutant": "The Upload button's wire:loading.attr=\"disabled\" wire:target=\"upload\" in-flight guard was removed from browser.blade.php.",
+      "check": "container-smoke.mjs checkUploadButtonIsDisabledWhileTheFileIsStillUploading() -- the button stays enabled while the upload endpoint is stalled",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0004",
+      "@type": "Mutation",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/132",
+      "run": "run/0018",
+      "headSha": "4978f298cc8f548ddf1dd00c4e7f79a62b5564d4",
+      "mutant": "tests.yml emptied /data/objects between the two containers, simulating object storage that never persisted across the replacement.",
+      "check": "container-smoke.mjs verify phase -- the downloaded-bytes-persisted assertion",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0005",
+      "@type": "Mutation",
+      "implements": [
+        "item/files-three-pane"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/141",
+      "run": "run/0018",
+      "headSha": "31e3b4c2746622df238ff58b771d58cb6ccdcdb0",
+      "mutant": "Browser::breadcrumbTrail() queried whereIn('id', [$this->directory->getKey()]) instead of the ancestor-id list, collapsing the trail to the current directory alone.",
+      "check": "container-smoke.mjs checkBreadcrumbNavigatesTwoLevels() -- the 3-item breadcrumb count assertion",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0006",
+      "@type": "Mutation",
+      "implements": [
+        "item/directory-access-ui"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/145",
+      "run": "run/0018",
+      "headSha": "c1110e15d24d0d4cc4311153c2551493954efcc4",
+      "mutant": "The panel's revoke action stopped deleting the DirectoryGrant row.",
+      "check": "container-smoke.mjs checkGrantAndRevokeDirectoryAccess() -- the revoked-grant-row-removed assertion",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0007",
+      "@type": "Mutation",
+      "implements": [
+        "item/trash-view"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/148",
+      "run": "run/0018",
+      "headSha": "e80ee98b06e3b3f4016cdf34652a3aca80465e8a",
+      "mutant": "PurgeFile::handle() returns immediately, so Purge deletes nothing.",
+      "check": null,
+      "verdict": "void",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0008",
+      "@type": "Mutation",
+      "implements": [
+        "item/trash-view"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/148",
+      "run": "run/0018",
+      "headSha": "22d0e37c881d7d94b736a1b5cedcfe82ae51859d",
+      "mutant": "PurgeFile::handle() returns immediately, so Purge deletes nothing.",
+      "check": "container-smoke.mjs checkTrashViewRestoreAndPurge() -- the PURGED_GONE assertion",
+      "verdict": "negative",
+      "supersedes": "mutation/0007"
+    },
+    {
+      "@id": "mutation/0009",
+      "@type": "Mutation",
+      "implements": [
+        "item/trash-view"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/149",
+      "run": "run/0018",
+      "headSha": "dbf3c8349fdd0d11e10ba4180874329793c0f526",
+      "mutant": "The Upload button's wire:loading.attr=\"disabled\" wire:target=\"upload\" in-flight guard was removed from browser.blade.php again, re-testing issue #106's guard now that decision/0035's harness fix left it the only sensitive assertion.",
+      "check": "container-smoke.mjs checkUploadButtonIsDisabledWhileTheFileIsStillUploading() -- the button stays enabled while the upload endpoint is stalled",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0010",
+      "@type": "Mutation",
+      "implements": [
+        "item/download-missing-object"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/154",
+      "run": "run/0018",
+      "headSha": "95c5770e6a41db96478a086e34aa9c3ae6374bb5",
+      "mutant": "FileDownloadController's readStream() moved back inside the streamDownload() callback, so the missing-object exception has nowhere left to change the response status once the status line is decided.",
+      "check": "Tests\\Feature\\FileDownloadTest > it answers 502 with a logged object key -- assertStatus(502)",
+      "verdict": "negative",
+      "supersedes": null
+    }
   ]
 }
