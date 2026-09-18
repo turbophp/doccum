@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T21:00:00Z",
+  "dateModified": "2026-09-18T21:20:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1426,10 +1426,12 @@
         "item/upgrade-preserves-access"
       ],
       "doneWhen": "tests.yml's 'Replace the container, keeping only the volume' step runs the SAME image tag on both sides, so it proves persistence across a restart and not an upgrade across a code change. That is why item/upgrade-preserves-access shipped: item/email-verification-decided's doneWhen asked the no-mailer question, answered it for a fresh install, and cited this smoke as proof -- correctly, for the question it actually answers. Done when CI boots a volume whose rows predate the candidate image and asserts a pre-existing user still reaches the app. The cheaper first cut is preferred over maintaining an older published image: seed the volume's SQLite directly with a row in the pre-change state (email_verified_at NULL, a role whose permissions were edited) and restart the SAME image against it, which narrows to the regression class without needing an old image whose schema drifts further from current with every migration. Mutation-checked per decision/0067: reverting the backfill migration must make the new assertion fail. item/role-permissions-survive-restart's across-the-replacement check is the second thing this stage should carry.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T20:45:00Z",
+      "endTime": "2026-09-18T21:16:53Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/250"
+      ]
     },
     {
       "@id": "item/v1-audit",
@@ -3400,6 +3402,38 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/250",
+      "@type": "PullRequest",
+      "identifier": 250,
+      "name": "CI exercises an upgrade, not only a restart",
+      "implements": [
+        "item/upgrade-smoke"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T21:00:50Z",
+      "headSha": "bed6912d37e6aaeb82ffe82f809d85e2b8a051d3",
+      "mergedAt": "2026-09-18T21:16:53Z",
+      "mergeSha": "7632a6306459bd83d12afeadaae4cc5929d5f58d",
+      "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/251",
+      "@type": "PullRequest",
+      "identifier": 251,
+      "name": "MUTATION -- DO NOT MERGE: the email_verified_at backfill does nothing",
+      "implements": [
+        "item/upgrade-smoke"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T21:08:26Z",
+      "headSha": "7581911eab71664e5a8f265261a353d7f7150204",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -4895,6 +4929,23 @@
         "item/tag-v1-0-0"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0091",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T21:20:00Z",
+      "run": "run/0020",
+      "name": "A claim inherited from a subagent is still a claim, and costs one command to check",
+      "rationale": "decision/0080 says a citation of evidence is a claim and is checked like one. Three times in this run I asserted something about this repository that was false, and the shape is narrow enough to name: each was a claim I had not run a command against.\n\n1. decision/0085 told a human to tag 9e2f7af to prove the release gate. I checked that the commit was an ancestor of main and that its image check was red -- both true, neither deciding which workflow file runs. `git merge-base --is-ancestor` would have shown it predates the gate. Corrected by decision/0090.\n2. I told the Fable consultation that `supersedes` was always null. It is used four times. One jq-shaped read of my own ledger would have shown it.\n3. The mutation PR for item/upgrade-smoke predicted every test job would stay green because no suite test asserts on the backfill migration. tests/Feature/BackfillEmailVerifiedAtMigrationTest.php exists. `grep -rl email_verified_at tests/` would have shown it.\n\nThe third is the one worth a rule, because it differs in origin: the claim came from the implementing agent's report and I repeated it into a prediction. A subagent's factual assertion is not evidence -- it is a claim with an author who also could not run the suite. Inheriting it launders an unchecked statement into my own voice, where the next reader has no way to tell which part was verified. So: before a subagent's factual claim about the repository goes into a PR body, a prediction, or the ledger, it gets the one command that settles it. Not a review of their reasoning -- a command.\n\nWhy this matters more than the individual errors: all three were cheap to check and none were caught by CI, because none of them are the kind of thing CI tests. The validator checks the ledger's shape, not whether its sentences are true. Prose is the part of this system with no automated guard, which is exactly why the standing rules put binding clauses in doneWhen (decision/0083) and why a wrong prediction has to be corrected in the record rather than quietly superseded by the result.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/upgrade-smoke",
+        "item/release-gate",
+        "item/v1-audit"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -5259,6 +5310,20 @@
       "headSha": "f5bc189911f5f2ed67adcbb689e5f388f8ddd5c1",
       "mutant": "A 50 MB (52428800 byte) INCOMPRESSIBLE layer added to the Dockerfile's app stage: head -c 52428800 /dev/urandom > /mutation-fat.bin. Grown rather than shrinking the recorded figure, which was the other candidate and was rejected twice over: with a 2% tolerance a one-byte edit to the budget sits inside the noise and fires nothing, and more fundamentally, editing the budget file tests the script's arithmetic while growing the image tests measurement and comparison together -- and growth is the failure the ratchet exists to catch.",
       "check": "The image job in tests.yml, run/35391439074. MUTATED: image was the ONLY failing check, 14 of 15 green, which is the half of the prediction that had to hold -- nothing in this mutant touches PHP, JS or the ledger, so a red test job would have meant it reached further than intended. Both error lines fired and the step exited 1: uncompressed 1032004830 over the 999183263 ceiling by 32821567, compressed 360853640 over the 314606870 ceiling by 46246770. THE RESULT WORTH KEEPING is why /dev/urandom and not /dev/zero. Measured against the feature branch's own second build, the mutant grew 52413342 bytes uncompressed and 52418755 compressed -- essentially 100% of the layer survived gzip. Zeroes would have compressed to almost nothing: the uncompressed error still fires, the run is still red, and the compressed half of the gate goes ENTIRELY untested while looking proven. The two runs are indistinguishable from outside. Same trap as the topbar assertion in CLAUDE.md, where the half argued to carry the weight carried none. Closed unmerged; main never carried the layer.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0027",
+      "@type": "Mutation",
+      "implements": [
+        "item/upgrade-smoke"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/251",
+      "run": "run/0020",
+      "headSha": "7581911eab71664e5a8f265261a353d7f7150204",
+      "mutant": "Removed the UPDATE from database/migrations/2026_09_18_150000_backfill_email_verified_at_for_existing_users.php's up(), leaving the migration present and still recording itself as run -- the fix gone, not the migration. Its now-unused DB import went with it so pint could not fail the PR for a reason unrelated to the assertion.",
+      "check": "run/35395221353. INSIDE THE SMOKE the mutant was precise: checkStaleUserReachesTheApp failed with 'the user seeded with email_verified_at NULL before the replacement is bounced to the email verification notice (/email/verify) ... the backfill migration did not reach this row across the replacement, so it is stranded exactly the way issue #210 describes', while checkStaleRolePermissionStaysRevoked next to it PASSED -- 'member still lacks files.restore after the container replacement -- the edit survived -- OK'.\n\nWHAT IT DOES NOT SHOW, recorded because the board overstates it. All six test jobs also went red, through tests/Feature/BackfillEmailVerifiedAtMigrationTest.php, which inserts a raw row bypassing the factory and invokes the migration's own up() against it. The prediction written into the mutation PR before the run said every test job would stay green because no suite test asserts on this migration -- that was FALSE, taken from the implementing agent's report and never checked, where one grep over tests/ would have settled it. So this run does not show the smoke is what stands between the defect and a green tree; citing the red board as proof of the smoke's value counts one defect twice.\n\nThe smoke's MARGINAL guarantee over that unit test, which is what it actually earned here: the unit test proves the migration's SQL works when called directly; the smoke proves it EXECUTES during a real container replacement, against a row predating the image. Isolating that alone would need a mutation to boot-time migration, which cannot be done narrowly -- skipping migrations at boot breaks the first boot and fails everything.\n\nThe run also found a defect in the new code that only a firing diagnostic could show: the message read 'instead of the page this was asked for instead of /dashboard', because describeLanding() already supplies the first clause. Fixed in bed6912 before merge. Closed unmerged.",
       "verdict": "negative",
       "supersedes": null
     }
