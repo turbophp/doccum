@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T19:22:00Z",
+  "dateModified": "2026-09-18T19:32:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1156,10 +1156,12 @@
         "item/spec-reconcile"
       ],
       "doneWhen": "item/spec-reconcile made section 8 the section section 2, section 13, section 14 and section 16 all defer to -- and section 8 itself still describes a system that was never built. Each verified against the repository, not inferred: its projection table uses searchable_type/searchable_id where searchable_type appears in ZERO migrations and subject_type appears in TWO; it describes a Scout Searchable trait, toSearchableArray(), #[SearchUsingFullText] and a Scout query() callback where NO Scout Searchable trait exists anywhere in app/ and filtering happens in Services\\Search and SearchIndex::search(); and its seam table lists TsvectorSearchIndex for PostgreSQL where app/Search/ contains only Fts5SearchIndex and LikeSearchIndex. Found while reconciling and deliberately left out of that diff, because decision/0077's standard is that a spec edit stays small, reviewable and doc-only, and widening the branch would be the auditor-edits-its-own-standard problem in miniature. THIS IS A DEPENDENCY OF item/v1-audit, not a nicety: decision/0084 made the audit depend on item/spec-reconcile specifically so it measures against a corrected spec. If section 8 is still partly false when the audit runs, the reconciliation manufactures the false confidence it was meant to remove -- the audit would check the product against implementation detail for a library this project does not use. Done when every section 8 claim is either true of the shipped code or explicitly marked superseded with a pointer, on item/spec-reconcile's terms: column names match the migration and the model; the Scout mechanics are replaced by what Services\\Search and SearchIndex actually do; the TsvectorSearchIndex row is marked unbuilt with a pointer to item/tsvector-index rather than presented as shipped; a revisions-note entry records the pass; the heading set stays BYTE-IDENTICAL (grep '^#' then diff, since LedgerValidator's spec-anchor rule slugs heading text); and the validator passes. There is no test for prose, and the validator proves only that no anchor broke -- not that the text is true. The check on the text is that it stays a small, reviewable, doc-only diff.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T19:19:00Z",
+      "endTime": "2026-09-18T19:28:24Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/236"
+      ]
     },
     {
       "@id": "item/api-sanctum-tokens",
@@ -1175,7 +1177,7 @@
       "dependsOn": [
         "item/topbar-shell"
       ],
-      "doneWhen": "Token page test; abilities outside the eight are rejected; the plaintext token never appears in a later render.",
+      "doneWhen": "Token page test; abilities outside the eight are rejected; the plaintext token never appears in a later render. BLOCKED IN THIS ENVIRONMENT, and the clause is not at fault -- spec section 11 names exactly the eight abilities the clause refers to (directories:read/write, files:read/write/delete, properties:read/write, search), so 'the eight' is well defined. Laravel Sanctum is NOT INSTALLED: composer.json has no laravel/sanctum and composer.lock pins 113 packages under a content-hash. CI runs `composer install --no-interaction --prefer-dist`, which validates that hash against composer.json and FAILS when they disagree, so hand-editing the manifest turns CI red rather than installing anything, and regenerating the lock needs composer to reach its dists -- the same egress 403 that blocks composer here generally. Hand-writing a lock is not feasible. This blocks the whole API chain and everything downstream of it: item/api-content, item/api-presigned-upload, item/openapi-reference, and then item/self-hosting-docs, item/docs-site and item/readme-owner. See decision/0086.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -3242,6 +3244,22 @@
       "mergedAt": "2026-09-18T19:11:06Z",
       "mergeSha": "0ca8a436a14eccc94a6d5e99a9953a44a6d91d58",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/236",
+      "@type": "PullRequest",
+      "identifier": 236,
+      "name": "Section 8 describes what shipped, not Scout",
+      "implements": [
+        "item/spec-section8-reconcile"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T19:24:43Z",
+      "headSha": "b5c4745694bc744480ce4a082b7af8747dab55bb",
+      "mergedAt": "2026-09-18T19:28:24Z",
+      "mergeSha": "54d7210a795104d584bdf0258c436f4f7a700096",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4651,6 +4669,25 @@
         "item/release-gate",
         "item/release-v0-1-0",
         "item/tag-v1-0-0"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0086",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T19:32:00Z",
+      "run": "run/0020",
+      "name": "A second wall: this environment cannot add a PHP dependency, which blocks the API chain",
+      "rationale": "decision/0085 recorded that the loop cannot tag, so it cannot reach its stopping condition. This records a second, wider limit found while picking the next item.\n\nitem/api-sanctum-tokens needs Laravel Sanctum. It is not installed -- composer.json has no laravel/sanctum, and composer.lock pins 113 packages under a content-hash. CI runs `composer install --no-interaction --prefer-dist`, which checks that hash against composer.json and fails when they disagree. So the two available moves both fail: editing composer.json alone turns CI red with a stale lock, and regenerating the lock requires composer to reach its dists, which is the egress 403 this environment has had throughout. Hand-writing a lock for a transitive dependency tree is not a real option.\n\nTHE CLAUSE IS NOT AT FAULT, which is worth stating because four of the last six items DID have defective clauses and the reflex is now to suspect the text. Spec section 11 names exactly the eight abilities the doneWhen refers to. This is the environment, not the specification.\n\nWHAT IT BLOCKS: the API chain end to end -- api-sanctum-tokens, api-content, api-presigned-upload, openapi-reference -- and then self-hosting-docs, docs-site and readme-owner downstream of it. item/v1-audit depends on openapi-reference and readme-owner, so it is blocked transitively too.\n\nWHAT REMAINS WORKABLE HERE: item/image-size, item/smoke-installer-names-the-bounce, item/directory-force-delete-orphans and item/upgrade-smoke. Four items, two S and two M, none needing a new dependency or a tag. After those the loop has nothing left it can do.\n\nTHE HONEST SHAPE OF THE PLAN, therefore: of 16 open v1 items, 4 are reachable from here, 3 need a tag push (decision/0085) and 9 need a dependency install. Unblocking tags alone does NOT reach v1 -- that was worth discovering now rather than after the four remaining items ran out.\n\nRecorded rather than worked around. /root/.ccr/README.md says to report a 403 host, not route around it, and the routing-around options here -- vendoring Sanctum by hand, or committing a fabricated lock -- would each be a worse artefact than the blocker.",
+      "isBasedOn": [
+        "spec:11-api"
+      ],
+      "affects": [
+        "item/api-sanctum-tokens",
+        "item/api-content",
+        "item/api-presigned-upload",
+        "item/openapi-reference",
+        "item/v1-audit"
       ],
       "supersedes": null
     }
