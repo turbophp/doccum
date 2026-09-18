@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Exceptions\ObjectMissingFromStorage;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Support\ObjectKey;
@@ -91,6 +92,13 @@ class DocumentStorage
      * serve them itself because a presigned URL would name a host the browser
      * cannot reach. See servesPresignedUrls().
      *
+     * Throws the typed ObjectMissingFromStorage rather than a bare
+     * RuntimeException so a caller can distinguish "the row exists but the
+     * bytes are gone" -- the likeliest self-hosting mistake, restoring `/data`
+     * without `objects/` -- from any other storage failure, and answer a
+     * deliberate status for it instead of letting a 500 fall out of whichever
+     * layer notices first. See issue #134.
+     *
      * @return resource
      */
     public function readStream(FileVersion $version)
@@ -98,7 +106,7 @@ class DocumentStorage
         $stream = $this->disk()->readStream($version->object_key);
 
         if ($stream === null) {
-            throw new RuntimeException("Unable to read object [{$version->object_key}] from storage.");
+            throw ObjectMissingFromStorage::forKey($version->object_key);
         }
 
         return $stream;

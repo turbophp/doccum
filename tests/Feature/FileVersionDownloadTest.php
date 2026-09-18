@@ -21,6 +21,7 @@ use App\Models\File;
 use App\Models\FileVersion;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -136,4 +137,41 @@ it('404s a trashed file', function () {
     $this->actingAs($user)
         ->get(route('files.versions.download', [$this->fileA, $this->versionA1]))
         ->assertNotFound();
+});
+
+/**
+ * item/download-missing-object (issue #134), the per-version route half of
+ * FileDownloadTest.php's coverage. The row for $this->versionA1 exists;
+ * only the object behind it is gone. See that test's docblock for why the
+ * fix has to open the stream before the response is built rather than
+ * catch whatever RuntimeException falls out of streamDownload()'s callback.
+ */
+it('answers 502 with a logged object key when a specific version\'s object is missing from storage', function () {
+    config(['filesystems.disks.documents.endpoint' => 'http://127.0.0.1:9000']);
+
+    // The object existed and is deleted out from under the still-live row --
+    // see FileDownloadTest.php's matching case for why that, rather than
+    // simply never writing it, is what the operator-restore mistake
+    // actually looks like.
+    Storage::disk('documents')->put($this->versionA1->object_key, 'the bytes themselves');
+    Storage::disk('documents')->delete($this->versionA1->object_key);
+
+    Log::shouldReceive('error')
+        ->once()
+        ->with(
+            'Download failed: object missing from storage.',
+            Mockery::on(function (array $context) {
+                return $context['object_key'] === $this->versionA1->object_key
+                    && $context['file_version_id'] === $this->versionA1->id;
+            }),
+        );
+
+    $user = User::factory()->create();
+    grantOn($this->dirA, $user, AccessLevel::View);
+
+    $response = $this->actingAs($user)
+        ->get(route('files.versions.download', [$this->fileA, $this->versionA1]));
+
+    $response->assertStatus(502);
+    expect($response->getContent())->toContain($this->versionA1->object_key);
 });
