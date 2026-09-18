@@ -1860,16 +1860,25 @@ async function runVerify() {
     await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
     console.log('[verify] the uploaded file is still listed -- the DATABASE persisted');
 
-    // The listing above is a SQLite read, and for this phase's whole life it
-    // carried the log line "object storage persisted". It never touched an
-    // object. Nothing else in verify did either: the search below is SQLite
-    // too, and checkDownloadReturnsTheUploadedBytes() runs in setup only. So
+
+    await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
+    await searchUntilFound(page, 'verify');
+    console.log('[verify] search still finds it -- the search index persisted -- OK');
+
+    // LAST of the three persistence assertions, deliberately. The listing and
+    // the search hit above are both SQLite reads, and for this phase's whole
+    // life the listing carried the log line
+    // "object storage persisted". Neither of them ever touched an object, and
+    // checkDownloadReturnsTheUploadedBytes() runs in setup only. So
     // the one claim this phase exists to make -- that /data is the only
     // persistent volume and everything on it survives the container being
     // replaced -- was asserted from evidence that cannot see it. A container
     // that came back with /data/objects emptied, or minio.env lost, or the
     // bucket gone, passed this phase green while reporting the opposite of
-    // what it had measured. Dockerfile:85 records the MIRROR of that failure
+    // what it had measured. Running this check AFTER both of them is what
+    // lets the mutation show that: with object storage destroyed, both of
+    // the assertions above still pass and only this one reddens.
+    // Dockerfile:85 records the MIRROR of that failure
     // (database in the image layer, objects on the volume, "half-alive"),
     // which this phase did catch, precisely because it reads the database.
     //
@@ -1884,10 +1893,6 @@ async function runVerify() {
 
     await downloadAndCompareBytes(page, FILE_NAME, persistedSha, 'verify');
     console.log('[verify] the bytes came back from the replacement container -- OBJECT STORAGE persisted');
-
-    await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
-    await searchUntilFound(page, 'verify');
-    console.log('[verify] search still finds it -- the search index persisted -- OK');
 
     // Last, because it ends the session. Logout is the one topbar control
     // with a server-side effect, so it is the one that proves the dropdown's
