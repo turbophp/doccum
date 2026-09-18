@@ -1,24 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Cannot call method cast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Actions/Properties/SetProperties.php
-
-		-
-			message: '#^Cannot call method includes\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Actions/Properties/SetProperties.php
-
-		-
-			message: '#^Cannot call method rules\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Actions/Properties/SetProperties.php
-
-		-
 			message: '#^Parameter \#1 \$subject of job class App\\Jobs\\ReindexSearchDocument constructor expects App\\Models\\Directory\|App\\Models\\File\|App\\Models\\Property in App\\Jobs\\ReindexSearchDocument\:\:dispatch\(\), Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
 			identifier: argument.type
 			count: 2
@@ -143,18 +125,6 @@ parameters:
 			identifier: missingType.generics
 			count: 1
 			path: app/Models/FileVersion.php
-
-		-
-			message: '#^Cannot call method cast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Models/Property.php
-
-		-
-			message: '#^Cannot call method column\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: app/Models/Property.php
 
 		-
 			message: '#^Class App\\Models\\Property uses generic trait Illuminate\\Database\\Eloquent\\Factories\\HasFactory but does not specify its types\: TFactory$#'

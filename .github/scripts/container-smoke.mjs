@@ -565,6 +565,82 @@ async function searchUntilFound(page, phase) {
   throw Object.assign(new Error(`search timed out for ${FILE_NAME}`), { dumped: true });
 }
 
+/**
+ * item/search-filters (issue #17): proves the period filter narrows the
+ * search RESULTS, not merely that a Year field is present on the page. Called
+ * right after searchUntilFound() above, so the browser is already on /search
+ * with FILE_MARKER typed and FILE_NAME showing.
+ *
+ * period_year is fixed at upload time to the current UTC year (File::boot(),
+ * app/Models/File.php) -- the app's timezone is UTC (config/app.php) -- so a
+ * year five years out can never be this file's period on any clock. Typing it
+ * into the Year field must make FILE_NAME disappear from the results; a
+ * filter that renders a control but never reaches Search::for()'s query
+ * would leave it exactly where it was. Clearing the field again must bring it
+ * straight back, which is what tells a stuck "no results" render (a
+ * component that broke rather than filtered) apart from a working filter.
+ *
+ * A Blade assertion cannot see this at all: it renders Results with whatever
+ * $filters render() built, but never proves the wire:model.live binding on
+ * the Year input actually reaches that property in a real browser -- exactly
+ * the class of gap CLAUDE.md's container-smoke note describes.
+ */
+async function checkSearchFilterExcludesByPeriod(page, phase) {
+  const wrongYear = String(new Date().getUTCFullYear() + 5);
+  const yearField = page.getByLabel('Year', { exact: true });
+
+  await yearField.fill(wrongYear);
+
+  // FILE_NAME is already ON the page from searchUntilFound() above, so a
+  // plain waitFor({state: 'visible'}) here would resolve true instantly --
+  // it was true before the fill() ever ran, and would say nothing about
+  // whether the debounced filter request changed anything. Waiting for
+  // 'detached' instead only succeeds if the row actually leaves the DOM
+  // AFTER this point, the same pattern checkTrashRemovesFileFromListingAndSearch()
+  // uses above for exactly this reason.
+  const excluded = await page
+    .getByText(FILE_NAME, { exact: true })
+    .waitFor({ state: 'detached', timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+
+  if (! excluded) {
+    dumpContainerState(
+      `[${phase}] the period filter did not exclude ${FILE_NAME} when Year was set to ${wrongYear}, `
+      + 'a year it cannot carry',
+    );
+    throw Object.assign(new Error('search period filter did not narrow results'), { dumped: true });
+  }
+
+  console.log(`[${phase}] the period filter excludes ${FILE_NAME} under a year (${wrongYear}) it cannot carry -- OK`);
+
+  await yearField.fill('');
+
+  const foundAgain = await page
+    .getByText(FILE_NAME, { exact: true })
+    .waitFor({ timeout: SEARCH_TIMEOUT_MS })
+    .then(() => true)
+    .catch(() => false);
+
+  if (! foundAgain) {
+    dumpContainerState(`[${phase}] clearing the period filter never brought ${FILE_NAME} back`);
+    throw Object.assign(new Error('search period filter did not clear'), { dumped: true });
+  }
+
+  console.log(`[${phase}] clearing the period filter restores ${FILE_NAME} -- OK`);
+
+  // Settle before returning. fill('') above fires a DEBOUNCED Livewire
+  // commit, and the row reappearing only proves one round trip landed, not
+  // that the component is idle -- so without this the check hands the next
+  // one a page with a request still in flight. decision/0033 records what
+  // that costs: a check that leaves the browser mid-navigation blames its
+  // successor, and the blame lands somewhere unrelated and expensive to
+  // trace. This run failed six checks later with a wire:loading that never
+  // cleared, which is what a wedged Livewire component looks like from the
+  // outside.
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+}
+
 // item/reverse-proxy-ready (issue #58): proves bootstrap/app.php's
 // TRUSTED_PROXIES default and ForceRootUrlFromRequest reach all the way to a
 // password-reset link, not just a page rendered straight to a browser (the
@@ -2445,6 +2521,9 @@ async function runSetup() {
     await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
     await searchUntilFound(page, 'setup');
     console.log('[setup] search found the uploaded document -- OK');
+
+    console.log('[setup] checking the search page\'s period filter actually narrows results (issue #17)');
+    await checkSearchFilterExcludesByPeriod(page, 'setup');
 
     console.log('[setup] trashing a file through the detail panel and confirming it disappears from the listing and from search');
     await checkTrashRemovesFileFromListingAndSearch(page, 'setup');

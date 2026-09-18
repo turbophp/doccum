@@ -285,5 +285,19 @@
     "file": "resources/views/livewire/files/browser.blade.php",
     "remove": "\n                        aria-label=\"{{ __('Home directory') }}\"",
     "expectFailing": "has exactly one link on /files with the accessible name \"Home\""
+  },
+  {
+    "id": "fts5-property-filter-keeps-permission-scope",
+    "why": "item/search-filters' doneWhen: a filter must be applied inside the query WITH the permission filter still active, never in place of it. The property filter added here is an EXISTS ANDed onto the same WHERE clause as `d.directory_id IN (...)` -- the predicate that scopes every Fts5SearchIndex query to viewableDirectoryIds(). Removing that predicate proves the new filter cannot substitute for it: a property match on a file outside the viewer's reach must still be invisible. (The mutation removes the directory_id predicate's SQL text, which also desyncs the query's placeholder count from $bindings, so it fails loudly rather than silently leaking -- either way the guard's absence is caught.) The removal target is the predicate AND its bindings together, not the SQL fragment alone: both default to empty above it, so deleting the block leaves valid SQL that simply stops restricting by directory and returns unreachable rows. Removing only the fragment would desync the placeholder count from $bindings and fail as a thrown exception, which would prove SQLite counts placeholders rather than that this predicate keeps unreachable documents out.",
+    "file": "app/Search/Fts5SearchIndex.php",
+    "remove": "        $permission = ' AND d.directory_id IN ('.implode(',', array_fill(0, count($viewableDirectoryIds), '?')).')';\n        $permissionBindings = array_values($viewableDirectoryIds);\n",
+    "expectFailing": "never returns a property-filtered match outside the viewer reach, on FTS5"
+  },
+  {
+    "id": "like-property-filter-keeps-permission-scope",
+    "why": "The same guard as fts5-property-filter-keeps-permission-scope, for LikeSearchIndex: the property filter's whereExists() is chained onto the same Eloquent builder as ->whereIn('directory_id', $viewableDirectoryIds), never a query built fresh that could drop it. Removing that whereIn() call leaves the property EXISTS clause as the only restriction, so a property match on a file outside the viewer's reach would come back.",
+    "file": "app/Search/LikeSearchIndex.php",
+    "remove": "            ->whereIn('directory_id', $viewableDirectoryIds)\n",
+    "expectFailing": "never returns a property-filtered match outside the viewer reach, via the LIKE fallback"
   }
 ]
