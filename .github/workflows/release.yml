@@ -96,9 +96,23 @@ jobs:
           echo "Release notes for ${{ github.ref_name }}:"
           cat /tmp/release-notes.md
 
-      # Pinned by commit SHA per this repo's convention (see tests.yml);
-      # e598afbe... is the commit the v3.0.3 tag points at.
-      - uses: softprops/action-gh-release@e598afbe1493e6b1bafb1f389cabb956eab91231 # v3.0.3
+      # Pinned by COMMIT SHA per this repo's convention (see tests.yml).
+      #
+      # efb35369 is the commit; e598afbe -- which `git ls-remote --tags`
+      # prints beside refs/tags/v3.0.3 -- is NOT. This repo's other tags
+      # happen to be lightweight, where the printed SHA IS the commit
+      # (actions/checkout v7.0.1 = 3d3c42e5, no peeled line), but v3.0.3
+      # here is an ANNOTATED tag, so ls-remote prints the tag object first
+      # and the commit only on the `^{}` line:
+      #
+      #   e598afbe...  refs/tags/v3.0.3
+      #   efb35369...  refs/tags/v3.0.3^{}      <- the commit
+      #
+      # Taking the first line gives a tag-object SHA, which is not what
+      # `uses: owner/repo@<sha>` wants. Resolve with
+      # `git ls-remote --tags <repo> | grep '\^{}'` before pinning anything
+      # here, and do not assume the two lines are interchangeable.
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ github.ref_name }}
           body_path: /tmp/release-notes.md
