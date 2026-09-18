@@ -50,7 +50,25 @@ return [
              * locked" on the jobs table (issue #92).
              *
              * busy_timeout makes a blocked writer wait; WAL stops a reader
-             * blocking a writer at all. Both address the contention.
+             * blocking a writer at all. Both address the contention -- but
+             * only once transaction_mode is IMMEDIATE, which is the fourth
+             * key below and was missed when the other three were stated.
+             *
+             * A DEFERRED transaction takes no lock at BEGIN. It acquires one
+             * at its first write, and if another connection has written since
+             * the read began, SQLite returns SQLITE_BUSY *immediately* and
+             * will not call the busy handler at all -- waiting could never
+             * help, because the snapshot this transaction read is already
+             * stale and it must roll back. So busy_timeout does nothing for
+             * the one shape that matters here: read a row, then update it.
+             * That is exactly how Laravel's queue worker reserves a job --
+             * SELECT an unreserved row, UPDATE its reserved_at -- and it is
+             * the statement that printed "database is locked" in issue #121
+             * with busy_timeout=5000 already applied and reported in the log.
+             *
+             * IMMEDIATE takes the write lock at BEGIN, where busy_timeout can
+             * wait on it. It costs serialised writers, which a single
+             * container with one SQLite file has anyway.
              *
              * synchronous is FULL because that is what SQLite itself defaults
              * to, and this is a document archive: a host power loss must not
@@ -59,14 +77,14 @@ return [
              * Note that WAL + FULL is still cheaper than the rollback-journal
              * FULL it replaces, so nothing is traded away for the fix.
              *
-             * All three are overridable: WAL in particular cannot be used on
+             * All four are overridable: WAL in particular cannot be used on
              * a network filesystem, where DB_JOURNAL_MODE=DELETE is required.
              */
             'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),
             'journal_mode' => env('DB_JOURNAL_MODE', 'WAL'),
             'synchronous' => env('DB_SYNCHRONOUS', 'FULL'),
 
-            'transaction_mode' => 'DEFERRED',
+            'transaction_mode' => env('DB_TRANSACTION_MODE', 'IMMEDIATE'),
         ],
 
         'mysql' => [

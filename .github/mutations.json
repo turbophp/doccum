@@ -78,7 +78,7 @@
   },
   {
     "id": "sqlite-busy-timeout-stated",
-    "why": "SQLite's own default busy timeout is zero: the loser of a write race fails immediately instead of waiting. The single container has four writers on one file (FrankenPHP, two queue workers, the scheduler), with queue, cache and session all on the database driver, and that default is what printed \"General error: 5 database is locked\" on the jobs table on main. Remove the stated value and the connector skips the pragma entirely -- back to zero, silently.",
+    "why": "SQLite's own default busy timeout is zero: the loser of a write race fails immediately instead of waiting. The single container has four writers on one file (FrankenPHP, two queue workers, the scheduler), with queue, cache and session all on the database driver. Remove the stated value and the connector skips the pragma entirely -- back to zero, silently. Scope, corrected after issue #121: this entry used to claim the stated timeout fixes the \"General error: 5 database is locked\" seen on the jobs table. It does not on its own. A DEFERRED transaction takes no lock at BEGIN, and SQLite refuses a read-then-write outright rather than calling the busy handler, so the timeout never applies to the queue worker reserving a job. That needed transaction_mode IMMEDIATE, which is stated alongside these and asserted by the container smoke. busy_timeout is necessary and was never sufficient.",
     "file": "config/database.php",
     "remove": "            'busy_timeout' => env('DB_BUSY_TIMEOUT', 5000),\n",
     "expectFailing": "waits rather than failing when the embedded database is locked"

@@ -750,7 +750,14 @@ function checkEmbeddedSqlitePragmas() {
     // `pragma busy_timeout` answers in a column called `timeout`, not
     // `busy_timeout`.
     "$busy = \\Illuminate\\Support\\Facades\\DB::select('pragma busy_timeout')[0]->timeout;",
-    "echo 'JOURNAL:' . $journal . ' BUSY:' . $busy;",
+    // transaction_mode is not a SQLite pragma -- it is a Laravel connector
+    // setting that decides whether a transaction opens BEGIN or BEGIN
+    // IMMEDIATE -- so it is read from config rather than from the database.
+    // It is reported here because busy_timeout above is worthless without it
+    // (issue #121) and a silent revert to DEFERRED would otherwise leave two
+    // correct-looking values and a lock that still happens.
+    "$mode = config('database.connections.sqlite.transaction_mode');",
+    "echo 'JOURNAL:' . $journal . ' BUSY:' . $busy . ' TXMODE:' . $mode;",
   ].join(' ');
 
   const output = tinker(php);
@@ -773,7 +780,17 @@ function checkEmbeddedSqlitePragmas() {
     );
   }
 
-  console.log(`[setup] embedded database: journal_mode=${journal[1]}, busy_timeout=${busy[1]}ms`);
+  const txMode = /TXMODE:(\S+)/.exec(output);
+
+  if (! txMode || txMode[1].toUpperCase() !== 'IMMEDIATE') {
+    throw new Error(
+      `the embedded database's transaction_mode is "${txMode ? txMode[1] : '(unset)'}", expected IMMEDIATE --` +
+      ' a DEFERRED transaction takes no lock at BEGIN, so SQLite refuses a read-then-write outright' +
+      ' rather than letting busy_timeout wait on it (issue #121)',
+    );
+  }
+
+  console.log(`[setup] embedded database: journal_mode=${journal[1]}, busy_timeout=${busy[1]}ms, transaction_mode=${txMode[1]}`);
 }
 
 /**
