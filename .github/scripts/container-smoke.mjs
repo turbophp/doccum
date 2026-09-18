@@ -194,6 +194,73 @@ function fileRowExists(name) {
 }
 
 /**
+ * Clicks a submit button that Livewire disables for the duration of a file
+ * upload, WITHOUT racing that disabled window.
+ *
+ * Issue #106's fix gives both upload forms
+ * wire:loading.attr="disabled" wire:target="<upload property>", so the button
+ * goes enabled -> disabled -> enabled around every setInputFiles(). Clicking
+ * straight afterwards is a check-then-act race against that transition:
+ * Playwright's actionability check can pass a microsecond before the
+ * attribute lands, the click is then dispatched at a disabled <button>, and
+ * the browser drops it silently. Playwright reports success -- it did
+ * dispatch -- so nothing throws, and the only trace is the commit that never
+ * went.
+ *
+ * That is exactly how main went red at 6663282, on a merge whose whole diff
+ * was one ledger JSON file. The probe caught it precisely because the
+ * upload-lifecycle requests were all there and the store() commit was not:
+ *
+ *   POST .../update        200   (_startUpload)
+ *   POST .../upload-file   200   (the bytes)
+ *   POST .../update        200   (_finishUpload)
+ *   <nothing>                    (store never dispatched)
+ *
+ * A person never hits this: they see a disabled button and click when it
+ * looks clickable. It is a harness artifact created by the product fix, and
+ * the honest repair is to wait for the upload to SETTLE rather than to
+ * restore the retry that #129 deliberately removed -- a retry here would
+ * once again convert a timing defect into a green run, which is how #106
+ * survived three rounds in the first place.
+ *
+ * So: wait for the disabled edge (bounded, and tolerated if the upload is too
+ * fast to observe it -- absence of the edge is not evidence of anything),
+ * then wait for it to clear, and only then click. After the upload has
+ * landed nothing disables the button again, so the click cannot be dropped.
+ */
+async function clickOnceUploadSettles(page, button, phase, label) {
+  let sawDisabled = false;
+  for (let waited = 0; waited < 5000; waited += 50) {
+    if (await button.isDisabled()) {
+      sawDisabled = true;
+      break;
+    }
+    await sleep(50);
+  }
+
+  if (sawDisabled) {
+    let settled = false;
+    for (let waited = 0; waited < 20000; waited += 50) {
+      if (await button.isEnabled()) {
+        settled = true;
+        break;
+      }
+      await sleep(50);
+    }
+
+    if (! settled) {
+      dumpContainerState(
+        `[${phase}] ${label} stayed disabled for 20s after the file was chosen` +
+        ' -- the upload never finished, or the loading state is stuck',
+      );
+      throw Object.assign(new Error(`${label} never re-enabled`), { dumped: true });
+    }
+  }
+
+  await button.click({ timeout: 10000 });
+}
+
+/**
  * Uploads a file through the browser and does not return until a files row
  * exists for it. ONE attempt: no retry, no second chance.
  *
@@ -236,11 +303,15 @@ async function uploadAndProveStored(page, name, contents, phase) {
 
   await page.locator('[data-test="upload-form"] input[type="file"]').setInputFiles(tmpFile);
 
-  // Bounded rather than Playwright's default 30s. The button is deliberately
-  // disabled while the upload is in flight, so waiting IS the guard working;
-  // ten seconds is far past any plausible upload of these few-hundred-byte
-  // fixtures, and a button still disabled by then means something else.
-  await page.getByRole('button', { name: 'Upload', exact: true }).click({ timeout: 10000 });
+  // Through clickOnceUploadSettles(), never a bare click: the button is
+  // deliberately disabled for the duration of the upload, and clicking into
+  // that transition is a race the browser resolves by dropping the click.
+  await clickOnceUploadSettles(
+    page,
+    page.getByRole('button', { name: 'Upload', exact: true }),
+    phase,
+    'the Upload button',
+  );
 
   await page
     .getByText(name, { exact: true })
@@ -1278,10 +1349,15 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   await replaceInput.waitFor({ state: 'attached', timeout: 10000 });
   await replaceInput.setInputFiles(replacementPath);
 
-  // Bounded rather than the default 30s. The button is deliberately disabled
-  // while the upload is in flight, so a short wait here IS the guard working;
-  // ten seconds is far past any plausible upload of this fixture.
-  await page.locator('[data-test="replace-file-button"]').click({ timeout: 10000 });
+  // Through clickOnceUploadSettles(), for the same reason the main upload
+  // form goes through it: Replace carries the same in-flight guard, so it
+  // carries the same check-then-act race against it.
+  await clickOnceUploadSettles(
+    page,
+    page.locator('[data-test="replace-file-button"]'),
+    phase,
+    'the Replace button',
+  );
 
   const replaceDeadline = Date.now() + REPLACE_TIMEOUT_MS;
   let output = tinker(php);
