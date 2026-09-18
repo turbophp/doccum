@@ -55,14 +55,14 @@
             </flux:link>
         </div>
 
-        @if (! empty($selectedIds))
+        @if (! empty($selectedIds) || ! empty($selectedDirectoryIds))
             {{-- Only ever shown once something is ticked, and the count is what
                  proves a click actually reached selectRow() -- a resting "0
                  selected" label would pass whether or not selection worked at
                  all (CLAUDE.md: prefer an assertion that requires the feature
                  to DO something). --}}
             <div class="flex items-center gap-3" data-test="bulk-actions">
-                    <flux:text class="text-sm font-medium text-ink">{{ trans_choice(':count file selected|:count files selected', count($selectedIds), ['count' => count($selectedIds)]) }}</flux:text>
+                    <flux:text class="text-sm font-medium text-ink">{{ trans_choice(':count item selected|:count items selected', count($selectedIds) + count($selectedDirectoryIds), ['count' => count($selectedIds) + count($selectedDirectoryIds)]) }}</flux:text>
                     {{-- No `danger` variant: red in doccum means legal hold and
                          nothing else (design plan §1). Trashing is reversible --
                          Trash restores -- so it is an ordinary action, and the
@@ -78,6 +78,58 @@
             </div>
         @endif
     </div>
+
+    {{-- Archive progress. Polls only while the row is non-terminal, which is
+         what ArchiveStatus::isTerminal() exists to answer -- a poll with no
+         stopping condition runs for the life of the page.
+
+         The download is started from the browser once the row turns Ready,
+         rather than by redirecting the Livewire response: a redirect would
+         navigate away from the listing, and the person asked for a zip, not
+         for their place in the directory to be lost. --}}
+    {{-- Use the block form here, never the single-expression one. Blade lifts
+         raw PHP blocks out of the template before it strips comments, pairing
+         each opening directive with the next closing one, so a
+         single-expression opener in the same file pairs with a LATER closing
+         directive and swallows everything in between. That is how the detail
+         panel's own block was left unopened and $subject undefined.
+
+         And for the same reason this note spells none of those directives
+         out: written literally, the words in a comment are themselves picked
+         up as a block, which swallowed the pane container below it. --}}
+    @php
+        $archive = $this->archiveProgress();
+    @endphp
+
+    @if ($archive)
+        <div
+            class="flex items-center gap-3 border-b border-rule bg-chrome px-4 py-2 text-sm"
+            data-test="archive-progress"
+            @if (! $archive->status->isTerminal()) wire:poll.1s @endif
+        >
+            @if ($archive->status === \App\Enums\ArchiveStatus::Failed)
+                <flux:icon.exclamation-triangle variant="micro" class="shrink-0 text-attention" />
+                <span class="text-ink">{{ __('The archive could not be built.') }}</span>
+            @elseif ($archive->status === \App\Enums\ArchiveStatus::Ready)
+                <flux:icon.check-circle variant="micro" class="shrink-0 text-ink-2" />
+                <span class="text-ink">{{ __('Download started.') }}</span>
+
+                <span
+                    x-data
+                    x-init="window.location = @js(route('directories.archives.download', $archive)); $wire.dismissArchive()"
+                ></span>
+            @else
+                <flux:icon.arrow-path variant="micro" class="shrink-0 animate-spin text-ink-2" />
+                <span class="text-ink">{{ __('Zipping :done of :total…', ['done' => $archive->completed_files, 'total' => $archive->total_files]) }}</span>
+
+                <span class="h-1 w-40 overflow-hidden rounded bg-rule">
+                    <span class="block h-full bg-select" style="width: {{ $archive->percentComplete() }}%"></span>
+                </span>
+            @endif
+
+            <flux:link wire:click="dismissArchive" variant="subtle" class="ml-auto cursor-pointer text-xs text-ink-2 hover:text-ink">{{ __('Dismiss') }}</flux:link>
+        </div>
+    @endif
 
     <div class="flex h-[calc(100vh-6.25rem)] items-stretch">
         {{-- The Files sidebar (spec §10): Home pinned first, then the
@@ -223,8 +275,24 @@
                      attribute means or what it contains. --}}
                 <tbody data-test="directories-list">
                     @foreach ($directories as $item)
-                        <tr class="group h-8 border-b border-rule/40 hover:bg-chrome">
-                            <td></td>
+                        <tr @class([
+                            'group h-8 border-b border-rule/40',
+                            'hover:bg-chrome' => ! in_array($item->id, $selectedDirectoryIds, true),
+                            'bg-select/10' => in_array($item->id, $selectedDirectoryIds, true),
+                        ])>
+                            {{-- Folders tick the same way files do. Plain
+                                 toggling, no shift-range: see
+                                 Browser::selectDirectoryRow(). --}}
+                            <td class="px-2">
+                                <input
+                                    type="checkbox"
+                                    data-test="directory-row-checkbox"
+                                    class="accent-select"
+                                    aria-label="{{ __('Select :name', ['name' => $item->name]) }}"
+                                    @checked(in_array($item->id, $selectedDirectoryIds, true))
+                                    x-on:click.stop="$wire.selectDirectoryRow({{ $item->id }})"
+                                />
+                            </td>
                             <td></td>
                             <td class="max-w-0 py-1">
                                 <div class="flex min-w-0 items-center gap-2">
@@ -236,11 +304,19 @@
                             <td class="num py-1 text-ink-2">{{ $item->updated_at?->format('Y-m-d H:i') }}</td>
                             <td class="py-1 text-right text-ink-2">&mdash;</td>
                             <td class="py-1 text-right">
-                                <flux:link
-                                    wire:click="selectDirectory({{ $item->id }})"
-                                    variant="subtle"
-                                    class="cursor-pointer text-xs text-ink-2 opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink"
-                                >{{ __('Details') }}</flux:link>
+                                <span class="inline-flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                                    <flux:link
+                                        wire:click="downloadDirectoryZip({{ $item->id }})"
+                                        variant="subtle"
+                                        data-test="directory-zip-button"
+                                        class="cursor-pointer text-xs text-ink-2 hover:text-ink"
+                                    >{{ __('Zip') }}</flux:link>
+                                    <flux:link
+                                        wire:click="selectDirectory({{ $item->id }})"
+                                        variant="subtle"
+                                        class="cursor-pointer text-xs text-ink-2 hover:text-ink"
+                                    >{{ __('Details') }}</flux:link>
+                                </span>
                             </td>
                         </tr>
                     @endforeach

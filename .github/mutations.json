@@ -285,5 +285,19 @@
     "file": "resources/views/livewire/files/browser.blade.php",
     "remove": "\n                        aria-label=\"{{ __('Home directory') }}\"",
     "expectFailing": "has exactly one link on /files with the accessible name \"Home\""
+  },
+  {
+    "id": "a-directory-archive-reaches-only-its-requester",
+    "why": "A zip of a directory is the one download that hands over many files at once, and it holds exactly what ONE viewer could reach at the moment the job ran. The download controller therefore authorises on requested_by rather than on the directory's policy, and the two are genuinely different questions: the test gives the other user Manage on the very directory that was archived, so a policy check would let them straight through. Remove the requested_by guard and that test fails -- someone with access to the directory downloads an archive assembled under somebody else's reach.",
+    "file": "app/Http/Controllers/DirectoryArchiveDownloadController.php",
+    "remove": "        abort_unless($archive->requested_by === auth()->id(), 403);\n",
+    "expectFailing": "hands a built archive only to the person who asked for it"
+  },
+  {
+    "id": "a-directory-archive-holds-only-what-its-requester-may-see",
+    "why": "BuildDirectoryArchive does not authorise -- the caller did that -- but it does SCOPE, which is not the same thing and is not optional. The file list is built from the requester's own reach intersected with the subtree, so a directory holding a branch they cannot enter still yields an archive without it. Remove the whereIn against viewableDirectoryIds() and the subtree alone decides the contents: the sealed branch lands in the zip, and a person who could not open one of those files gets all of them.",
+    "file": "app/Actions/Directories/BuildDirectoryArchive.php",
+    "remove": "            ->whereIn('id', $reachable)\n",
+    "expectFailing": "leaves out a subtree the requester cannot reach"
   }
 ]

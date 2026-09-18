@@ -23,6 +23,16 @@
                 <flux:badge size="sm" color="zinc" data-test="version-pill">v{{ config('doccum.version') }}</flux:badge>
             </a>
 
+            <flux:navbar class="-mb-px">
+                <flux:navbar.item :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate data-test="nav-home">
+                    {{ __('Home') }}
+                </flux:navbar.item>
+
+                <flux:navbar.item :href="route('files.browse')" :current="request()->routeIs('files.*')" wire:navigate data-test="nav-files">
+                    {{ __('Files') }}
+                </flux:navbar.item>
+            </flux:navbar>
+
             {{-- Instance-wide search, in the chrome rather than on a page of
                  its own, because looking something up is the most common
                  reason to be here at all. It submits a plain GET to the
@@ -37,7 +47,7 @@
                  that exact name would make every one of those locators
                  ambiguous under Playwright's strict mode. --}}
             <div
-                class="mx-6 hidden max-w-2xl flex-1 sm:block"
+                class="mx-6 hidden w-full max-w-xl flex-1 sm:block"
                 x-data="{
                     hint: '⌘K',
                     init() {
@@ -86,23 +96,46 @@
                 </form>
             </div>
 
-            <flux:spacer />
 
-            <flux:navbar class="-mb-px">
-                <flux:navbar.item :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate data-test="nav-home">
-                    {{ __('Home') }}
-                </flux:navbar.item>
 
-                <flux:navbar.item :href="route('files.browse')" :current="request()->routeIs('files.*')" wire:navigate data-test="nav-files">
-                    {{ __('Files') }}
-                </flux:navbar.item>
+            {{-- Notifications. The count is the only thing the bell says at
+                 rest, and it says nothing at all when there is nothing unread:
+                 a permanent "0" is a badge that trains people to ignore
+                 badges. Its first producer is a finished directory archive --
+                 zipping outlasts the tab that asked often enough that the
+                 progress strip cannot be the only place it is reported. --}}
+            @php
+                $unread = auth()->user()->unreadNotifications()->latest()->take(5)->get();
+            @endphp
 
-                @can('properties.manage')
-                    <flux:navbar.item :href="route('admin.properties')" :current="request()->routeIs('admin.*')" wire:navigate data-test="nav-settings">
-                        {{ __('Settings') }}
-                    </flux:navbar.item>
-                @endcan
-            </flux:navbar>
+            <flux:dropdown position="bottom" align="end">
+                <span class="relative inline-flex items-center" data-test="notifications-trigger">
+                    <flux:button variant="subtle" size="sm" icon="bell" :aria-label="__('Notifications')" />
+
+                    @if ($unread->isNotEmpty())
+                        <span
+                            class="num pointer-events-none absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-select px-1 text-[10px] font-medium text-white"
+                            data-test="notifications-count"
+                        >{{ $unread->count() }}</span>
+                    @endif
+                </span>
+
+                <flux:menu class="w-80">
+                    @forelse ($unread as $notification)
+                        <flux:menu.item
+                            :href="$notification->data['url'] ?? route('files.browse')"
+                            icon="archive-box-arrow-down"
+                            data-test="notification-item"
+                        >
+                            {{ __(':name.zip is ready', ['name' => $notification->data['directory'] ?? __('Archive')]) }}
+                        </flux:menu.item>
+                    @empty
+                        <div class="px-2 py-3 text-sm text-zinc-500" data-test="notifications-empty">
+                            {{ __('Nothing new.') }}
+                        </div>
+                    @endforelse
+                </flux:menu>
+            </flux:dropdown>
 
             <flux:dropdown position="bottom" align="end">
                 <span class="inline-flex items-center" data-test="account-menu-trigger">
@@ -139,6 +172,12 @@
                         <flux:menu.item :href="route('security.edit')" icon="lock-closed" wire:navigate>
                             {{ __('Password & sessions') }}
                         </flux:menu.item>
+
+                        @can('properties.manage')
+                            <flux:menu.item :href="route('admin.properties')" icon="cog-6-tooth" wire:navigate data-test="nav-settings">
+                                {{ __('Settings') }}
+                            </flux:menu.item>
+                        @endcan
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />

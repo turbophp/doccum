@@ -16,17 +16,21 @@ use App\Actions\Files\SetLegalHold;
 use App\Actions\Files\StoreFileVersion;
 use App\Actions\Files\TrashFile;
 use App\Enums\AccessLevel;
+use App\Enums\ArchiveStatus;
 use App\Exceptions\CannotMoveDirectoryIntoItself;
 use App\Exceptions\DuplicateDirectoryName;
 use App\Exceptions\DuplicateFileName;
 use App\Exceptions\PeriodIsArchived;
+use App\Jobs\ZipDirectory;
 use App\Models\Directory;
+use App\Models\DirectoryArchive;
 use App\Models\DirectoryGrant;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Models\User;
 use App\Services\DirectoryAccess;
 use App\Support\EmailKey;
+use Flux\Flux;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\Rule;
@@ -126,6 +130,22 @@ class Browser extends Component
      * selectRow()'s docblock for why.
      */
     public ?int $lastClickedId = null;
+
+    /**
+     * Folder rows the viewer has ticked.
+     *
+     * Kept apart from $selectedIds rather than mixed into it with a prefix: a
+     * directory id and a file id are both integers, and one list holding both
+     * is one typo away from trashing the wrong kind of thing.
+     *
+     * @var list<int>
+     */
+    public array $selectedDirectoryIds = [];
+
+    /**
+     * The archive currently being built, if any, so the view can poll it.
+     */
+    public ?int $archiveId = null;
 
     /**
      * Maps a sort key the view can pass to sortBy()/wire:click to the
@@ -615,7 +635,77 @@ class Browser extends Component
      * narrower query here quietly excluding it beforehand and making the
      * authorize() call look load-bearing when it was never reached.
      */
-    public function bulkTrash(TrashFile $action): void
+    /**
+     * Tick or untick a folder row.
+     *
+     * Plain toggling only -- no shift-range. Ranges are meaningful down a
+     * single ordered list; folders and files are two sequences in one table,
+     * and "everything between this folder and that file" is not a selection
+     * anyone means.
+     */
+    public function selectDirectoryRow(int $id): void
+    {
+        $this->selectedDirectoryIds = in_array($id, $this->selectedDirectoryIds, true)
+            ? array_values(array_diff($this->selectedDirectoryIds, [$id]))
+            : [...$this->selectedDirectoryIds, $id];
+    }
+
+    /**
+     * Build a zip of one folder, off the request thread.
+     *
+     * Authorising with `view` is the right ability rather than a new one: the
+     * archive contains exactly what this viewer can already open one file at a
+     * time, so a zip grants nothing extra. What it must not do is let the
+     * REQUEST decide the contents -- BuildDirectoryArchive resolves those from
+     * the requester's own reach, so a folder holding a subtree they cannot
+     * enter still produces an archive without it.
+     */
+    public function downloadDirectoryZip(int $directoryId): void
+    {
+        $directory = Directory::query()
+            ->whereIn('id', app(DirectoryAccess::class)->viewableDirectoryIds(auth()->user()))
+            ->find($directoryId);
+
+        abort_if($directory === null, 404);
+
+        $this->authorize('view', $directory);
+
+        $archive = DirectoryArchive::create([
+            'directory_id' => $directory->getKey(),
+            'requested_by' => auth()->id(),
+            'status' => ArchiveStatus::Pending,
+        ]);
+
+        $this->archiveId = $archive->getKey();
+
+        ZipDirectory::dispatch($archive);
+
+        Flux::toast(text: __('Preparing :name.zip…', ['name' => $directory->name]));
+    }
+
+    /**
+     * Polled by the view while an archive is building.
+     *
+     * Stops polling the moment the row reaches a terminal state, which is why
+     * ArchiveStatus has one: a poller with no terminal state polls for ever.
+     */
+    public function archiveProgress(): ?DirectoryArchive
+    {
+        if ($this->archiveId === null) {
+            return null;
+        }
+
+        return DirectoryArchive::query()
+            ->where('requested_by', auth()->id())
+            ->find($this->archiveId);
+    }
+
+    public function dismissArchive(): void
+    {
+        $this->archiveId = null;
+    }
+
+    public function bulkTrash(TrashFile $action, TrashDirectory $directoryAction): void
     {
         abort_if($this->directory === null, 404);
 
@@ -661,11 +751,36 @@ class Browser extends Component
             $this->authorize('delete', $file);
         }
 
+        // Folders selected alongside the files, resolved and authorised under
+        // the same all-or-nothing rule and scoped the same way: children of
+        // the directory being browsed, because that is the only thing this
+        // listing renders. TrashDirectory cascades to everything beneath, so
+        // the bar for refusing is the same `delete` the single-folder control
+        // already asks for.
+        $directories = Directory::query()
+            ->where('parent_id', $this->directory->getKey())
+            ->whereIn('id', $this->selectedDirectoryIds)
+            ->get();
+
+        abort_if($directories->count() !== count(array_unique($this->selectedDirectoryIds)), 404);
+
+        foreach ($directories as $selectedDirectory) {
+            $this->authorize('delete', $selectedDirectory);
+        }
+
+        // Nothing is trashed until every file AND every folder has been
+        // authorised -- a refusal on the last folder must not leave the first
+        // file in the trash.
         foreach ($files as $file) {
             $action->handle($file);
         }
 
+        foreach ($directories as $selectedDirectory) {
+            $directoryAction->handle($selectedDirectory);
+        }
+
         $this->selectedIds = [];
+        $this->selectedDirectoryIds = [];
     }
 
     public function render()
