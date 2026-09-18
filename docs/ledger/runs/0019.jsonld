@@ -9,9 +9,10 @@
   "outcome": "active",
   "touched": [
     "item/home-dashboard",
-    "item/search-filters"
+    "item/search-filters",
+    "item/login-by-username"
   ],
-  "commit": "cea56539137af4f9d339d52d0d01f8775a60b6e5",
+  "commit": "30c759c83e6f50ff667803603713ee2b0be5b770",
   "tests": 701,
   "assertions": 1446,
   "description": "Opened as its own run rather than continuing run/0018, deliberately and at a cost. item/ledger-mutation-nodes shipped last hour with MUTATION_RULES_EFFECTIVE_AFTER_RUN = 18, so rule 1 -- a Completed spec:10 item must be implements-referenced by a negative Mutation with a non-empty check -- binds from run/0019 onward and grandfathers everything at or below 18. item/home-dashboard is spec:10. Keeping it on run/0018 would have exempted it from the rule this loop shipped an hour earlier, which is gaming its own guard: the run boundary is not a place to buy an exemption. So this run starts here and the rule binds, and item/home-dashboard cannot be recorded Completed without a mutation node that names the assertion shown to fail. run/0018 closes green: main verified at 221b30e across all ten jobs from main's own push run, after decision/0039's fix to the smoke's upload gate."
