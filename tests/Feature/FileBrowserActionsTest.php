@@ -184,13 +184,33 @@ it('does not rename a file trashed on its own while its directory stays live', f
  *       FilePolicyTest asserts independently and which is what the
  *       mutations.json entries key off.
  *
- * THE ASSERTION BELOW IS A BET, NOT A FACT. There is no vendor/ in the
- * agent environment, so Livewire's model-hydration source could not be
- * read, and this item exists precisely because that fact was assumed once
- * already. A red here reading "expected 403, got 404" is this test doing
- * its job and IS the answer: flip it to assertNotFound(), record the result,
- * and do not reason around it. Neither outcome changes the guarantee above,
- * and neither changes whether the policy guards are correct.
+ * SETTLED, BY MEASUREMENT: it is 403. This test was written as an open bet
+ * -- there is no vendor/ in the agent environment, so Livewire's
+ * model-hydration source could not be read -- and CI answered it green on
+ * the first run, across five test jobs (PHP 8.4/8.5 x sqlite/pgsql/mysql).
+ *
+ * So Livewire's restoration does NOT apply the SoftDeletingScope: it hands
+ * $selectedFile back as the trashed model, renameFile() reaches
+ * $this->authorize('update', ...), and FilePolicy::update()'s trashed()
+ * guard is what refuses. Two things follow. Issue #116 was REACHABLE rather
+ * than theoretical -- a file trashed by another user between two of this
+ * user's requests really would have been renameable before this item. And
+ * replace()'s own trashed-file guard, which rested on this same unread
+ * fact, was correctly placed.
+ *
+ * Worth recording that the reasoning went the other way. Both the
+ * implementing worker and the design consult argued for 404, from the
+ * implicit-route-model-binding analogy and from newQueryForRestoration();
+ * the measurement says otherwise. That is the third time in this loop a
+ * plausible chain of reasoning about framework internals has been overturned
+ * by one CI run, and it is why this item was written to measure rather than
+ * argue.
+ *
+ * If this ever goes red reading "expected 403, got 404", that is a Livewire
+ * upgrade changing the answer -- a real finding about the framework, not a
+ * broken test. Record it, flip the assertion, and re-check that the
+ * guarantee test above still passes, because THAT is the security property;
+ * this one is the explanation.
  */
 it('settles whether Livewire restoration applies the SoftDeletingScope to a selected file', function () {
     $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
