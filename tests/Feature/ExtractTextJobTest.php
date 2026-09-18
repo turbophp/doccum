@@ -169,6 +169,61 @@ it('retries a storage read that fails once, rather than settling as failed', fun
     expect($text->status)->toBe(ExtractionStatus::Done);
 });
 
+/**
+ * issue #153, half two. A missing object is permanent, so this must not
+ * spend $tries/$backoff retrying it -- and CLAUDE.md's own trap applies
+ * directly: the test queue is synchronous, so a synchronous queue never
+ * retries ANYTHING, fixed or not, and the file_texts ROW this settles into
+ * is identical either way (see below). What differs is whether the job's
+ * own uncaught exception is allowed to escape dispatchSync() at all, which
+ * is the mechanism this asserts rather than the outcome.
+ *
+ * Storage::fake('documents') keeps this disk's real config.throw => true
+ * (Illuminate\Support\Facades\Storage::buildDiskConfiguration() only
+ * defaults it when the real disk does not set it), so the missing object
+ * comes out of readStream() as Flysystem's UnableToReadFile here too, the
+ * same signal production sees -- not a fake-disk artifact.
+ */
+it('treats a missing object as terminal instead of spending its retry budget on it', function () {
+    $file = storeText('a.txt', 'hello');
+    $version = $file->currentVersion;
+
+    // The upload above already dispatched ExtractText on the (still real)
+    // sync queue and settled a Done row while the object still existed.
+    // Clearing it, rather than suppressing that dispatch with Queue::fake(),
+    // is deliberate: Queue::fake() would also swallow the dispatchSync()
+    // below, and it is dispatchSync()'s real behaviour under the actual
+    // sync queue that this test needs to observe.
+    FileText::where('file_version_id', $version->id)->delete();
+
+    // The row still points at bytes that are gone -- the operator-restore-
+    // without-objects scenario issue #153 reaches through the queue rather
+    // than a download route (#134).
+    Storage::disk('documents')->delete($version->object_key);
+
+    // No wrapping expectation, on purpose: with the fix, handle() catches
+    // ObjectMissingFromStorage and calls $this->fail($e) itself, which
+    // marks the job failed and deletes it from the queue from INSIDE
+    // handle(), then handle() returns normally -- dispatchSync() must not
+    // throw here.
+    //
+    // Revert the fix and this line fails: the (bare, pre-#153)
+    // RuntimeException escapes handle() uncaught, and
+    // Illuminate\Queue\SyncQueue::handleException() -- which runs
+    // regardless of $tries, because a sync queue has no persisted attempt
+    // count to check it against -- marks the SAME job failed on that same
+    // first call and then rethrows it, so dispatchSync() throws. That is
+    // the only place a synchronous queue can show this: the file_texts row
+    // below is written by the identical failed() call either way, so
+    // asserting on IT would pass whether or not the fix is present, exactly
+    // the unfalsifiable shape CLAUDE.md and decision/0062 warn about.
+    ExtractText::dispatchSync($version);
+
+    $text = FileText::where('file_version_id', $version->id)->firstOrFail();
+    expect($text->status)->toBe(ExtractionStatus::Failed)
+        ->and($text->error)->toBe("Object [{$version->object_key}] was not found in storage.");
+});
+
 it('settles a genuinely unextractable document as failed on the first attempt', function () {
     // A damaged document is not a transient read: the extractor chain
     // reports Failed as a value and never throws, so this must settle on

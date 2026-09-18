@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\ObjectMissingFromStorage;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Services\DocumentStorage;
@@ -66,6 +67,26 @@ it('deletes objects', function () {
     $this->storage->delete($key);
 
     expect($this->storage->exists($key))->toBeFalse();
+});
+
+/**
+ * issue #153: downloadToTemp() is the path ExtractText uses, and had the
+ * identical shape readStream() had before #134 -- a bare RuntimeException
+ * for a missing object, indistinguishable from any other storage failure.
+ * The row and its current version both exist here; only the object behind
+ * them is gone, e.g. `/data` restored without `objects/`, mirrored the same
+ * way FileDownloadTest covers readStream(): put it, then delete it out from
+ * under the still-live row, rather than simply never writing it.
+ */
+it('throws the typed exception for downloadToTemp when the object is missing from storage', function () {
+    $file = File::factory()->create();
+    $version = FileVersion::factory()->for($file)->create(['object_key' => 'files/missing/v1/a.txt']);
+
+    Storage::disk('documents')->put($version->object_key, 'the bytes themselves');
+    Storage::disk('documents')->delete($version->object_key);
+
+    expect(fn () => $this->storage->downloadToTemp($version))
+        ->toThrow(ObjectMissingFromStorage::class, "Object [{$version->object_key}] was not found in storage.");
 });
 
 it('issues a temporary url for a version', function () {

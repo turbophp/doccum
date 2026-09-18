@@ -392,6 +392,13 @@
     "expectFailing": "test_an_unverified_user_cannot_delete_their_account"
   },
   {
+    "id": "extract-text-missing-object-terminal",
+    "why": "issue #153, half two: a missing object is permanent, so ExtractText::handle() must stop immediately rather than spend $tries/$backoff retrying bytes that are never coming back. $this->fail($e) is what makes that terminal AND visible -- it marks the job failed and deletes it from the queue from inside handle(), then invokes failed() with the SAME exception so file_texts.error names the missing object rather than whatever failure happens to hit next. Remove it (with the return that stops execution alongside it) and the catch swallows ObjectMissingFromStorage silently: $path is left unassigned, and the job falls through into extracting from an undefined path -- PlainTextExtractor::extract(string $path, ...) is declare(strict_types=1), so that throws a TypeError instead, which escapes handle() uncaught and propagates out of dispatchSync() rather than being caught and settled the way a missing object must be.",
+    "file": "app/Jobs/ExtractText.php",
+    "remove": "            $this->fail($e);\n\n            return;\n",
+    "expectFailing": "treats a missing object as terminal instead of spending its retry budget on it"
+  },
+  {
     "id": "mutation-check-filter-regex-escaped",
     "why": "issue #180: mutation-check.php's --filter is matched as a REGULAR EXPRESSION, but only escapeshellarg() -- a shell-layer escape -- was ever applied to it. An expectFailing containing a metacharacter ('()' on #179's `changes what can() answers in the same request once the permission cache is forgotten`) silently became a different pattern and matched the wrong test or none at all. buildFilterPattern() is written as a reassignment rather than a bare `return preg_quote(...)` precisely so this mutation leaves a function that still returns a string -- the unescaped one -- and the failure lands on the assertion about escaping instead of on a TypeError that would kill every test in the file regardless of what it asserts.",
     "file": ".github/scripts/mutation-check.php",
@@ -407,7 +414,7 @@
   },
   {
     "id": "mutation-check-no-junit-log-is-not-a-name-error",
-    "why": "issue #180: the whole point of counting <testcase> elements is to tell \"--filter matched nothing\" from \"a test ran and failed\". But a log that never arrived is neither -- it is no evidence at all. Remove the null branch and a missing or unparseable JUnit log is reported as \"matched no test\", which would blame all 58 entries for names each one spells correctly the moment --log-junit stopped working: the same misdiagnosis this issue exists to end, in a new costume.",
+    "why": "issue #180: the whole point of counting <testcase> elements is to tell \"--filter matched nothing\" from \"a test ran and failed\". But a log that never arrived is neither -- it is no evidence at all. Remove the null branch and a missing or unparseable JUnit log is reported as \"matched no test\", which would blame every entry in the manifest for names each one spells correctly the moment --log-junit stopped working: the same misdiagnosis this issue exists to end, in a new costume.",
     "file": ".github/scripts/mutation-check.php",
     "remove": "    if ($testCaseCount === null) {\n        return MUTATION_RUN_UNCLASSIFIABLE;\n    }\n\n",
     "expectFailing": "reports a run that produced no JUnit log as unclassifiable, not as a name error"
