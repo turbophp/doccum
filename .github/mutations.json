@@ -225,7 +225,7 @@
   },
   {
     "id": "directory-policy-manage-access-requires-permission",
-    "why": "item/directory-access-ui (issue #14): manageAccess() gates grant/revoke, and spec \u00a75 groups \"grant/revoke access, move or delete the directory itself\" as ONE capability -- move(), delete() and restore() all require directories.manage and this one did not. MEMBER_PERMISSIONS carries no directories.manage, and spec \u00a75 also says every user holds manage on their own home directory by ordinary grant, so without this layer every member could hand anyone any level on their own subtree while being refused the move and delete the same sentence groups with it. It was unreachable only because nothing in the UI called the ability; this item is what makes it live.",
+    "why": "item/directory-access-ui (issue #14): manageAccess() gates grant/revoke, and spec §5 groups \"grant/revoke access, move or delete the directory itself\" as ONE capability -- move(), delete() and restore() all require directories.manage and this one did not. MEMBER_PERMISSIONS carries no directories.manage, and spec §5 also says every user holds manage on their own home directory by ordinary grant, so without this layer every member could hand anyone any level on their own subtree while being refused the move and delete the same sentence groups with it. It was unreachable only because nothing in the UI called the ability; this item is what makes it live.",
     "file": "app/Policies/DirectoryPolicy.php",
     "remove": "            // The permission clause carries this comment INSIDE the return\n            // expression, and both facts are deliberate. Unique, because the\n            // clause alone is textually identical to the ones in restore()\n            // and delete() and mutation-check.php matches by substring, so a\n            // bare anchor would hit three sites and prove nothing about any\n            // of them. Inside, because deleting comment-plus-clause must\n            // leave `return $this->access->can(...)` -- valid code with the\n            // permission layer gone. Anchoring above the `return` would\n            // instead leave a statement with no return at all, and the\n            // mutation would \"fail\" as a TypeError, which tests that PHP has\n            // types rather than that this test catches a missing layer.\n            $user->can('directories.manage')\n            && ",
     "expectFailing": "requires BOTH directories.manage and a manage-level grant to grant access"
@@ -278,5 +278,12 @@
     "file": "app/Livewire/Home/Index.php",
     "remove": "                ->whereIn('directory_id', $viewable)\n",
     "expectFailing": "never lists another user's file in recents, asserted against the query result itself"
+  },
+  {
+    "id": "sidebar-home-carries-a-distinct-accessible-name",
+    "why": "item/home-dashboard (issue #16, folding issue #140): spec 10 names BOTH the topbar nav entry and the Files sidebar's pinned entry \"Home\", so two links on /files read the same to a screen reader. The sidebar entry keeps its visible text and carries aria-label=\"Home directory\", which CONTAINS that visible text so WCAG label-in-name still holds. Remove the attribute and the anchor's accessible name falls back to its text content -- \"Home\" -- and the collision is back. The doneWhen asks for this shown failing against main first; an entry here is stronger than a one-off demonstration, because guards re-proves it on every CI run rather than once.",
+    "file": "resources/views/livewire/files/browser.blade.php",
+    "remove": "\n                        aria-label=\"{{ __('Home directory') }}\"",
+    "expectFailing": "has exactly one link on /files with the accessible name \"Home\""
   }
 ]
