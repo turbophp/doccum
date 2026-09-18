@@ -807,6 +807,8 @@ final class LedgerValidator
      * referenceErrors()). Centralising it here means the "tolerate, don't
      * crash" behaviour lives in one place, and shapeErrors() is the one
      * place that actually reports the wrong shape as an error.
+     *
+     * @return list<string>
      */
     private static function stringList(mixed $value): array
     {
