@@ -76,7 +76,8 @@ it('shows every settings section an administrator holding all permissions can re
     $admin->assignRole('admin');
 
     expect($admin->can('properties.manage'))->toBeTrue()
-        ->and($admin->can('users.manage'))->toBeTrue();
+        ->and($admin->can('users.manage'))->toBeTrue()
+        ->and($admin->can('periods.manage'))->toBeTrue();
 
     $response = $this->actingAs($admin)->get(route('files.browse'));
 
@@ -84,9 +85,17 @@ it('shows every settings section an administrator holding all permissions can re
         ->assertSeeHtml('data-test="nav-settings"')
         ->assertSeeHtml('data-test="nav-settings-users"')
         ->assertSeeHtml('data-test="nav-settings-roles"')
+        // item/admin-periods (issue #20): added to the SAME test rather than
+        // isolated with a direct permission grant, on purpose -- see the
+        // comment above this test. Isolating periods.manage on its own is
+        // precisely the shape that hid the identical defect for Users and
+        // Roles: the admin role masks a chained @elsecan, and only a check
+        // that grants EVERY permission at once can catch that.
+        ->assertSeeHtml('data-test="nav-settings-periods"')
         ->assertSeeHtml(route('admin.properties'))
         ->assertSeeHtml(route('admin.users'))
-        ->assertSeeHtml(route('admin.roles'));
+        ->assertSeeHtml(route('admin.roles'))
+        ->assertSeeHtml(route('admin.periods'));
 });
 
 // Hiding the nav item is an affordance, not access control: strip the route's

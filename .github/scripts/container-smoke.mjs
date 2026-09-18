@@ -1068,7 +1068,11 @@ async function checkTopbar(page, phase) {
   //
   // Asserting the OTHER sections here is therefore not redundant with the
   // check above: nav-settings alone was visible throughout the defect.
-  for (const [section, testId] of [['Users', 'nav-settings-users'], ['Roles', 'nav-settings-roles']]) {
+  // item/admin-periods (issue #20): the SAME defect shape, once more -- see
+  // the note above. periods.manage is not held by users.manage or
+  // properties.manage, so an @elsecan chained onto either of those would
+  // have hidden this entry from the very administrator this smoke runs as.
+  for (const [section, testId] of [['Users', 'nav-settings-users'], ['Roles', 'nav-settings-roles'], ['Archive periods', 'nav-settings-periods']]) {
     try {
       await page.locator(`[data-test="${testId}"]`).waitFor({ state: 'visible', timeout: 10000 });
     } catch {
@@ -1082,7 +1086,7 @@ async function checkTopbar(page, phase) {
       );
     }
   }
-  console.log(`[${phase}] Users and Roles are reachable from the account menu too -- OK`);
+  console.log(`[${phase}] Users, Roles and Archive periods are reachable from the account menu too -- OK`);
 
   return logout;
 }
@@ -2686,6 +2690,121 @@ async function checkAdminRolesPage(page, phase) {
 }
 
 /**
+ * item/admin-periods (issue #20): closes a finished period through the real
+ * /admin/periods form and proves, via tinker, that the resulting
+ * ArchivePeriod row now exists and is archived -- CLAUDE.md's own rule,
+ * prefer an assertion that requires the feature to DO something over one
+ * that observes a resting state.
+ *
+ * The period closed here (2020-01) is a file dated into it through tinker,
+ * built by hand with File::create() rather than File::factory() --
+ * checkGrantAndRevokeDirectoryAccess()'s own note above gives the reason:
+ * fakerphp/faker is a require-dev dependency (composer.json) and is not
+ * autoloadable at all in this --no-dev image, so any ::factory() call
+ * fails here even though the feature suite can use it freely against the
+ * dev-installed vendor/ tree. Set up through tinker rather than through the
+ * upload UI, the same way checkTrashViewRestoreAndPurge() above trashes its
+ * targets through tinker to keep its own DOM interaction scoped to the page
+ * under test: this check is about closing a period, not uploading, and a
+ * real upload would be dated into the CURRENT month, which by definition
+ * has not ended.
+ *
+ * THE LOAD-BEARING ASSERTION (predicted, not proven here -- the mutation is
+ * run separately; see the task report): ARCHIVED:yes read back from the
+ * database immediately after the click. A broken `can:periods.manage` route
+ * guard or a mount()/method-level authorize() that never actually runs
+ * would 403 or silently no-op before PeriodCloser::close() is ever called;
+ * a Blade form whose wire:model bindings never reached $closeYear/
+ * $closeMonth would submit nothing PeriodCloser::close() could use; either
+ * way no ArchivePeriod row would exist, or archived_at would stay null,
+ * which is exactly what this reads.
+ *
+ * The DOM checks after it are confirmation only, never the proof, per the
+ * same rule: with no retention window configured (config/doccum.php's
+ * shipped default), the freshly archived 2020-01 period can never be
+ * purgeable, so the doneWhen's "the purge control is disabled ... and
+ * lists the blockers" has a real, deterministic case sitting right here to
+ * observe.
+ */
+async function checkAdminPeriodsPage(page, phase) {
+  console.log(`[${phase}] creating a file dated into the 2020-01 period through tinker, for /admin/periods to close`);
+
+  const createPhp = [
+    `$admin = \\App\\Models\\User::where('username', '${ADMIN_USERNAME}')->first();`,
+    "$dir = \\App\\Models\\Directory::where('home_user_id', $admin->id)->first();",
+    '$f = \\App\\Models\\File::create([',
+    "'directory_id' => $dir->id, 'name' => 'DoccumSmokePeriodTarget.txt',",
+    "'mime' => 'text/plain', 'size' => 10, 'checksum' => hash('sha256', 'doccum-smoke-period-target'),",
+    "'created_by' => $admin->id, 'period_year' => 2020, 'period_month' => 1,",
+    ']);',
+    "echo 'CREATED:' . ($f ? 'yes' : 'no');",
+  ].join(' ');
+
+  const createOutput = tinker(createPhp);
+  if (!createOutput.includes('CREATED:yes')) {
+    dumpContainerState(`[${phase}] could not create the scratch 2020-01 file for the admin periods check -- raw output: ${createOutput}`);
+    throw Object.assign(new Error('scratch 2020-01 file creation for the admin periods check failed'), { dumped: true });
+  }
+
+  function archivePeriodState() {
+    const php = [
+      "$p = \\App\\Models\\ArchivePeriod::where('year', 2020)->where('month', 1)->first();",
+      "echo 'ARCHIVED:' . ($p && $p->isArchived() ? 'yes' : 'no');",
+    ].join(' ');
+    return tinker(php);
+  }
+
+  const before = archivePeriodState();
+  if (/ARCHIVED:yes/.test(before)) {
+    dumpContainerState(`[${phase}] the 2020-01 period was already archived before the close form was submitted -- raw output: ${before}`);
+    throw Object.assign(new Error('2020-01 was already archived before this check ran'), { dumped: true });
+  }
+
+  console.log(`[${phase}] opening /admin/periods as the administrator`);
+  await page.goto(`${BASE_URL}/admin/periods`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="close-period-form"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  console.log(`[${phase}] closing 2020-01 through the real close-period form`);
+  // getByLabel(), not a data-test locator: flux:input renders a
+  // label/wrapper around the real <input>, and there is no precedent in
+  // this codebase for an attribute placed on flux:input landing on that
+  // inner element in the built image -- see the Blade view's own note.
+  await page.locator('[data-test="close-period-form"]').getByLabel('Year', { exact: true }).fill('2020');
+  await page.locator('[data-test="close-period-form"]').getByLabel('Month (optional -- leave blank for the whole year)', { exact: true }).fill('1');
+  await clickAndWaitForLivewire(page, page.locator('[data-test="close-period-button"]'));
+
+  const after = archivePeriodState();
+  if (!/ARCHIVED:yes/.test(after)) {
+    dumpContainerState(`[${phase}] closing 2020-01 through /admin/periods never archived it -- raw output: ${after}`);
+    throw Object.assign(new Error('2020-01 was not archived after closePeriod() through the real form'), { dumped: true });
+  }
+  console.log(`[${phase}] 2020-01 is archived after closing it through the real form -- OK`);
+
+  const row = page.locator('[data-test="period-row"][data-year="2020"][data-month="1"]');
+
+  try {
+    await row.locator('[data-test="period-status"]').filter({ hasText: 'Archived' }).waitFor({ timeout: 10000 });
+  } catch {
+    dumpContainerState(`[${phase}] the database confirms 2020-01 is archived, but its row never shows "Archived" on /admin/periods`);
+    throw Object.assign(new Error('period-status never showed Archived for 2020-01 after closing it'), { dumped: true });
+  }
+
+  // Confirmation only, per the docblock above.
+  const purgeButton = row.locator('[data-test="purge-period-button"]');
+  if (!(await purgeButton.isDisabled())) {
+    dumpContainerState(`[${phase}] the purge button for 2020-01 is NOT disabled even though no retention window is configured, so plan()->purgeable must be false`);
+    throw Object.assign(new Error('purge-period-button was enabled for a period that cannot be purgeable'), { dumped: true });
+  }
+
+  const blockersText = (await row.locator('[data-test="period-blockers"]').innerText()).trim();
+  if (!blockersText.includes('retention window')) {
+    dumpContainerState(`[${phase}] 2020-01's blockers list does not mention the retention window -- raw text: "${blockersText}"`);
+    throw Object.assign(new Error('period-blockers did not list the missing-retention-window blocker'), { dumped: true });
+  }
+  console.log(`[${phase}] the purge control is disabled and lists the retention-window blocker for 2020-01 -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -2948,6 +3067,9 @@ async function runSetup() {
 
     console.log('[setup] toggling a role permission through /admin/roles and checking the last-administrator guard on a role edit (issue #19)');
     await checkAdminRolesPage(page, 'setup');
+
+    console.log('[setup] closing a period through /admin/periods and checking the purge control is disabled and lists its blockers (issue #20)');
+    await checkAdminPeriodsPage(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();
