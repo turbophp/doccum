@@ -133,6 +133,19 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
     'app/Search/SearchIndex.php' => 'The word "LIKE" appears only in a docblock explaining LikeSearchIndex\'s relationship to '.
         'this interface -- prose, not a query. Not actually driver-dependent; registered because '.
         'the grep cannot tell the difference.',
+    'app/Actions/Fortify/AuthenticateUser.php' => 'No raw SQL and no LIKE. The grep matches mb_strtolower(), which is PHP\'s own '.
+        'case folding rather than the database\'s -- and that is the point: the identifier is '.
+        'folded IN PHP before the lookup, so neither the username nor the email comparison '.
+        'depends on a column collation that differs across the three drivers. PostgreSQL would '.
+        'compare case-sensitively where SQLite and MySQL would not; folding first makes the '.
+        'question never arise. See item/email-folding (issue #59) and item/login-by-username '.
+        '(issue #75).',
+    'app/Models/User.php' => 'Same shape, one layer down: booted() folds email through EmailKey and the username '.
+        'through mb_strtolower() on every save, so the stored value is already folded and no '.
+        'comparison anywhere relies on a driver\'s collation to match case. The grep matches the '.
+        'PHP function, not a query. The username hook also raises UsernameWouldBeAmbiguous on an '.
+        '@ -- not a portability concern, but it lives in the same closure, so a reader arriving '.
+        'here from this inventory should know why.',
     'app/Actions/Directories/MoveDirectory.php' => 'Two raw DB::statement() calls rewriting `path` and recomputing `depth` with REPLACE() and '.
         'LENGTH() -- called out in the surrounding comment as "the one expression that behaves '.
         'identically on SQLite, MySQL, and Postgres\", so this is raw SQL by choice, not a raw SQL '.
