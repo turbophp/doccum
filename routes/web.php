@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Http\Controllers\DirectoryArchiveDownloadController;
 use App\Http\Controllers\FileDownloadController;
 use App\Http\Controllers\FileVersionDownloadController;
 use App\Livewire\Admin\PropertyDefinitions;
+use App\Livewire\Admin\Users;
 use App\Livewire\Files\Browser;
 use App\Livewire\Home\Index as Home;
 use App\Livewire\Search\Results;
@@ -60,6 +63,10 @@ Route::livewire('/trash', Trash::class)
 Route::livewire('admin/properties', PropertyDefinitions::class)
     ->middleware(['auth', 'can:properties.manage'])
     ->name('admin.properties');
+
+Route::livewire('admin/users', Users::class)
+    ->middleware(['auth', 'can:users.manage'])
+    ->name('admin.users');
 
 require __DIR__.'/settings.php';
 

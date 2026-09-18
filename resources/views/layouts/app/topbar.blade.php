@@ -180,8 +180,28 @@
                             {{ __('Password & sessions') }}
                         </flux:menu.item>
 
+                        {{--
+                            Spec 10: Settings covers several sections (users and
+                            role assignment, roles and permissions, property
+                            definitions, archive periods, instance settings),
+                            "Each section gated by its Spatie permission" -- so
+                            an admin holding ONLY users.manage, and not
+                            properties.manage, must still have a way in. Gating
+                            the single entry on ONE section's permission hides
+                            Settings from exactly that admin. properties.manage
+                            is checked first only because it was the original
+                            check's section; nothing depends on that order.
+                        --}}
                         @can('properties.manage')
                             <flux:menu.item :href="route('admin.properties')" icon="cog-6-tooth" wire:navigate data-test="nav-settings">
+                                {{ __('Settings') }}
+                            </flux:menu.item>
+                        @elsecan('users.manage')
+                            {{-- Its own data-test, not "nav-settings", so a check
+                                 logging in as a users.manage-only account can tell
+                                 it reached THIS entry rather than merely that some
+                                 Settings entry exists. --}}
+                            <flux:menu.item :href="route('admin.users')" icon="cog-6-tooth" wire:navigate data-test="nav-settings-users">
                                 {{ __('Settings') }}
                             </flux:menu.item>
                         @endcan
