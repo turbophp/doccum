@@ -59,6 +59,25 @@ instance: storage settings, users, roles and permissions. Bring `APP_KEY` with
 it — encrypted settings and two-factor secrets are sealed with it, and doccum
 will tell you plainly if it does not match rather than starting half-working.
 
+## Image size
+
+The image's size is measured on every build and, once a figure is on record,
+CI fails a build that grows past it (`.github/scripts/image-size.sh`,
+gated in `.github/workflows/tests.yml`'s `image` job and printed again by
+`.github/workflows/release.yml`). Two numbers, each a ratchet on its own:
+
+| | Uncompressed | Compressed |
+|---|---|---|
+| Size | TBD | TBD |
+| Measured at commit | TBD | TBD |
+
+These are `TBD` because no build of this image has run yet in the
+environment that wrote this file — the first CI run that measures the image
+fills in both numbers and the commit they came from, replacing this
+placeholder. "Compressed" is a gzip of the whole `docker save` tarball, not
+what a registry pull downloads; see the script for why that distinction
+matters.
+
 ## Recovering
 
 | Situation | Command |

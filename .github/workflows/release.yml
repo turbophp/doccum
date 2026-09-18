@@ -132,6 +132,34 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # item/measure-image-size (issue #30), decision/0087. This job's own
+      # build-push-action run above uses push: true with no `load:`, so the
+      # image it just built was never loaded into this runner's local
+      # docker -- only pushed. `docker image inspect` and `docker save`
+      # (what image-size.sh needs) both require a local image, so one of
+      # the tags actually pushed (steps.meta.outputs.tags, the exact list
+      # handed to build-push-action's `tags:` above -- not a
+      # semver-specific output, so this also works on a workflow_dispatch
+      # run where only the `latest` raw tag applies) is pulled back down.
+      # `docker pull` with no `--platform` resolves to the runner's own
+      # platform (linux/amd64, same as the amd64 leg tests.yml's `image`
+      # job already measured and gated for this exact commit as part of
+      # the `verify` job above), not the multi-platform manifest list that
+      # tag actually names.
+      #
+      # This is the actual place in this workflow that sees a built,
+      # inspectable image -- the `image` job is the only one that builds
+      # anything, and `release` (below) only ever touches CHANGELOG.md.
+      - name: Pull the pushed image back down to measure it
+        run: |
+          set -euo pipefail
+          tag="$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -n1)"
+          echo "PULLED_TAG=${tag}" >> "$GITHUB_ENV"
+          docker pull "$tag"
+
+      - name: Print (and, once a budget is recorded, gate) image size
+        run: .github/scripts/image-size.sh "$PULLED_TAG"
+
   # item/changelog-release-notes (issue #31): a pushed tag is also supposed
   # to produce a GitHub Release, body taken verbatim from that version's
   # CHANGELOG.md section. Split from the `image` job (needs: image) so a

@@ -519,6 +519,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # item/measure-image-size (issue #30), decision/0087: measures the
+      # image just built and, once .github/image-budget.json holds a
+      # recorded figure (it starts as the sentinel "UNMEASURED"), gates on
+      # it -- so every PR both prints and enforces this, not just the
+      # release build. See .github/scripts/image-size.sh for what "gates"
+      # means precisely and why the two numbers are not registry pull size.
+      - name: Measure and gate image size
+        run: .github/scripts/image-size.sh doccum:ci
+
       # This is the check CLAUDE.md's Docker section is really about: image
       # build runs `composer dump-autoload`, which runs `package:discover`,
       # with no database in the image at all. A container that boots and

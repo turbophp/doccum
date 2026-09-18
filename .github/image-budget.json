@@ -1,0 +1,6 @@
+{
+  "uncompressedBytes": 0,
+  "compressedBytes": 0,
+  "measuredAtCommit": "UNMEASURED",
+  "note": "Sentinel values. Nobody writing this file could build the image in that environment (egress policy blocks composer/npm registries and docker build), so the real numbers are not guessed here -- see decision/0087, which was written against exactly that failure mode. The first CI run of .github/scripts/image-size.sh against a built image prints the real uncompressedBytes and compressedBytes; copy those two numbers and the commit SHA of that run into this file by hand. Once measuredAtCommit is no longer \"UNMEASURED\", image-size.sh gates: any later run whose measured size exceeds either recorded figure fails. Raising a recorded figure back up requires a Decision saying why."
+}
