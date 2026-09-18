@@ -1668,7 +1668,13 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-  await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).click();
+
+  // Through the row, not the name. Clicking a file's NAME opens it in the
+  // preview dialog now, and this check wants the detail panel BEHIND that
+  // dialog: with the preview open, trash-file-button resolves but never
+  // becomes actionable, because a scrim is over it. Selecting exactly one row
+  // populates the same panel without opening anything.
+  await clickFileRow(page, TRASH_CHECK_FILE_NAME);
 
   const trashButton = page.locator('[data-test="trash-file-button"]');
   await trashButton.waitFor({ state: 'visible', timeout: 10000 });
