@@ -3031,8 +3031,12 @@ async function checkStaleUserReachesTheApp(browser, phase) {
 
     if (pathname !== '/dashboard') {
       dumpContainerState(
-        `[${phase}] the user seeded with email_verified_at NULL before the replacement is ${describeLanding(page)} `
-        + 'instead of /dashboard after logging in -- '
+        // describeLanding() already ends in "instead of the page this was
+        // asked for" on a verification bounce, so naming /dashboard again
+        // after it produced "instead of ... instead of /dashboard" in the
+        // mutation run. The route this asked for is stated up front instead.
+        `[${phase}] the user seeded with email_verified_at NULL before the replacement, `
+        + `asked for /dashboard after logging in and ${describeLanding(page)} -- `
         + (pathname === VERIFICATION_NOTICE_PATH
           ? 'the backfill migration did not reach this row across the replacement, so it is stranded exactly the way issue #210 describes'
           : 'landed somewhere neither this check nor the login flow expected'),
