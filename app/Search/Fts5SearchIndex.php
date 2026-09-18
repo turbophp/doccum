@@ -46,8 +46,28 @@ class Fts5SearchIndex implements SearchIndex
             return new Collection;
         }
 
-        $placeholders = implode(',', array_fill(0, count($viewableDirectoryIds), '?'));
-        $bindings = [$match, ...array_values($viewableDirectoryIds)];
+        // The permission predicate and the bindings that feed it are built
+        // TOGETHER, in one contiguous block, and both start empty above it.
+        // That shape is for mutations.json: removing the block leaves
+        // `$permission = ''` and `$permissionBindings = []`, so the query is
+        // still VALID SQL and simply stops restricting by directory -- it
+        // returns rows the viewer cannot reach, which is a real leak a test
+        // can catch.
+        //
+        // Built any other way, the two halves are not removable together: an
+        // entry that deletes only the SQL fragment leaves the directory ids
+        // in $bindings, the placeholder count desyncs, and SQLite throws. The
+        // guard would then "fail when removed" by proving that SQLite counts
+        // placeholders, not that this predicate keeps unreachable documents
+        // out. DirectoryPolicy's entry carries the same reasoning for a
+        // policy clause, and this is the search-side twin of it.
+        $permission = '';
+        $permissionBindings = [];
+
+        $permission = ' AND d.directory_id IN ('.implode(',', array_fill(0, count($viewableDirectoryIds), '?')).')';
+        $permissionBindings = array_values($viewableDirectoryIds);
+
+        $bindings = [$match, ...$permissionBindings];
 
         $where = '';
         foreach (['period_year', 'period_month', 'mime', 'extension', 'subject_type'] as $filter) {
@@ -86,8 +106,7 @@ class Fts5SearchIndex implements SearchIndex
             'SELECT d.id, bm25(search_index, '.self::TITLE_WEIGHT.', '.self::BODY_WEIGHT.') AS score
              FROM search_index
              JOIN search_documents d ON d.id = search_index.rowid
-             WHERE search_index MATCH ?
-               AND d.directory_id IN ('.$placeholders.')'.$where.'
+             WHERE search_index MATCH ?'.$permission.$where.'
              ORDER BY score ASC
              LIMIT ?',
             $bindings,
