@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T00:35:00Z",
-  "latestRun": "run/0017",
+  "dateModified": "2026-09-18T00:45:00Z",
+  "latestRun": "run/0018",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -536,15 +536,38 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "The container smoke carries request, requestfailed, response, console and pageerror listeners plus Livewire's upload events, and one instrumented run distinguishes the three bugs this has been treated as one of: never sent, sent and failed, or sent and answered with the state lost. Diagnosis is time-boxed to two CI rounds. Whether or not the cause is named, the operator gets recourse: a form that has not completed an upload within a stated interval re-enables its control and says so, instead of leaving a dead button with no error. If the cause is not named, it is filed as post-v1 with what the instrumented run did show.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-18T00:14:00Z",
+      "endTime": "2026-09-18T00:33:15Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/129"
+      ]
+    },
+    {
+      "@id": "item/file-policy-trashed-file-guards",
+      "@type": "Action",
+      "order": 26,
+      "name": "FilePolicy states, for every ability, whether an independently trashed file is refused",
+      "url": "https://github.com/turbophp/doccum/issues/116",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/file-policy-null-directory",
+        "item/files-versions-replace"
+      ],
+      "doneWhen": "Every FilePolicy ability states its posture on a file trashed on its own in a LIVE directory, rather than three postures existing by accident: replace() refuses, update()/move()/legalHold() do not, and delete()/restore()/purge() deliberately must not. update(), move() and legalHold() refuse a trashed file; a FilePolicyTest case covers each; each carries a mutations.json entry. The reachability question is SETTLED rather than assumed -- a Livewire::test() case selects a file, trashes it out of band, calls renameFile() and asserts WHICH guard refused (403 from the policy, not 404 from a scoped restoration query), so the verdict says whether Livewire's restoration applies the SoftDeletingScope; that answer is recorded either way, because it is the same fact replace()'s guard rests on.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
       "endTime": null,
-      "result": []
+      "result": null
     },
     {
       "@id": "item/files-three-pane",
       "@type": "Action",
-      "order": 26,
+      "order": 27,
       "name": "Tree sidebar rooted at the viewer reach, and a real breadcrumb",
       "url": "https://github.com/turbophp/doccum/issues/104",
       "isBasedOn": [
@@ -564,7 +587,7 @@
     {
       "@id": "item/directory-access-ui",
       "@type": "Action",
-      "order": 27,
+      "order": 28,
       "name": "Grant and revoke directory access from the UI",
       "url": "https://github.com/turbophp/doccum/issues/14",
       "isBasedOn": [
@@ -584,7 +607,7 @@
     {
       "@id": "item/trash-view",
       "@type": "Action",
-      "order": 28,
+      "order": 29,
       "name": "A Trash page with restore and purge",
       "url": "https://github.com/turbophp/doccum/issues/15",
       "isBasedOn": [
@@ -607,7 +630,7 @@
     {
       "@id": "item/home-dashboard",
       "@type": "Action",
-      "order": 29,
+      "order": 30,
       "name": "Home dashboard: recents, storage by period, quick search",
       "url": "https://github.com/turbophp/doccum/issues/16",
       "isBasedOn": [
@@ -627,7 +650,7 @@
     {
       "@id": "item/search-filters",
       "@type": "Action",
-      "order": 30,
+      "order": 31,
       "name": "Type, mime, period and property filters on search",
       "url": "https://github.com/turbophp/doccum/issues/17",
       "isBasedOn": [
@@ -645,9 +668,29 @@
       "result": []
     },
     {
+      "@id": "item/login-by-username",
+      "@type": "Action",
+      "order": 32,
+      "name": "Login accepts a username as well as an email, as spec 10 says",
+      "url": "https://github.com/turbophp/doccum/issues/75",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/email-folding"
+      ],
+      "doneWhen": "Login resolves an identifier that is either a username or an email through AuthenticateUser, which today compares by email alone; the collision rule is decided and stated (a value that is a valid username AND some other account's email); login.blade.php stops using type=\"email\" on the identifier field, which rejects a username in the browser before any of this is reached; tests cover login by each, and the docblock claim in AuthenticateUser that this is 'tracked as its own item' becomes true.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": null
+    },
+    {
       "@id": "item/admin-users",
       "@type": "Action",
-      "order": 31,
+      "order": 33,
       "name": "Settings: users",
       "url": "https://github.com/turbophp/doccum/issues/18",
       "isBasedOn": [
@@ -667,7 +710,7 @@
     {
       "@id": "item/admin-roles",
       "@type": "Action",
-      "order": 32,
+      "order": 34,
       "name": "Settings: roles and their permission matrix",
       "url": "https://github.com/turbophp/doccum/issues/19",
       "isBasedOn": [
@@ -687,7 +730,7 @@
     {
       "@id": "item/admin-periods",
       "@type": "Action",
-      "order": 33,
+      "order": 35,
       "name": "Settings: periods, closing, purge plan and purge",
       "url": "https://github.com/turbophp/doccum/issues/20",
       "isBasedOn": [
@@ -708,7 +751,7 @@
     {
       "@id": "item/admin-instance-settings",
       "@type": "Action",
-      "order": 34,
+      "order": 36,
       "name": "Settings: instance name, signup, retention, limits",
       "url": "https://github.com/turbophp/doccum/issues/21",
       "isBasedOn": [
@@ -728,7 +771,7 @@
     {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
-      "order": 35,
+      "order": 37,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -748,7 +791,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 36,
+      "order": 38,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -771,7 +814,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 37,
+      "order": 39,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -791,7 +834,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 38,
+      "order": 40,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -811,7 +854,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 39,
+      "order": 41,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -832,7 +875,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 40,
+      "order": 42,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -852,7 +895,7 @@
     {
       "@id": "item/compose-secret",
       "@type": "Action",
-      "order": 41,
+      "order": 43,
       "name": "Remove the known-value secret from compose.yaml",
       "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
@@ -870,7 +913,7 @@
     {
       "@id": "item/version-from-tag",
       "@type": "Action",
-      "order": 42,
+      "order": 44,
       "name": "The version pill reports the released tag",
       "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
@@ -888,7 +931,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 43,
+      "order": 45,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -906,7 +949,7 @@
     {
       "@id": "item/changelog-release-notes",
       "@type": "Action",
-      "order": 44,
+      "order": 46,
       "name": "A changelog that becomes the release notes",
       "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
@@ -924,7 +967,7 @@
     {
       "@id": "item/release-v0-1-0",
       "@type": "Action",
-      "order": 45,
+      "order": 47,
       "name": "Tag v0.1.0 to prove the release pipeline",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
@@ -946,7 +989,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 46,
+      "order": 48,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -968,7 +1011,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 47,
+      "order": 49,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -999,7 +1042,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 48,
+      "order": 50,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -1885,12 +1928,12 @@
         "item/upload-silent-discard"
       ],
       "run": "run/0017",
-      "state": "open",
+      "state": "merged",
       "dateCreated": "2026-09-18T00:14:00Z",
       "headSha": "c75a3a87416b6985ccc9b7aad00c0a347c7bdca3",
-      "mergedAt": null,
-      "mergeSha": null,
-      "mergedIn": null
+      "mergedAt": "2026-09-18T00:33:15Z",
+      "mergeSha": "35679215ac5feb5c4fc2328cdd3cd0615f28781e",
+      "mergedIn": "run/0017"
     },
     {
       "@id": "https://github.com/turbophp/doccum/pull/130",
@@ -1901,7 +1944,7 @@
         "item/upload-silent-discard"
       ],
       "run": "run/0017",
-      "state": "open",
+      "state": "closed",
       "dateCreated": "2026-09-18T00:40:00Z",
       "headSha": "a9a0fedbcc2d0d2cf15cacc80b635cc88ecc87fd",
       "mergedAt": null,
@@ -2411,6 +2454,28 @@
       "supersedes": [
         "decision/0026"
       ]
+    },
+    {
+      "@id": "decision/0031",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T00:45:00Z",
+      "run": "run/0018",
+      "name": "The consult on run/0017: two new items, three folded into existing doneWhen, one ledger field taken",
+      "rationale": "Step 8's consult, with every factual claim checked in the tree before it was acted on -- the loop's recorded failure mode is substituting reading for running, and a consultant cannot run anything here either.\n\nTAKEN, and it is the most valuable thing in either run. The verify phase asserted \"object storage persisted\" from page.getByText(FILE_NAME), which is a listing row out of /data/doccum.sqlite; the search assertion on the next line is SQLite too; and checkDownloadReturnsTheUploadedBytes() was called in setup only. Nothing in verify had ever fetched a byte from /data/objects. A replacement container coming back with objects emptied, minio.env lost, or the bucket gone -- DocumentStorage::ensureBucket() is lazy -- passed green while printing the opposite of what it measured, and Dockerfile:85 records the mirror of that failure, which verify DID catch because that direction is visible to a database read. Confirmed at container-smoke.mjs:1846 before acting. This is the topbar lesson in CLAUDE.md again, and it is worse than the topbar case, because there the assertion was merely weak while here the log line named a subsystem the assertion could not reach. Belongs to item/container-smoke-ci; the mutation is on the volume rather than the application, since the claim is about the volume: empty /data/objects between the two containers and require the SQLite assertions to stay green while only the new one reddens, because an undifferentiated red would prove nothing about which check saw what.\n\nTAKEN. Issue 116 becomes item 26, ahead of the remaining UI work. The consult's ordering argument was reachability; the better argument, which neither of us led with, is consistency: replace() refuses a trashed file, update(), move() and legalHold() do not, and delete(), restore() and purge() deliberately must not. Three postures, one of them documented, and a reader cannot tell which applies without reading each method. The case AGAINST was put and is real -- the window needs a second editor trashing the file between two of the first's requests, the actor already holds edit on the directory so nothing is exposed, and restore undoes a rename -- and it loses only because the item is an S and item 26 was going to be the loop's largest remaining piece of UI. The reachability question cannot be settled here, since it is a property of livewire/livewire that needs vendor/, so the item requires the test to assert WHICH guard refused (403 from the policy, not 404 from a scoped restoration query) and to record the answer either way. That is the first concrete use of run/0017's own untaken remedy against over-determination, which is the failure behind all three of this loop's false mutation proofs.\n\nTAKEN. Issue 75 becomes an item. AuthenticateUser's docblock states that accepting a username \"is tracked as its own item rather than folded in here\", and no item mentioned username at all -- checked by grep over the ledger. A spec 10 clause was owned by nobody while the code asserted otherwise, and item/v1-audit sits one place before the tag with no slack to fix anything, which is decision/0029's argument repeating. login.blade.php:18 is type=\"email\", so the input rejects a username before any of this is reached; that is part of the item.\n\nDECLINED, folded into existing doneWhen instead of becoming items. Issue 115 (no StoreFileVersion::replace() entry point) is compensated at Browser.php:239 and gains a second caller only at item/api-presigned-upload, so it goes in that item's doneWhen. Issue 109 (404 vs 403 on move destinations) is not fixable in moveFile() alone: routes/web.php route-binds {directory} and Browser::mount() authorises after, so the URL already distinguishes absent from unreachable and FileBrowserTest asserts exactly that -- it is a policy for the whole surface and belongs in a Decision when the API item starts, not a patch to one method. Issue 86 (force-deleting a directory orphans objects) is latent: nothing in app/ force-deletes a directory, and the first item that could add the caller is item/trash-view, so it goes in that item's doneWhen. Recording these as folded rather than as items is the point -- three issues that each looked like work are one line each in someone else's acceptance criteria.\n\nLEDGER VOCABULARY. An Issue node type is declined: every item already carries url, and a node would mirror GitHub state the validator cannot check, so it would rot silently. Issue 74's miss was triage, not schema, and the remedy is a LOOP.md step-1 line -- list open issues whose URL no item carries, and dispose of each. mutations[] on PullRequest is wanted, as {id, guardsRun} where id must exist in .github/mutations.json, because the validator can check that and it makes \"the guards job is the only admissible evidence for a mutation claim\" mechanical rather than a habit. mainRun on Run is wanted for the same reason, as a run URL rather than a timestamp: run/0016 narrates a red main in prose and nothing structured says whether it ended green, and \"main is green\" is the one claim this loop has already broken once. ciRounds is declined -- a count without a cause is not insight. Capping Decision rationale is declined, and decision/0030 is the argument: the defect in decision/0026 was a SHORT claim that had never been observed, not a long one. name carries the one-line claim; rationale stays free.",
+      "isBasedOn": [
+        "spec:5-access-control",
+        "spec:10-user-facing-surface",
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/container-smoke-ci",
+        "item/file-policy-trashed-file-guards",
+        "item/login-by-username",
+        "item/api-presigned-upload",
+        "item/trash-view",
+        "item/v1-audit"
+      ],
+      "supersedes": null
     }
   ]
 }
