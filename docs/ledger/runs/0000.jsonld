@@ -11,5 +11,295 @@
   "commit": "2ef04dd5dcdded140d36f1807a7f1e0bc4337248",
   "tests": 386,
   "assertions": 818,
-  "description": "Baseline at handover. Seeded the backlog to v1.0.0 from the Fable consultation, recorded the four scope decisions that cut semantic search, vision OCR, a ranked PostgreSQL index and directory-level legal hold to post-v1. No code changed in this run."
+  "description": "Baseline at handover. Seeded the backlog to v1.0.0 from the Fable consultation, recorded the four scope decisions that cut semantic search, vision OCR, a ranked PostgreSQL index and directory-level legal hold to post-v1. No code changed in this run.",
+  "merges": [
+    {
+      "mergeSha": "23e9b947b03a746676fe75a5dfd171444893b705",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T13:02:59Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "843c5addf4128787c0db2a2c20083627d34ec614",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T13:36:42Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "2fe65913be8ee610bf8ec094fdbec253f8c1270b",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T13:38:28Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "a6fdcce5c95ad652e043f5717f3e85a94e928b00",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T13:42:19Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "aca1c2c29d61b355ce4fe98e075a7c09e9170991",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T14:14:26Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "89007268665448aa2d685c19b7ee0a77a280a608",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T14:19:54Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "7496c1ba83bffa61d7ee55feedb6e13babf3fbdd",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T14:40:21Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "533248709ffcf3393a0a6c9e2f004d803f8548f9",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T14:44:24Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "3d352863b40ab3903db549d4122c14145fe13a04",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T15:32:22Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "17f26e0a7bbbc65bda5d5ddba483f1857618de80",
+      "pullRequest": null,
+      "mergedAt": "2026-09-15T15:34:43Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "61083fdb94ea8cfb10e06d210a815c9bf4323751",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T05:40:12Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "e1511ce6a7469ab623bd4cb51f2a339e13967ef6",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T05:55:11Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "417de7331cbf2cf4eba3e6d4a96cfa7922cf6b02",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:05:51Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "452f7b629d3d008f5d89b29bedf3f539d7453d1d",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:24:10Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "31cda592c617f9a3e14ad7edd16cd1e135d00698",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:31:28Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "ae2dddbd9b4906e8f5725964fe0e40d0e090c4e3",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:38:21Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "414f933f7cd0c820d26857ba3e345fa62ca4c897",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:41:53Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "86dbe8849b30cde0d0eb07e9544b74f9572a3ca0",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:42:36Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "57b94b7c176163d4af0fed3eadf983bfc8c5f3f8",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:45:47Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "b198ebd96db891f544fe2607a57076093859a17b",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:47:38Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "2ad2322a45a9d485323aa86d4282cec49f2dae4c",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:48:06Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "41378e3681d469abacd01a315373c15ea33b765c",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T06:53:03Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "ef5b2e681c3e556bf6922e32811c5b29388ff269",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T07:35:03Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "43405f1d838ce984e23aa75f25b38ce34655ede6",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T09:06:31Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "09f73cace1aae3ea3e7e232cf19cdfb835b32ea9",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T09:54:55Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "17f5b1eb9a16cde3deb35ab2c72484bfd862a310",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T10:19:22Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "a1ee6e55479182c574888b2d31683e75625fbe55",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T10:20:59Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "00ac3cd9db231249a876598c8049ae7199ed850d",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T16:18:59Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "72d579b81fb2b8b939b5f0a4bff3efe2f041ca04",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T16:28:45Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35122699267",
+      "testsConclusion": "failure",
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "205025afd95fa9f06dff38d86185cd5d8934db95",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T16:40:27Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "c3972f9d23eb5faaed0975e547f02135d5014318",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T16:41:55Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35123543805",
+      "testsConclusion": "failure",
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    },
+    {
+      "mergeSha": "2ef04dd5dcdded140d36f1807a7f1e0bc4337248",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T16:42:10Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35123572231",
+      "testsConclusion": "failure",
+      "ledgerRun": null,
+      "ledgerConclusion": null
+    }
+  ]
 }

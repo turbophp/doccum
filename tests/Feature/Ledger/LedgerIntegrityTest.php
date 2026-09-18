@@ -118,6 +118,18 @@ it('every isBasedOn anchor matches a real heading in the design spec', function 
     expect(ledgerErrorsTagged('spec-anchor:'))->toBe([]);
 });
 
+it('has no main-push history to check without a git fact, and this call supplies none', function () {
+    // item/ledger-main-push-record (issue #172): LedgerValidator stays
+    // framework-free and file-only, so it never shells out to git itself --
+    // ledgerValidationErrors() above calls validate() with no third
+    // argument, exactly as a caller with no git fact must. Only the CLI
+    // wrapper (.github/scripts/validate-ledger.php) supplies one, from
+    // `git log --first-parent`, and MainPushMergesRulesTest.php proves the
+    // rule fires once a fact IS supplied. This assertion is never expected
+    // to fail; it documents that this caller's own contract is to skip it.
+    expect(ledgerErrorsTagged('history:'))->toBe([]);
+});
+
 it('is fully sound end to end', function () {
     // A safety net: catches any error LedgerValidator might one day emit
     // under a category tag not asserted individually above.

@@ -65,7 +65,11 @@
     "check": "check",
     "verdict": "verdict",
     "evidence": { "@id": "evidence", "@type": "@id", "@container": "@set" },
-    "mainRunUrl": { "@id": "mainRunUrl", "@type": "@id" },
-    "mainConclusion": "mainConclusion"
+
+    "merges": { "@id": "merges", "@container": "@list" },
+    "testsRun": { "@id": "testsRun", "@type": "@id" },
+    "testsConclusion": "testsConclusion",
+    "ledgerRun": { "@id": "ledgerRun", "@type": "@id" },
+    "ledgerConclusion": "ledgerConclusion"
   }
 }

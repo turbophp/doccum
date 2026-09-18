@@ -90,6 +90,7 @@ function makeDuplicateIdFixture(array $items): string
         'tests' => 1,
         'assertions' => 1,
         'description' => 'Fixture baseline run.',
+        'merges' => [],
     ];
     writeDuplicateIdFixtureFile($dir.'/runs/0000.jsonld', $run0);
 

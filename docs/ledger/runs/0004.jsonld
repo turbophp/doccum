@@ -14,5 +14,34 @@
   "commit": "6b293b40109827e69858d7804792b161554de0af",
   "tests": 426,
   "assertions": 889,
-  "description": "PHP 8.5 passes on all three databases, so the base-image bump merged on evidence rather than on a green that only proved the container boots. The container smoke test went green after its first run failed at search -- not on a wrong selector, but because ExtractText flips file_texts.status to done and only then dispatches the reindex as a separate queued job, so extraction finishing precedes the document being findable by up to the queue worker's three-second idle poll; the test now waits for the index instead of assuming the two are the same moment. ci-db-matrix is recorded complete without new work: the matrix is green on all three drivers, the FTS5 migration is explicitly guarded off SQLite, and the LikeSearchIndex path is covered -- it is what caught the PostgreSQL case-sensitivity bug. The hourly loop was also re-armed as a durable Routine after the session-only cron died with a session restart."
+  "description": "PHP 8.5 passes on all three databases, so the base-image bump merged on evidence rather than on a green that only proved the container boots. The container smoke test went green after its first run failed at search -- not on a wrong selector, but because ExtractText flips file_texts.status to done and only then dispatches the reindex as a separate queued job, so extraction finishing precedes the document being findable by up to the queue worker's three-second idle poll; the test now waits for the index instead of assuming the two are the same moment. ci-db-matrix is recorded complete without new work: the matrix is green on all three drivers, the FTS5 migration is explicitly guarded off SQLite, and the LikeSearchIndex path is covered -- it is what caught the PostgreSQL case-sensitivity bug. The hourly loop was also re-armed as a durable Routine after the session-only cron died with a session restart.",
+  "merges": [
+    {
+      "mergeSha": "90f2ca951a03b355ab2da900e63eb23b359af09b",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T05:43:38Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35186872131",
+      "testsConclusion": "cancelled",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35186872118",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "001eff06eb81af4342a126ba4f57503450be4cbb",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T05:44:14Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35186911811",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35186911812",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "6b293b40109827e69858d7804792b161554de0af",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/44",
+      "mergedAt": "2026-09-17T06:45:00Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35191233684",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35191233774",
+      "ledgerConclusion": "success"
+    }
+  ]
 }

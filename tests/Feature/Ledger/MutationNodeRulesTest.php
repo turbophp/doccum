@@ -21,13 +21,21 @@ use App\Support\LedgerValidator;
 |   - a "small" one (runs/0000-0001) for the two rules that apply at any
 |     run number: Mutation.check required on a negative verdict, and an
 |     un-superseded positive/void Mutation blocking its item's Completion.
-|   - a "run/0019" one (runs/0000-0019) for the two rules gated behind
+|   - a "run/0019" one (runs/0000-0019) for the rule gated behind
 |     LedgerValidator::MUTATION_RULES_EFFECTIVE_AFTER_RUN (18): a Completed
-|     spec:10 item needs a negative Mutation, and a completed run's merged
-|     PullRequests need mainConclusion. The constant is private, so its
-|     value (18) is asserted against directly here rather than referenced;
-|     a future change to it will fail these tests loudly rather than
-|     silently stop proving anything.
+|     spec:10 item needs a negative Mutation. The constant is private, so
+|     its value (18) is asserted against directly here rather than
+|     referenced; a future change to it will fail these tests loudly rather
+|     than silently stop proving anything.
+|
+| Both fixtures carry a Run.merges entry for their PullRequest, because
+| item/ledger-main-push-record (issue #172) made that required (rule 1: a
+| merged PR's mergeSha must be in its mergedIn run's merges) -- Run.merges'
+| own rules, including the one this file used to cover here (a completed
+| run's merged PRs needing what was PullRequest.mainConclusion, now
+| Run.merges[].testsConclusion/ledgerConclusion), are proven in
+| tests/Feature/Ledger/MainPushMergesRulesTest.php instead, since
+| mainConclusion/mainRunUrl no longer exist on PullRequest at all.
 |
 | docs/ is dockerignored (see CLAUDE.md), so the design spec these fixtures
 | cite via isBasedOn (spec:10-user-facing-surface) may not exist in a
@@ -87,6 +95,7 @@ function makeSmallMutationFixture(array $mutations, string $itemId = 'item/small
         'tests' => 1,
         'assertions' => 1,
         'description' => 'Fixture baseline run.',
+        'merges' => [],
     ];
     $run1 = [
         '@context' => '../context.jsonld',
@@ -98,10 +107,22 @@ function makeSmallMutationFixture(array $mutations, string $itemId = 'item/small
         'endTime' => '2030-01-01T03:00:00Z',
         'outcome' => 'completed',
         'touched' => [$itemId],
-        'commit' => str_repeat('b', 40),
+        'commit' => str_repeat('d', 40),
         'tests' => 1,
         'assertions' => 1,
         'description' => 'Fixture run that completes the item under test.',
+        // item/ledger-main-push-record (issue #172): a merged PR's mergeSha
+        // must be in its mergedIn run's merges, and Run.commit is the last
+        // entry's mergeSha -- both satisfied by this one entry.
+        'merges' => [[
+            'mergeSha' => str_repeat('d', 40),
+            'pullRequest' => $prUrl,
+            'mergedAt' => '2030-01-01T02:30:00Z',
+            'testsRun' => null,
+            'testsConclusion' => 'success',
+            'ledgerRun' => null,
+            'ledgerConclusion' => 'success',
+        ]],
     ];
     writeMutationFixtureFile($dir.'/runs/0000.jsonld', $run0);
     writeMutationFixtureFile($dir.'/runs/0001.jsonld', $run1);
@@ -160,8 +181,17 @@ function makeSmallMutationFixture(array $mutations, string $itemId = 'item/small
     return $dir;
 }
 
-/** @return string the fixture directory's path */
-function makeRunThresholdMutationFixture(array $mutations, ?string $mainConclusion, string $itemId = 'item/threshold-widget', ?string $mainRunUrl = null): string
+/**
+ * $testsConclusion/$testsRun feed the last run's one Run.merges entry (see
+ * item/ledger-main-push-record, issue #172) -- this fixture used to put
+ * them on the PullRequest node as mainConclusion/mainRunUrl, before those
+ * fields moved to Run.merges. Only this file's surviving test (the spec:10
+ * negative-Mutation rule) still calls this helper; the rules Run.merges
+ * itself introduced are proven in MainPushMergesRulesTest.php instead.
+ *
+ * @return string the fixture directory's path
+ */
+function makeRunThresholdMutationFixture(array $mutations, ?string $testsConclusion, string $itemId = 'item/threshold-widget', ?string $testsRun = null): string
 {
     $dir = sys_get_temp_dir().'/ledger-fixture-'.bin2hex(random_bytes(8));
     mkdir($dir.'/runs', 0777, true);
@@ -203,12 +233,13 @@ function makeRunThresholdMutationFixture(array $mutations, ?string $mainConclusi
             'tests' => 1,
             'assertions' => 1,
             'description' => sprintf('Fixture filler run %d.', $n),
+            'merges' => [],
         ];
-        writeMutationFixtureFile($dir.sprintf('/runs/%04d.jsonld', $n), $runsById[$n]);
     }
 
     $lastRunId = sprintf('run/%04d', $lastRunNumber);
     $lastRun = $runsById[$lastRunNumber];
+    $mergeSha = str_repeat('d', 40);
 
     $pullRequest = [
         '@id' => $prUrl,
@@ -218,17 +249,31 @@ function makeRunThresholdMutationFixture(array $mutations, ?string $mainConclusi
         'dateCreated' => $lastRun['startTime'],
         'state' => 'merged',
         'headSha' => str_repeat('c', 40),
-        'mergeSha' => str_repeat('d', 40),
+        'mergeSha' => $mergeSha,
         'mergedAt' => $lastRun['endTime'],
         'run' => $lastRunId,
         'mergedIn' => $lastRunId,
         'implements' => [$itemId],
     ];
-    if ($mainConclusion !== null) {
-        $pullRequest['mainConclusion'] = $mainConclusion;
-    }
-    if ($mainRunUrl !== null) {
-        $pullRequest['mainRunUrl'] = $mainRunUrl;
+
+    // item/ledger-main-push-record (issue #172): a merged PR's mergeSha
+    // must be in its mergedIn run's merges, and Run.commit is the last
+    // entry's mergeSha -- both satisfied by this one entry, which also
+    // carries what used to be PullRequest.mainConclusion/mainRunUrl.
+    $lastRun['merges'] = [[
+        'mergeSha' => $mergeSha,
+        'pullRequest' => $prUrl,
+        'mergedAt' => $lastRun['endTime'],
+        'testsRun' => $testsRun,
+        'testsConclusion' => $testsConclusion,
+        'ledgerRun' => null,
+        'ledgerConclusion' => 'success',
+    ]];
+    $lastRun['commit'] = $mergeSha;
+    $runsById[$lastRunNumber] = $lastRun;
+
+    foreach ($runsById as $n => $run) {
+        writeMutationFixtureFile($dir.sprintf('/runs/%04d.jsonld', $n), $run);
     }
 
     $ledger = [
@@ -402,7 +447,7 @@ it('requires a negative Mutation for a Completed spec:10 item once its run is pa
         'supersedes' => null,
     ];
 
-    $dir = makeRunThresholdMutationFixture([$negative], mainConclusion: 'success');
+    $dir = makeRunThresholdMutationFixture([$negative], testsConclusion: 'success');
     try {
         expect(LedgerValidator::validate($dir, specPathForMutationTests()))->toBe([]);
     } finally {
@@ -410,7 +455,7 @@ it('requires a negative Mutation for a Completed spec:10 item once its run is pa
     }
 
     // Mutation-check: delete the only Mutation node, watch the rule catch it.
-    $dir = makeRunThresholdMutationFixture([], mainConclusion: 'success');
+    $dir = makeRunThresholdMutationFixture([], testsConclusion: 'success');
     try {
         $errors = LedgerValidator::validate($dir, specPathForMutationTests());
         expect($errors)->toContain("status: Action 'item/threshold-widget' is Completed and based on spec:10, but no negative Mutation with a non-empty check implements it.");
@@ -420,7 +465,7 @@ it('requires a negative Mutation for a Completed spec:10 item once its run is pa
 
     // A positive verdict does not count as evidence either, even with a check.
     $positive = [...$negative, 'verdict' => 'positive', 'supersedes' => null];
-    $dir = makeRunThresholdMutationFixture([$positive], mainConclusion: 'success');
+    $dir = makeRunThresholdMutationFixture([$positive], testsConclusion: 'success');
     try {
         $errors = LedgerValidator::validate($dir, specPathForMutationTests());
         expect($errors)->toContain("status: Action 'item/threshold-widget' is Completed and based on spec:10, but no negative Mutation with a non-empty check implements it.");
@@ -429,7 +474,7 @@ it('requires a negative Mutation for a Completed spec:10 item once its run is pa
     }
 
     // Restore: the negative Mutation with its check present is sound again.
-    $dir = makeRunThresholdMutationFixture([$negative], mainConclusion: 'success');
+    $dir = makeRunThresholdMutationFixture([$negative], testsConclusion: 'success');
     try {
         expect(LedgerValidator::validate($dir, specPathForMutationTests()))->toBe([]);
     } finally {
@@ -437,119 +482,3 @@ it('requires a negative Mutation for a Completed spec:10 item once its run is pa
     }
 });
 
-// -- Rule: a completed run's merged PRs need mainConclusion (run > 18) ----
-
-it('blocks a completed run past the effective threshold while a merged PullRequest lacks mainConclusion', function () {
-    $negative = [
-        '@id' => 'mutation/0001',
-        '@type' => 'Mutation',
-        'implements' => ['item/threshold-widget'],
-        'pullRequest' => 'https://github.com/turbophp/doccum/pull/9002',
-        'run' => sprintf('run/%04d', MUTATION_RULES_EFFECTIVE_AFTER_RUN_UNDER_TEST + 1),
-        'headSha' => str_repeat('e', 40),
-        'mutant' => 'Fixture mutant.',
-        'check' => 'FixtureTest > it proves the fixture',
-        'verdict' => 'negative',
-        'supersedes' => null,
-    ];
-    $lastRunId = sprintf('run/%04d', MUTATION_RULES_EFFECTIVE_AFTER_RUN_UNDER_TEST + 1);
-
-    $dir = makeRunThresholdMutationFixture([$negative], mainConclusion: 'success');
-    try {
-        expect(LedgerValidator::validate($dir, specPathForMutationTests()))->toBe([]);
-    } finally {
-        removeMutationFixture($dir);
-    }
-
-    // Mutation-check: drop mainConclusion, watch the rule catch the
-    // completed run carrying a merged PR that never says how main went.
-    $dir = makeRunThresholdMutationFixture([$negative], mainConclusion: null);
-    try {
-        $errors = LedgerValidator::validate($dir, specPathForMutationTests());
-        expect($errors)->toContain("run: '$lastRunId' has outcome completed but merged PullRequest 'https://github.com/turbophp/doccum/pull/9002' lacks mainConclusion.");
-    } finally {
-        removeMutationFixture($dir);
-    }
-
-    // Restore: mainConclusion present makes it sound again.
-    $dir = makeRunThresholdMutationFixture([$negative], mainConclusion: 'failure');
-    try {
-        expect(LedgerValidator::validate($dir, specPathForMutationTests()))->toBe([]);
-    } finally {
-        removeMutationFixture($dir);
-    }
-});
-
-// -- Rule: mainConclusion and mainRunUrl are checked for shape -------------
-
-it('rejects a mainConclusion GitHub never returns and a mainRunUrl pointing somewhere other than this repository', function () {
-    // Both branches these assertions cover -- LedgerValidator's
-    // mainConclusion enum check and its mainRunUrl pattern check -- shipped
-    // with item/ledger-mutation-nodes and then sat unexecuted: the fields
-    // were vocabulary populated on ZERO nodes, so neither branch had ever
-    // run against real data OR against a fixture. They were unfalsifiable
-    // code that looked like validation.
-    //
-    // The change that populates the fields for the first time is the change
-    // that makes them live, so it is the one that owes them a test --
-    // decision/0034's rule, applied to a validator rather than a Policy.
-    $negative = [
-        '@id' => 'mutation/0001',
-        '@type' => 'Mutation',
-        'implements' => ['item/threshold-widget'],
-        'pullRequest' => 'https://github.com/turbophp/doccum/pull/9002',
-        'run' => sprintf('run/%04d', MUTATION_RULES_EFFECTIVE_AFTER_RUN_UNDER_TEST + 1),
-        'headSha' => str_repeat('e', 40),
-        'mutant' => 'Fixture mutant.',
-        'check' => 'FixtureTest > it proves the fixture',
-        'verdict' => 'negative',
-        'supersedes' => null,
-    ];
-
-    // 'green' is what someone would reasonably write by hand. GitHub's API
-    // does not use it -- the conclusion is 'success' -- and a value invented
-    // at the keyboard is exactly what the enum exists to refuse.
-    $dir = makeRunThresholdMutationFixture([$negative], mainConclusion: 'green');
-    try {
-        $errors = LedgerValidator::validate($dir, specPathForMutationTests());
-        expect($errors)->toContain(
-            "enum: PullRequest 'https://github.com/turbophp/doccum/pull/9002'.mainConclusion = 'green'"
-            .' is not a known GitHub workflow-run conclusion.'
-        );
-    } finally {
-        removeMutationFixture($dir);
-    }
-
-    // A well-formed Actions run URL for the WRONG repository. The pattern
-    // pins the owner and repo deliberately: a run url is only evidence about
-    // this project's main branch, and one borrowed from a fork or another
-    // repository would read as evidence while proving nothing here.
-    $dir = makeRunThresholdMutationFixture(
-        [$negative],
-        mainConclusion: 'success',
-        mainRunUrl: 'https://github.com/someone-else/doccum/actions/runs/35320262780',
-    );
-    try {
-        $errors = LedgerValidator::validate($dir, specPathForMutationTests());
-        expect($errors)->toContain(
-            "enum: PullRequest 'https://github.com/turbophp/doccum/pull/9002'.mainRunUrl ="
-            ." 'https://github.com/someone-else/doccum/actions/runs/35320262780'"
-            .' is not a turbophp/doccum Actions run URL.'
-        );
-    } finally {
-        removeMutationFixture($dir);
-    }
-
-    // Restore: the real shape of both fields, as this run's own merges carry
-    // them, validates clean.
-    $dir = makeRunThresholdMutationFixture(
-        [$negative],
-        mainConclusion: 'success',
-        mainRunUrl: 'https://github.com/turbophp/doccum/actions/runs/35320262780',
-    );
-    try {
-        expect(LedgerValidator::validate($dir, specPathForMutationTests()))->toBe([]);
-    } finally {
-        removeMutationFixture($dir);
-    }
-});
