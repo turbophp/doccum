@@ -518,6 +518,14 @@ jobs:
         run: |
           set -e
           docker rm -f doccum-smoke
+
+          # MUTATION -- DO NOT MERGE. Destroys object storage on the volume
+          # while leaving the SQLite database untouched, so the verify phase
+          # meets a container whose file rows all survive and whose bytes are
+          # all gone. The listing and search assertions must stay GREEN and
+          # the new download assertion must go RED.
+          docker run --rm -v doccum-ci:/data alpine rm -rf /data/objects
+
           docker run -d --name doccum-smoke -v doccum-ci:/data -p 8080:8080 doccum:ci
 
           ok=false
