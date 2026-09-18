@@ -84,7 +84,7 @@ it('surfaces a not-yet-ended period as an error rather than throwing', function 
 });
 
 it('refuses to purge a period when purgeable is false even though the request asks for it', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     $period = archivedPeriod(2020, 3);
     // A legal hold is the blocker: the period IS archived and past its
     // retention window, but plan()->purgeable must still be false.
@@ -101,7 +101,7 @@ it('refuses to purge a period when purgeable is false even though the request as
 });
 
 it('refuses to purge a period when the confirmation text does not exactly equal the label', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     $period = archivedPeriod(2020, 3);
     periodFile(2020, 3);
 
@@ -117,7 +117,7 @@ it('refuses to purge a period when the confirmation text does not exactly equal 
 });
 
 it('purges a purgeable period when the exact label is typed', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     $period = archivedPeriod(2020, 3);
     periodFile(2020, 3);
 

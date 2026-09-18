@@ -5,15 +5,20 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Services\PeriodPurger;
+use App\Services\Settings;
 use Illuminate\Console\Command;
 
 /**
  * Purges every period that has aged out of the retention window.
  *
- * Reports and deletes nothing unless doccum.retention.auto_purge is on.
- * Scheduled deletion is opt-in because nobody is watching when it runs, and
- * an instance that was never configured for retention must not be the one
+ * Reports and deletes nothing unless retention.auto_purge is on. Scheduled
+ * deletion is opt-in because nobody is watching when it runs, and an
+ * instance that was never configured for retention must not be the one
  * that starts deleting.
+ *
+ * Both retention values are read through Settings::get(), never config()
+ * directly -- see App\Services\PeriodPurger's own docblock for why: this
+ * command must see the same value the settings page just wrote.
  */
 class PurgeExpired extends Command
 {
@@ -21,9 +26,9 @@ class PurgeExpired extends Command
 
     protected $description = 'Purge every period past the retention window, if automatic purging is enabled';
 
-    public function handle(PeriodPurger $purger): int
+    public function handle(PeriodPurger $purger, Settings $settings): int
     {
-        if (config('doccum.retention.purge_after_years') === null) {
+        if ($settings->get('retention.purge_after_years') === null) {
             $this->components->info('No retention window is configured. Nothing to do.');
 
             return self::SUCCESS;
@@ -37,7 +42,7 @@ class PurgeExpired extends Command
             return self::SUCCESS;
         }
 
-        $auto = (bool) config('doccum.retention.auto_purge');
+        $auto = (bool) $settings->get('retention.auto_purge');
 
         foreach ($expired as $period) {
             $year = (int) $period->year;

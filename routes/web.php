@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\DirectoryArchiveDownloadController;
 use App\Http\Controllers\FileDownloadController;
 use App\Http\Controllers\FileVersionDownloadController;
+use App\Livewire\Admin\InstanceSettings;
 use App\Livewire\Admin\Periods;
 use App\Livewire\Admin\PropertyDefinitions;
 use App\Livewire\Admin\Roles;
@@ -84,6 +85,13 @@ Route::livewire('admin/roles', Roles::class)
 Route::livewire('admin/periods', Periods::class)
     ->middleware(['auth', 'can:periods.manage'])
     ->name('admin.periods');
+
+// item/admin-instance-settings (issue #21): gated on the SAME permission as
+// admin.users and admin.roles, not a new settings.manage -- see
+// App\Livewire\Admin\InstanceSettings's own docblock for why.
+Route::livewire('admin/settings', InstanceSettings::class)
+    ->middleware(['auth', 'can:users.manage'])
+    ->name('admin.settings');
 
 require __DIR__.'/settings.php';
 

@@ -46,11 +46,14 @@ and is meant to be executed by an agent; read `CLAUDE.md` first.
 
 **Purging is built.** All four tasks of the archive plan are done.
 `PeriodPurger::plan()` answers "what would this destroy" without writing;
-`purge()` refuses unless the period is archived, has aged past
-`doccum.retention.purge_after_years`, and holds nothing under legal hold — and
+`purge()` refuses unless the period is archived, has aged past the
+`retention.purge_after_years` setting, and holds nothing under legal hold — and
 a refusal names every blocker, not just the first. `doccum:purge-period` is a
 dry run without `--force`; `doccum:purge-expired` reports and deletes nothing
-unless `doccum.retention.auto_purge` is switched on.
+unless the `retention.auto_purge` setting is switched on. Both are read through
+`Settings::get()` and are editable from Settings → Instance settings; they moved
+under `config('doccum.settings')` in item/admin-instance-settings, so reading
+them with `config('doccum.retention.*')` now silently returns null.
 
 Development now runs as an hourly autonomous loop to a tagged `v1.0.0`. The
 protocol is `docs/LOOP.md`; the state of the road is `docs/ledger/ledger.jsonld`.

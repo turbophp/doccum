@@ -11,7 +11,7 @@ it('ships product defaults in config', function () {
         ->and(config('doccum.settings.directories.auto_home'))->toBeTrue()
         ->and(config('doccum.settings.instance.name'))->toBe('doccum')
         ->and(config('doccum.extraction.scanned_pdf_threshold'))->toBe(100)
-        ->and(config('doccum.retention.auto_purge'))->toBeFalse();
+        ->and(config('doccum.settings.retention.auto_purge'))->toBeFalse();
 });
 
 it('defines a documents disk backed by s3', function () {

@@ -65,7 +65,7 @@ it('allows a caller with both periods.manage and directory access', function () 
 
 it('makes PeriodPurger::plan name the held file as a blocker end to end', function () {
     $this->travelTo('2026-06-01');
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
 
     ArchivePeriod::factory()->create([
         'year' => 2020, 'month' => 3, 'archived_at' => now()->subYears(3),
