@@ -58,6 +58,9 @@ class PurgeFile
 
     public function handle(File $file): void
     {
+        // MUTATION: purge is a no-op, so the row survives forceDelete.
+        return;
+
         if ($file->legal_hold) {
             throw FileUnderLegalHold::for((int) $file->getKey(), (string) $file->name);
         }
