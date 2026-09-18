@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T18:10:00Z",
+  "dateModified": "2026-09-18T18:35:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1073,10 +1073,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "A CHANGELOG.md exists, follows one stated format, and release.yml turns the section for the tag being released into that release's notes. TWO FACTS THE ORIGINAL CLAUSE ASSUMED AND THE REPOSITORY DOES NOT HAVE. There is no CHANGELOG.md at all. And release.yml CREATES NO GITHUB RELEASE -- it logs in to ghcr, runs docker/metadata-action and docker/build-push-action, and stops; there is no softprops/action-gh-release, no `gh release create`, nothing that produces a Release object for a body to be attached to. 'Pushing a tag produces a GitHub Release whose body is that version's changelog section' therefore described machinery that does not exist, which is why it is restated here, before the work, per decision/0068. WHAT THIS ITEM CAN PROVE, and must: the extraction is a real function with real inputs, so it is testable without pushing anything. Done when a committed CHANGELOG.md carries at least an Unreleased section and a 0.1.0 section; when a small script (or equivalent step) extracts exactly one version's section by name; when release.yml calls it and passes the result as the release body; and when CI exercises the extractor directly against the committed file for a version that exists and one that does not. THE FAILURE MODE THIS IS REALLY GUARDING, because it is silent: an extractor that finds no matching section emits an EMPTY body and the release publishes successfully with blank notes. Nobody notices until a user reads the release page. So the extractor MUST exit non-zero on a missing or empty section rather than returning empty, and the CI check must assert that, not merely assert the happy path. MUTATION per decision/0067: make the extractor return empty instead of failing, and the check must go red. An extractor whose only test is the section that exists proves nothing about the case that will actually happen -- somebody tagging a version they forgot to write notes for. WHAT THIS ITEM CANNOT PROVE, and does not claim: that pushing a real tag produces a real Release with that body. release.yml has never run (git tag is empty, decision/0075), and no check here starts it. That end-to-end proof belongs to item/release-v0-1-0, which cuts a throwaway pre-release tag -- the same place the ungated-pipeline fix, the arm64 boot and item/version-from-tag's tag-to-label link all land. See decision/0081.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-18T18:00:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-18T18:29:39Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/228"
+      ]
     },
     {
       "@id": "item/release-v0-1-0",
@@ -3146,6 +3148,22 @@
       "mergedAt": "2026-09-18T17:53:36Z",
       "mergeSha": "a2a864a095403043f1a299dc5e9ddcc04a6e61de",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/228",
+      "@type": "PullRequest",
+      "identifier": 228,
+      "name": "A changelog that becomes the release notes",
+      "implements": [
+        "item/changelog-release-notes"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T18:21:13Z",
+      "headSha": "d76710119f75731716a9e3f6c34466d094b602dd",
+      "mergedAt": "2026-09-18T18:29:39Z",
+      "mergeSha": "3db1faa17cb43e4b41024a3cbefbad09ed444d9d",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4487,6 +4505,23 @@
         "item/version-from-tag"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0082",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T18:35:00Z",
+      "run": "run/0020",
+      "name": "A guard can be silently wrong about the exact property it guards, and only another machine can tell you",
+      "rationale": "changelog-section.sh exists to be trustworthy about ONE thing: whether a changelog section is empty, so release.yml never publishes blank notes. Its first version built an ERE containing [[:space:]] in a shell variable and handed it to awk as a DYNAMIC regex. GNU grep -E honoured the class, so the heading check passed; the awk on GitHub's runners did not, so the body scan matched nothing.\n\nThe output was not a crash and not 'no such section'. It was:\n  changelog-section: '## [0.1.0]' section in CHANGELOG.md has an empty body\nfor a section with 41 lines in it. THE GUARD WAS CONFIDENTLY WRONG ABOUT PRECISELY THE PROPERTY IT WAS BUILT TO CERTIFY. Had the tag path been the first thing to exercise it, the release would have failed by refusing to publish notes that existed -- and the error message would have sent whoever investigated to look at the changelog, which was fine, rather than at the extractor, which was not.\n\nWHY NO CARE ON THIS MACHINE COULD HAVE FOUND IT: mawk 1.3.4 20240123 here accepts POSIX classes in a dynamic regex. The implementing pass ran the extractor in both directions and ran its mutation, honestly and correctly, and all of it passed. So did my independent re-run. Two careful agents, the same blind spot, because a dialect difference is invisible to every execution on one host.\n\nTHE RULE: for a guard whose whole value is a narrow factual claim, prefer a construction with no implementation-defined surface over a more expressive one that has to behave identically everywhere. The rewrite uses literal prefix comparison and an explicit first-character check -- no regex at any matching step -- and awk exit codes mapped to messages in bash. It is duller and it cannot disagree with itself across hosts.\n\nTHE COROLLARY, which is the operational half: local verification and mutation are necessary and are not sufficient for anything whose behaviour depends on the host's tools. CI is not a formality to be satisfied after the real checking; for this class of change it is the only place the checking happens at all. That is worth stating because this environment CANNOT run the test suite, which makes it tempting to treat a thorough local pass as equivalent evidence. It is not.\n\nAlso recorded from the same review, a different trap with the same signature -- correct habit, wrong result: the action pin. softprops/action-gh-release v3.0.3 is an ANNOTATED tag, so `git ls-remote --tags` prints the tag object first and the commit only on the ^{} line. This repo's existing pin (actions/checkout v7.0.1) is a LIGHTWEIGHT tag where the single printed SHA IS the commit, so copying the habit that works there produces a tag-object SHA, which `uses: owner/repo@<sha>` does not resolve. Resolve with `git ls-remote --tags <repo> | grep '\\^{}'`. It would have surfaced first at the actual v1 release, since release.yml has never run.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/changelog-release-notes",
+        "item/release-v0-1-0",
+        "item/container-smoke-ci"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -4795,6 +4830,20 @@
       "headSha": "1b576c0e3f41d571b5ca63d5604fda7c1d1dcc44",
       "mutant": "Built the smoke image with DOCCUM_VERSION=9.9.9, so org.opencontainers.image.version reads 9.9.9, while starting the container with -e DOCCUM_VERSION=1.2.3, so config('doccum.version') reads 1.2.3. The image itself is unchanged; the two sources are forced apart at run time.",
       "check": "container-smoke.mjs checkTopbar(). The image job failed AT THE NAMED CHECK AND NOWHERE ELSE -- the installer, the first-administrator verification and the /dashboard reach all passed, and the failure lands on the first checkTopbar call: 'container-smoke (setup) failed: version mismatch across sources -- pill: \"v1.2.3\", config('doccum.version'): \"1.2.3\", org.opencontainers.image.version label: \"9.9.9\"'. That matches, VERBATIM, the prediction recorded in the PR body before the run. THE POINT, and the reason this mutation was chosen over a simpler one: the OLD check would have passed this scenario happily, because it compared the pill against config('doccum.version') only and both read 1.2.3 -- agreeing with each other while the image was labelled something else entirely. The third source is what makes the disagreement visible at all. Run https://github.com/turbophp/doccum/actions/runs/35376591005.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0023",
+      "@type": "Mutation",
+      "implements": [
+        "item/changelog-release-notes"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/228",
+      "run": "run/0020",
+      "headSha": "d76710119f75731716a9e3f6c34466d094b602dd",
+      "mutant": "Made changelog-section.sh return empty and exit 0 on both failure paths -- no matching heading, and a heading whose body is blank -- instead of exiting non-zero. That is the silent defect the item was written against: release.yml would publish a GitHub Release with blank notes, successfully.",
+      "check": "The changelog-section job in tests.yml. Run locally against the real script rather than in CI, because the extractor is a script and not an image, and re-run independently during review rather than taken from the implementing pass's report. MUTATED: the missing-version assertion got exit 0 with empty output where it requires non-zero, so the check fails. THE RESULT WORTH KEEPING is which half bit: under the same mutation the HAPPY-PATH assertion still passed. Only the missing-version case catches it. An extractor tested solely on the section that exists proves nothing about the case that will actually happen -- somebody tagging a version whose notes they forgot to write. Restored byte-identical afterwards, confirmed with cmp, and the restored script exits 1 on the missing version again.",
       "verdict": "negative",
       "supersedes": null
     }
