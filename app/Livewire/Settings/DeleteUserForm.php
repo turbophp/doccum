@@ -8,6 +8,7 @@ use App\Concerns\PasswordValidationRules;
 use App\Exceptions\LastAdministratorMustRemain;
 use App\Livewire\Actions\Logout;
 use App\Support\LastAdministrator;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -27,6 +28,23 @@ class DeleteUserForm extends Component
         ]);
 
         $user = Auth::user();
+
+        // item/email-verification-decided (issue #161): App\Livewire\
+        // Settings\Profile::showDeleteUser() hides the button that reaches
+        // this method for an unverified user, but a hidden control is a
+        // courtesy, not a guard, if the action it hides is still reachable
+        // directly -- Livewire::test('settings.delete-user-form') does
+        // exactly that in tests/Feature/Settings/ProfileUpdateTest.php, and
+        // the account menu's own history (decision/0051, decision/0057)
+        // already records this same defect once. The refusal belongs HERE,
+        // the one place nothing routes around, surfaced through the same
+        // error bag key the last-administrator refusal below uses rather
+        // than left to become a 500.
+        if ($user instanceof MustVerifyEmail && ! $user->hasVerifiedEmail()) {
+            $this->addError('password', __('Verify your email address before deleting your account.'));
+
+            return;
+        }
 
         // The ORDER here is not a style choice and must not be "tidied".
         //

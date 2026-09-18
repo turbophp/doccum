@@ -5,6 +5,13 @@ use App\Livewire\Settings\Profile;
 use App\Livewire\Settings\Security;
 use Illuminate\Support\Facades\Route;
 
+// item/email-verification-decided (issue #161): deliberately `auth` alone,
+// not `verified` -- the other half of the split routes/web.php's own
+// comment describes. An unverified user must still reach this page: it is
+// where App\Livewire\Settings\Profile's resend-verification banner lives,
+// and where they fix an email address they mistyped at registration.
+// Gating the one place that can get an unverified account unstuck would BE
+// the lockout this whole design exists to avoid.
 Route::middleware(['auth'])->group(function () {
     Route::redirect('settings', 'settings/profile');
 

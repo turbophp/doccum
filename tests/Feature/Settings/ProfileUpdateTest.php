@@ -172,6 +172,27 @@ class ProfileUpdateTest extends TestCase
         $this->assertFalse(auth()->check());
     }
 
+    // item/email-verification-decided (issue #161): Profile::showDeleteUser()
+    // only hides the delete-account button for an unverified user -- it does
+    // not, by itself, stop the request. This proves the refusal is real by
+    // calling deleteUser() directly, the same way the button's own click
+    // would, bypassing whatever the button's visibility decided.
+    public function test_an_unverified_user_cannot_delete_their_account(): void
+    {
+        $user = User::factory()->unverified()->create();
+
+        $this->actingAs($user);
+
+        $response = Livewire::test('settings.delete-user-form')
+            ->set('password', 'password')
+            ->call('deleteUser');
+
+        $response->assertHasErrors(['password']);
+
+        $this->assertNotNull($user->fresh());
+        $this->assertTrue(auth()->check());
+    }
+
     public function test_correct_password_must_be_provided_to_delete_account(): void
     {
         $user = User::factory()->create();

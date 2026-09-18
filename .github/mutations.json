@@ -383,5 +383,12 @@
     "file": "app/Models/User.php",
     "remove": "MustVerifyEmail, ",
     "expectFailing": "test_an_unverified_user_is_redirected_away_from_a_verified_route"
+  },
+  {
+    "id": "delete-user-form-refuses-unverified",
+    "why": "issue #161: App\\Livewire\\Settings\\Profile::showDeleteUser() hides the delete-account button for an unverified user, but hiding a control is a courtesy, not a guard, when the action it hides is still reachable directly -- Livewire::test('settings.delete-user-form') reaches deleteUser() with no button in between. Without this check an unverified user (including one who just changed their own email, the exact case this item's design creates) could still delete their account.",
+    "file": "app/Livewire/Settings/DeleteUserForm.php",
+    "remove": "        if ($user instanceof MustVerifyEmail && ! $user->hasVerifiedEmail()) {\n            $this->addError('password', __('Verify your email address before deleting your account.'));\n\n            return;\n        }\n\n",
+    "expectFailing": "test_an_unverified_user_cannot_delete_their_account"
   }
 ]
