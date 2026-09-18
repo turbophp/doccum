@@ -618,6 +618,15 @@ jobs:
             echo "SMOKE_ADMIN_PASSWORD=Doccum-Smoke-${RUN_ID}!Aa9"
             echo "SMOKE_FILE_NAME=smoke-${RUN_ID}.txt"
             echo "SMOKE_FILE_MARKER=smokeword${DIGITS}"
+            # item/upgrade-preserves-access (issue #210): a second account,
+            # created directly against the database by the "Seed pre-upgrade
+            # rows" step below (never through the installer or /register),
+            # so it needs its own credentials rather than reusing the
+            # admin's. Same username charset constraint as SMOKE_ADMIN_USERNAME
+            # above.
+            echo "SMOKE_STALE_USER_USERNAME=stalesmoke${DIGITS}"
+            echo "SMOKE_STALE_USER_EMAIL=stale-${RUN_ID}@example.test"
+            echo "SMOKE_STALE_USER_PASSWORD=Doccum-Smoke-Stale-${RUN_ID}!Aa9"
             # A host that is obviously not the one curl/tinker actually
             # connect to (127.0.0.1:8080) -- if it shows up in a response
             # or a generated URL, that can only be because X-Forwarded-Host
@@ -687,6 +696,38 @@ jobs:
             exit 1
           fi
           echo "at least one asset URL is https on the forwarded host -- OK"
+
+      # item/upgrade-preserves-access (issue #210): everything from "Smoke
+      # test the image" onward has driven ONE container up from an
+      # empty volume, so by this point every row in it -- the admin user,
+      # the roles RolesAndPermissionsSeeder created -- was written by the
+      # very code under test. Replacing that container with itself, as the
+      # next step does, therefore only proves a RESTART survives; it cannot
+      # catch a regression that only bites a row an older instance's history
+      # produced, which is exactly how #210 happened (see
+      # database/migrations/2026_09_18_150000_backfill_email_verified_at_for_existing_users.php's
+      # own docblock).
+      #
+      # Rather than maintaining and pulling an older published image -- whose
+      # schema only drifts further from HEAD with every migration this
+      # repository ships -- this makes the CURRENT volume look like it
+      # predates the candidate image in the two ways that have actually
+      # locked a real instance out before: an unverified user
+      # (email_verified_at NULL) and a role whose permissions were edited
+      # away from the seeded default. Run against doccum-smoke while it is
+      # STILL the setup container, one step before it is torn down, so the
+      # write lands on doccum-ci, the named volume the replacement below
+      # reuses. See .github/scripts/container-smoke.mjs's seedStaleRows()
+      # for exactly what this writes, and why it also rolls back the
+      # backfill migration's own `migrations` row rather than only inserting
+      # a NULL user -- that detail is what makes the "verify" phase's later
+      # assertion a genuine re-run of the migration instead of a restart
+      # against a row that merely happens to be NULL (decision/0067).
+      - name: Seed pre-upgrade rows before replacing the container
+        timeout-minutes: 2
+        env:
+          CONTAINER_NAME: doccum-smoke
+        run: node .github/scripts/container-smoke.mjs seed-stale
 
       # `storage/` does not survive this and is not meant to: the SAME image
       # and the SAME named volume are reused, so /data is the only thing that
