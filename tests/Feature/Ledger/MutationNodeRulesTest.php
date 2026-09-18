@@ -161,7 +161,7 @@ function makeSmallMutationFixture(array $mutations, string $itemId = 'item/small
 }
 
 /** @return string the fixture directory's path */
-function makeRunThresholdMutationFixture(array $mutations, ?string $mainConclusion, string $itemId = 'item/threshold-widget'): string
+function makeRunThresholdMutationFixture(array $mutations, ?string $mainConclusion, string $itemId = 'item/threshold-widget', ?string $mainRunUrl = null): string
 {
     $dir = sys_get_temp_dir().'/ledger-fixture-'.bin2hex(random_bytes(8));
     mkdir($dir.'/runs', 0777, true);
@@ -226,6 +226,9 @@ function makeRunThresholdMutationFixture(array $mutations, ?string $mainConclusi
     ];
     if ($mainConclusion !== null) {
         $pullRequest['mainConclusion'] = $mainConclusion;
+    }
+    if ($mainRunUrl !== null) {
+        $pullRequest['mainRunUrl'] = $mainRunUrl;
     }
 
     $ledger = [
@@ -470,6 +473,80 @@ it('blocks a completed run past the effective threshold while a merged PullReque
 
     // Restore: mainConclusion present makes it sound again.
     $dir = makeRunThresholdMutationFixture([$negative], mainConclusion: 'failure');
+    try {
+        expect(LedgerValidator::validate($dir, specPathForMutationTests()))->toBe([]);
+    } finally {
+        removeMutationFixture($dir);
+    }
+});
+
+// -- Rule: mainConclusion and mainRunUrl are checked for shape -------------
+
+it('rejects a mainConclusion GitHub never returns and a mainRunUrl pointing somewhere other than this repository', function () {
+    // Both branches these assertions cover -- LedgerValidator's
+    // mainConclusion enum check and its mainRunUrl pattern check -- shipped
+    // with item/ledger-mutation-nodes and then sat unexecuted: the fields
+    // were vocabulary populated on ZERO nodes, so neither branch had ever
+    // run against real data OR against a fixture. They were unfalsifiable
+    // code that looked like validation.
+    //
+    // The change that populates the fields for the first time is the change
+    // that makes them live, so it is the one that owes them a test --
+    // decision/0034's rule, applied to a validator rather than a Policy.
+    $negative = [
+        '@id' => 'mutation/0001',
+        '@type' => 'Mutation',
+        'implements' => ['item/threshold-widget'],
+        'pullRequest' => 'https://github.com/turbophp/doccum/pull/9002',
+        'run' => sprintf('run/%04d', MUTATION_RULES_EFFECTIVE_AFTER_RUN_UNDER_TEST + 1),
+        'headSha' => str_repeat('e', 40),
+        'mutant' => 'Fixture mutant.',
+        'check' => 'FixtureTest > it proves the fixture',
+        'verdict' => 'negative',
+        'supersedes' => null,
+    ];
+
+    // 'green' is what someone would reasonably write by hand. GitHub's API
+    // does not use it -- the conclusion is 'success' -- and a value invented
+    // at the keyboard is exactly what the enum exists to refuse.
+    $dir = makeRunThresholdMutationFixture([$negative], mainConclusion: 'green');
+    try {
+        $errors = LedgerValidator::validate($dir, specPathForMutationTests());
+        expect($errors)->toContain(
+            "enum: PullRequest 'https://github.com/turbophp/doccum/pull/9002'.mainConclusion = 'green'"
+            .' is not a known GitHub workflow-run conclusion.'
+        );
+    } finally {
+        removeMutationFixture($dir);
+    }
+
+    // A well-formed Actions run URL for the WRONG repository. The pattern
+    // pins the owner and repo deliberately: a run url is only evidence about
+    // this project's main branch, and one borrowed from a fork or another
+    // repository would read as evidence while proving nothing here.
+    $dir = makeRunThresholdMutationFixture(
+        [$negative],
+        mainConclusion: 'success',
+        mainRunUrl: 'https://github.com/someone-else/doccum/actions/runs/35320262780',
+    );
+    try {
+        $errors = LedgerValidator::validate($dir, specPathForMutationTests());
+        expect($errors)->toContain(
+            "enum: PullRequest 'https://github.com/turbophp/doccum/pull/9002'.mainRunUrl ="
+            ." 'https://github.com/someone-else/doccum/actions/runs/35320262780'"
+            .' is not a turbophp/doccum Actions run URL.'
+        );
+    } finally {
+        removeMutationFixture($dir);
+    }
+
+    // Restore: the real shape of both fields, as this run's own merges carry
+    // them, validates clean.
+    $dir = makeRunThresholdMutationFixture(
+        [$negative],
+        mainConclusion: 'success',
+        mainRunUrl: 'https://github.com/turbophp/doccum/actions/runs/35320262780',
+    );
     try {
         expect(LedgerValidator::validate($dir, specPathForMutationTests()))->toBe([]);
     } finally {
