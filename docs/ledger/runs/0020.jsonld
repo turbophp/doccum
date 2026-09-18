@@ -8,7 +8,10 @@
   "endTime": null,
   "outcome": "active",
   "touched": [
-    "item/admin-roles"
+    "item/admin-periods",
+    "item/admin-roles",
+    "item/ledger-id-uniqueness",
+    "item/smoke-livewire-settle"
   ],
   "commit": "c47ad90d203fd697e364c5d15e9c7ffd1560d714",
   "tests": -1,

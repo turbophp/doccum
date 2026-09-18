@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T09:30:00Z",
+  "dateModified": "2026-09-18T10:10:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -805,10 +805,12 @@
         "item/topbar-shell"
       ],
       "doneWhen": "The purge control is disabled while plan()->purgeable is false and lists the blockers; confirmation requires the exact period label; without periods.manage the page is 403.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T09:42:00Z",
+      "endTime": "2026-09-18T10:01:58Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/187"
+      ]
     },
     {
       "@id": "item/admin-instance-settings",
@@ -909,9 +911,103 @@
       "result": []
     },
     {
-      "@id": "item/api-sanctum-tokens",
+      "@id": "item/mutation-filter-regex",
+      "@type": "Action",
+      "order": 43,
+      "name": "mutation-check.php must regex-escape expectFailing",
+      "url": "https://github.com/turbophp/doccum/issues/180",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "A mutation whose expectFailing contains a regex metacharacter still selects exactly the named test, and a filter that selects no test at all is reported as a tooling error rather than as the assertion failing.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/smoke-livewire-settle",
+      "@type": "Action",
+      "order": 44,
+      "name": "A smoke click must wait for the request it started, not for networkidle",
+      "url": "https://github.com/turbophp/doccum/issues/182",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "checkTrashViewRestoreAndPurge() reads the database only after the Livewire round trip each click started has landed, and the helper that does so cannot be defeated by a renamed endpoint.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T09:29:00Z",
+      "endTime": "2026-09-18T09:36:52Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/183"
+      ]
+    },
+    {
+      "@id": "item/ledger-id-uniqueness",
       "@type": "Action",
       "order": 45,
+      "name": "The ledger @id uniqueness check must be able to fire",
+      "url": "https://github.com/turbophp/doccum/issues/185",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "A second node reusing an @id is reported, not absorbed: the check runs where both copies are still visible, before $nodes[$id] is assigned, and a mutations.json entry proves the named test fails without it.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T09:33:00Z",
+      "endTime": "2026-09-18T09:49:08Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/186"
+      ]
+    },
+    {
+      "@id": "item/ledger-shape-from-context",
+      "@type": "Action",
+      "order": 46,
+      "name": "The validator fails a wrong-shaped value instead of skipping it",
+      "url": "https://github.com/turbophp/doccum/issues/188",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "A dependsOn containing a non-string, an implements given as a bare string, and decision/0030's array-shaped supersedes each produce exactly one shape: error and no crash; a mainConclusion with a null mainRunUrl is a pr: error; the live ledger validates clean once decision/0030 is corrected; the rule has a mutations.json entry.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/ledger-rule-witnesses",
+      "@type": "Action",
+      "order": 47,
+      "name": "Every ledger rule has a witness that trips it, counted in CI",
+      "url": "https://github.com/turbophp/doccum/issues/189",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "The baseline copy validates clean; every witness yields at least one error carrying its expected code and none of another category; the set of codes emitted across all witnesses, unioned with a shrinking baseline of unwitnessed codes, equals the set the validator declares; deleting any witnessed rule reddens the run.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/api-sanctum-tokens",
+      "@type": "Action",
+      "order": 48,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -931,7 +1027,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 46,
+      "order": 49,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -954,7 +1050,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 47,
+      "order": 50,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -974,7 +1070,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 48,
+      "order": 51,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -994,7 +1090,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 49,
+      "order": 52,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -1015,7 +1111,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 50,
+      "order": 53,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -1035,7 +1131,7 @@
     {
       "@id": "item/compose-secret",
       "@type": "Action",
-      "order": 51,
+      "order": 54,
       "name": "Remove the known-value secret from compose.yaml",
       "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
@@ -1053,7 +1149,7 @@
     {
       "@id": "item/version-from-tag",
       "@type": "Action",
-      "order": 52,
+      "order": 55,
       "name": "The version pill reports the released tag",
       "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
@@ -1071,7 +1167,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 53,
+      "order": 56,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -1089,7 +1185,7 @@
     {
       "@id": "item/changelog-release-notes",
       "@type": "Action",
-      "order": 54,
+      "order": 57,
       "name": "A changelog that becomes the release notes",
       "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
@@ -1107,7 +1203,7 @@
     {
       "@id": "item/release-v0-1-0",
       "@type": "Action",
-      "order": 55,
+      "order": 58,
       "name": "Tag v0.1.0 to prove the release pipeline",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
@@ -1129,7 +1225,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 56,
+      "order": 59,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -1151,7 +1247,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 57,
+      "order": 60,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -1182,7 +1278,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 58,
+      "order": 61,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -1504,42 +1600,6 @@
         "item/directory-access-ui"
       ],
       "doneWhen": "A directories.share permission gates DirectoryPolicy::manageAccess() and nothing else, so a member may hand out access to a subtree they hold Manage on without also gaining move and delete over it -- which is what granting directories.manage wholesale would do, and why this needs its own permission rather than a reused one. Both layers still apply; no layer is removed from manageAccess(). See decision/0036, which decided that sharing is an administrator act for v1.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
-      "@id": "item/mutation-filter-regex",
-      "@type": "Action",
-      "order": 120,
-      "name": "mutation-check.php must regex-escape expectFailing",
-      "url": "https://github.com/turbophp/doccum/issues/180",
-      "isBasedOn": [
-        "spec:13-infrastructure"
-      ],
-      "size": "S",
-      "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "A mutation whose expectFailing contains a regex metacharacter still selects exactly the named test, and a filter that selects no test at all is reported as a tooling error rather than as the assertion failing.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
-      "@id": "item/smoke-livewire-settle",
-      "@type": "Action",
-      "order": 121,
-      "name": "A smoke click must wait for the request it started, not for networkidle",
-      "url": "https://github.com/turbophp/doccum/issues/182",
-      "isBasedOn": [
-        "spec:13-infrastructure"
-      ],
-      "size": "S",
-      "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "checkTrashViewRestoreAndPurge() reads the database only after the Livewire round trip each click started has landed, and the helper that does so cannot be defeated by a renamed endpoint.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -2604,6 +2664,76 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/183",
+      "@type": "PullRequest",
+      "identifier": 183,
+      "name": "A smoke click must wait for the request it started, not for networkidle",
+      "implements": [
+        "item/smoke-livewire-settle"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T09:31:00Z",
+      "headSha": "2303e6760cfd089781191b82ad0387a387b0ccf6",
+      "mergedAt": "2026-09-18T09:36:52Z",
+      "mergeSha": "5d5cd273502a48de08f218c8348bc63a23fd7a1b",
+      "mergedIn": "run/0020",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35330454864",
+      "mainConclusion": "success"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/186",
+      "@type": "PullRequest",
+      "identifier": 186,
+      "name": "The ledger's @id uniqueness check could never fire, and two items slipped through it",
+      "implements": [
+        "item/ledger-id-uniqueness"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T09:43:00Z",
+      "headSha": "0472b53f3ff8d4b7befe1d06d3895606ba35e845",
+      "mergedAt": "2026-09-18T09:49:08Z",
+      "mergeSha": "9b706b7a500a63385d2a3b2913d1f5ae3029edf6",
+      "mergedIn": "run/0020",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35331517538",
+      "mainConclusion": "success"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/187",
+      "@type": "PullRequest",
+      "identifier": 187,
+      "name": "Settings: archive periods -- closing, the purge plan, and two guards a disabled button does not provide",
+      "implements": [
+        "item/admin-periods"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T09:53:00Z",
+      "headSha": "5addba5b6917b22dba343eab4a5144b55f50514a",
+      "mergedAt": "2026-09-18T10:01:58Z",
+      "mergeSha": "51b77030fa70f73b0d7247f2f715029a440f9689",
+      "mergedIn": "run/0020",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35332606620",
+      "mainConclusion": "success"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/190",
+      "@type": "PullRequest",
+      "identifier": 190,
+      "name": "MUTATION -- DO NOT MERGE: item 37's smoke assertion, shown to fail",
+      "implements": [
+        "item/admin-periods"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T10:02:30Z",
+      "headSha": "eeafacbde165566b7e1ea8a66de20df2b3bf08de",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -3496,6 +3626,56 @@
         "item/trash-view"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0054",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T10:10:00Z",
+      "run": "run/0020",
+      "name": "A rule with no witness, and a branch with no population, are one class -- and the mutation harness already solves it from the input side",
+      "rationale": "Four things in two runs turned out to be assertions that looked like evidence and were not: the dead duplicate-@id loop (decision/0053's sibling, fixed in #186), mainRunUrl/mainConclusion required by a rule and populated by nobody, an explicit forgetCachedPermissions() call the package already made, and the topbar smoke pair CLAUDE.md records. Each was found by a different accident, which is not a coincidence.\n\nA consult (fable) split them, and the split is the useful part. A RULE WITH NO WITNESS (the dead loop; the topbar half) is a check nothing has ever fed an input that trips it. A BRANCH WITH NO POPULATION (mainRunUrl before run 19; Decision.evidence, 0 of 53 today) is code consuming a field no node carries. A COPIED VALUE (Run.tests, Run.assertions) is detectable by no mutant at all -- only by provenance or deletion. And SetRolePermissions was not an instance: guards refused a redundant guard, which is the property WORKING. Three of four, not four, and counting the fourth overstated the problem while understating the tool already in the repo.\n\nThe property that covers the first two is the one mutation-check.php has, with the mutant moved to the INPUT side: every rule has a witness that trips it, and every error-emission site is reached by at least one witness, both asserted in CI. For application code the mutant deletes a guard and a named test must fail. For the validator the mutant is a JSON-level edit to a copy of the LIVE ledger, and the flip is: the unmutated copy validates clean, the mutated copy yields at least one error of the expected code. The census clause is what catches the dead loop -- a site no witness reaches becomes a COUNT rather than an accident three runs later.\n\nFiled as #189 (the ratchet) and #188 (the immediate hole: ~64 is_string sites that SKIP a wrong-shaped value instead of failing it -- decision/0030.supersedes is an array where context.jsonld declares a single @id and validates clean, and a bare-string implements crashes the validator with a TypeError rather than reporting). The vocabulary verdicts went to #173. Every factual claim here was re-verified against the code before filing; the consult was also right that its own premise check mattered -- it read main before #186 merged and said so.\n\nDeliberately NOT applied: per-PR image mutation of smoke checks. One build plus smoke per mutant is ten to thirty minutes, and the one-time proof already lives in the Mutation nodes. The gap there is DECAY -- the topbar half was load-bearing once and stopped being -- which wants a periodic replay, not a per-PR gate.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-rule-witnesses",
+        "item/ledger-shape-from-context",
+        "item/ledger-field-audit",
+        "item/ledger-id-uniqueness"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0055",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T10:10:00Z",
+      "run": "run/0020",
+      "name": "order is a plan, so a v1 item may not sit after the tag that depends on it",
+      "rationale": "item/mutation-filter-regex and item/smoke-livewire-settle were appended at max(order)+1, giving them 120 and 121 -- release v1.0.0, but ordered after item/tag-v1-0-0 (58) and after sixteen post-v1 items. That was my own edit in run/0020 and I did not check. Read as a plan it says 'tag v1, then do two things that block tagging v1', and the validator's own rule (the tag cannot complete until every v1.0.0 item is Completed) makes that a contradiction rather than merely untidy.\n\nThe repair: 43 and 44 fell vacant when #186 removed the two duplicate items, and the v1 tail (45-58) shifts up by three, opening 45-47. The five v1 items that needed a home -- the two misplaced ones and the three new ledger items -- now all sit before item/v1-audit and item/tag-v1-0-0.\n\nWhat order does NOT carry: contiguity. It is already sparse (a gap after 58, then a jump to 100+), no rule reads a gap, and no application code reads order at all. A gap is an honest record that something was removed. What it DOES carry is one invariant worth enforcing rather than remembering: every v1.0.0 item's order < item/v1-audit < item/tag-v1-0-0 < every post-v1 item. That belongs in the validator, and is folded into #173.\n\nRenumbering is not a history rewrite. LOOP.md's append-only clause covers runs and decisions -- what happened. order is what is planned next, and a plan that has stopped describing the intended sequence should be corrected rather than preserved.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-field-audit",
+        "item/mutation-filter-regex",
+        "item/smoke-livewire-settle"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0056",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T10:10:00Z",
+      "run": "run/0020",
+      "name": "Only flux:button is known to forward an arbitrary attribute, so a flux:input is located by its label",
+      "rationale": "item/admin-periods's brief told the worker to put data-test on the close-period form's inputs. It declined, and was right: flux:input renders a label and wrapper around the real <input>, and this codebase has no precedent for an attribute placed on flux:input reaching that inner element in the BUILT image -- only flux:button is proven to forward them (resources/views/livewire/files/browser.blade.php's replace-form note records where that was established). Every existing admin page's smoke locates a flux:input by getByLabel().\n\nThe cost of getting this wrong is not a visible error: a locator that matches nothing fails as a timeout attributed to the feature, three minutes into an image build, and the temptation is then to blame the feature rather than the locator. So the convention is worth stating rather than rediscovering: data-test belongs on flux:button and on plain native elements this codebase writes itself (the roles matrix's <input type=checkbox>, the trash table's rows); a flux:input is reached by its label text.\n\nRecorded also because it is the second time in two items that a worker departed from my brief and was correct -- decision/0045 was the first. A brief is a hypothesis about code the worker is about to read more closely than I did.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/admin-periods"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -3706,6 +3886,20 @@
       "headSha": "8cd0485c1a0e97718d01ecbcadb083d1076a105b",
       "mutant": "Removed only the `wire:click=\"saveRole({{ $role->id }})\"` attribute from the Save button in resources/views/livewire/admin/roles.blade.php. The button still renders, still carries its data-test, and is still clickable -- it simply no longer reaches the component. Chosen because it is invisible to every other job: App\\Livewire\\Admin\\Roles::saveRole() is untouched, so AdminRolesTest, which calls that method directly through Livewire's test harness, stays green, as do guards, lint and all six test matrix jobs.",
       "check": "container-smoke.mjs checkAdminRolesPage() -- the image job failed at the named assertion \"member role never gained periods.manage through the real form\", dumping \"toggling periods.manage for the member role through /admin/roles never reached the database -- raw output: HOLDS:no\". Not a locator timeout on the way there: the log shows the check opened /admin/roles, found the member row, found the periods.manage checkbox, confirmed it started unchecked, ticked it and clicked Save. Only the database failed to move, which is what a Save button that no longer reaches its component looks like from outside. The other twelve checks on the same run all passed -- guards, lint, build assets, composer audit, dependency review, validate ledger and all six test matrix jobs -- which is the other half of the evidence: AdminRolesTest calls saveRole() directly through Livewire's test harness and cannot see this defect at all. Run https://github.com/turbophp/doccum/actions/runs/35329472286.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0016",
+      "@type": "Mutation",
+      "implements": [
+        "item/admin-periods"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/190",
+      "run": "run/0020",
+      "headSha": "eeafacbde165566b7e1ea8a66de20df2b3bf08de",
+      "mutant": "Removed only the `wire:submit=\"closePeriod\"` attribute from the close-period form in resources/views/livewire/admin/periods.blade.php. The form still renders, still carries its data-test, its inputs still bind and its submit button still clicks -- it simply no longer reaches the component. Chosen for the same reason as mutation/0015: App\\Livewire\\Admin\\Periods::closePeriod() is untouched, so AdminPeriodsTest, which calls that method directly through Livewire's test harness, cannot see it, and neither can guards, lint or any test matrix job.",
+      "check": "container-smoke.mjs checkAdminPeriodsPage() -- the image job failed at the named assertion \"2020-01 was not archived after closePeriod() through the real form\", dumping \"closing 2020-01 through /admin/periods never archived it -- raw output: ARCHIVED:no\". Reached, not timed out on the way: the log shows the check created the scratch 2020-01 file through tinker, opened /admin/periods, found the close-period form, filled both fields and submitted, and got past checkAdminRolesPage and every check before it. Only the database failed to move. The other twelve checks on the same run all passed -- guards, lint, build assets, composer audit, dependency review, validate ledger and all six test matrix jobs -- which is the other half: AdminPeriodsTest calls closePeriod() directly through Livewire's test harness and cannot see a form that no longer reaches the component. Run https://github.com/turbophp/doccum/actions/runs/35332670342.",
       "verdict": "negative",
       "supersedes": null
     }
