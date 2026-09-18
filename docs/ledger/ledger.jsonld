@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T15:25:00Z",
+  "dateModified": "2026-09-18T15:30:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1013,8 +1013,8 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "The baseline copy validates clean; every witness yields at least one error carrying its expected code and none of another category; the set of codes emitted across all witnesses, unioned with a shrinking baseline of unwitnessed codes, equals the set the validator declares; deleting any witnessed rule reddens the run.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-18T15:30:00Z",
       "endTime": null,
       "result": []
     },
