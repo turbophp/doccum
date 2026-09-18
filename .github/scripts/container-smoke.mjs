@@ -1591,8 +1591,23 @@ async function searchUntilFoundByName(page, name) {
  * summarised: the summary is the thing that has been wrong.
  */
 function instrumentUploadPath(page) {
+  // Everything that is not a static asset, NOT a guessed endpoint prefix.
+  //
+  // The first version of this filtered to '/livewire/' and logged nothing at
+  // all across a run that drives the installer, search and the file browser
+  // -- every one of them a Livewire component, and three uploads that issue
+  // #106 swallowed. Zero matches across all of that says the filter is wrong,
+  // not that no requests were made.
+  //
+  // run/0014 already recorded this exact mistake: waitForResponse() against a
+  // guessed '/livewire/upload-file' became the failure it was meant to
+  // observe. Guessing the same prefix again is how one CI round of a
+  // two-round budget was spent. An instrument may not assume the shape of
+  // what it is measuring.
+  const isAsset = (url) => /\.(js|mjs|css|png|jpe?g|svg|ico|woff2?|ttf|map)(\?|$)/i.test(url);
+
   page.on('request', (r) => {
-    if (r.url().includes('/livewire/')) {
+    if (! isAsset(r.url())) {
       console.log(`[upload-probe] request ${r.method()} ${r.url()}`);
     }
   });
@@ -1602,7 +1617,7 @@ function instrumentUploadPath(page) {
   });
 
   page.on('response', (r) => {
-    if (r.url().includes('/livewire/')) {
+    if (! isAsset(r.url())) {
       console.log(`[upload-probe] response ${r.status()} ${r.url()}`);
     }
   });
