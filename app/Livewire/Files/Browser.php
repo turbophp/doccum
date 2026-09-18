@@ -442,6 +442,74 @@ class Browser extends Component
         $this->previewFileId = $file->getKey();
     }
 
+    /**
+     * Move the preview to the next or previous file in the listing.
+     *
+     * The order comes from filesQuery(), the same query the table renders, so
+     * "next" means the next row you can see rather than the next id in the
+     * database -- those differ the moment anything is sorted by size or owner.
+     *
+     * Reuses preview() rather than assigning the id directly, so stepping is
+     * authorised exactly like opening is; a neighbouring row is not evidence
+     * of anything.
+     */
+    public function previewStep(int $offset): void
+    {
+        if ($this->previewFileId === null) {
+            return;
+        }
+
+        // A list of ints, not whatever pluck() hands back: array_search on a
+        // mixed-key array returns int|string, and the arithmetic below needs
+        // an integer position.
+        /** @var list<int> $ids */
+        $ids = $this->filesQuery()->pluck('files.id')->map(intval(...))->values()->all();
+
+        $position = array_search($this->previewFileId, $ids, true);
+
+        if ($position === false) {
+            return;
+        }
+
+        $target = $ids[$position + $offset] ?? null;
+
+        if ($target === null) {
+            return;
+        }
+
+        $this->preview((int) $target);
+    }
+
+    /**
+     * Where the previewed file sits in the listing, as [position, total].
+     *
+     * Both 1-based and only for display. Returns null when nothing is being
+     * previewed, or when the file is no longer in this listing at all -- it
+     * may have been moved or trashed in another tab while the dialog was open.
+     *
+     * @return array{int, int}|null
+     */
+    public function previewPosition(): ?array
+    {
+        if ($this->previewFileId === null || $this->directory === null) {
+            return null;
+        }
+
+        // A list of ints, not whatever pluck() hands back: array_search on a
+        // mixed-key array returns int|string, and the arithmetic below needs
+        // an integer position.
+        /** @var list<int> $ids */
+        $ids = $this->filesQuery()->pluck('files.id')->map(intval(...))->values()->all();
+
+        $position = array_search($this->previewFileId, $ids, true);
+
+        if ($position === false) {
+            return null;
+        }
+
+        return [$position + 1, count($ids)];
+    }
+
     public function closePreview(): void
     {
         $this->previewFileId = null;

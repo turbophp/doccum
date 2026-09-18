@@ -795,7 +795,49 @@
             :title="$previewing->name"
             test="preview-modal"
         >
+            {{-- Arrow keys step through the listing, which is what every
+                 viewer does and what a person will try first. Bound on the
+                 window rather than the panel: focus sits on whatever was
+                 clicked, and a preview nobody has tabbed into would otherwise
+                 ignore the keys entirely. --}}
+            <div
+                x-data
+                x-on:keydown.window.arrow-right.prevent="$wire.previewStep(1)"
+                x-on:keydown.window.arrow-left.prevent="$wire.previewStep(-1)"
+                class="hidden"
+            ></div>
+
             <x-slot:controls>
+                @php
+                    $position = $this->previewPosition();
+                @endphp
+
+                @if ($position)
+                    <span class="num text-xs text-ink-2" data-test="preview-position">
+                        {{ __(':position of :total', ['position' => $position[0], 'total' => $position[1]]) }}
+                    </span>
+
+                    <flux:button
+                        size="xs"
+                        variant="subtle"
+                        icon="chevron-left"
+                        :aria-label="__('Previous file')"
+                        :disabled="$position[0] === 1"
+                        wire:click="previewStep(-1)"
+                        data-test="preview-previous"
+                    />
+
+                    <flux:button
+                        size="xs"
+                        variant="subtle"
+                        icon="chevron-right"
+                        :aria-label="__('Next file')"
+                        :disabled="$position[0] === $position[1]"
+                        wire:click="previewStep(1)"
+                        data-test="preview-next"
+                    />
+                @endif
+
                 <flux:button
                     size="xs"
                     icon="arrow-down-tray"
@@ -809,7 +851,19 @@
                 $source = route('files.download', $previewing);
             @endphp
 
-            @if (str_starts_with($mime, 'image/'))
+            @if ($previewing->currentVersion === null)
+                {{-- A file row whose version is missing has no bytes to show.
+                     Without this the frame below would point at
+                     FileDownloadController, which answers 404 for exactly this
+                     case, and the dialog would render the 404 page inside
+                     itself -- which reads as the preview being broken rather
+                     than the file being empty. --}}
+                <div class="flex h-full min-h-[40vh] flex-col items-center justify-center gap-3 text-center" data-test="preview-unavailable">
+                    <flux:icon.exclamation-triangle variant="outline" class="size-10 text-attention" />
+                    <p class="text-sm text-ink">{{ __('This file has no stored version yet.') }}</p>
+                    <p class="max-w-sm text-xs text-ink-2">{{ __('Nothing was uploaded for it, or the upload did not finish. Replace it from the detail panel to give it contents.') }}</p>
+                </div>
+            @elseif (str_starts_with($mime, 'image/'))
                 {{-- Contained rather than cropped: a scan is read, not admired,
                      and cutting its edges off hides exactly the margins that
                      carry stamps and signatures. --}}

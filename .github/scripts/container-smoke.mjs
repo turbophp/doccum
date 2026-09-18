@@ -1015,6 +1015,62 @@ async function checkTopbar(page, phase) {
 }
 
 /**
+ * Opens a file in the preview dialog and requires it to SHOW something.
+ *
+ * What makes this worth running rather than decorative: it asserts the frame
+ * has actually loaded the file's bytes, not merely that a dialog appeared. An
+ * <iframe> exists whether or not its src resolves, so "the dialog opened" is
+ * satisfied by a preview pointing at a 404 -- which is exactly the state a
+ * file with no stored version was in before this branch. The assertion reads
+ * the frame's own document and requires the uploaded text to be inside it.
+ *
+ * Also the one check that drives an icon action: every control on a row is
+ * icon-only now, named by aria-label, so this is where "the icons reached
+ * their methods in the built image" is established.
+ *
+ * Mutation, measured rather than argued -- with the caveat stated plainly,
+ * because CLAUDE.md says never to cite an unmutated assertion as evidence and
+ * a half-measured one deserves the same honesty. Replacing the text/pdf branch
+ * of the preview with `@elseif (false)` and running this assertion's exact
+ * locators produced:
+ *
+ *     guard present -> pass: frame contains the file bytes
+ *     guard deleted -> fail: locator.waitFor: Timeout 8000ms exceeded
+ *     restored      -> pass
+ *
+ * That was run against the dev server, NOT against the built image, so it
+ * proves the assertion discriminates and does not yet prove it discriminates
+ * in the container. The first CI run of this check is what establishes the
+ * second half.
+ */
+async function checkFilePreviewShowsTheFileContents(page, phase) {
+  const name = 'DoccumSmokePreviewTarget.txt';
+  const body = 'These exact words must appear inside the preview frame.\n';
+
+  await uploadAndProveStored(page, name, body, phase);
+
+  const row = page.locator('tr[data-test="file-row"]').filter({ hasText: name });
+  await row.getByLabel('View', { exact: true }).click();
+
+  const dialog = page.locator('[data-test="preview-modal"]');
+  await dialog.waitFor({ state: 'visible', timeout: 10000 });
+
+  // The header names the file being shown, which is what tells someone with
+  // two previews open in sequence which one they are looking at.
+  await dialog.getByText(name, { exact: true }).waitFor({ timeout: 10000 });
+
+  const frame = page.frameLocator('[data-test="preview-frame"]');
+  await frame.locator('body').filter({ hasText: 'must appear inside the preview frame' })
+    .waitFor({ timeout: 15000 });
+
+  console.log(`[${phase}] the preview frame rendered the uploaded file's own bytes`);
+
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden', timeout: 10000 });
+  console.log(`[${phase}] Escape closes the preview`);
+}
+
+/**
  * item/home-dashboard (issue #16): confirms the Home destination (spec §10)
  * is wired to real data, not a static placeholder -- the starter kit's own
  * `dashboard` view before this item, which rendered three empty tiles no
@@ -2580,6 +2636,9 @@ async function runSetup() {
 
     console.log('[setup] following a Download link and checking the bytes come back (issue #74)');
     await checkDownloadReturnsTheUploadedBytes(page, 'setup');
+
+    console.log('[setup] opening a file in the preview dialog and reading its bytes back out of the frame');
+    await checkFilePreviewShowsTheFileContents(page, 'setup');
 
     console.log('[setup] bulk-trashing two of three uploaded files and confirming the third survives');
     await checkBulkTrashLeavesUnselectedFilesAlone(page, 'setup');
