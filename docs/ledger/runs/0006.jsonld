@@ -14,5 +14,34 @@
   "commit": "91ef9b53a2f96c8da68ea61c0a972168d21e54c1",
   "tests": 452,
   "assertions": 921,
-  "description": "Two items landed. topbar-shell replaced the starter sidebar and unblocked the seven items waiting on it; reviewing it turned up that asserting a plain member sees no Settings link proves only that a link is not rendered, so tests were added against the destination itself. A mutation entry for that guard was written and then withdrawn: the destination is guarded twice and independently, by the route middleware and by PropertyDefinitions::mount, so removing either leaves the other refusing and the test still passes -- an entry takes one remove string, so none can prove either guard, and recording one would have asserted exactly the false confidence the mutation rule exists to prevent. name-key then settled the comparison question content-actions had been blocking on, and its first attempt failed on MySQL alone with errno 1553, having dropped a composite index that was silently carrying a foreign key. Diagnosis waited for the log rather than acting on a guess about lockForUpdate, which was wrong; the 410-second run that looked like a hang was 415 tests each re-running the failing migration. Both PHPStan and Pint also rejected the first fix for the annotation that made name_key visible to static analysis, and a CI workflow auto-applied Pint mid-review, so its commit was kept and the cleaner form applied on top rather than force-pushed over."
+  "description": "Two items landed. topbar-shell replaced the starter sidebar and unblocked the seven items waiting on it; reviewing it turned up that asserting a plain member sees no Settings link proves only that a link is not rendered, so tests were added against the destination itself. A mutation entry for that guard was written and then withdrawn: the destination is guarded twice and independently, by the route middleware and by PropertyDefinitions::mount, so removing either leaves the other refusing and the test still passes -- an entry takes one remove string, so none can prove either guard, and recording one would have asserted exactly the false confidence the mutation rule exists to prevent. name-key then settled the comparison question content-actions had been blocking on, and its first attempt failed on MySQL alone with errno 1553, having dropped a composite index that was silently carrying a foreign key. Diagnosis waited for the log rather than acting on a guess about lockForUpdate, which was wrong; the 410-second run that looked like a hang was 415 tests each re-running the failing migration. Both PHPStan and Pint also rejected the first fix for the annotation that made name_key visible to static analysis, and a CI workflow auto-applied Pint mid-review, so its commit was kept and the cleaner form applied on top rather than force-pushed over.",
+  "merges": [
+    {
+      "mergeSha": "8a7e859b19a58fc67b88fd794e973aaad401c697",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T08:05:10Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35197806434",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35197806485",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "534679b6f1bd15c37946c9dfe87a0b56e89ee942",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/52",
+      "mergedAt": "2026-09-17T08:12:48Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35198476262",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35198476184",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "91ef9b53a2f96c8da68ea61c0a972168d21e54c1",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/53",
+      "mergedAt": "2026-09-17T08:39:26Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35200848268",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35200848226",
+      "ledgerConclusion": "success"
+    }
+  ]
 }

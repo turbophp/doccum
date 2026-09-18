@@ -425,5 +425,33 @@
     "file": ".github/scripts/mutation-check.php",
     "remove": "    if ($afterClassification === MUTATION_RUN_NO_TEST_MATCHED) {\n        return \"{$id}: with the guard deleted, \\\"{$filter}\\\" matched no test at all. The deletion stopped the file loading (a parse error, most likely) rather than failing an assertion, so this red proves nothing about the guard. Narrow the 'remove' text to something whose absence leaves loadable code.\";\n    }\n\n",
     "expectFailing": "refuses a deleted-guard run that matched no test as proof that the guard is load-bearing"
+  },
+  {
+    "id": "ledger-merges-pr-in-mergedin-run",
+    "why": "item/ledger-main-push-record (issue #172), rule 1: a merged PullRequest's mergeSha must appear in its mergedIn run's merges. Both times main has actually gone red it was a ledger-only PR with no PullRequest node at all -- runErrors() used to enumerate pullRequests, so it could only ever see a merge that carried one. Run.merges enumerates the run's own pushes directly instead, and this is the rule that catches an item PR silently omitted from that list, which nothing checked before.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if ($mergedInShas !== null && ! in_array($mergeSha, $mergedInShas, true)) {\n                    $errors[] = \"pr: '$id' has mergeSha '$mergeSha' but it does not appear in its mergedIn run '$mergedIn''s merges.\";\n                }\n",
+    "expectFailing": "requires a merged PullRequest's mergeSha to appear in its mergedIn run's merges"
+  },
+  {
+    "id": "ledger-run-commit-is-last-merge",
+    "why": "item/ledger-main-push-record (issue #172), rule 2: Run.commit is DEFINED as the last merges entry's mergeSha -- the field had no stated semantics before this and drifted in practice (run/0017's old commit was main at that run's START, not its end, per the item's own finding). Remove the guard and a run's commit can silently point anywhere while still validating clean, the same drift happening again with nothing to catch it.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (is_string($lastMergeSha) && ($run['commit'] ?? null) !== $lastMergeSha) {\n                    $errors[] = \"run: '$expectedId'.commit = \".self::describe($run['commit'] ?? null).\" but its last merges entry's mergeSha is '$lastMergeSha'.\";\n                }\n",
+    "expectFailing": "defines Run.commit as the last merges entry's mergeSha"
+  },
+  {
+    "id": "ledger-run-outcome-requires-green-close",
+    "why": "item/ledger-main-push-record (issue #172), rule 3: a run may not claim outcome completed unless its last merge closed both named workflows (tests, ledger) green, past MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN -- this is what makes \"run/0018 closes green\", previously prose in run/0019's own description, a checked claim. Remove the guard and a run that closed on a red merge -- exactly what happened twice in this repository's real history -- validates as completed with nothing to say otherwise.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (! $testsOk || ! $ledgerOk) {\n                    $errors[] = \"run: '$expectedId' has outcome completed but its last merge (\".\n                        self::describe($last['mergeSha'] ?? null).\n                        ') did not close green (testsConclusion = '.self::describe($last['testsConclusion'] ?? null).\n                        ', ledgerConclusion = '.self::describe($last['ledgerConclusion'] ?? null).').';\n                }\n",
+    "expectFailing": "requires a completed run past the effective threshold to have both conclusions success on its last merge"
+  },
+  {
+    "id": "ledger-history-reports-unrecorded-merge",
+    "why": "issue #172, the clause the item itself calls the difference between a rule and bookkeeping: omission is detectable only against an external list. Every other rule here iterates nodes that exist, so a merge nobody wrote down stays invisible to all of them -- and both times main has actually gone red it was exactly that class, a ledger-only merge with no PullRequest node. Remove this branch and mainPushHistoryErrors() walks the git log and reports nothing, so a hole in the record validates clean. Note what the paired test does NOT rely on: LedgerIntegrityTest's `expect(ledgerErrorsTagged('history:'))->toBe([])` asserts the check does not fire, which survives deleting the check outright -- it is this entry's test, which requires an error to BE reported, that carries the weight.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "            if ($index < $lastKnownIndex && ! isset($known[$sha])) {\n                $errors[] = \"history: commit '$sha' is on main (per git log since the previous completed run) but does not appear in any run's merges, and a LATER commit does -- so this is a merge nobody wrote down, not one not yet recorded.\";\n            }\n",
+    "expectFailing": "reports a commit on main that no run records, when a later commit is recorded"
   }
 ]

@@ -23,10 +23,15 @@ jobs:
     permissions:
       contents: read
     steps:
+      # fetch-depth 0: item/ledger-main-push-record (issue #172) needs main's
+      # full first-parent history to check that every commit since the
+      # previous completed run's commit is recorded in some run's merges --
+      # the default depth-1 checkout has none of that history to walk.
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
@@ -52,5 +57,14 @@ jobs:
       # "script might not exist yet" branch is gone with it: the script has
       # landed, and a missing one now fails this job rather than skipping it,
       # which is the whole point of the check.
+      #
+      # MAIN_SHA is deliberately not the checked-out ref: on a pull_request
+      # event HEAD is a synthetic merge-preview commit whose first-parent
+      # chain is not main's own history (see validate-ledger.php's docblock).
+      # github.sha (push) / the PR's base sha (pull_request) both name main
+      # itself, so the question "does the ledger account for every merge
+      # already on main?" is the same question on both event types.
       - name: Run deep ledger validation
-        run: php .github/scripts/validate-ledger.php docs/ledger
+        env:
+          MAIN_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+        run: php .github/scripts/validate-ledger.php docs/ledger docs/superpowers/specs/2026-09-15-doccum-design.md "$MAIN_SHA"
