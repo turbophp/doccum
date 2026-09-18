@@ -38,8 +38,16 @@ use Spatie\Permission\Models\Role;
 class Roles extends Component
 {
     /**
-     * Pending checkbox state per role id, then per permission name:
-     * $permissionChoice[$roleId][$permissionName] === true means "checked".
+     * Pending checkbox state per role id: the LIST of permission names
+     * currently checked for that role.
+     *
+     * A list keyed by role id, not a map keyed by permission name, and that
+     * shape is forced rather than chosen. Livewire reads a dot in a
+     * wire:model path as array nesting, and every name in
+     * RolesAndPermissionsSeeder::PERMISSIONS contains one, so binding
+     * "permissionChoice.{id}.{name}" nested 'periods.manage' into
+     * ['periods']['manage'] and the save sent "periods". The permission name
+     * is the checkbox's value instead, where a dot is just a character.
      * Seeded lazily in render() from each role's current permissions,
      * mirroring App\Livewire\Admin\Users::$roleChoice.
      *
@@ -50,7 +58,7 @@ class Roles extends Component
      * package does not promise; PHP coerces integer-like string keys to int
      * on write regardless, so the wider declaration is the true one.
      *
-     * @var array<int|string, array<string, bool>>
+     * @var array<int|string, list<string>>
      */
     public array $permissionChoice = [];
 
@@ -78,7 +86,13 @@ class Roles extends Component
         // Method-level, alongside mount()'s -- see the class docblock.
         $this->authorize('users.manage');
 
-        $permissions = array_keys(array_filter($this->permissionChoice[$roleId] ?? []));
+        // Narrowed to the known set: the bound value arrives from the client,
+        // and SetRolePermissions would raise PermissionDoesNotExist on
+        // anything else.
+        $permissions = array_values(array_intersect(
+            $this->permissionChoice[$roleId] ?? [],
+            RolesAndPermissionsSeeder::PERMISSIONS,
+        ));
 
         try {
             app(SetRolePermissions::class)->handle($role, $permissions);
@@ -118,18 +132,14 @@ class Roles extends Component
     }
 
     /**
-     * @return array<string, bool>
+     * @return list<string>
      */
     private function choicesFor(Role $role): array
     {
         $held = $role->permissions->pluck('name')->all();
 
-        $choices = [];
-
-        foreach (RolesAndPermissionsSeeder::PERMISSIONS as $name) {
-            $choices[$name] = in_array($name, $held, true);
-        }
-
-        return $choices;
+        // Ordered by the seeder's list rather than by whatever the relation
+        // returned, so the bound value is stable between renders.
+        return array_values(array_intersect(RolesAndPermissionsSeeder::PERMISSIONS, $held));
     }
 }

@@ -41,7 +41,10 @@ it('saves a toggled permission for a role through the admin roles page', functio
 
     Livewire::actingAs($this->admin)
         ->test(Roles::class)
-        ->set("permissionChoice.{$memberRole->id}.periods.manage", true)
+        // The whole list for the row, not a dotted path to one box: Livewire
+        // reads a dot in a property path as nesting, and every permission
+        // name contains one.
+        ->set("permissionChoice.{$memberRole->id}", ['files.upload', 'periods.manage'])
         ->call('saveRole', $memberRole->id)
         ->assertHasNoErrors();
 
@@ -55,7 +58,8 @@ it('surfaces the last-administrator refusal through the admin roles page instead
     // the sole holder, so unchecking only that one box on the admin role
     // must be refused.
     $choices = collect(RolesAndPermissionsSeeder::PERMISSIONS)
-        ->mapWithKeys(fn (string $name) => [$name => $name !== 'users.manage'])
+        ->reject(fn (string $name) => $name === 'users.manage')
+        ->values()
         ->all();
 
     Livewire::actingAs($this->admin)

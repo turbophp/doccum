@@ -45,10 +45,22 @@
                                      container smoke drives directly, and Flux is only KNOWN
                                      to forward arbitrary attributes on flux:button (see
                                      resources/views/livewire/files/browser.blade.php's own
-                                     note beside its file-row-checkbox). --}}
+                                     note beside its file-row-checkbox).
+
+                                     The permission name is the checkbox's VALUE and the
+                                     wire:model binds the role's LIST of checked names. It
+                                     must not appear in the wire:model path: Livewire reads
+                                     a dot there as array nesting, and every permission in
+                                     RolesAndPermissionsSeeder::PERMISSIONS contains one, so
+                                     "permissionChoice.1.periods.manage" bound
+                                     ['periods']['manage'] and the save sent "periods" --
+                                     a permission that does not exist. CI caught it as
+                                     PermissionDoesNotExist; it would have broken every row
+                                     of the matrix. --}}
                                 <input
                                     type="checkbox"
-                                    wire:model="permissionChoice.{{ $role->id }}.{{ $permission }}"
+                                    wire:model="permissionChoice.{{ $role->id }}"
+                                    value="{{ $permission }}"
                                     data-test="role-permission-checkbox"
                                     data-role-id="{{ $role->id }}"
                                     data-permission="{{ $permission }}"
