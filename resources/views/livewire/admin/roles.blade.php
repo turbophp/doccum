@@ -70,7 +70,7 @@
                             </td>
                         @endforeach
                         <td class="py-2 text-right">
-                            <flux:button wire:click="saveRole({{ $role->id }})" size="sm" data-test="save-role-permissions-button" data-role-id="{{ $role->id }}">
+                            <flux:button size="sm" data-test="save-role-permissions-button" data-role-id="{{ $role->id }}">
                                 {{ __('Save') }}
                             </flux:button>
                         </td>
