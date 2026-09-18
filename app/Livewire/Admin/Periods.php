@@ -7,6 +7,7 @@ namespace App\Livewire\Admin;
 use App\Models\ArchivePeriod;
 use App\Services\PeriodCloser;
 use App\Services\PeriodPurger;
+use App\Support\PurgePlan;
 use Illuminate\Contracts\View\View;
 use InvalidArgumentException;
 use Livewire\Attributes\Layout;
@@ -160,7 +161,7 @@ class Periods extends Component
             ->orderBy('month', 'desc')
             ->get();
 
-        /** @var array<int, \App\Support\PurgePlan> $plans */
+        /** @var array<int, PurgePlan> $plans */
         $plans = [];
 
         foreach ($periods as $period) {
