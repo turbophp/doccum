@@ -123,8 +123,12 @@ than half-booting.
    `AWS_SECRET_ACCESS_KEY` the app/worker/scheduler containers would otherwise
    fall back to. It still does not touch the embedded stack's own random
    per-install password (`docker/entrypoint.d/48-doccum-storage.sh`); an
-   operator using `docker compose up` with the `storage` profile, or the
-   standalone MinIO on its own, must now set `MINIO_ROOT_PASSWORD` first.
+   operator must now set `MINIO_ROOT_PASSWORD` before ANY `docker compose`
+   command, not only one selecting the `storage` profile: compose interpolates
+   the whole file regardless of profile (verified on Compose v5.1.1 — even
+   `--profile nonexistent` fails), so there is no way to scope a `${VAR:?}` to
+   one profile. That cost was accepted deliberately in exchange for a refusal
+   CI can prove without booting anything; see decision/0079.
 2. **Tag `v0.1.0`.** `.github/workflows/release.yml` builds multi-arch
    (amd64/arm64) and pushes to `ghcr.io/turbophp/doccum`. Update the README's
    `OWNER` placeholder once that exists.

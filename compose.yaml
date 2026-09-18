@@ -18,14 +18,24 @@ x-app: &app
     SESSION_DRIVER: database
     FILESYSTEM_DISK: documents
     AWS_ACCESS_KEY_ID: doccum
-    # No default on purpose: a known secret in a public repo is a known
-    # secret in every install that copies it. The default (embedded) stack
-    # never reads this -- DOCCUM_EMBEDDED_STORAGE generates its own random
-    # password into /data/minio.env (docker/entrypoint.d/48-doccum-storage.sh)
-    # -- but the opt-in `storage` profile below has no such generator, so
-    # this is the only place its credential comes from. Set the SAME value
-    # you set for MINIO_ROOT_PASSWORD.
-    AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD to the password you want the storage profile's MinIO to use -- see compose.yaml's minio service.}
+    # No known default -- a known secret in a public repo is a known secret in
+    # every install that copies it. `:-` here and NOT `:?`, because the default
+    # stack never reads this value: `app` runs with DOCCUM_EMBEDDED_STORAGE=true,
+    # so 48-doccum-storage.sh generates a random password into /data/minio.env,
+    # and RuntimeConfigServiceProvider::applyEmbeddedStorage() overwrites
+    # documents.key/secret/endpoint from that file at boot -- for all four
+    # services, since they share the db:/data volume. The refusal belongs to the
+    # `storage` profile's own minio service below, which is the only place this
+    # password actually sets anything, and that is where the `:?` lives.
+    #
+    # Be aware, before moving either marker: compose interpolates the WHOLE file
+    # regardless of which profiles are selected (verified on Compose v5.1.1 --
+    # even `--profile nonexistent` fails), so the `:?` below makes
+    # MINIO_ROOT_PASSWORD required for EVERY compose invocation, this stack
+    # included. That is deliberate and is the cost of a refusal CI can prove
+    # without booting anything; the README says so. It is not a per-profile
+    # requirement, because compose has no way to express one.
+    AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}
     AWS_DEFAULT_REGION: us-east-1
     AWS_BUCKET: doccum
   volumes:

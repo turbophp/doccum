@@ -45,11 +45,13 @@ stops being enough, nothing needs rewriting:
   setting rather than a code path.
 - **More workers.** `compose.yaml` runs the queue workers and scheduler as
   separate containers. Use it when you want to scale them independently — not
-  to get started. It requires `MINIO_ROOT_PASSWORD` to be set — there is no
-  default — because the `storage` profile it also defines has no way to
-  generate its own password the way the embedded stack does; export it, or
-  put it in a `.env` file next to `compose.yaml`, before running
-  `docker compose up`.
+  to get started. **Set `MINIO_ROOT_PASSWORD` before any `docker compose`
+  command** — export it or put it in a `.env` file next to `compose.yaml`.
+  There is no default, because a known password in a public repository is a
+  known password in every install that copies it. The value only actually
+  matters if you run the opt-in `storage` profile, which has no way to
+  generate its own the way the embedded stack does; but compose interpolates
+  the whole file whatever profile you select, so it is required either way.
 
 Because everything except the database connection lives *in* the database,
 pointing a fresh container at an existing doccum database restores the whole
