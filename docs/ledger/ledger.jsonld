@@ -2331,7 +2331,9 @@
       "headSha": "466ebdda9605c651c386266ae7f90f8641822e4a",
       "mergedAt": "2026-09-18T06:12:33Z",
       "mergeSha": "98d7a7ed26924346f05575ef8f2a32ccee2acd0b",
-      "mergedIn": "run/0019"
+      "mergedIn": "run/0019",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35313905166",
+      "mainConclusion": "success"
     },
     {
       "@id": "https://github.com/turbophp/doccum/pull/162",
@@ -2363,7 +2365,9 @@
       "headSha": "c2ab9021735cf3a331ca215a4f06c984aff120dd",
       "mergedAt": "2026-09-18T07:00:52Z",
       "mergeSha": "cea56539137af4f9d339d52d0d01f8775a60b6e5",
-      "mergedIn": "run/0019"
+      "mergedIn": "run/0019",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35317433273",
+      "mainConclusion": "success"
     },
     {
       "@id": "https://github.com/turbophp/doccum/pull/166",
@@ -2395,7 +2399,9 @@
       "headSha": "9ff8a305761b1f23536e78d80d3c45bafbe76e21",
       "mergedAt": "2026-09-18T07:36:46Z",
       "mergeSha": "30c759c83e6f50ff667803603713ee2b0be5b770",
-      "mergedIn": "run/0019"
+      "mergedIn": "run/0019",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35320262780",
+      "mainConclusion": "success"
     },
     {
       "@id": "https://github.com/turbophp/doccum/pull/169",
@@ -3122,6 +3128,24 @@
         "item/login-by-username",
         "item/email-folding",
         "item/directory-access-ui"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0043",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T07:52:00Z",
+      "run": "run/0019",
+      "name": "main's push run becomes recorded evidence at merge time, and the field's limits are stated with it",
+      "rationale": "mainRunUrl and mainConclusion shipped with item/ledger-mutation-nodes as vocabulary only, populated on zero nodes, and #156's own merge message says so. They are not decoration and not optional: LedgerValidator::runErrors() refuses to let a run past MUTATION_RULES_EFFECTIVE_AFTER_RUN carry outcome completed while any PullRequest merged in it lacks mainConclusion. run/0019 is the first run the rule binds on, so the run could not have been closed at all without this.\n\nPOPULATED MID-RUN, NOT AT CLOSE, AND THAT IS THE POINT. Closing the run is when the validator would have demanded these, and it is the worst moment to supply them: three merges back, the run URLs would have to be found again and matched to shas from memory, and the temptation would be to write success because main is green NOW rather than because that merge's own push run was green THEN. The field can only honestly record a verification that was actually performed at the merge it describes. All three were -- LOOP step 3 re-reads main's own push runs after every merge, filtered to head_branch main and event push -- so this change is transcription, not reconstruction. The obligation is now discharged as each merge happens.\n\nWHAT THE FIELD DOES NOT ASSERT, WRITTEN DOWN BECAUSE IT READS LIKE IT DOES. A push to main starts TWO workflows here: tests (the image build, guards, lint, pint, build assets, composer audit, dependency review and the six-engine matrix) and ledger (the validator alone). mainRunUrl is singular. It names the tests run, because that is the substantive one. So mainConclusion: success does NOT by itself state that the ledger workflow was also green on that sha. Both were checked for all three of these merges; the schema records one. A later reader must not take the field as a claim about every workflow on that commit, and the schema was not widened mid-run to make it one -- decision/0040 refused the same widening for the same reason. Turning mainRunUrl into a list of every workflow run on the merge sha is a legitimate future change; its cost is that a record is then only as complete as the caller filling it, where today the field has one stated meaning it cannot quietly under-report.\n\nTHE RULE MISSES THE ONE CLASS OF MERGE THAT HAS ACTUALLY BROKEN MAIN. PullRequest nodes exist for item PRs and mutation PRs. Ledger-only PRs -- #151, #155, #157, #159, #164, #167, #170 -- have no node at all, by consistent practice rather than by any rule. The validator's check reaches only nodes that exist, so it cannot notice a ledger merge whose main run went red. That is not hypothetical: main went red at 9e2f7af on a ledger-only merge, which is decision/0039 and PR #158, and again at 6663282 before it (PR #138). Both times the breakage was pre-existing and a ledger diff merely triggered the run that exposed it -- which is exactly why those merges are worth recording rather than exempt. Named here as a known gap rather than closed in passing: giving ledger PRs nodes changes what a PullRequest node means (it currently means a PR that implements a backlog item, and 'implements' is a required key), so it is a schema question for its own item, not a field to start filling silently.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-mutation-nodes",
+        "item/home-dashboard",
+        "item/search-filters",
+        "item/login-by-username"
       ],
       "supersedes": null
     }
