@@ -1,47 +1,4 @@
 <section class="w-full">
-    {{-- Breadcrumb bar (design plan §3), the top row of the page and the
-         full width of it: it names where you are, so it belongs above the
-         panes rather than inside one of them. --}}
-    <div class="flex h-11 items-center justify-between gap-4 border-b border-rule px-4">
-        @if ($breadcrumbs->isNotEmpty())
-            {{-- Every ancestor the viewer may VIEW, root first, current directory
-                 last -- and no others: an ancestor with no grant anywhere on it
-                 (a grant made directly on a NESTED directory, per
-                 DirectoryAccess) is not in $breadcrumbs at all, so there is
-                 nothing here for the view itself to filter. See
-                 Browser::breadcrumbTrail(). The final crumb (the directory being
-                 browsed) carries no href, matching the read-only "you are here"
-                 convention the rest of the app already used. --}}
-            <flux:breadcrumbs>
-                @foreach ($breadcrumbs as $index => $crumb)
-                    @if ($index === $breadcrumbs->count() - 1)
-                        <flux:breadcrumbs.item>
-                            <span data-test="breadcrumb-item" class="font-semibold text-ink">{{ $crumb->name }}</span>
-                        </flux:breadcrumbs.item>
-                    @else
-                        <flux:breadcrumbs.item :href="route('files.browse', $crumb)" wire:navigate>
-                            <span data-test="breadcrumb-item">{{ $crumb->name }}</span>
-                        </flux:breadcrumbs.item>
-                    @endif
-                @endforeach
-            </flux:breadcrumbs>
-        @else
-            <span class="text-sm font-semibold text-ink">{{ __('Files') }}</span>
-        @endif
-
-        {{-- item/trash-view (issue #15): the one path spec §10 names into
-             the Trash page ("Reached from Files"). Plain <div> wrapping a
-             real <a> (flux:link renders one when it has a real href),
-             not a data-test on flux:link itself -- Flux is only KNOWN to
-             forward arbitrary attributes on flux:button (CLAUDE.md). --}}
-        <div data-test="trash-link">
-            <flux:link :href="route('trash')" wire:navigate variant="subtle" class=" inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink">
-                <flux:icon.trash variant="micro" />
-                {{ __('Trash') }}
-            </flux:link>
-        </div>
-    </div>
-
     {{-- Action bar: the two things you do TO this directory. They used to sit
          under the listing, where they read as page furniture rather than as
          actions on what you are looking at. Both stay visible rather than
@@ -86,13 +43,25 @@
                         >{{ __('Upload') }}</flux:button>
                     </form>
                 @endif
+        {{-- item/trash-view (issue #15): the one path spec §10 names into
+             the Trash page ("Reached from Files"). Plain <div> wrapping a
+             real <a> (flux:link renders one when it has a real href),
+             not a data-test on flux:link itself -- Flux is only KNOWN to
+             forward arbitrary attributes on flux:button (CLAUDE.md). --}}
+        <div data-test="trash-link" class="ml-auto">
+            <flux:link :href="route('trash')" wire:navigate variant="subtle" class="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-ink">
+                <flux:icon.trash variant="micro" />
+                {{ __('Trash') }}
+            </flux:link>
+        </div>
+
         @if (! empty($selectedIds))
             {{-- Only ever shown once something is ticked, and the count is what
                  proves a click actually reached selectRow() -- a resting "0
                  selected" label would pass whether or not selection worked at
                  all (CLAUDE.md: prefer an assertion that requires the feature
                  to DO something). --}}
-            <div class="ml-auto flex items-center gap-3" data-test="bulk-actions">
+            <div class="flex items-center gap-3" data-test="bulk-actions">
                     <flux:text class="text-sm font-medium text-ink">{{ trans_choice(':count file selected|:count files selected', count($selectedIds), ['count' => count($selectedIds)]) }}</flux:text>
                     {{-- No `danger` variant: red in doccum means legal hold and
                          nothing else (design plan §1). Trashing is reversible --
@@ -110,7 +79,7 @@
         @endif
     </div>
 
-    <div class="flex h-[calc(100vh-8.75rem)] items-stretch">
+    <div class="flex h-[calc(100vh-6.25rem)] items-stretch">
         {{-- The Files sidebar (spec §10): Home pinned first, then the
              viewer's reach roots and their viewable descendants --
              $sidebarTree, resolved ENTIRELY by DirectoryAccess::reachTree()
@@ -189,6 +158,40 @@
         </aside>
 
         <div class="min-w-0 flex-1 overflow-auto px-4 py-3">
+            {{-- The breadcrumb belongs to the listing it describes, so it sits
+                 in this pane directly above the column header rather than in a
+                 bar of its own over all three panes.
+
+                 Every ancestor the viewer may VIEW, root first, current
+                 directory last -- and no others: an ancestor with no grant
+                 anywhere on it (a grant made directly on a NESTED directory,
+                 per DirectoryAccess) is not in $breadcrumbs at all, so there is
+                 nothing here for the view itself to filter. See
+                 Browser::breadcrumbTrail(). The final crumb (the directory
+                 being browsed) carries no href, matching the read-only "you are
+                 here" convention the rest of the app already used. --}}
+            <div class="mb-2 flex h-7 items-center gap-1.5 text-sm">
+                <flux:icon.home variant="micro" class="shrink-0 text-ink-2" aria-hidden="true" />
+
+                @if ($breadcrumbs->isNotEmpty())
+                    <flux:breadcrumbs>
+                        @foreach ($breadcrumbs as $index => $crumb)
+                            @if ($index === $breadcrumbs->count() - 1)
+                                <flux:breadcrumbs.item>
+                                    <span data-test="breadcrumb-item" class="font-semibold text-ink">{{ $crumb->name }}</span>
+                                </flux:breadcrumbs.item>
+                            @else
+                                <flux:breadcrumbs.item :href="route('files.browse', $crumb)" wire:navigate>
+                                    <span data-test="breadcrumb-item">{{ $crumb->name }}</span>
+                                </flux:breadcrumbs.item>
+                            @endif
+                        @endforeach
+                    </flux:breadcrumbs>
+                @else
+                    <span class="font-semibold text-ink">{{ __('Files') }}</span>
+                @endif
+            </div>
+
             {{-- One table for both kinds of row, folders first: to the person
                  reading it they are the same thing, the contents of this
                  directory. Two stacked lists read as unrelated widgets and

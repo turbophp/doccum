@@ -23,6 +23,69 @@
                 <flux:badge size="sm" color="zinc" data-test="version-pill">v{{ config('doccum.version') }}</flux:badge>
             </a>
 
+            {{-- Instance-wide search, in the chrome rather than on a page of
+                 its own, because looking something up is the most common
+                 reason to be here at all. It submits a plain GET to the
+                 search route, whose component reads `q` through #[Url], so it
+                 works with JavaScript disabled and a result page can be
+                 linked or bookmarked.
+
+                 The accessible name is "Search documents", deliberately NOT
+                 "Search": the search page's own field is labelled exactly
+                 "Search", and the container smoke locates it page-wide with
+                 getByLabel('Search', { exact: true }). A second element with
+                 that exact name would make every one of those locators
+                 ambiguous under Playwright's strict mode. --}}
+            <div
+                class="mx-6 hidden max-w-2xl flex-1 sm:block"
+                x-data="{
+                    hint: '⌘K',
+                    init() {
+                        // navigator.platform is deprecated but still the most
+                        // reliable Mac signal; userAgent is the fallback.
+                        const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+                        this.hint = mac ? '⌘K' : 'Ctrl K';
+                    },
+                    focusSearch(event) {
+                        if (! (event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') {
+                            return;
+                        }
+
+                        // Chrome and Firefox both bind ⌘K/Ctrl-K to the address
+                        // bar, so this only works if the default is refused.
+                        event.preventDefault();
+                        this.$refs.q.focus();
+                        this.$refs.q.select();
+                    },
+                }"
+                x-on:keydown.window="focusSearch($event)"
+            >
+                <form method="GET" action="{{ route('search') }}" class="relative" data-test="header-search">
+                    <flux:icon.magnifying-glass
+                        variant="micro"
+                        class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400"
+                        aria-hidden="true"
+                    />
+
+                    <input
+                        x-ref="q"
+                        type="search"
+                        name="q"
+                        value="{{ request()->routeIs('search') ? request()->query('q') : '' }}"
+                        aria-label="{{ __('Search documents') }}"
+                        placeholder="{{ __('Search documents') }}"
+                        autocomplete="off"
+                        class="h-8 w-full rounded-md border border-zinc-200 bg-white pl-8 pr-16 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-select focus:outline-none focus:ring-1 focus:ring-select dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                    />
+
+                    <kbd
+                        class="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-sans text-[11px] text-zinc-500 md:block dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"
+                        x-text="hint"
+                        aria-hidden="true"
+                    >⌘K</kbd>
+                </form>
+            </div>
+
             <flux:spacer />
 
             <flux:navbar class="-mb-px">
