@@ -440,6 +440,13 @@ class Browser extends Component
         $this->authorize('view', $file);
 
         $this->previewFileId = $file->getKey();
+
+        // The panel behind the dialog describes what is being previewed,
+        // so closing the preview leaves the details of the file just seen
+        // rather than whatever was selected beforehand.
+        if ($file->directory_id === $this->directory?->getKey()) {
+            $this->selectFile($file->getKey());
+        }
     }
 
     /**
@@ -822,6 +829,17 @@ class Browser extends Component
         }
 
         $this->lastClickedId = $id;
+
+        // A selection of exactly one file also shows that file's details --
+        // the behaviour every file manager has, and what makes a plain row
+        // click worth making. Anything else clears the panel, because a
+        // detail panel showing one of five selected files is a lie about
+        // what the next action will apply to.
+        if (count($this->selectedIds) === 1) {
+            $this->selectFile($this->selectedIds[0]);
+        } else {
+            $this->selectedFile = null;
+        }
     }
 
     /**

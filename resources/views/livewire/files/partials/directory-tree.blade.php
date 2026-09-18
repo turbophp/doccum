@@ -14,8 +14,24 @@
     x-data.
 --}}
 @foreach ($nodes as $node)
+    @php
+        $isCurrent = isset($directory) && $directory?->getKey() === $node->getKey();
+    @endphp
+
     <li data-test="sidebar-directory" data-directory-id="{{ $node->id }}" data-drop-directory-id="{{ $node->id }}">
-        <div class="group flex h-7 items-center gap-1 rounded px-1 hover:bg-sheet">
+        {{-- The row carries the state, not the link inside it, so the whole
+             strip reads as one target rather than a word floating in a band.
+             The current marker is positioned rather than a border, because a
+             border would shift every other row's text by its width. --}}
+        <div @class([
+            'group relative flex h-7 items-center gap-1 rounded-md pr-1.5',
+            'bg-select/10' => $isCurrent,
+            'hover:bg-chrome' => ! $isCurrent,
+        ])>
+            @if ($isCurrent)
+                <span class="absolute inset-y-1 left-0 w-0.5 rounded-full bg-select" aria-hidden="true"></span>
+            @endif
+
             @if ($node->children->isNotEmpty())
                 {{-- A plain <button>, not flux:button: this is a dense tree
                      row and the built-in button's default padding would
@@ -31,33 +47,50 @@
                 <button
                     type="button"
                     data-test="sidebar-toggle"
-                    class="flex w-4 shrink-0 cursor-pointer items-center justify-center text-ink-2 hover:text-ink"
+                    class="flex size-5 shrink-0 cursor-pointer items-center justify-center rounded text-ink-2 hover:text-ink"
                     x-on:click="toggle({{ $node->id }})"
                     :aria-expanded="isExpanded({{ $node->id }}) ? 'true' : 'false'"
                     aria-label="{{ __('Toggle :name', ['name' => $node->name]) }}"
                 >
                     <flux:icon.chevron-right
                         variant="micro"
-                        class="transition-transform duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)]"
+                        class="size-3.5 transition-transform duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)]"
                         x-bind:class="isExpanded({{ $node->id }}) ? 'rotate-90' : ''"
                     />
                 </button>
             @else
-                <span class="w-4 shrink-0"></span>
+                <span class="size-5 shrink-0"></span>
             @endif
 
-            <flux:icon.folder variant="micro" class="shrink-0 text-ink-2" />
-
+            {{-- The link fills the rest of the row, so clicking anywhere right
+                 of the chevron navigates. Its accessible name is the
+                 directory's name and nothing else -- the icon is decorative,
+                 and the container smoke locates these with
+                 getByRole('link', { name: <username> }) in eleven places. --}}
             <flux:link
                 :href="route('files.browse', $node)"
                 wire:navigate
                 variant="ghost"
-                class=" min-w-0 flex-1 truncate text-sm text-ink"
-            >{{ $node->name }}</flux:link>
+                @class([
+                    'flex min-w-0 flex-1 items-center gap-1.5 text-sm text-ink',
+                    'font-medium' => $isCurrent,
+                ])
+            >
+                <flux:icon
+                    :icon="$isCurrent ? 'folder-open' : 'folder'"
+                    variant="micro"
+                    class="shrink-0 text-ink-2"
+                    aria-hidden="true"
+                />
+                <span class="truncate">{{ $node->name }}</span>
+            </flux:link>
         </div>
 
         @if ($node->children->isNotEmpty())
-            <ul class="ml-4 space-y-0.5" x-show="isExpanded({{ $node->id }})">
+            {{-- An indent guide rather than bare margin: three levels deep, a
+                 plain indent is a column of text with nothing tying a child to
+                 its parent, and counting pixels is not reading. --}}
+            <ul class="ml-[0.65rem] space-y-0.5 border-l border-rule/70 pl-2" x-show="isExpanded({{ $node->id }})">
                 @include('livewire.files.partials.directory-tree', ['nodes' => $node->children])
             </ul>
         @endif

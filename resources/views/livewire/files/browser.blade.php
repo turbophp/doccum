@@ -61,7 +61,7 @@
              in a private window -- see CLAUDE.md and the doccum design
              spec §10a. --}}
         <aside
-            class="w-60 shrink-0 space-y-3 overflow-auto border-r border-rule bg-chrome px-3 py-4"
+            class="w-60 shrink-0 overflow-auto border-r border-rule bg-sheet px-2 py-3"
             data-test="directory-tree"
             x-data="{
                 expanded: (() => {
@@ -111,12 +111,16 @@
                      attributes and content) would be unaffected and this
                      fix would silently do nothing. Writing the anchor by
                      hand removes that doubt. --}}
-                <div data-test="sidebar-home">
+                <div data-test="sidebar-home" class="mb-2 border-b border-rule pb-2">
                     <a
                         href="{{ route('files.browse', $homeDirectory) }}"
                         wire:navigate
                         aria-label="{{ __('Home directory') }}"
-                        class="flex h-8 items-center gap-2 rounded px-2 text-sm font-medium text-ink hover:bg-sheet"
+                        @class([
+                            'flex h-7 items-center gap-1.5 rounded-md pl-1.5 pr-1.5 text-sm text-ink',
+                            'bg-select/10 font-medium' => $directory?->getKey() === $homeDirectory->getKey(),
+                            'hover:bg-chrome' => $directory?->getKey() !== $homeDirectory->getKey(),
+                        ])
                     >
                         <flux:icon.home variant="micro" class="shrink-0 text-ink-2" aria-hidden="true" />
                         {{ __('Home') }}
@@ -500,7 +504,12 @@
                             <td class="max-w-0 py-1">
                                 <div class="flex min-w-0 items-center gap-2">
                                     <flux:icon.document variant="micro" class="shrink-0 text-ink-2" />
-                                    <flux:link wire:click="selectFile({{ $item->id }})" variant="ghost" class=" min-w-0 cursor-pointer truncate text-ink">{{ $item->name }}</flux:link>
+                                    {{-- Clicking the name OPENS the file. preview() selects it
+                                         too, so the detail panel behind the dialog describes what
+                                         is being looked at; the row's own click still selects
+                                         without opening, which is what shift and ctrl ranges
+                                         need. --}}
+                                    <flux:link wire:click="preview({{ $item->id }})" variant="ghost" class="min-w-0 cursor-pointer truncate text-ink">{{ $item->name }}</flux:link>
                                 </div>
                             </td>
                             <td class="truncate py-1 text-ink-2">{{ $item->creator?->name }}</td>
@@ -854,50 +863,98 @@
                 // URL on a host the browser cannot reach -- which is the
                 // container exactly. See FilePreviewController.
                 $source = route('files.preview', $previewing);
+                $version = $previewing->currentVersion;
             @endphp
 
-            @if ($previewing->currentVersion === null)
-                {{-- A file row whose version is missing has no bytes to show.
-                     Without this the frame below would point at
-                     FileDownloadController, which answers 404 for exactly this
-                     case, and the dialog would render the 404 page inside
-                     itself -- which reads as the preview being broken rather
-                     than the file being empty. --}}
-                <div class="flex h-full min-h-[40vh] flex-col items-center justify-center gap-3 text-center" data-test="preview-unavailable">
-                    <flux:icon.exclamation-triangle variant="outline" class="size-10 text-attention" />
-                    <p class="text-sm text-ink">{{ __('This file has no stored version yet.') }}</p>
-                    <p class="max-w-sm text-xs text-ink-2">{{ __('Nothing was uploaded for it, or the upload did not finish. Replace it from the detail panel to give it contents.') }}</p>
+            {{-- Content and properties side by side: looking at a document and
+                 checking what it is are the same task, and making the second
+                 one a separate trip defeats the preview. --}}
+            <div class="flex h-full min-h-0 gap-4">
+                <div class="flex min-h-0 min-w-0 flex-1 items-center justify-center">
+                    @if ($version === null)
+                        {{-- A file row whose version is missing has no bytes to
+                             show. Without this the frame would point at
+                             FilePreviewController, which answers 404 for exactly
+                             this case, and the dialog would render that inside
+                             itself -- reading as the preview being broken rather
+                             than the file being empty. --}}
+                        <div class="flex flex-col items-center gap-3 text-center" data-test="preview-unavailable">
+                            <flux:icon.exclamation-triangle variant="outline" class="size-10 text-attention" />
+                            <p class="text-sm text-ink">{{ __('This file has no stored version yet.') }}</p>
+                            <p class="max-w-sm text-xs text-ink-2">{{ __('Nothing was uploaded for it, or the upload did not finish. Replace it from the detail panel to give it contents.') }}</p>
+                        </div>
+                    @elseif (str_starts_with($mime, 'image/'))
+                        {{-- Contained rather than cropped: a scan is read, not
+                             admired, and cutting its edges off hides exactly the
+                             margins that carry stamps and signatures. --}}
+                        <img
+                            src="{{ $source }}"
+                            alt="{{ $previewing->name }}"
+                            class="max-h-full max-w-full object-contain"
+                            data-test="preview-image"
+                        />
+                    @elseif ($mime === 'application/pdf' || str_starts_with($mime, 'text/'))
+                        {{-- An iframe, so the browser's own PDF and text viewers
+                             do the work. Bundling a JavaScript PDF renderer would
+                             add megabytes to an image that already ships MinIO
+                             and tesseract, to show what every browser shows.
+
+                             sandbox="" because these are somebody's uploaded
+                             bytes served same-origin. --}}
+                        <iframe
+                            src="{{ $source }}"
+                            sandbox=""
+                            title="{{ $previewing->name }}"
+                            class="h-full min-h-[60vh] w-full rounded border border-rule bg-chrome"
+                            data-test="preview-frame"
+                        ></iframe>
+                    @else
+                        <div class="flex flex-col items-center gap-3 text-center" data-test="preview-unsupported">
+                            <flux:icon.document variant="outline" class="size-10 text-rule" />
+                            <p class="text-sm text-ink-2">
+                                {{ __('No preview for :type files. Download it to open in another application.', ['type' => $mime ?: __('these')]) }}
+                            </p>
+                        </div>
+                    @endif
                 </div>
-            @elseif (str_starts_with($mime, 'image/'))
-                {{-- Contained rather than cropped: a scan is read, not admired,
-                     and cutting its edges off hides exactly the margins that
-                     carry stamps and signatures. --}}
-                <img
-                    src="{{ $source }}"
-                    alt="{{ $previewing->name }}"
-                    class="mx-auto max-h-full max-w-full object-contain"
-                    data-test="preview-image"
-                />
-            @elseif ($mime === 'application/pdf' || str_starts_with($mime, 'text/'))
-                {{-- An iframe, so the browser's own PDF and text viewers do the
-                     work. Bundling a JavaScript PDF renderer would add
-                     megabytes to an image that already ships MinIO and
-                     tesseract, to show what every browser already shows. --}}
-                <iframe
-                    src="{{ $source }}"
-                    sandbox=""
-                    title="{{ $previewing->name }}"
-                    class="h-full min-h-[60vh] w-full rounded border border-rule bg-chrome"
-                    data-test="preview-frame"
-                ></iframe>
-            @else
-                <div class="flex h-full min-h-[40vh] flex-col items-center justify-center gap-3 text-center" data-test="preview-unsupported">
-                    <flux:icon.document variant="outline" class="size-10 text-rule" />
-                    <p class="text-sm text-ink-2">
-                        {{ __('No preview for :type files. Download it to open in another application.', ['type' => $mime ?: __('these')]) }}
-                    </p>
-                </div>
-            @endif
+
+                <aside class="hidden w-72 shrink-0 overflow-auto border-l border-rule pl-4 lg:block" data-test="preview-properties">
+                    @if ($previewing->legal_hold)
+                        <div class="mb-4 flex items-start gap-2 rounded border border-hold/30 bg-hold/5 px-3 py-2 text-xs">
+                            <flux:icon.lock-closed variant="micro" class="mt-0.5 shrink-0 text-hold" />
+                            <span class="text-ink">{{ __('Under legal hold.') }}</span>
+                        </div>
+                    @endif
+
+                    <dl class="space-y-2.5 text-xs">
+                        @foreach ([
+                            __('Type') => $mime ?: __('Unknown'),
+                            __('Size') => $version ? \Illuminate\Support\Number::fileSize($version->size) : '—',
+                            __('Version') => $version?->version_number ? '#'.$version->version_number : '—',
+                            __('Owner') => $previewing->creator?->name ?? '—',
+                            __('Modified') => $previewing->updated_at?->format('Y-m-d H:i') ?? '—',
+                            __('Period') => $previewing->period_year ? sprintf('%04d-%02d', $previewing->period_year, $previewing->period_month) : '—',
+                        ] as $label => $value)
+                            <div class="flex items-baseline justify-between gap-3">
+                                <dt class="shrink-0 text-ink-2">{{ $label }}</dt>
+                                <dd class="num min-w-0 truncate text-right text-ink">{{ $value }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
+
+                    {{-- The governed properties for this file, the same component
+                         the detail panel renders. Its own key, because two
+                         instances of a Livewire component sharing one key are one
+                         component as far as Livewire is concerned. --}}
+                    <div class="mt-4 border-t border-rule pt-4">
+                        <livewire:files.property-panel
+                            :subject="$previewing"
+                            :key="'preview-'.$previewing->getMorphClass().'-'.$previewing->getKey()"
+                        />
+                    </div>
+                </aside>
+            </div>
+
         </x-modal>
     @endif
     </div>

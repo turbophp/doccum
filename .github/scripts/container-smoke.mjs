@@ -1676,7 +1676,11 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-  await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).click();
+
+  // Through the row, not the name: clicking a file's NAME now opens it in the
+  // preview dialog, and this check wants the detail panel behind it rather
+  // than a dialog over it. Selecting exactly one row populates that panel.
+  await clickFileRow(page, VERSIONS_CHECK_FILE_NAME);
 
   // Two input[type="file"] elements exist on the page from this point on --
   // the main upload form's and this now-visible Replace form's -- so every
