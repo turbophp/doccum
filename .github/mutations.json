@@ -481,5 +481,117 @@
     "file": "app/Support/LedgerValidator.php",
     "remove": "                if (($entry['testsConclusion'] ?? null) !== null && ($entry['testsRun'] ?? null) === null) {\n                    $errors[] = \"run: '$expectedId'.merges[$index] has testsConclusion \".self::describe($entry['testsConclusion']).' but testsRun is null -- a conclusion with no run to point at.';\n                }\n                if (($entry['ledgerConclusion'] ?? null) !== null && ($entry['ledgerRun'] ?? null) === null) {\n                    $errors[] = \"run: '$expectedId'.merges[$index] has ledgerConclusion \".self::describe($entry['ledgerConclusion']).' but ledgerRun is null -- a conclusion with no run to point at.';\n                }\n",
     "expectFailing": "flags a testsConclusion with a null testsRun, and a ledgerConclusion with a null ledgerRun, each as a run: error"
+  },
+  {
+    "id": "ledger-witness-structural-undeclared-key",
+    "why": "item/ledger-rule-witnesses (issue #189): the structural: witness edits a copy of the live ledger by adding a key context.jsonld does not define. Remove this line and collectAndCheckStructure() stops reporting an undeclared key at all -- LedgerRuleWitnesses::run() then finds no structural: error where the witness expects one, which is exactly the dead-rule shape #185 lived in.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                    $errors[] = \"structural: $context ($id) has key '$key', which context.jsonld does not define.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-id-pattern",
+    "why": "item/ledger-rule-witnesses (issue #189): the id: witness corrupts a Decision's own @id so it no longer matches DECISION_ID_PATTERN. Remove this line and idErrors() stops checking the pattern at all.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"id: '$id' ({$entry['type']}) does not match its required pattern $pattern.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-ref-target-missing",
+    "why": "item/ledger-rule-witnesses (issue #189): the ref: witness points a dependsOn entry at an id that does not exist. Remove this line and referenceErrors() stops reporting a reference to nothing.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"ref: $context references '$ref', which does not exist.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-enum-pr-sha",
+    "why": "item/ledger-rule-witnesses (issue #189): the enum: witness overwrites a merged PullRequest's headSha with a non-hex value. Remove this line and checkPullRequest() stops validating headSha/mergeSha's format at all.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"enum: PullRequest '$id'.$shaField = \".self::describe($value).' is not a 40-character hex sha.';\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-canonical",
+    "why": "item/ledger-rule-witnesses (issue #189): the canonical: witness appends one extra byte to ledger.jsonld's raw content, with no semantic change, so the file no longer round-trips through canonicalize(). Remove this line and canonicalSerializationErrors() stops checking ledger.jsonld's own formatting at all (the parallel check for run files is a separate line and keeps firing, so this mutation isolates the ledger.jsonld half).",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "            $errors[] = 'canonical: ledger.jsonld is not canonically formatted (2-space indent, LF, trailing newline, existing key order).';\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-graph-cycle",
+    "why": "item/ledger-rule-witnesses (issue #189): the graph: witness makes an Action depend on itself. Remove this line and acyclicErrors() stops reporting a cycle it has already detected -- the traversal still runs, only the error is gone, which is precisely the kind of guard CLAUDE.md's mutation-check discipline exists to keep visible.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"graph: dependsOn has a cycle: $cycle.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-status-starttime",
+    "why": "item/ledger-rule-witnesses (issue #189): the status: witness nulls startTime on a Completed Action. Remove this line and actionStatusErrors() stops requiring a non-Potential Action to carry one.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"status: Action '$id' has status $status but no startTime.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-pr-implements-empty",
+    "why": "item/ledger-rule-witnesses (issue #189): the pr: witness empties a merged PullRequest's implements. Remove this line and pullRequestErrors() stops requiring a PullRequest to implement at least one item.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"pr: '$id' implements no items.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-decision-supersedes",
+    "why": "item/ledger-rule-witnesses (issue #189): the decision: witness points the lowest-numbered Decision's own supersedes at itself. Remove this line and decisionSupersedesErrors() stops requiring supersedes to name a lower-numbered decision.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"decision: '$id' supersedes '$supersedes', which is not a lower-numbered decision.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-mutation-empty-check",
+    "why": "item/ledger-rule-witnesses (issue #189): the mutation: witness blanks check on a negative-verdict Mutation. Remove this line and mutationErrors() stops requiring a negative verdict to carry a non-empty check -- a failure that names no assertion would validate clean again.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"mutation: '$id' has verdict negative but no non-empty check -- a failure that names no assertion is not evidence.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-run-commit-mismatch",
+    "why": "item/ledger-rule-witnesses (issue #189): the run: witness flips one hex digit of the newest run's own commit field so it no longer matches that run's last recorded mergeSha. Remove this line and runErrors() stops checking Run.commit against merges[] at all.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                    $errors[] = \"run: '$expectedId'.commit = \".self::describe($run['commit'] ?? null).\" but its last merges entry's mergeSha is '$lastMergeSha'.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-shape-non-string",
+    "why": "item/ledger-rule-witnesses (issue #189): the shape: witness appends a non-string element to an Action's dependsOn. Remove this line and checkIdSetShape() stops reporting a non-string element in an @id set at all -- issue #188's own defect, reopened.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"shape: $label.$key contains a non-string element (\".self::describe($element).'), but context.jsonld types every element as an @id reference.';\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-spec-anchor",
+    "why": "item/ledger-rule-witnesses (issue #189): the spec-anchor: witness overwrites an Action's isBasedOn with an anchor no heading produces. Remove this line and specAnchorErrors() stops checking that an anchor actually resolves.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                    $errors[] = \"spec-anchor: $label '$id' has isBasedOn 'spec:$anchor', but no heading in the design spec produces that anchor.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-fatal-not-json",
+    "why": "item/ledger-rule-witnesses (issue #189): the fatal: witness overwrites ledger.jsonld with content that will not parse as JSON. Remove this line and validate() stops reporting that at all -- json_decode's failure would fall through with $ledger left null and no error naming why, rather than a coherent fatal:.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "            $errors[] = 'fatal: ledger.jsonld is not a JSON object.';\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-history-unrecorded",
+    "why": "item/ledger-rule-witnesses (issue #189): the history: witness supplies a fabricated commit ahead of the newest run's own last recorded mergeSha as $mainPushShas -- the one witness that varies validate()'s external git-fact argument rather than editing ledger.jsonld's own content, because that is the only place this specific rule's input comes from. Remove this line and mainPushHistoryErrors() stops reporting an interior commit main recorded that no run's merges ever named -- item/ledger-main-push-record's whole point, per decision/0070's own account of this exact rule missing a real merge in production.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"history: commit '$sha' is on main (per git log since the previous completed run) but does not appear in any run's merges, and a LATER commit does -- so this is a merge nobody wrote down, not one not yet recorded.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-order-duplicate",
+    "why": "item/ledger-rule-witnesses (issue #189): the order: witness sets the second item's order equal to the first's. Remove this line and orderingErrors() stops reporting a duplicate order value at all.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                    $errors[] = \"order: order $order is used by both '{$orders[$order]}' and '$id'.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
   }
 ]

@@ -15,6 +15,18 @@ declare(strict_types=1);
  * Exits 0 and prints nothing but a summary when the ledger is sound.
  * Exits 1 and lists every failing invariant otherwise.
  *
+ * Usage: php .github/scripts/validate-ledger.php --witnesses [ledger-dir] [spec-path]
+ * item/ledger-rule-witnesses (issue #189): runs
+ * App\Support\LedgerRuleWitnesses::run() instead -- a JSON-level mutation
+ * sweep over disposable copies of the live ledger, proving every category
+ * LedgerValidator::CODES declares is either witnessed or sits in that
+ * class's own shrinking baseline. Same framework-free, pre-`composer
+ * install` constraint as the plain mode above, and requires the same
+ * LedgerValidator.php by path, plus LedgerRuleWitnesses.php beside it. The
+ * optional [main-sha] is not accepted here: every witness supplies whatever
+ * git fact its own rule needs internally (see LedgerRuleWitnesses's
+ * history: witness), so there is nothing for a caller to pass in.
+ *
  * [main-sha], when given, is where main's own history is known to end --
  * this script is the one place LedgerValidator's "git facts" seam is fed
  * from (see that class's validate() docblock and item/ledger-main-push-
@@ -45,11 +57,41 @@ $root = dirname(__DIR__, 2);
 
 require $root.'/app/Support/LedgerValidator.php';
 
-$ledgerDir = $argv[1] ?? $root.'/docs/ledger';
-$specPath = $argv[2] ?? $root.'/docs/superpowers/specs/2026-09-15-doccum-design.md';
-$mainSha = $argv[3] ?? null;
+$witnessesMode = in_array('--witnesses', $argv, true);
+$positional = array_values(array_filter($argv, static fn (string $arg): bool => $arg !== '--witnesses'));
+
+$ledgerDir = $positional[1] ?? $root.'/docs/ledger';
+$specPath = $positional[2] ?? $root.'/docs/superpowers/specs/2026-09-15-doccum-design.md';
+$mainSha = $witnessesMode ? null : ($positional[3] ?? null);
 if ($mainSha === '') {
     $mainSha = null;
+}
+
+if ($witnessesMode) {
+    require $root.'/app/Support/LedgerRuleWitnesses.php';
+
+    if (! is_dir($ledgerDir)) {
+        fwrite(STDOUT, "No ledger at $ledgerDir; nothing to witness.\n");
+        exit(0);
+    }
+
+    $result = App\Support\LedgerRuleWitnesses::run($ledgerDir, $specPath);
+
+    if ($result['failures'] === []) {
+        fwrite(STDOUT, sprintf(
+            "All %d declared code(s) are witnessed or baselined: %s\n",
+            count(App\Support\LedgerValidator::CODES),
+            implode(', ', $result['witnessed']),
+        ));
+        exit(0);
+    }
+
+    fwrite(STDERR, sprintf("Rule-witness sweep failed with %d issue%s:\n\n", count($result['failures']), count($result['failures']) === 1 ? '' : 's'));
+    foreach ($result['failures'] as $failure) {
+        fwrite(STDERR, "  - $failure\n");
+    }
+    fwrite(STDERR, "\n");
+    exit(1);
 }
 
 // Only an ABSENT path may skip: docs/ is dockerignored (see CLAUDE.md), so

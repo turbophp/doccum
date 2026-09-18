@@ -19,10 +19,15 @@ namespace App\Support;
  * missing ledger means (the test skips, the CLI fails loudly).
  *
  * Every method returns a list<string> of human-readable failures, each
- * prefixed with a category tag ("structural:", "id:", "ref:", "spec-anchor:",
- * "enum:", "order:", "canonical:", "graph:", "status:", "pr:", "decision:",
- * "run:", "mutation:", "history:", "fatal:") so a caller can group or filter
- * by invariant. An empty list means that invariant holds.
+ * prefixed with a category tag -- self::CODES is the real, checked
+ * declaration of that set. This sentence used to be the only place it was
+ * written down, as prose, and it was already wrong: it never mentioned
+ * "shape:", added by issue #188, so it drifted the moment that rule shipped
+ * and nothing noticed. item/ledger-rule-witnesses (issue #189) is what
+ * turned it into self::CODES -- a constant a harness can assert against --
+ * and tests/Feature/Ledger/RuleWitnessesTest.php re-derives the real set
+ * from this file's own source so the two cannot silently disagree again.
+ * An empty list from any one check below means that invariant holds.
  *
  * Deliberately NOT checked here (needs git history or the network, which the
  * design consultation excluded from "the files alone"):
@@ -37,6 +42,27 @@ namespace App\Support;
  */
 final class LedgerValidator
 {
+    /**
+     * The complete, closed set of category tags any error this class
+     * returns is ever prefixed with. Sorted, so a caller can compare it
+     * against a derived set without also having to sort that set the same
+     * way first.
+     *
+     * This is a code PER CATEGORY, not per emission site: there are 82
+     * `$errors[] = ` call sites behind these 16 tags (several `enum:` and
+     * `structural:` sites alone), and App\Support\LedgerRuleWitnesses's own
+     * docblock records why item/ledger-rule-witnesses (issue #189) witnesses
+     * at this grain rather than one distinct code per site, and what full
+     * site-level coverage would have needed instead.
+     *
+     * @var list<string>
+     */
+    public const CODES = [
+        'canonical', 'decision', 'enum', 'fatal', 'graph', 'history', 'id',
+        'mutation', 'order', 'pr', 'ref', 'run', 'shape', 'spec-anchor',
+        'status', 'structural',
+    ];
+
     /** JSON-LD keywords and CURIE namespace prefixes in context.jsonld -- infrastructure, not data terms. */
     private const CONTEXT_INFRASTRUCTURE_KEYS = ['@version', '@vocab', '@base', 'schema', 'xsd', 'spec'];
 
@@ -1240,8 +1266,17 @@ final class LedgerValidator
         return $errors;
     }
 
-    /** @param array<string, mixed> $data */
-    private static function canonicalize(array $data): string
+    /**
+     * Public rather than private so App\Support\LedgerRuleWitnesses can
+     * write a mutated ledger.jsonld/run file back out in the exact byte
+     * form this class's own canonicalSerializationErrors() demands --
+     * otherwise every witness that edits ledger.jsonld's content would also
+     * trip a spurious 'canonical:' error alongside whatever category it
+     * actually means to isolate, purely as an artifact of re-encoding.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public static function canonicalize(array $data): string
     {
         $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         if ($encoded === false) {
