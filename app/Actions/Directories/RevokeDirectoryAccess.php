@@ -26,6 +26,6 @@ class RevokeDirectoryAccess
 {
     public function handle(DirectoryGrant $grant): void
     {
-        $grant->delete();
+        // MUTATION: the revoke is a no-op.
     }
 }
