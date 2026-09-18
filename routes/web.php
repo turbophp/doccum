@@ -6,6 +6,7 @@ use App\Http\Controllers\DirectoryArchiveDownloadController;
 use App\Http\Controllers\FileDownloadController;
 use App\Http\Controllers\FileVersionDownloadController;
 use App\Livewire\Admin\PropertyDefinitions;
+use App\Livewire\Admin\Roles;
 use App\Livewire\Admin\Users;
 use App\Livewire\Files\Browser;
 use App\Livewire\Home\Index as Home;
@@ -67,6 +68,13 @@ Route::livewire('admin/properties', PropertyDefinitions::class)
 Route::livewire('admin/users', Users::class)
     ->middleware(['auth', 'can:users.manage'])
     ->name('admin.users');
+
+// item/admin-roles (issue #19): gated on the SAME permission as admin.users
+// above, not a new roles.manage -- see App\Livewire\Admin\Roles's own
+// docblock for why.
+Route::livewire('admin/roles', Roles::class)
+    ->middleware(['auth', 'can:users.manage'])
+    ->name('admin.roles');
 
 require __DIR__.'/settings.php';
 
