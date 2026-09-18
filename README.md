@@ -59,6 +59,30 @@ instance: storage settings, users, roles and permissions. Bring `APP_KEY` with
 it — encrypted settings and two-factor secrets are sealed with it, and doccum
 will tell you plainly if it does not match rather than starting half-working.
 
+## Image size
+
+The image's size is measured on every build and, once a figure is on record,
+CI fails a build that grows past it (`.github/scripts/image-size.sh`,
+gated in `.github/workflows/tests.yml`'s `image` job and printed again by
+`.github/workflows/release.yml`). Two numbers, each a ratchet on its own:
+
+| | Uncompressed | Compressed |
+|---|---|---|
+| Size | 934.2 MiB (979,591,435 bytes) | 294.1 MiB (308,438,108 bytes) |
+| Measured at commit | `70b4380` | `70b4380` |
+
+Both figures come from the first CI run that built and measured the image,
+not from an estimate. "Compressed" is a gzip of the whole `docker save`
+tarball, not what a registry pull downloads — a pull fetches each layer's own
+gzipped blob and skips layers it already has — so treat it as a stable way to
+ask *did this get bigger*, not as a download time.
+
+The check allows a small stated tolerance above the recorded figure, kept in
+`.github/image-budget.json`. That is the measurement's noise floor rather than
+slack: the Dockerfile pins its base images by tag rather than by digest, so two
+builds of the same commit on different days differ by amounts this repository
+did not cause.
+
 ## Recovering
 
 | Situation | Command |
