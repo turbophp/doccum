@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T01:08:00Z",
+  "dateModified": "2026-09-18T01:12:00Z",
   "latestRun": "run/0018",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -580,9 +580,9 @@
       "dependsOn": [
         "item/files-actions-ui"
       ],
-      "doneWhen": "The sidebar renders Home first, then the viewer reach roots -- viewable directories whose parent is not viewable -- and their viewable descendants, asserted against the query: a grant on a nested directory alone makes that directory reachable from /files, written as a test that fails on main before the fix; the breadcrumb lists every ancestor the viewer may view and no others; collapse state is per-browser; the container smoke navigates two levels through the tree and asserts three breadcrumb items. FileBrowserTest keeps its unreachable-directory guarantees throughout.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "doneWhen": "The sidebar renders Home first, then the viewer reach roots -- viewable directories whose parent is not viewable -- and their viewable descendants, asserted against the query: a grant on a nested directory alone makes that directory reachable from /files, written as a test that fails on main before the fix; the breadcrumb lists every ancestor the viewer may view and no others; collapse state is per-browser; the container smoke navigates two levels through the tree and asserts three breadcrumb items. FileBrowserTest keeps its unreachable-directory guarantees throughout. The LANDING PANE at /files, with no directory selected, lists the same reach roots as the sidebar rather than the true filesystem roots it lists today: Browser::render() filters on where('parent_id', $this->directory?->getKey()), which resolves to parent_id IS NULL, so a directory granted to the viewer whose parent is not viewable has a non-null parent_id and never appears there at all -- reachable only by typing its URL. That is issue 99, and without this clause an implementation could satisfy every other clause here and leave /files itself still broken for a nested grant.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-18T01:12:00Z",
       "endTime": null,
       "result": []
     },
