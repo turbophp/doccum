@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T01:55:00Z",
+  "dateModified": "2026-09-18T02:42:00Z",
   "latestRun": "run/0018",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -603,10 +603,12 @@
         "item/files-three-pane"
       ],
       "doneWhen": "A non-manager sees no control and is refused server-side; a grant is visible to the grantee in the same request cycle; revoke is covered; writes go through the DirectoryGrant model, never a mass query.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T01:58:00Z",
+      "endTime": "2026-09-18T02:39:50Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/143"
+      ]
     },
     {
       "@id": "item/trash-view",
@@ -2083,6 +2085,38 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/143",
+      "@type": "PullRequest",
+      "identifier": 143,
+      "name": "item/directory-access-ui: grant and revoke from the panel, and close the escalation it would have exposed (#14)",
+      "implements": [
+        "item/directory-access-ui"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T02:18:00Z",
+      "headSha": "d83638c7d52a6022d3768faf6182b1f7b921ff15",
+      "mergedAt": "2026-09-18T02:39:50Z",
+      "mergeSha": "c7c82ef250f359263afafcc1997f422d6dc67f36",
+      "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/145",
+      "@type": "PullRequest",
+      "identifier": 145,
+      "name": "MUTATION -- DO NOT MERGE: revoke does not delete the grant",
+      "implements": [
+        "item/directory-access-ui"
+      ],
+      "run": "run/0018",
+      "state": "closed",
+      "dateCreated": "2026-09-18T02:31:00Z",
+      "headSha": "c1110e15d24d0d4cc4311153c2551493954efcc4",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -2642,6 +2676,24 @@
         "item/files-three-pane",
         "item/container-smoke-ci",
         "item/upload-silent-discard"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0034",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T02:42:00Z",
+      "run": "run/0018",
+      "name": "A UI item that makes a latent policy gap reachable must close it, and a mutation must break the step the check can still reach past",
+      "rationale": "Two findings from item/directory-access-ui, and the first is the one that mattered.\n\nTHE ESCALATION. DirectoryPolicy::manageAccess() required only AccessLevel::Manage, with no Spatie permission. move(), delete() and restore() all require directories.manage, and spec §5 groups them as ONE capability -- \"grant/revoke access, move or delete the directory itself\" -- so this was the single sibling skipping layer 1, against CLAUDE.md's binding two-layer rule. It was the worst one to leave open, because granting access is how every other restriction gets handed to someone else.\n\nIt was reachable by every user rather than in some corner: MEMBER_PERMISSIONS carries no directories.manage, and spec §5 also says every user holds manage on their own home directory through an ordinary grant. So any member could hand anyone any level on their own subtree while being refused the move and delete the same sentence groups with it.\n\nThe rule this establishes is about WHEN to fix rather than what: the gap was latent only because nothing called the ability from the UI, and this item is precisely what would have made it live. Shipping the UI and filing the hole would have meant knowingly shipping the escalation, so a UI item that makes a latent policy gap reachable closes it in the same change. Nothing was taken away by doing so -- with no UI, nobody could grant through it -- but it did settle a product question by implication, that sharing is an administrator's act in v1, and that is filed as issue 144 rather than left as an inference. If self-service sharing is wanted the answer is a permission of its own that members hold, never a layer removed.\n\nThe implementing worker found this and refused to resolve it inside the item, flagging it instead. That was the right call twice over: it was not the worker's decision to make, and the flag is what made the fix land with the UI rather than after it.\n\nTwo fixture traps came with it, both of which would have produced a green test proving nothing. A permission-alone fixture must NOT be an admin, because DirectoryAccess::resolve() short-circuits directories.view-all to AccessLevel::Manage on every directory, so an admin passes the level check by bypass. And the mutation anchor for the new clause had to sit INSIDE the return expression: the clause is textually identical to restore()'s and delete()'s and mutation-check.php matches by substring, so a bare anchor hit three sites, while anchoring above the return would leave a statement with no return and the mutation would \"fail\" as a TypeError -- testing that PHP has types rather than that the test catches a missing layer. Verified by applying the remove string and running php -l on the result.\n\nSECOND: MUTATE THE STEP THE CHECK CAN STILL REACH PAST. A smoke check with two stages -- grant then revoke -- has two candidate mutations and they are not equivalent. Breaking the FIRST leaves nothing for the second to act on, so the check dies on a locator before any assertion runs and the failure names nothing; that is exactly how item/files-three-pane's first two mutation rounds were wasted (decision/0033). Breaking the SECOND lets the first half pass and PRINT, so the failure arrives at a named assertion with the first half's success as context. The mutated run reads \"granting access through the panel wrote exactly one DirectoryGrant row -- OK\" followed by \"revoking access through the panel did not remove the DirectoryGrant row -- raw output: COUNT:1\", and the first line is what makes the second attributable to the one line that changed rather than merely co-occurring with it.\n\nRecorded with a correction that belongs on the record: decision/0033's rule -- never wait on the thing under test -- was broken here, one item after being written, by Promise.all-ing the Revoke click with a wait for the grant row to become detached, which is precisely what revoking does. The first mutation round therefore failed at \"locator.waitFor: Timeout 10000ms exceeded ... 25 x locator resolved to visible <li data-test=\\\"directory-grant-row\\\">\" instead of at the assertion. Knowing a rule is not the same as applying it; it took meeting the identical opaque-timeout shape a second time to look for the pattern rather than recognise it afterwards. Database evidence first and DOM second, as checkBulkTrashLeavesUnselectedFilesAlone()'s docblock already said.",
+      "isBasedOn": [
+        "spec:5-access-control",
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/directory-access-ui",
+        "item/files-three-pane",
+        "item/container-smoke-ci"
       ],
       "supersedes": null
     }
