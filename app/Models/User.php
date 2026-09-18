@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Exceptions\UsernameWouldBeAmbiguous;
 use App\Support\EmailKey;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -64,6 +65,30 @@ class User extends Authenticatable implements PasskeyUser
         // original casing preserved for display.
         static::saving(static function (User $user): void {
             $user->email = EmailKey::of((string) $user->email);
+        });
+
+        // The username's own authoritative guard, and deliberately a hook
+        // rather than one more validation rule. AuthenticateUser resolves a
+        // login identifier by asking whether it contains `@` -- with one it
+        // looks up an email, without one a username -- so that dispatch is
+        // unambiguous only while the two character sets stay disjoint.
+        //
+        // usernameRules() already excludes `@` at both application write
+        // paths, and before this hook that was the ONLY thing keeping them
+        // disjoint: a convention every future write path has to remember,
+        // with nothing catching one that forgets. UserFactory is already
+        // such a path -- it sets a username Faker happens to produce in the
+        // right shape, validated by nothing. Authentication should not rest
+        // on a convention, so this raises instead, the same "one hook
+        // nothing can bypass" shape as the email fold above.
+        static::saving(static function (User $user): void {
+            $username = mb_strtolower(trim((string) $user->username));
+
+            if (str_contains($username, '@')) {
+                throw UsernameWouldBeAmbiguous::forUsername($username);
+            }
+
+            $user->username = $username;
         });
     }
 

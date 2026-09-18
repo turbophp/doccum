@@ -306,5 +306,12 @@
     "file": "app/Concerns/ProfileValidationRules.php",
     "remove": "            'regex:/^[a-z0-9._-]+$/',\n",
     "expectFailing": "test_registering_a_username_containing_an_at_sign_is_rejected"
+  },
+  {
+    "id": "user-model-refuses-an-at-sign-in-a-username",
+    "why": "item/login-by-username (issue #75): AuthenticateUser dispatches a login identifier on str_contains($identifier, '@') -- with one it looks up an email, without one a username -- so the dispatch is unambiguous only while the character sets stay disjoint. usernameRules() excludes '@' at both application write paths, but that is a convention each future write path must remember; UserFactory is already a path that validates nothing. This hook is the one nothing can bypass, the same shape as the email fold beside it. Losing it does not merely break a login: a username equal to another account's email would send the typing user to THAT account's row.",
+    "file": "app/Models/User.php",
+    "remove": "            if (str_contains($username, '@')) {\n                throw UsernameWouldBeAmbiguous::forUsername($username);\n            }\n\n",
+    "expectFailing": "refuses to persist a username containing an at sign, whatever wrote it"
   }
 ]
