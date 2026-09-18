@@ -8,6 +8,7 @@
   "endTime": null,
   "outcome": "active",
   "touched": [
+    "item/admin-instance-settings",
     "item/admin-periods",
     "item/admin-roles",
     "item/ledger-id-uniqueness",
