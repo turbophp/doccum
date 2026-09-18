@@ -627,7 +627,49 @@
         "item/trash-directory",
         "item/trash-purge-manual"
       ],
-      "doneWhen": "Another user's trashed items never appear, asserted at query level; restore and purge are wired to the actions.",
+      "doneWhen": "Another user's trashed items never appear, asserted at query level; restore and purge are wired to the actions. Files get Restore and Purge; directories get Restore ONLY -- a directory purge is out of scope here and remains issue #86, because files.directory_id cascades on delete, so force-deleting a directory row removes descendant file rows in SQL without ever reaching Services\\DocumentStorage, orphaning every object beneath it. decision/0031 folded #86 into this clause and the text was never amended; it is recorded here at completion -- a constraint the build already honoured, not one relaxed to fit.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T02:45:00Z",
+      "endTime": "2026-09-18T03:25:08Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/147"
+      ]
+    },
+    {
+      "@id": "item/download-missing-object",
+      "@type": "Action",
+      "order": 30,
+      "name": "A missing object is a stated answer, not a crash",
+      "url": "https://github.com/turbophp/doccum/issues/134",
+      "isBasedOn": [
+        "spec:6-storage-and-period-partitioning"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/download-reaches-the-browser"
+      ],
+      "doneWhen": "Both download controllers resolve the object BEFORE any header is sent -- DocumentStorage reports a missing object through a typed exception rather than a bare RuntimeException raised from inside the streamDownload callback, where the status line has already been decided and the observed code is an accident of when the exception surfaces relative to the header flush. Each route answers a deliberate status with a body and a log line naming the object key, so an operator can tell 'object storage is missing this object' from 'doccum crashed'. A test deletes the faked object behind a live row and asserts the status, the message and the log entry, for the current-version route and the per-version route both; the chosen status is stated in the docblock with its reasoning. The presigned path answers MinIO's own 404 and is left as is, noted rather than fixed. This matters because /data is the only volume and the backup story is 'copy /data': a restore that brings the database but not objects/ is the likeliest operator mistake in the product, and item/self-hosting-docs must be able to say what happens then.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/ledger-mutation-nodes",
+      "@type": "Action",
+      "order": 31,
+      "name": "Mutation runs become ledger nodes with verdicts, so a prediction cannot pass as a finding",
+      "url": "https://github.com/turbophp/doccum/issues/150",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/trash-view"
+      ],
+      "doneWhen": "A Mutation node type exists on the Ledger, sibling to pullRequests and decisions, carrying implements, pullRequest, run, headSha, mutant (what was broken), check (the named assertion that must trip) and verdict, one of negative (the check went red -- the good outcome), positive (the guard is not load-bearing) or void (the run died before reaching the assertion, so it is evidence of nothing). LedgerValidator enforces three rules: a Completed item based on spec:10 must be implements-referenced by at least one negative Mutation with a non-empty check; a positive or void Mutation blocks its item's Completion until a later one supersedes it; and check is required on a negative verdict, because a failure that names no assertion is not evidence. Decision gains an evidence term referencing Mutation nodes, so a decision claiming a guard is load-bearing either cites a run or visibly does not -- and the absence is the signal, no rule needed. PullRequest gains mainRunUrl and mainConclusion, and a Run may not reach outcome completed while a PR merged in it lacks mainConclusion, which makes LOOP step 3's claim about main's ref a recorded fact rather than a habit. The six historical mutation PRs (118, 122, 130, 132, 141, 145, 148, 149) are back-filled with verdicts read from their workflow runs; existing PR node names are left alone, because history is append-only. The 39 mechanical entries in mutations.json get no nodes: mutation-check.php re-proves them every CI run, so their evidence is the green tests run itself.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -636,7 +678,7 @@
     {
       "@id": "item/home-dashboard",
       "@type": "Action",
-      "order": 30,
+      "order": 32,
       "name": "Home dashboard: recents, storage by period, quick search",
       "url": "https://github.com/turbophp/doccum/issues/16",
       "isBasedOn": [
@@ -647,7 +689,7 @@
       "dependsOn": [
         "item/topbar-shell"
       ],
-      "doneWhen": "Recents are filtered by DirectoryAccess so another user's file is absent; the page renders with zero data.",
+      "doneWhen": "Recents are filtered by DirectoryAccess so another user's file is absent; the page renders with zero data. Exactly one link on /files has the accessible name 'Home': spec 10 names BOTH the topbar entry and the sidebar's pinned entry 'Home', so the collision is the spec's rather than item/files-tree-sidebar's (issue #140). The sidebar entry keeps its visible text per the spec and carries an accessible name beginning with it ('Home directory'), so WCAG label-in-name holds; a test asserts the count of accessible-name matches and is shown failing against main first. Not renamed to the username (the tree's first entry already reads that) nor to 'My files' (a term the spec does not use).",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -656,7 +698,7 @@
     {
       "@id": "item/search-filters",
       "@type": "Action",
-      "order": 31,
+      "order": 33,
       "name": "Type, mime, period and property filters on search",
       "url": "https://github.com/turbophp/doccum/issues/17",
       "isBasedOn": [
@@ -676,7 +718,7 @@
     {
       "@id": "item/login-by-username",
       "@type": "Action",
-      "order": 32,
+      "order": 34,
       "name": "Login accepts a username as well as an email, as spec 10 says",
       "url": "https://github.com/turbophp/doccum/issues/75",
       "isBasedOn": [
@@ -696,7 +738,7 @@
     {
       "@id": "item/admin-users",
       "@type": "Action",
-      "order": 33,
+      "order": 35,
       "name": "Settings: users",
       "url": "https://github.com/turbophp/doccum/issues/18",
       "isBasedOn": [
@@ -716,7 +758,7 @@
     {
       "@id": "item/admin-roles",
       "@type": "Action",
-      "order": 34,
+      "order": 36,
       "name": "Settings: roles and their permission matrix",
       "url": "https://github.com/turbophp/doccum/issues/19",
       "isBasedOn": [
@@ -736,7 +778,7 @@
     {
       "@id": "item/admin-periods",
       "@type": "Action",
-      "order": 35,
+      "order": 37,
       "name": "Settings: periods, closing, purge plan and purge",
       "url": "https://github.com/turbophp/doccum/issues/20",
       "isBasedOn": [
@@ -757,7 +799,7 @@
     {
       "@id": "item/admin-instance-settings",
       "@type": "Action",
-      "order": 36,
+      "order": 38,
       "name": "Settings: instance name, signup, retention, limits",
       "url": "https://github.com/turbophp/doccum/issues/21",
       "isBasedOn": [
@@ -777,7 +819,7 @@
     {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
-      "order": 37,
+      "order": 39,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -797,7 +839,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 38,
+      "order": 40,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -811,7 +853,7 @@
         "item/search-filters",
         "item/trash-directory"
       ],
-      "doneWhen": "Per-endpoint three-gate matrix: a missing ability is 403 despite the permission, a denied ACL is 404 or 403, and revoking the owner's role narrows an existing token on the next request; a test asserts no /api route touches users, roles, definition writes or periods.",
+      "doneWhen": "Per-endpoint three-gate matrix: a missing ability is 403 despite the permission, a denied ACL is 404 or 403, and revoking the owner's role narrows an existing token on the next request; a test asserts no /api route touches users, roles, definition writes or periods. The 404-or-403 choice this clause left open is settled as 404, and settled ONCE for the whole product: a denied ACL answers 404, the same as a nonexistent id, on every route AND in Browser::moveFile()/moveDirectory(), whose destination lookup is scoped to DirectoryAccess::viewableDirectoryIds() inside the query rather than resolved with findOrFail before authorize (issue #109). The two existing tests asserting 403 flip to 404 in the same PR. Deciding it here rather than ad hoc in the Livewire component is the point: two postures in one product is the cost of deciding it twice.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -820,7 +862,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 39,
+      "order": 41,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -831,7 +873,7 @@
       "dependsOn": [
         "item/api-content"
       ],
-      "doneWhen": "End-to-end url then commit; a size or checksum mismatch is rejected and the staging object removed; an archived period is rejected at upload-url; the sweep removes only stale staging objects.",
+      "doneWhen": "End-to-end url then commit; a size or checksum mismatch is rejected and the staging object removed; an archived period is rejected at upload-url; the sweep removes only stale staging objects. The per-file versions commit appends through a StoreFileVersion entry point taking the File itself, which cannot create one (issue #115): the API commit step has no Directory and no client filename, so it cannot use handle() without the string-passing hazard that issue describes. Browser::replaceFile() moves onto the same entry point. handle()'s create-or-append behaviour and StoreFileVersionTest are unchanged, and the container smoke's replace mutation (PR #118) still fails against an image whose Replace calls handle() with the client filename.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -840,7 +882,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 40,
+      "order": 42,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -860,7 +902,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 41,
+      "order": 43,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -881,7 +923,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 42,
+      "order": 44,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -901,7 +943,7 @@
     {
       "@id": "item/compose-secret",
       "@type": "Action",
-      "order": 43,
+      "order": 45,
       "name": "Remove the known-value secret from compose.yaml",
       "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
@@ -919,7 +961,7 @@
     {
       "@id": "item/version-from-tag",
       "@type": "Action",
-      "order": 44,
+      "order": 46,
       "name": "The version pill reports the released tag",
       "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
@@ -937,7 +979,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 45,
+      "order": 47,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -955,7 +997,7 @@
     {
       "@id": "item/changelog-release-notes",
       "@type": "Action",
-      "order": 46,
+      "order": 48,
       "name": "A changelog that becomes the release notes",
       "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
@@ -973,7 +1015,7 @@
     {
       "@id": "item/release-v0-1-0",
       "@type": "Action",
-      "order": 47,
+      "order": 49,
       "name": "Tag v0.1.0 to prove the release pipeline",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
@@ -995,7 +1037,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 48,
+      "order": 50,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -1017,7 +1059,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 49,
+      "order": 51,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -1048,7 +1090,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 50,
+      "order": 52,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -1080,7 +1122,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/embedding-provider",
@@ -1099,7 +1142,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/embedding-sweep",
@@ -1118,7 +1162,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/hybrid-ranking",
@@ -1137,7 +1182,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/ocr-provider-seam",
@@ -1154,7 +1200,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/llama-runtime-bundle",
@@ -1173,7 +1220,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/hardware-profile-picker",
@@ -1192,7 +1240,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/remote-ocr-providers",
@@ -1211,7 +1260,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/tsvector-index",
@@ -1228,7 +1278,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/external-search-engine",
@@ -1245,7 +1296,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/directory-legal-hold",
@@ -1264,7 +1316,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/trash-retention-schedule",
@@ -1283,7 +1336,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/sidebar-width-per-user",
@@ -1302,7 +1356,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/alpine-image",
@@ -1321,7 +1376,8 @@
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
-      "result": []
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
     },
     {
       "@id": "item/doc-xls-libreoffice",
@@ -1335,6 +1391,27 @@
       "release": "post-v1",
       "dependsOn": [],
       "doneWhen": "Deferred until after v1.0.0; see the Decision that cut it.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": [],
+      "url": "https://github.com/turbophp/doccum/issues/36"
+    },
+    {
+      "@id": "item/directory-share-permission",
+      "@type": "Action",
+      "order": 119,
+      "name": "A permission of its own for sharing a directory",
+      "url": "https://github.com/turbophp/doccum/issues/36",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "size": "S",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/directory-access-ui"
+      ],
+      "doneWhen": "A directories.share permission gates DirectoryPolicy::manageAccess() and nothing else, so a member may hand out access to a subtree they hold Manage on without also gaining move and delete over it -- which is what granting directories.manage wholesale would do, and why this needs its own permission rather than a reused one. Both layers still apply; no layer is removed from manageAccess(). See decision/0036, which decided that sharing is an administrator act for v1.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -2117,6 +2194,54 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/147",
+      "@type": "PullRequest",
+      "identifier": 147,
+      "name": "item/trash-view: a Trash page whose listing is scoped in the query (#15)",
+      "implements": [
+        "item/trash-view"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T03:01:52Z",
+      "headSha": "7615a75de644111b6f7aa675313849763a133d28",
+      "mergedAt": "2026-09-18T03:25:08Z",
+      "mergeSha": "1e5067b1cf5cce0153f4461edab410aace417ac2",
+      "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/148",
+      "@type": "PullRequest",
+      "identifier": 148,
+      "name": "MUTATION -- DO NOT MERGE: purge does not delete the file",
+      "implements": [
+        "item/trash-view"
+      ],
+      "run": "run/0018",
+      "state": "closed",
+      "dateCreated": "2026-09-18T03:08:00Z",
+      "headSha": "22d0e37c881d7d94b736a1b5cedcfe82ae51859d",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/149",
+      "@type": "PullRequest",
+      "identifier": 149,
+      "name": "MUTATION -- DO NOT MERGE: the Upload button carries no in-flight guard",
+      "implements": [
+        "item/trash-view"
+      ],
+      "run": "run/0018",
+      "state": "closed",
+      "dateCreated": "2026-09-18T03:18:00Z",
+      "headSha": "dbf3c8349fdd0d11e10ba4180874329793c0f526",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -2694,6 +2819,39 @@
         "item/directory-access-ui",
         "item/files-three-pane",
         "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0035",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T03:25:00Z",
+      "run": "run/0018",
+      "name": "A mutation that dies before its assertion is void, not negative -- and a fix that removes a proof must say so, then re-earn it",
+      "rationale": "Three findings from item/trash-view, and the order they arrived in is the finding about the loop itself: the mutation meant to prove the item's own assertion instead exposed a defect in the harness, which exposed an unproven claim underneath it.\n\nA MUTATION THAT DIES BEFORE ITS ASSERTION IS VOID, NOT NEGATIVE. PR 148 neutered PurgeFile::handle() and its image job went red -- which looks, at a glance, exactly like the verdict it was opened to collect. It was not. It died in checkTrashViewRestoreAndPurge()'s SETUP, on the second of its two uploads, before either click. Red is not evidence; red AT THE NAMED ASSERTION is. Reading the conclusion rather than the log would have recorded a proof that did not exist, and it is worth saying how close that was: the run failed, on the mutation branch, in the check the mutation targets. decision/0033 already says a mutation that reddens both directions distinguishes nothing; this is its neighbour -- a mutation that never reaches its assertion distinguishes nothing either, and it is harder to notice, because the failure is in the right file.\n\nAN ATTRIBUTE CANNOT SAY WHICH UPLOAD FINISHED. The cause was clickOnceUploadSettles(), added by PR 129 to fix the race decision/0030 records. It timed the submit click off the submit button's disabled attribute: wait for the edge, wait for it to clear, click. checkTrashViewRestoreAndPurge() is the first check that uploads TWO files into one page, and a poll that latches onto the first enable it sees cannot tell \"this upload has finished\" from \"some upload has finished\" -- neither the tail of the previous upload nor a gap between _startUpload's response and the upload POST is distinguishable from the real edge. The probe caught it exactly: the submit commit went out 67ms BEFORE the bytes were acknowledged, so store() ran against an empty property, which is issue 106's discard reached through the harness rather than the product. setFileAndWaitForUpload() now waits on the upload's own request lifecycle, armed before setInputFiles() because a file input posts on change. The general form: wait on the lifecycle of the thing you are waiting for, never on a rendering of its state, because a state can be produced by more than one cause and a request cannot.\n\nA FIX THAT REMOVES A PROOF MUST SAY SO, AND THEN RE-EARN IT. That repair had a cost that was nearly missed, and was caught only while correcting the helper's docblock rather than while writing the fix: with the bytes acknowledged before the click, uploadAndProveStored() is no longer sensitive to the product guard at all -- an undisabled button stores fine there. Its docblock had claimed the opposite in as many words (\"if the guard is removed ... some upload in this run stores nothing and the run says so\"), which was true before the fix and false after it. That left issue 106's entire guard resting on ONE assertion, in checkUploadButtonIsDisabledWhileTheFileIsStillUploading() -- and decision/0030 had called that assertion load-bearing on reasoning, with no run behind it. Tolerable while a second check was also sensitive; not tolerable once it was the only one. PR 149 removed wire:loading.attr=\"disabled\" wire:target=\"upload\" from the Upload button and nothing else, and the check failed with its own message, after printing its control line. The claim is now on a run. It also answered the half the check's own error text cannot distinguish: Flux does forward wire:loading.attr to the real button, since removing the attribute is what turned it red.\n\nWHAT IS STILL NOT PROVEN, RECORDED RATHER THAN ROUNDED UP. RESTORE_LIVE:yes remains a prediction. It passed in both directions of PR 148 -- necessarily, since neutering purge is what let the restore half print at all and made the failure attributable. CLAUDE.md requires at least one shown-to-fail assertion per v1 UI item and PURGED_GONE:yes is that one; it is not stretched to cover its neighbour.\n\nTHE COST. Two mutation cycles for one item, one of them spent entirely on discovering that the first was void. That is the correct price. The alternative on offer was a green PR carrying a smoke check whose evidence nobody had, resting on a guard whose proof nobody had, with a docblock asserting both.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/trash-view",
+        "item/upload-silent-discard",
+        "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0036",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T03:40:00Z",
+      "run": "run/0018",
+      "name": "Sharing a directory is an administrator act in v1, and Manage on your own home therefore gates nothing beyond Edit",
+      "rationale": "Issue 144 asks whether an ordinary member should be able to share their own home directory. It is a real question and the spec answers it two ways, so the answer has to be written down rather than left to whichever code was touched last.\n\nTHE TENSION, STATED. Spec section 5 defines the manage LEVEL as \"grant/revoke access, move or delete the directory itself\", and gives every user manage on their own home directory. The same section lists the permission set, and there is no directories.share in it. CLAUDE.md's two-layer rule is binding: a Spatie permission AND directory_access, both. RolesAndPermissionsSeeder gives the member role upload, delete, restore and directories.create -- not directories.manage. So for a non-admin member, the manage level on their own home now conveys nothing beyond edit. That is not a bug introduced by decision/0034's fix; it is what the spec's own closed permission list produces once the layer that was missing is restored.\n\nTHE DECISION: sharing is an administrator act in v1, deliberately, and the current behaviour is correct rather than incidental.\n\nThree reasons, in the order they carry weight.\n\nIt is what the product is. CLAUDE.md's first line says \"governed properties, permission-filtered search\". Governed. A system where any member can hand any level of their own subtree to anyone is a different trust model wearing the same UI, not a relaxed version of this one.\n\nIt is additive later and breaking now. Adding directories.share to the member role after v1 is a seeder line and a policy method. Removing it after people have shared things revokes a permission and strands the grants made under it. When one direction is reversible and the other is not, ship the reversible one.\n\nThe alternative would widen the spec without an audit. item/v1-audit walks the spec's permission list. Inventing a permission the spec does not name, somewhere in the thirties, is precisely the un-audited widening that item exists to catch -- and decision/0034 closed a hole created by exactly one such inconsistency between a level and a permission.\n\nWHAT THIS IS NOT. It is not a claim that the manage level is meaningless: an administrator holds directories.manage and reaches every directory through the directories.view-all bypass, so grant and revoke work in the product today, which is what item/directory-access-ui shipped and mutation-proved. It is only a member's manage on their own home that is inert.\n\nTHE SHAPE OF THE FIX, FOR WHEN IT COMES. item/directory-share-permission, post-v1: a permission of its own gating manageAccess() alone, never a layer removed from it, and never directories.manage granted to members wholesale -- that would also hand them move and delete on every directory they can reach. The distinction between \"may share\" and \"may restructure\" is the whole reason it needs its own permission rather than a reused one.",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "affects": [
+        "item/directory-access-ui",
+        "item/directory-share-permission"
       ],
       "supersedes": null
     }
