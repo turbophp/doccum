@@ -74,6 +74,16 @@ const TRASH_CHECK_FILE_NAME = 'DoccumSmokeTrashTarget.txt';
 // 'verify' would fail for a reason that looks nothing like this item.
 const VERSIONS_CHECK_FILE_NAME = 'DoccumSmokeVersionTarget.txt';
 
+// item/trash-view (issue #15): the pair of documents checkTrashViewRestoreAndPurge()
+// below drives through the new /trash page's own Restore and Purge controls.
+// Two names, not one, so the check can prove both directions independently --
+// one comes back live, the other is gone for good -- rather than reusing
+// TRASH_CHECK_FILE_NAME, which checkTrashRemovesFileFromListingAndSearch()
+// above already trashes through a different door (the file detail panel) and
+// never restores.
+const TRASH_VIEW_RESTORE_FILE_NAME = 'DoccumSmokeTrashViewRestore.txt';
+const TRASH_VIEW_PURGE_FILE_NAME = 'DoccumSmokeTrashViewPurge.txt';
+
 const EXTRACTION_TIMEOUT_MS = Number(env('EXTRACTION_TIMEOUT_MS', '60000'));
 const POLL_INTERVAL_MS = Number(env('POLL_INTERVAL_MS', '2000'));
 const SEARCH_TIMEOUT_MS = Number(env('SEARCH_TIMEOUT_MS', '20000'));
@@ -194,6 +204,56 @@ function fileRowExists(name) {
 }
 
 /**
+ * Sets a file on an upload input and does not return until that file's bytes
+ * have actually landed in the component -- the upload-file POST answered AND
+ * the _finishUpload commit behind it settled.
+ *
+ * clickOnceUploadSettles() below used to be the whole of this: watch the
+ * submit button go disabled, wait for it to come back, click. That reads the
+ * upload's progress off an ATTRIBUTE, and the attribute is not a clean
+ * single edge. #148's run caught the gap on the first check that uploads two
+ * files into one page -- the second upload's probe reads, in order:
+ *
+ *   POST .../update        req 53.4297  resp 53.4644   (_startUpload)
+ *   POST .../upload-file   req 53.4671                 (the bytes)
+ *   POST .../update        req 53.5004  resp 53.5601   <-- the racing click
+ *                          resp 53.5684                (upload-file answers)
+ *   POST .../update        req 53.5741  resp 53.6044   (_finishUpload, 30ms)
+ *
+ * The click's commit went out 67ms BEFORE the bytes were acknowledged, so
+ * store() ran against an empty property exactly as issue #106 describes, and
+ * the run died at "no files row for DoccumSmokeTrashViewPurge.txt". The
+ * disabled-edge watcher had already seen an edge and an enable by then --
+ * whether that was the tail of the PREVIOUS upload or a gap between
+ * _startUpload's response and the upload POST does not matter, because
+ * either way a poll that latches onto the first enable it sees cannot tell
+ * "this upload has finished" from "some upload has finished".
+ *
+ * So wait on the upload's own request lifecycle instead, which is the only
+ * thing here that is true at the destination and nowhere else. The listener
+ * is armed BEFORE setInputFiles(): a file input posts on change, and a
+ * listener registered afterwards can miss the response outright.
+ *
+ * Nothing is asserted here -- an upload too fast to observe, or a Livewire
+ * that renames the endpoint, must not turn into a failure in a helper whose
+ * job is to get out of the way. The guard itself is proved, against a
+ * deliberately stalled endpoint, by
+ * checkUploadButtonIsDisabledWhileTheFileIsStillUploading().
+ */
+async function setFileAndWaitForUpload(page, input, filePath) {
+  const posted = page
+    .waitForResponse((response) => response.url().includes('/upload-file'), { timeout: 20000 })
+    .catch(() => null);
+
+  await input.setInputFiles(filePath);
+  await posted;
+
+  // The bytes are acknowledged; _finishUpload is the commit that puts them on
+  // the component's property, and it is still in flight at this point.
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+}
+
+/**
  * Clicks a submit button that Livewire disables for the duration of a file
  * upload, WITHOUT racing that disabled window.
  *
@@ -227,6 +287,14 @@ function fileRowExists(name) {
  * fast to observe it -- absence of the edge is not evidence of anything),
  * then wait for it to clear, and only then click. After the upload has
  * landed nothing disables the button again, so the click cannot be dropped.
+ *
+ * This is now the LAST-MILE guard, not the whole of it. Every caller reaches
+ * here through setFileAndWaitForUpload() above, which has already waited the
+ * upload-file POST out, so in a healthy run this loop sees no disabled edge
+ * at all and falls straight through to the click -- which is the point. It
+ * stays because it costs one poll and it is the thing that still catches a
+ * button left disabled by a stuck loading state, a case the request wait
+ * cannot see.
  */
 async function clickOnceUploadSettles(page, button, phase, label) {
   let sawDisabled = false;
@@ -293,15 +361,46 @@ async function clickOnceUploadSettles(page, button, phase, label) {
  *
  * The fix is in resources/views/livewire/files/browser.blade.php: the submit
  * button is disabled for the whole upload, so the racing click cannot be
- * made. Retrying here would hide a regression of exactly that, so this no
- * longer retries -- if the guard is removed or Flux stops forwarding it, some
- * upload in this run stores nothing and the run says so.
+ * made. Retrying here would hide a regression of exactly that, so this does
+ * not retry.
+ *
+ * What this helper does NOT prove, stated plainly because it used to claim
+ * otherwise: it is no longer sensitive to the product guard. It used to say
+ * that removing wire:loading.attr="disabled" would leave some upload in this
+ * run storing nothing -- true while the click was timed off that very
+ * attribute, and false since setFileAndWaitForUpload() started waiting the
+ * upload-file POST out instead. With the bytes already acknowledged before
+ * the click, an undisabled button stores just fine here. That is the price
+ * of a helper that does not race, and it moves the whole weight of the guard
+ * onto one assertion elsewhere:
+ * checkUploadButtonIsDisabledWhileTheFileIsStillUploading() stalls the upload
+ * endpoint on purpose and asserts the button disabled inside that window --
+ * which is why that check still sets its file by hand rather than through
+ * the helper above. One check proves the guard; this one proves an upload
+ * stores. Neither pretends to do the other's job.
+ *
+ * That one assertion is mutation-proven, which it had not been: PR #149
+ * removed wire:loading.attr="disabled" wire:target="upload" from the Upload
+ * button and nothing else, and the check failed with its own message --
+ * after printing its "starts enabled (control, not evidence)" line, so it
+ * reached its subject rather than dying on the way. decision/0030 had called
+ * it load-bearing on reasoning rather than on a run, which was tolerable
+ * while this helper was also sensitive to the guard and stopped being so the
+ * moment it wasn't.
  */
 async function uploadAndProveStored(page, name, contents, phase) {
   const tmpFile = path.join(os.tmpdir(), name);
   fs.writeFileSync(tmpFile, contents);
 
-  await page.locator('[data-test="upload-form"] input[type="file"]').setInputFiles(tmpFile);
+  // Through setFileAndWaitForUpload(), never a bare setInputFiles(): this
+  // helper is called twice in a row by checkTrashViewRestoreAndPurge(), and
+  // the second call is where watching the button alone was caught clicking
+  // 67ms before the bytes were acknowledged.
+  await setFileAndWaitForUpload(
+    page,
+    page.locator('[data-test="upload-form"] input[type="file"]'),
+    tmpFile,
+  );
 
   // Through clickOnceUploadSettles(), never a bare click: the button is
   // deliberately disabled for the duration of the upload, and clicking into
@@ -1386,7 +1485,7 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   // separate concern from the discarded click.
   const replaceInput = page.locator('[data-test="replace-form"] input[type="file"]');
   await replaceInput.waitFor({ state: 'attached', timeout: 10000 });
-  await replaceInput.setInputFiles(replacementPath);
+  await setFileAndWaitForUpload(page, replaceInput, replacementPath);
 
   // Through clickOnceUploadSettles(), for the same reason the main upload
   // form goes through it: Replace carries the same in-flight guard, so it
@@ -1933,6 +2032,104 @@ async function checkGrantAndRevokeDirectoryAccess(page, phase) {
 }
 
 /**
+ * item/trash-view (issue #15): drives the new /trash page's own Restore and
+ * Purge controls against the real image. tests/Feature/TrashViewTest.php
+ * already covers authorisation and the query-level isolation through the
+ * test renderer; what only a browser against the built container can see is
+ * whether wire:click on this page's flux:button controls actually reaches
+ * Index::restoreFile()/purgeFile() at all -- a broken asset build or an
+ * unresolved Flux component leaves every Blade assertion green and both
+ * controls unusable.
+ *
+ * The two targets are trashed through `tinker`, not the Browser's own Trash
+ * button -- that flow is checkTrashRemovesFileFromListingAndSearch()'s job
+ * above, already proven. Staying out of that path keeps this check's DOM
+ * interaction scoped to the page actually under test.
+ *
+ * THE LOAD-BEARING ASSERTIONS (predicted, not proven here -- the mutation is
+ * run separately; see the task report): RESTORE_LIVE:yes and PURGED_GONE:yes,
+ * read from the database through tinker AFTER the two clicks, BEFORE either
+ * is treated as done -- decision/0033's rule ("never wait on the thing under
+ * test"), the same shape checkBulkTrashLeavesUnselectedFilesAlone() and
+ * checkGrantAndRevokeDirectoryAccess() already use. A missing
+ * `$this->authorize(...)` call would not be visible here (both callers are
+ * the admin, who passes either way) -- that gap is FilePolicy/
+ * DirectoryPolicy's own tests' job -- but a wire:click the built image
+ * dropped, an unresolved flux:button, or Index::restoreFile()/purgeFile()
+ * never reaching RestoreFile::handle()/PurgeFile::handle() all leave
+ * RESTORE_LIVE:no or PURGED_GONE:no, which is what this actually proves.
+ */
+async function checkTrashViewRestoreAndPurge(page, phase) {
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+
+  await uploadAndProveStored(page, TRASH_VIEW_RESTORE_FILE_NAME, 'Trashed by tinker, restored through /trash.\n', phase);
+  await uploadAndProveStored(page, TRASH_VIEW_PURGE_FILE_NAME, 'Trashed by tinker, purged through /trash.\n', phase);
+
+  tinker(
+    [
+      `\\App\\Models\\File::where('name', '${TRASH_VIEW_RESTORE_FILE_NAME}')->first()->delete();`,
+      `\\App\\Models\\File::where('name', '${TRASH_VIEW_PURGE_FILE_NAME}')->first()->delete();`,
+      "echo 'TRASHED:done';",
+    ].join(' '),
+  );
+
+  await page.goto(`${BASE_URL}/trash`, { waitUntil: 'domcontentloaded' });
+  // Only ever true AT THIS DESTINATION: '/files' renders no element with
+  // this data-test at all, unlike a heading or nav link that exists on both
+  // pages and would prove nothing about which page actually loaded.
+  await page.locator('[data-test="trashed-files-table"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  const restoreRow = page.locator('tr[data-test="trashed-file-row"]').filter({ hasText: TRASH_VIEW_RESTORE_FILE_NAME });
+  await restoreRow.waitFor({ timeout: 10000 });
+  await restoreRow.locator('[data-test="restore-file-button"]').click();
+  // Settles the request the click just started before this check moves on --
+  // never a wait on the row itself, which is the thing under test.
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+
+  const purgeRow = page.locator('tr[data-test="trashed-file-row"]').filter({ hasText: TRASH_VIEW_PURGE_FILE_NAME });
+  await purgeRow.waitFor({ timeout: 10000 });
+  page.once('dialog', (dialog) => dialog.accept());
+  await purgeRow.locator('[data-test="purge-file-button"]').click();
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+
+  const php = [
+    `$restored = \\App\\Models\\File::where('name', '${TRASH_VIEW_RESTORE_FILE_NAME}')->first();`,
+    `$purged = \\App\\Models\\File::withTrashed()->where('name', '${TRASH_VIEW_PURGE_FILE_NAME}')->first();`,
+    "echo 'RESTORE_LIVE:' . ($restored && !$restored->trashed() ? 'yes' : 'no');",
+    "echo ' PURGED_GONE:' . ($purged === null ? 'yes' : 'no');",
+  ].join(' ');
+
+  // Database evidence first -- no polling loop here, deliberately: both
+  // writes already happened synchronously inside the request each click
+  // above waited out via networkidle, unlike the queued work
+  // checkBulkTrashLeavesUnselectedFilesAlone() polls for.
+  const output = tinker(php);
+  const restoreLive = /RESTORE_LIVE:(\S+)/.exec(output)?.[1] === 'yes';
+  const purgedGone = /PURGED_GONE:(\S+)/.exec(output)?.[1] === 'yes';
+
+  if (!restoreLive) {
+    dumpContainerState(`[${phase}] ${TRASH_VIEW_RESTORE_FILE_NAME} was not restored through /trash -- raw output: ${output}`);
+    throw Object.assign(new Error(`${TRASH_VIEW_RESTORE_FILE_NAME} is not live after Restore on /trash`), { dumped: true });
+  }
+  console.log(`[${phase}] ${TRASH_VIEW_RESTORE_FILE_NAME} is live again -- Restore on /trash works`);
+
+  if (!purgedGone) {
+    dumpContainerState(`[${phase}] ${TRASH_VIEW_PURGE_FILE_NAME} still exists after Purge on /trash -- raw output: ${output}`);
+    throw Object.assign(new Error(`${TRASH_VIEW_PURGE_FILE_NAME} still exists after Purge on /trash`), { dumped: true });
+  }
+  console.log(`[${phase}] ${TRASH_VIEW_PURGE_FILE_NAME} is gone for good -- Purge on /trash works`);
+
+  // Only now the DOM, and only as confirmation that the ordinary listing
+  // agrees with what the database already proved above.
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.getByText(TRASH_VIEW_RESTORE_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
+  console.log(`[${phase}] the restored file is back in the ordinary listing -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -2180,6 +2377,9 @@ async function runSetup() {
 
     console.log('[setup] granting and revoking directory access through the detail panel (issue #14)');
     await checkGrantAndRevokeDirectoryAccess(page, 'setup');
+
+    console.log('[setup] restoring and purging trashed files through the new /trash page (issue #15)');
+    await checkTrashViewRestoreAndPurge(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();

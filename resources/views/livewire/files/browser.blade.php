@@ -75,6 +75,15 @@
         </aside>
 
         <div class="flex-1 space-y-6">
+            {{-- item/trash-view (issue #15): the one path spec §10 names into
+                 the Trash page ("Reached from Files"). Plain <div> wrapping a
+                 real <a> (flux:link renders one when it has a real href),
+                 not a data-test on flux:link itself -- Flux is only KNOWN to
+                 forward arbitrary attributes on flux:button (CLAUDE.md). --}}
+            <div class="flex justify-end" data-test="trash-link">
+                <flux:link :href="route('trash')" wire:navigate>{{ __('Trash') }}</flux:link>
+            </div>
+
             {{-- data-test scopes the container-smoke's own navigation: at the
                  root of the browser ($directory === null) this list and the
                  sidebar both render the SAME reach roots (issue #99), so a

@@ -229,5 +229,47 @@
     "file": "app/Policies/DirectoryPolicy.php",
     "remove": "            // The permission clause carries this comment INSIDE the return\n            // expression, and both facts are deliberate. Unique, because the\n            // clause alone is textually identical to the ones in restore()\n            // and delete() and mutation-check.php matches by substring, so a\n            // bare anchor would hit three sites and prove nothing about any\n            // of them. Inside, because deleting comment-plus-clause must\n            // leave `return $this->access->can(...)` -- valid code with the\n            // permission layer gone. Anchoring above the `return` would\n            // instead leave a statement with no return at all, and the\n            // mutation would \"fail\" as a TypeError, which tests that PHP has\n            // types rather than that this test catches a missing layer.\n            $user->can('directories.manage')\n            && ",
     "expectFailing": "requires BOTH directories.manage and a manage-level grant to grant access"
+  },
+  {
+    "id": "directory-access-viewable-trashed-guard",
+    "why": "item/trash-view (issue #15): viewableTrashedDirectoryIds() must narrow the trashed directories it returns to ones the viewer's own access, resolved through can(), actually reaches. Without this filter every trashed directory in the instance -- including one belonging to a user with no grant on it at all -- would be handed to the Trash page's query, which is exactly the leak the item's doneWhen ('another user's trashed items never appear, asserted at query level') exists to close.",
+    "file": "app/Services/DirectoryAccess.php",
+    "remove": "            ->filter(fn (Directory $directory): bool => $this->can($user, $directory, AccessLevel::View))\n",
+    "expectFailing": "excludes a trashed directory the viewer holds no access to"
+  },
+  {
+    "id": "trash-restore-file-authorize",
+    "why": "item/trash-view (issue #15): restoring a trashed file from the Trash page must go through FilePolicy::restore() (files.restore plus edit access), and RestoreFile itself checks nothing -- actions never authorise (CLAUDE.md). Without this the Restore control would restore any trashed file for any signed-in user.",
+    "file": "app/Livewire/Trash/Index.php",
+    "remove": "        $this->authorize('restore', $file);\n\n",
+    "expectFailing": "refuses to restore a file without edit access"
+  },
+  {
+    "id": "trash-purge-file-authorize",
+    "why": "item/trash-view (issue #15): purging a trashed file from the Trash page must go through FilePolicy::purge() (files.delete plus manage access), and PurgeFile itself checks nothing -- actions never authorise (CLAUDE.md). Without this the Purge control would permanently delete any trashed file for any signed-in user.",
+    "file": "app/Livewire/Trash/Index.php",
+    "remove": "        $this->authorize('purge', $file);\n\n",
+    "expectFailing": "refuses to purge a file without manage access, edit alone is not enough"
+  },
+  {
+    "id": "trash-restore-directory-authorize",
+    "why": "item/trash-view (issue #15): restoring a trashed directory from the Trash page must go through DirectoryPolicy::restore() (directories.manage plus manage access), and RestoreDirectory itself checks nothing -- actions never authorise (CLAUDE.md). MEMBER_PERMISSIONS carries no directories.manage, so without this the Restore control would let an ordinary member with manage-level directory_access alone bring back any subtree cascaded into the trash.",
+    "file": "app/Livewire/Trash/Index.php",
+    "remove": "        $this->authorize('restore', $directory);\n\n",
+    "expectFailing": "refuses to restore a directory without directories.manage, manage access alone is not enough"
+  },
+  {
+    "id": "trash-files-query-scoped-to-reach",
+    "file": "app/Livewire/Trash/Index.php",
+    "why": "item/trash-view (issue #15): the trashed FILES listing must be narrowed to directories the viewer can reach (live or trashed). Without this whereIn(), render() would hand the view every trashed file in the instance, which is precisely the query-level leak the doneWhen names -- a view-side @if could hide the row from the rendered HTML, but the data would already have left the query with another user's trashed file in it.",
+    "remove": "            ->whereIn('directory_id', $reachableDirectoryIds)\n",
+    "expectFailing": "never lists another user's trashed file, asserted against the query result itself"
+  },
+  {
+    "id": "trash-directories-query-scoped-to-reach",
+    "file": "app/Livewire/Trash/Index.php",
+    "why": "item/trash-view (issue #15): the trashed DIRECTORIES listing must be narrowed to the ids viewableTrashedDirectoryIds() resolved, the same shape as the files query beside it. Without this whereIn(), render() would hand the view every trashed directory in the instance regardless of who may see it.",
+    "remove": "            ->whereIn('id', $trashedDirectoryIds)\n",
+    "expectFailing": "never lists another user's trashed directory, asserted against the query result itself"
   }
 ]
