@@ -1,7 +1,7 @@
 <section class="w-full">
-    {{-- Toolbar (design plan §3): 44px, breadcrumb left, Trash right. The
-         breadcrumb is the only navigation on this row, so it takes the whole
-         left side rather than sharing space with a heading that repeats it. --}}
+    {{-- Breadcrumb bar (design plan §3), the top row of the page and the
+         full width of it: it names where you are, so it belongs above the
+         panes rather than inside one of them. --}}
     <div class="flex h-11 items-center justify-between gap-4 border-b border-rule px-4">
         @if ($breadcrumbs->isNotEmpty())
             {{-- Every ancestor the viewer may VIEW, root first, current directory
@@ -16,7 +16,7 @@
                 @foreach ($breadcrumbs as $index => $crumb)
                     @if ($index === $breadcrumbs->count() - 1)
                         <flux:breadcrumbs.item>
-                            <span data-test="breadcrumb-item" class="font-medium text-ink">{{ $crumb->name }}</span>
+                            <span data-test="breadcrumb-item" class="font-semibold text-ink">{{ $crumb->name }}</span>
                         </flux:breadcrumbs.item>
                     @else
                         <flux:breadcrumbs.item :href="route('files.browse', $crumb)" wire:navigate>
@@ -26,7 +26,7 @@
                 @endforeach
             </flux:breadcrumbs>
         @else
-            <span></span>
+            <span class="text-sm font-semibold text-ink">{{ __('Files') }}</span>
         @endif
 
         {{-- item/trash-view (issue #15): the one path spec §10 names into
@@ -42,7 +42,75 @@
         </div>
     </div>
 
-    <div class="flex items-stretch">
+    {{-- Action bar: the two things you do TO this directory. They used to sit
+         under the listing, where they read as page furniture rather than as
+         actions on what you are looking at. Both stay visible rather than
+         folding into a menu -- the container smoke drives them by label, and a
+         control inside a closed popover is one it cannot reach. --}}
+    <div class="flex min-h-12 flex-wrap items-center gap-4 border-b border-rule bg-chrome px-4 py-2">
+        <form wire:submit="createDirectory" class="flex items-end gap-2">
+            <flux:input wire:model="newDirectoryName" :label="__('New folder')" type="text" size="sm" />
+            <flux:button type="submit" size="sm">{{ __('Create') }}</flux:button>
+        </form>
+
+        @if ($directory)
+                    {{-- Named for the same reason the Replace form above is: once a file is
+                         selected there are two file inputs on the page, and the container
+                         smoke's shared uploadAndProveStored() helper must be able to say
+                         which one it means. --}}
+                    {{-- wire:loading.attr="disabled" with wire:target naming the UPLOAD
+                         PROPERTY -- not a method -- is what closes issue #106. A file input
+                         posts its bytes to Livewire's upload endpoint the moment it changes,
+                         and until that POST answers the server-side property is still
+                         unpopulated. Clicking Upload inside that window dispatches store()
+                         against an empty property: it fails `required|file`, and the
+                         _finishUpload commit that lands a moment later re-renders over the
+                         error, so the person sees no file stored and nothing said. PR #129's
+                         probe caught it three times in one run, and the split is exactly the
+                         upload endpoint's latency -- every discarded upload had it answer in
+                         ~550ms, every stored one in ~18ms.
+
+                         Targeting the property makes Livewire hold the button disabled for
+                         the whole upload, so the racing click cannot be made. The container
+                         smoke asserts the disabled state against a deliberately delayed
+                         upload endpoint, which is also what proves Flux forwarded these
+                         attributes to the real <button> -- that is not assumed here. --}}
+                    <form wire:submit="store" class="flex items-end gap-2" data-test="upload-form">
+                        <flux:input wire:model="upload" :label="__('Upload a file')" type="file" size="sm" />
+                        <flux:button
+                            type="submit"
+                            variant="primary"
+                            size="sm"
+                            wire:loading.attr="disabled"
+                            wire:target="upload"
+                        >{{ __('Upload') }}</flux:button>
+                    </form>
+                @endif
+        @if (! empty($selectedIds))
+            {{-- Only ever shown once something is ticked, and the count is what
+                 proves a click actually reached selectRow() -- a resting "0
+                 selected" label would pass whether or not selection worked at
+                 all (CLAUDE.md: prefer an assertion that requires the feature
+                 to DO something). --}}
+            <div class="ml-auto flex items-center gap-3" data-test="bulk-actions">
+                    <flux:text class="text-sm font-medium text-ink">{{ trans_choice(':count file selected|:count files selected', count($selectedIds), ['count' => count($selectedIds)]) }}</flux:text>
+                    {{-- No `danger` variant: red in doccum means legal hold and
+                         nothing else (design plan §1). Trashing is reversible --
+                         Trash restores -- so it is an ordinary action, and the
+                         wire:confirm below carries the weight instead. --}}
+                    <flux:button
+                        size="sm"
+                        wire:click="bulkTrash"
+                        wire:confirm="{{ __('Trash the selected files? They can be restored later from Trash.') }}"
+                        data-test="bulk-trash-button"
+                    >
+                    {{ __('Trash selected') }}
+                </flux:button>
+            </div>
+        @endif
+    </div>
+
+    <div class="flex h-[calc(100vh-8.75rem)] items-stretch">
         {{-- The Files sidebar (spec §10): Home pinned first, then the
              viewer's reach roots and their viewable descendants --
              $sidebarTree, resolved ENTIRELY by DirectoryAccess::reachTree()
@@ -52,7 +120,7 @@
              in a private window -- see CLAUDE.md and the doccum design
              spec §10a. --}}
         <aside
-            class="w-60 shrink-0 space-y-3 border-r border-rule bg-chrome px-3 py-4"
+            class="w-60 shrink-0 space-y-3 overflow-auto border-r border-rule bg-chrome px-3 py-4"
             data-test="directory-tree"
             x-data="{
                 expanded: (() => {
@@ -120,68 +188,61 @@
             </ul>
         </aside>
 
-        <div class="min-w-0 flex-1 px-4 py-4">
-            {{-- data-test scopes the container-smoke's own navigation: at the
-                 root of the browser ($directory === null) this list and the
-                 sidebar both render the SAME reach roots (issue #99), so a
-                 directory's name is no longer a unique link on the landing
-                 page and any locator has to say which of the two it means. --}}
-            <div data-test="directories-list">
-                @forelse ($directories as $item)
-                    <div class="group flex h-8 items-center gap-2 border-b border-rule/40 px-2 text-sm">
-                        <flux:icon.folder variant="micro" class="shrink-0 text-ink-2" />
-                        <flux:link :href="route('files.browse', $item)" wire:navigate variant="ghost" class=" min-w-0 flex-1 truncate font-medium text-ink">{{ $item->name }}</flux:link>
-                        <flux:link
-                            wire:click="selectDirectory({{ $item->id }})"
-                            variant="subtle" class=" cursor-pointer text-xs text-ink-2 opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink"
-                        >{{ __('Details') }}</flux:link>
-                    </div>
-                @empty
-                    @if ($files->isEmpty())
-                        <div class="px-2 py-8 text-center text-sm text-ink-2">{{ __('No subdirectories.') }}</div>
-                    @endif
-                @endforelse
-            </div>
-
-            @if (! empty($selectedIds))
-                {{-- Only ever shown once something is ticked, and the count is what
-                     proves a click actually reached selectRow() -- a resting "0
-                     selected" label would pass whether or not selection worked at
-                     all (CLAUDE.md: prefer an assertion that requires the feature
-                     to DO something). --}}
-                <div class="mt-3 flex h-9 items-center gap-3 rounded border border-select/30 bg-select/5 px-3" data-test="bulk-actions">
-                    <flux:text class="text-sm font-medium text-ink">{{ trans_choice(':count file selected|:count files selected', count($selectedIds), ['count' => count($selectedIds)]) }}</flux:text>
-                    {{-- No `danger` variant: red in doccum means legal hold and
-                         nothing else (design plan §1). Trashing is reversible --
-                         Trash restores -- so it is an ordinary action, and the
-                         wire:confirm below carries the weight instead. --}}
-                    <flux:button
-                        size="sm"
-                        wire:click="bulkTrash"
-                        wire:confirm="{{ __('Trash the selected files? They can be restored later from Trash.') }}"
-                        data-test="bulk-trash-button"
-                    >
-                        {{ __('Trash selected') }}
-                    </flux:button>
-                </div>
-            @endif
-
-            <table data-test="files-table" class="mt-3 w-full table-fixed text-left text-sm">
+        <div class="min-w-0 flex-1 overflow-auto px-4 py-3">
+            {{-- One table for both kinds of row, folders first: to the person
+                 reading it they are the same thing, the contents of this
+                 directory. Two stacked lists read as unrelated widgets and
+                 their columns did not line up with each other. --}}
+            <table data-test="files-table" class="w-full table-fixed text-left text-sm">
                 <thead>
                     <tr class="border-b border-rule text-xs text-ink-2">
-                        <th class="w-8 py-1.5"><span class="sr-only">{{ __('Select') }}</span></th>
-                        <th class="w-5"></th>
+                        <th class="w-9 py-1.5"><span class="sr-only">{{ __('Select') }}</span></th>
+                        <th class="w-6"></th>
                         {{-- Every header cell sorts by the SAME mechanism, sortBy(),
                              which resolves the column against Browser::SORTABLE --
                              never the raw string a click sends -- so there is nothing
                              here for the view itself to whitelist. --}}
-                        <th class="py-1.5 font-medium"><flux:link wire:click="sortBy('name')" variant="subtle" class=" cursor-pointer hover:text-ink">{{ __('Name') }}</flux:link></th>
-                        <th class="w-40 py-1.5 font-medium"><flux:link wire:click="sortBy('owner')" variant="subtle" class=" cursor-pointer hover:text-ink">{{ __('Owner') }}</flux:link></th>
-                        <th class="w-40 py-1.5 font-medium"><flux:link wire:click="sortBy('modified')" variant="subtle" class=" cursor-pointer hover:text-ink">{{ __('Modified') }}</flux:link></th>
-                        <th class="w-24 py-1.5 text-right font-medium"><flux:link wire:click="sortBy('size')" variant="subtle" class=" cursor-pointer hover:text-ink">{{ __('Size') }}</flux:link></th>
+                        <th class="py-1.5 font-medium"><flux:link wire:click="sortBy('name')" variant="subtle" class="cursor-pointer hover:text-ink">{{ __('Name') }}</flux:link></th>
+                        <th class="w-44 py-1.5 font-medium"><flux:link wire:click="sortBy('owner')" variant="subtle" class="cursor-pointer hover:text-ink">{{ __('Owner') }}</flux:link></th>
+                        <th class="w-44 py-1.5 font-medium"><flux:link wire:click="sortBy('modified')" variant="subtle" class="cursor-pointer hover:text-ink">{{ __('Modified') }}</flux:link></th>
+                        <th class="w-24 py-1.5 text-right font-medium"><flux:link wire:click="sortBy('size')" variant="subtle" class="cursor-pointer hover:text-ink">{{ __('Size') }}</flux:link></th>
                         <th class="w-24 py-1.5"></th>
                     </tr>
                 </thead>
+
+                {{-- data-test scopes the container-smoke's own navigation: at the
+                     root of the browser ($directory === null) this list and the
+                     sidebar both render the SAME reach roots (issue #99), so a
+                     directory's name is no longer a unique link on the landing
+                     page and any locator has to say which of the two it means.
+                     It scopes a <tbody> now rather than a <div>, which puts
+                     folders in the same table as files without changing what the
+                     attribute means or what it contains. --}}
+                <tbody data-test="directories-list">
+                    @foreach ($directories as $item)
+                        <tr class="group h-8 border-b border-rule/40 hover:bg-chrome">
+                            <td></td>
+                            <td></td>
+                            <td class="max-w-0 py-1">
+                                <div class="flex min-w-0 items-center gap-2">
+                                    <flux:icon.folder variant="micro" class="shrink-0 text-ink-2" />
+                                    <flux:link :href="route('files.browse', $item)" wire:navigate variant="ghost" class="min-w-0 truncate font-medium text-ink">{{ $item->name }}</flux:link>
+                                </div>
+                            </td>
+                            <td class="truncate py-1 text-ink-2">{{ $item->creator?->name }}</td>
+                            <td class="num py-1 text-ink-2">{{ $item->updated_at?->format('Y-m-d H:i') }}</td>
+                            <td class="py-1 text-right text-ink-2">&mdash;</td>
+                            <td class="py-1 text-right">
+                                <flux:link
+                                    wire:click="selectDirectory({{ $item->id }})"
+                                    variant="subtle"
+                                    class="cursor-pointer text-xs text-ink-2 opacity-0 transition-opacity group-hover:opacity-100 hover:text-ink"
+                                >{{ __('Details') }}</flux:link>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+
                 <tbody>
                     @forelse ($files as $item)
                         {{-- The click handler lives on the ROW, in Alpine, not on a
@@ -258,53 +319,18 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="7" class="px-2 py-8 text-center text-ink-2">{{ __('No files.') }}</td></tr>
+                        @if ($directories->isEmpty())
+                            <tr>
+                                <td colspan="7" class="px-2 py-16 text-center">
+                                    <flux:icon.folder-open variant="outline" class="mx-auto mb-2 size-8 text-rule" />
+                                    <div class="text-sm text-ink-2">{{ __('Nothing here yet.') }}</div>
+                                </td>
+                            </tr>
+                        @endif
                     @endforelse
                 </tbody>
             </table>
-
-            <div class="mt-6 flex flex-wrap items-end gap-6 border-t border-rule pt-4">
-                <form wire:submit="createDirectory" class="flex items-end gap-2">
-                    <flux:input wire:model="newDirectoryName" :label="__('New folder')" type="text" size="sm" />
-                    <flux:button type="submit" size="sm">{{ __('Create') }}</flux:button>
-                </form>
-
-                @if ($directory)
-                    {{-- Named for the same reason the Replace form above is: once a file is
-                         selected there are two file inputs on the page, and the container
-                         smoke's shared uploadAndProveStored() helper must be able to say
-                         which one it means. --}}
-                    {{-- wire:loading.attr="disabled" with wire:target naming the UPLOAD
-                         PROPERTY -- not a method -- is what closes issue #106. A file input
-                         posts its bytes to Livewire's upload endpoint the moment it changes,
-                         and until that POST answers the server-side property is still
-                         unpopulated. Clicking Upload inside that window dispatches store()
-                         against an empty property: it fails `required|file`, and the
-                         _finishUpload commit that lands a moment later re-renders over the
-                         error, so the person sees no file stored and nothing said. PR #129's
-                         probe caught it three times in one run, and the split is exactly the
-                         upload endpoint's latency -- every discarded upload had it answer in
-                         ~550ms, every stored one in ~18ms.
-
-                         Targeting the property makes Livewire hold the button disabled for
-                         the whole upload, so the racing click cannot be made. The container
-                         smoke asserts the disabled state against a deliberately delayed
-                         upload endpoint, which is also what proves Flux forwarded these
-                         attributes to the real <button> -- that is not assumed here. --}}
-                    <form wire:submit="store" class="flex items-end gap-2" data-test="upload-form">
-                        <flux:input wire:model="upload" :label="__('Upload a file')" type="file" size="sm" />
-                        <flux:button
-                            type="submit"
-                            variant="primary"
-                            size="sm"
-                            wire:loading.attr="disabled"
-                            wire:target="upload"
-                        >{{ __('Upload') }}</flux:button>
-                    </form>
-                @endif
-            </div>
         </div>
-
         @php
             // At most one of these is ever set (selectFile()/selectDirectory()
             // each clear the other), and when neither is, the panel falls back
@@ -315,7 +341,7 @@
         @endphp
 
         @if ($subject)
-            <div class="w-84 shrink-0 space-y-5 border-l border-rule px-4 py-4">
+            <div class="w-84 shrink-0 space-y-5 overflow-auto border-l border-rule px-4 py-3">
                 {{-- The one place `hold` appears besides the row glyph: a band,
                      not a badge, because custody is a property of the whole
                      file rather than a decoration on its title. --}}
@@ -325,10 +351,6 @@
                         <span class="text-ink">{{ __('Under legal hold. It cannot be trashed or changed until the hold is lifted.') }}</span>
                     </div>
                 @endif
-
-                <div class="min-w-0 truncate text-sm font-semibold text-ink">
-                    {{ $subject->name }}
-                </div>
 
                 <livewire:files.property-panel
                     :subject="$subject"

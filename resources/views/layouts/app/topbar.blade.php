@@ -1,9 +1,17 @@
+@props([
+    // Opt-in, off by default: a page that manages its own full-viewport
+    // layout (the file browser) asks for this, and every other page keeps
+    // flux:main's padding and natural height. Passed from a component with
+    // #[Layout('layouts::app', ['fullBleed' => true])].
+    'fullBleed' => false,
+])
+
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-white dark:bg-zinc-800">
+    <body class="flex min-h-screen flex-col bg-white dark:bg-zinc-800">
         <flux:header class="sticky top-0 z-40 w-full max-w-none border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
             <a
                 href="{{ route('dashboard') }}"
@@ -88,7 +96,13 @@
             </flux:dropdown>
         </flux:header>
 
-        <flux:main class="w-full max-w-none">
+        <flux:main @class([
+            'w-full max-w-none flex-1 min-h-0',
+            // flux:main ships p-6 lg:p-8; a full-bleed page draws its own
+            // edges, so the padding is removed rather than fought with
+            // negative margins.
+            '!p-0' => $fullBleed,
+        ])>
             {{ $slot }}
         </flux:main>
 

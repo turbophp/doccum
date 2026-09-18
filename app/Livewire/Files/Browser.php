@@ -50,7 +50,7 @@ use Livewire\WithFileUploads;
  * component's: every method below authorises with a single `$this
  * ->authorize(...)` call and trusts the Policy for the rest.
  */
-#[Layout('layouts::app')]
+#[Layout('layouts::app', ['fullBleed' => true])]
 class Browser extends Component
 {
     use WithFileUploads;
