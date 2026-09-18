@@ -254,6 +254,53 @@ async function setFileAndWaitForUpload(page, input, filePath) {
 }
 
 /**
+ * Clicks a locator and waits for the Livewire round trip THAT CLICK starts,
+ * rather than for a bare networkidle registered after the click.
+ *
+ * Issue #182: networkidle resolves once the page has had no network activity
+ * for 500ms, but Livewire does not issue its XHR synchronously inside the
+ * click handler -- the page can still be idle at the instant
+ * waitForLoadState('networkidle') is called, so it resolves immediately,
+ * before the request it was meant to settle has even started. The very next
+ * statement at both call sites this replaces shells into the container and
+ * runs tinker, which takes roughly a second to boot Laravel -- just about
+ * enough to lose that race, and on run 35328394591's image job it did:
+ * RESTORE_LIVE:yes PURGED_GONE:no, with no 4xx or 5xx anywhere in the
+ * container access log, because the purge's Livewire POST was still in
+ * flight when the database was read.
+ *
+ * So the response listener is armed BEFORE the click, the way
+ * setFileAndWaitForUpload() above already does for the upload endpoint. The
+ * matcher tests /livewire/i against the whole URL rather than a guessed
+ * prefix, because the Livewire endpoint carries a per-install hash (observed
+ * as /livewire-2dbf666b/update) -- run/0014's note near
+ * instrumentUploadPath() above is exactly the lesson here: "an instrument may
+ * not assume the shape of what it is measuring." A guessed prefix would
+ * silently stop matching on a different install and this helper would degrade
+ * to the bug it was written to fix without ever failing loudly.
+ *
+ * The .catch(() => null) is kept for the same reason setFileAndWaitForUpload()
+ * keeps its own: a future Livewire release that renames the endpoint must
+ * degrade this helper to today's networkidle-only behaviour, not turn the
+ * helper itself into a failure.
+ *
+ * This does not violate decision/0033 ("never wait on the thing under test"):
+ * it waits for the REQUEST the click caused, never for the row disappearing
+ * or the file being gone -- the database read that follows remains the
+ * assertion, unchanged and still first.
+ */
+async function clickAndWaitForLivewire(page, locator, options = {}) {
+  const settled = page
+    .waitForResponse((r) => r.request().method() === 'POST' && /livewire/i.test(r.url()), { timeout: 10000 })
+    .catch(() => null);
+
+  await locator.click(options);
+  await settled;
+
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+}
+
+/**
  * Clicks a submit button that Livewire disables for the duration of a file
  * upload, WITHOUT racing that disabled window.
  *
@@ -2312,16 +2359,15 @@ async function checkTrashViewRestoreAndPurge(page, phase) {
 
   const restoreRow = page.locator('tr[data-test="trashed-file-row"]').filter({ hasText: TRASH_VIEW_RESTORE_FILE_NAME });
   await restoreRow.waitFor({ timeout: 10000 });
-  await restoreRow.locator('[data-test="restore-file-button"]').click();
-  // Settles the request the click just started before this check moves on --
-  // never a wait on the row itself, which is the thing under test.
-  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  // Settles the request the click itself starts, registered before the
+  // click -- see clickAndWaitForLivewire(). Never a wait on the row itself,
+  // which is the thing under test.
+  await clickAndWaitForLivewire(page, restoreRow.locator('[data-test="restore-file-button"]'));
 
   const purgeRow = page.locator('tr[data-test="trashed-file-row"]').filter({ hasText: TRASH_VIEW_PURGE_FILE_NAME });
   await purgeRow.waitFor({ timeout: 10000 });
   page.once('dialog', (dialog) => dialog.accept());
-  await purgeRow.locator('[data-test="purge-file-button"]').click();
-  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  await clickAndWaitForLivewire(page, purgeRow.locator('[data-test="purge-file-button"]'));
 
   const php = [
     `$restored = \\App\\Models\\File::where('name', '${TRASH_VIEW_RESTORE_FILE_NAME}')->first();`,
@@ -2332,8 +2378,18 @@ async function checkTrashViewRestoreAndPurge(page, phase) {
 
   // Database evidence first -- no polling loop here, deliberately: both
   // writes already happened synchronously inside the request each click
-  // above waited out via networkidle, unlike the queued work
-  // checkBulkTrashLeavesUnselectedFilesAlone() polls for.
+  // above waited out via clickAndWaitForLivewire(), unlike the queued work
+  // checkBulkTrashLeavesUnselectedFilesAlone() polls for. This USED to say
+  // "waited out via networkidle" -- that was exactly the bug (issue #182).
+  // A bare networkidle registered after the click can resolve before
+  // Livewire has even issued its XHR, since the request is not dispatched
+  // synchronously inside the click handler. On the image job of run
+  // 35328394591 that is what happened: RESTORE_LIVE:yes PURGED_GONE:no, with
+  // no 4xx or 5xx anywhere in the container access log, because the purge
+  // request was still in flight -- networkidle had already resolved -- when
+  // the tinker read below reached the database first. clickAndWaitForLivewire()
+  // now arms the response listener before each click, so the write really
+  // has happened by the time this comment's promise is kept.
   const output = tinker(php);
   const restoreLive = /RESTORE_LIVE:(\S+)/.exec(output)?.[1] === 'yes';
   const purgedGone = /PURGED_GONE:(\S+)/.exec(output)?.[1] === 'yes';
