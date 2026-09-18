@@ -90,6 +90,30 @@ class RegistrationTest extends TestCase
         );
     }
 
+    // item/login-by-username (issue #75): App\Actions\Fortify\
+    // AuthenticateUser dispatches a login identifier to the `username`
+    // lookup whenever it does not contain "@", and its docblock states that
+    // this is safe only because usernameRules() never lets a stored
+    // username contain "@" in the first place -- so a value cannot be both
+    // a valid username and someone else's email. This is the guard that
+    // keeps that true; without it, a username-shaped-but-"@"-containing
+    // value could collide with an unrelated account's email and make login
+    // ambiguous. See .github/mutations.json.
+    public function test_registering_a_username_containing_an_at_sign_is_rejected(): void
+    {
+        $response = $this->post(route('register.store'), [
+            'name' => 'Eve',
+            'username' => 'eve@example.com',
+            'email' => 'eve@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ]);
+
+        $response->assertSessionHasErrors('username');
+
+        $this->assertGuest();
+    }
+
     // A straightforward regression check, not a "shown failing" one: Fortify's
     // own RegisteredUserController already lowercases this specific field
     // before CreateNewUser ever runs (config('fortify.lowercase_usernames')),

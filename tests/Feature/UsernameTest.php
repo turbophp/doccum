@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\UsernameWouldBeAmbiguous;
 use App\Models\User;
 use App\Services\Settings;
 use Illuminate\Database\QueryException;
@@ -85,4 +86,31 @@ it('registers a user with a valid username', function () {
 
     $response->assertSessionHasNoErrors();
     expect(User::where('email', 'ada@example.com')->value('username'))->toBe('ada.lovelace');
+});
+
+/**
+ * item/login-by-username (issue #75). AuthenticateUser resolves a login
+ * identifier by asking whether it contains `@`: with one it looks up an
+ * email, without one a username. That dispatch is unambiguous only while the
+ * two character sets stay disjoint.
+ *
+ * usernameRules() excludes `@` at both application write paths, and this
+ * asserts the guard BELOW those -- User::booted()'s saving hook -- which is
+ * what makes the rule true for a path that never validates at all. The
+ * factory is already one such path.
+ *
+ * The consequence of losing this is not a failed login: a username equal to
+ * another account's email sends the typing user to THAT account's row.
+ */
+it('refuses to persist a username containing an at sign, whatever wrote it', function () {
+    expect(fn () => User::factory()->create(['username' => 'ada@example.com']))
+        ->toThrow(UsernameWouldBeAmbiguous::class);
+
+    expect(User::query()->where('email', 'ada@example.com')->exists())->toBeFalse();
+});
+
+it('folds a username to lower case on save, from any path', function () {
+    $user = User::factory()->create(['username' => '  AdaLovelace  ']);
+
+    expect($user->fresh()->username)->toBe('adalovelace');
 });
