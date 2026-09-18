@@ -156,15 +156,18 @@ it('answers 502 with a logged object key when a specific version\'s object is mi
     Storage::disk('documents')->put($this->versionA1->object_key, 'the bytes themselves');
     Storage::disk('documents')->delete($this->versionA1->object_key);
 
-    Log::shouldReceive('error')
-        ->once()
-        ->with(
-            'Download failed: object missing from storage.',
-            Mockery::on(function (array $context) {
-                return $context['object_key'] === $this->versionA1->object_key
-                    && $context['file_version_id'] === $this->versionA1->id;
-            }),
-        );
+    // Log::spy(), not Log::shouldReceive(): a facade set up with
+    // shouldReceive() is a STRICT Mockery mock, so any OTHER Log:: call
+    // anywhere in this request -- a deprecation, a framework notice, a
+    // channel this test knows nothing about -- raises BadMethodCallException
+    // and reddens the test for a reason that has nothing to do with what it
+    // asserts. A spy permits every call and is asked afterwards about the one
+    // that matters, which is the only thing this test is claiming. There is
+    // no existing Log:: assertion in this suite to copy, so this is the
+    // convention rather than a departure from one.
+    Log::spy();
+
+    $version = $this->versionA1;
 
     $user = User::factory()->create();
     grantOn($this->dirA, $user, AccessLevel::View);
@@ -174,4 +177,12 @@ it('answers 502 with a logged object key when a specific version\'s object is mi
 
     $response->assertStatus(502);
     expect($response->getContent())->toContain($this->versionA1->object_key);
+
+    Log::shouldHaveReceived('error')
+        ->once()
+        ->withArgs(function (string $message, array $context) use ($version): bool {
+            return $message === 'Download failed: object missing from storage.'
+                && $context['object_key'] === $version->object_key
+                && $context['file_version_id'] === $version->id;
+        });
 });
