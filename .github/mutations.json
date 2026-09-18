@@ -467,5 +467,19 @@
     "file": "app/Support/LedgerValidator.php",
     "remove": "                if (! in_array($key, $vocabTerms, true)) {\n                    $errors[] = \"structural: $context ($id) has key '$key', which context.jsonld does not define.\";\n\n                    continue;\n                }\n",
     "expectFailing": "rejects a run key the vocabulary no longer defines"
+  },
+  {
+    "id": "ledger-shape-from-context",
+    "why": "item/ledger-shape-from-context (issue #188): closing the vocabulary says which KEYS a node may carry, but nothing read the SHAPE context.jsonld already declares for each one -- every other rule in this file tolerated a wrong-shaped value by silently skipping it (array_filter(..., 'is_string')) or, for a bare string where a @set was declared, crashed with a TypeError instead of reporting anything (a fatal, not an error, per the issue). decision/0030's own supersedes was exactly this: an array where context.jsonld declares a single @id, validating clean for as long as the ledger existed. Remove this call and shapeErrors() -- which derives idSet/idSingle/integer/dateTime shapes straight from context.jsonld's @container/@type declarations -- never runs at all: a wrong-shaped dependsOn, implements or supersedes goes back to validating clean, exactly as it did before this item, with the rest of validate() unaffected (it is a plain array_merge() call, not a branch anything else depends on, so deleting it degrades rather than breaking the file's syntax -- decision/0063).",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "        $errors = array_merge($errors, self::shapeErrors($ledger, $runs, $context));\n",
+    "expectFailing": "flags a dependsOn containing a non-string element as exactly one shape: error, with no crash"
+  },
+  {
+    "id": "ledger-merge-conclusion-requires-run",
+    "why": "item/ledger-shape-from-context (issue #188), clause 4 as amended by decision/0068 (item/ledger-main-push-record deleted PullRequest.mainConclusion/mainRunUrl and moved the fact onto Run.merges, so the original clause is restated against the fields that inherited its intent). checkMergeEntry() validates mergeSha, pullRequest, the two conclusions and the two run URLs each independently, so nothing before this connected a conclusion to the run that produced it. Remove this block and a merge entry can claim testsConclusion: \"success\" with testsRun: null (or the ledger equivalent) -- a conclusion with no provenance -- and validate clean again, exactly as it did before this item.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (($entry['testsConclusion'] ?? null) !== null && ($entry['testsRun'] ?? null) === null) {\n                    $errors[] = \"run: '$expectedId'.merges[$index] has testsConclusion \".self::describe($entry['testsConclusion']).' but testsRun is null -- a conclusion with no run to point at.';\n                }\n                if (($entry['ledgerConclusion'] ?? null) !== null && ($entry['ledgerRun'] ?? null) === null) {\n                    $errors[] = \"run: '$expectedId'.merges[$index] has ledgerConclusion \".self::describe($entry['ledgerConclusion']).' but ledgerRun is null -- a conclusion with no run to point at.';\n                }\n",
+    "expectFailing": "flags a testsConclusion with a null testsRun, and a ledgerConclusion with a null ledgerRun, each as a run: error"
   }
 ]

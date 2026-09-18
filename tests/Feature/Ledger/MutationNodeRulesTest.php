@@ -114,9 +114,12 @@ function makeSmallMutationFixture(array $mutations, string $itemId = 'item/small
             'mergeSha' => str_repeat('d', 40),
             'pullRequest' => $prUrl,
             'mergedAt' => '2030-01-01T02:30:00Z',
-            'testsRun' => null,
+            // item/ledger-shape-from-context (issue #188), clause 4: a
+            // conclusion recorded with no run to point at is its own error
+            // now, so "sound" carries both, the same as a real entry does.
+            'testsRun' => 'https://github.com/turbophp/doccum/actions/runs/11',
             'testsConclusion' => 'success',
-            'ledgerRun' => null,
+            'ledgerRun' => 'https://github.com/turbophp/doccum/actions/runs/12',
             'ledgerConclusion' => 'success',
         ]],
     ];
@@ -258,9 +261,15 @@ function makeRunThresholdMutationFixture(array $mutations, ?string $testsConclus
         'mergeSha' => $mergeSha,
         'pullRequest' => $prUrl,
         'mergedAt' => $lastRun['endTime'],
-        'testsRun' => $testsRun,
+        // item/ledger-shape-from-context (issue #188), clause 4: a
+        // conclusion recorded with no run to point at is its own error now.
+        // $testsRun defaults to a real-looking URL whenever $testsConclusion
+        // is set, the same as a real entry -- a caller wanting the old
+        // "conclusion with no run" shape on purpose still can, by passing
+        // $testsRun explicitly.
+        'testsRun' => $testsRun ?? ($testsConclusion === null ? null : 'https://github.com/turbophp/doccum/actions/runs/13'),
         'testsConclusion' => $testsConclusion,
-        'ledgerRun' => null,
+        'ledgerRun' => 'https://github.com/turbophp/doccum/actions/runs/14',
         'ledgerConclusion' => 'success',
     ]];
     $lastRun['commit'] = $mergeSha;

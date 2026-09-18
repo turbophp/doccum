@@ -192,16 +192,22 @@ function makeSmallMergesFixture(array $run1Merges, string $run1Commit, string $i
     return $dir;
 }
 
-/** The merges entry every "sound" small fixture above uses -- one merged PR, both workflows green. */
+/**
+ * The merges entry every "sound" small fixture above uses -- one merged PR,
+ * both workflows green, each conclusion carrying the run URL that produced
+ * it. item/ledger-shape-from-context (issue #188), clause 4: a conclusion
+ * recorded with no run to point at is itself an error now, so "sound" must
+ * mean carrying both, the same as every real entry on main does.
+ */
 function mergesFixtureSoundEntry(): array
 {
     return [
         'mergeSha' => str_repeat('d', 40),
         'pullRequest' => 'https://github.com/turbophp/doccum/pull/9101',
         'mergedAt' => '2030-01-01T02:30:00Z',
-        'testsRun' => null,
+        'testsRun' => 'https://github.com/turbophp/doccum/actions/runs/1',
         'testsConclusion' => 'success',
-        'ledgerRun' => null,
+        'ledgerRun' => 'https://github.com/turbophp/doccum/actions/runs/2',
         'ledgerConclusion' => 'success',
     ];
 }
@@ -327,9 +333,13 @@ function makeThresholdMergesFixture(?string $testsConclusion, ?string $ledgerCon
         'mergeSha' => $mergeSha,
         'pullRequest' => $prUrl,
         'mergedAt' => $lastRun['endTime'],
-        'testsRun' => null,
+        // Clause 4 (issue #188): a conclusion recorded with no run to point
+        // at is its own error now, so a non-null conclusion here carries a
+        // run URL, the same as every real merge entry does -- null only
+        // when the caller actually wants no conclusion at all.
+        'testsRun' => $testsConclusion === null ? null : 'https://github.com/turbophp/doccum/actions/runs/3',
         'testsConclusion' => $testsConclusion,
-        'ledgerRun' => null,
+        'ledgerRun' => $ledgerConclusion === null ? null : 'https://github.com/turbophp/doccum/actions/runs/4',
         'ledgerConclusion' => $ledgerConclusion,
     ]];
     $lastRun['commit'] = $mergeSha;
