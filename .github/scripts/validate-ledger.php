@@ -164,6 +164,18 @@ if ($mainSha !== null) {
         $mainPushShas = firstParentShasSince($root, $previousCommit, $mainSha);
         if ($mainPushShas === null) {
             fwrite(STDERR, "Note: could not compute git history from $previousCommit to $mainSha (shallow clone?); skipping the main-push-history check.\n");
+        } else {
+            // Say how many commits were compared, because "checked twelve
+            // and found no hole" and "checked nothing" both otherwise print
+            // the same cheerful "Ledger is sound". That is not a hypothetical
+            // failure mode for this script: see the comment above about the
+            // whole job passing for its entire life while validating nothing.
+            fwrite(STDOUT, sprintf(
+                "Compared %d commit%s on main since %s against the recorded merges.\n",
+                count($mainPushShas),
+                count($mainPushShas) === 1 ? '' : 's',
+                substr($previousCommit, 0, 8),
+            ));
         }
     }
 }
