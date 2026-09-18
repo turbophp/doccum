@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T15:30:00Z",
+  "dateModified": "2026-09-18T16:12:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1013,10 +1013,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "The baseline copy validates clean; every witness yields at least one error carrying its expected code and none of another category; the set of codes emitted across all witnesses, unioned with a shrinking baseline of unwitnessed codes, equals the set the validator declares; deleting any witnessed rule reddens the run.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-18T15:30:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-18T16:01:21Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/213"
+      ]
     },
     {
       "@id": "item/api-sanctum-tokens",
@@ -1297,18 +1299,58 @@
       "result": []
     },
     {
-      "@id": "item/move-destination-existence-leak",
+      "@id": "item/upgrade-preserves-access",
       "@type": "Action",
       "order": 62,
-      "name": "A move destination must not distinguish \"does not exist\" from \"you may not use it\"",
-      "url": "https://github.com/turbophp/doccum/issues/109",
+      "name": "Upgrading an existing instance must not lock out every user",
+      "url": "https://github.com/turbophp/doccum/issues/210",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "item/email-verification-decided made User implement MustVerifyEmail and put every content and admin route behind auth+verified, without backfilling email_verified_at. On an existing instance every pre-existing user is then refused everywhere -- the administrator included, so the in-app vouch path item/admin-users built is itself behind the gate, and with MAIL_MAILER=log the verification mail goes to a server log file. Done when an additive migration restores the access those accounts already had: preservation, not a grant, since before that change verification enforced nothing. Backfilled from created_at rather than now(), because what is true of them is that they have been trusted since they were created -- and via COALESCE(created_at, CURRENT_TIMESTAMP), because timestamps() makes created_at nullable and only Eloquent create() fills it, so a bare column reference would set an imported row to null, keep matching whereNull forever, and leave exactly that user locked out by the migration written so nobody is locked out. The test must distinguish a backfilled pre-existing row from an empty table, since RefreshDatabase runs the migration against no users. BASIS: recorded under spec:13-infrastructure rather than spec:10-user-facing-surface, and the reasoning is stated because the rule it sidesteps is a real one. The validator requires a Completed spec:10 item to carry a negative Mutation -- the smoke-proof requirement for UI work -- and this fix is a boot-time migration with a unit test, not a UI change. Its SYMPTOM is user-facing (nobody can log in); its SUBSTANCE is the upgrade seam, which CLAUDE.md and item/upgrade-smoke both treat as infrastructure. The user-facing proof is not waived, it is tracked: item/upgrade-smoke depends on this item and its doneWhen requires a mutation-checked assertion that a pre-existing user still reaches the app. If that item does not land, this fix stays unwitnessed by the smoke, and that is the thing to notice rather than the basis string.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T15:25:00Z",
+      "endTime": "2026-09-18T15:40:03Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/212"
+      ]
+    },
+    {
+      "@id": "item/role-permissions-survive-restart",
+      "@type": "Action",
+      "order": 63,
+      "name": "A role permission an operator edits must survive a container restart",
+      "url": "https://github.com/turbophp/doccum/issues/214",
       "isBasedOn": [
         "spec:5-access-control"
       ],
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [],
-      "doneWhen": "Browser::moveFile() and moveDirectory() resolve the destination with Directory::query()->findOrFail() against the UNSCOPED table, before authorize() is consulted. A crafted Livewire call therefore gets 404 for a directory id that does not exist and 403 for one that exists but the caller may not move into, which tells an authenticated caller which ids exist, one probe at a time, including in subtrees they have no reach into. The AUTHORISATION IS SOUND and this item must not be written as though it were not: DirectoryPolicy::move() requires directories.manage, Manage on the subject and Edit on the destination, so nothing can be moved anywhere the caller lacks Edit. This is information disclosure only. Done when both ids answer identically to a caller who may not use the destination, with a test that fails if the two responses differ -- and mutation-checked, because a test that merely asserts 403 for the unreachable case passes on today's code too.",
+      "doneWhen": "AUTORUN_ENABLED=true (Dockerfile:68) makes docker/entrypoint.d/51-doccum-roles.sh run doccum:ensure-roles on every boot, and RolesAndPermissionsSeeder::run() calls syncPermissions() on both roles -- which REPLACES the set. So every restart, the documented upgrade procedure, discards whatever item/admin-roles's UI let an operator configure. Not inference about the package: SetRolePermissions depends on that same replace behaviour to remove a permission when an operator unticks it. Done when an edit survives a restart, while the seeder still creates missing roles and permissions on a fresh install and still picks up a permission added by an upgrade -- those are what EnsureRoles exists for and must not regress. The decision about what 'ensure' means is stated rather than implied: creating what is absent is not the same operation as asserting what the set must be, and only the first is safe to run on every boot against a database an operator can edit. The container smoke asserts it ACROSS the replacement -- runVerify() re-checks the permission runSetup() granted, which is nearly free since the grant already happens -- and restoring the destructive sync must make that assertion fail.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/upgrade-smoke",
+      "@type": "Action",
+      "order": 64,
+      "name": "CI must exercise an upgrade, not only a restart",
+      "url": "https://github.com/turbophp/doccum/issues/210",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/upgrade-preserves-access"
+      ],
+      "doneWhen": "tests.yml's 'Replace the container, keeping only the volume' step runs the SAME image tag on both sides, so it proves persistence across a restart and not an upgrade across a code change. That is why item/upgrade-preserves-access shipped: item/email-verification-decided's doneWhen asked the no-mailer question, answered it for a fresh install, and cited this smoke as proof -- correctly, for the question it actually answers. Done when CI boots a volume whose rows predate the candidate image and asserts a pre-existing user still reaches the app. The cheaper first cut is preferred over maintaining an older published image: seed the volume's SQLite directly with a row in the pre-change state (email_verified_at NULL, a role whose permissions were edited) and restart the SAME image against it, which narrows to the regression class without needing an old image whose schema drifts further from current with every migration. Mutation-checked per decision/0067: reverting the backfill migration must make the new assertion fail. item/role-permissions-survive-restart's across-the-replacement check is the second thing this stage should carry.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -1317,7 +1359,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 63,
+      "order": 65,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -1348,7 +1390,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 64,
+      "order": 66,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -1670,24 +1712,6 @@
         "item/directory-access-ui"
       ],
       "doneWhen": "A directories.share permission gates DirectoryPolicy::manageAccess() and nothing else, so a member may hand out access to a subtree they hold Manage on without also gaining move and delete over it -- which is what granting directories.manage wholesale would do, and why this needs its own permission rather than a reused one. Both layers still apply; no layer is removed from manageAccess(). See decision/0036, which decided that sharing is an administrator act for v1.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
-      "@id": "item/store-file-version-replace-entry-point",
-      "@type": "Action",
-      "order": 121,
-      "name": "StoreFileVersion::replace(), so appending a version cannot create a file",
-      "url": "https://github.com/turbophp/doccum/issues/115",
-      "isBasedOn": [
-        "spec:4-data-model"
-      ],
-      "size": "S",
-      "release": "post-v1",
-      "dependsOn": [],
-      "doneWhen": "StoreFileVersion::handle() decides between 'append a version' and 'create a file' by looking up (directory_id, name_key) and finding nothing, so the difference between the two is which string the caller passes: Replace appends a version only because Browser::replaceFile() passes $file->name rather than the uploaded file's client name. That IS a real guard -- it is mutation-checked in the container smoke as of #102 -- but it is a guard over a string rather than a structural impossibility, which is why this is post-v1 hardening and not a v1 defect. Done when a second entry point, replace(User, File, string $sourcePath, ?string $mime), shares a private append routine with handle(): the lock on directory_id, the archived-period check against the file's own period, version_number = max + 1, the object write, the row, the $file->update(), and ExtractText dispatched after commit -- so that appending to a named file cannot create one whatever string a caller passes.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -2966,6 +2990,38 @@
       "mergedAt": "2026-09-18T15:14:48Z",
       "mergeSha": "e6d7eac84f751d87e5692f9bfc4add365f242f41",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/212",
+      "@type": "PullRequest",
+      "identifier": 212,
+      "name": "Upgrading an existing instance must not lock out every user",
+      "implements": [
+        "item/upgrade-preserves-access"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T15:36:10Z",
+      "headSha": "e8a64329cfe0d1a5dfefd4d7c3d244d8b5680a8d",
+      "mergedAt": "2026-09-18T15:40:03Z",
+      "mergeSha": "a22a44f1e49c8b3056ab188dc33aa3a785c43ad6",
+      "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/213",
+      "@type": "PullRequest",
+      "identifier": 213,
+      "name": "Every ledger rule has a witness that trips it, counted in CI",
+      "implements": [
+        "item/ledger-rule-witnesses"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T15:50:30Z",
+      "headSha": "91d64d9fc15b262dad67a859604635d80424a033",
+      "mergedAt": "2026-09-18T16:01:21Z",
+      "mergeSha": "8c006fc5c7dddf4c97c1d98f696fcdb460819c17",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4120,6 +4176,37 @@
       "affects": [
         "item/ledger-main-push-record",
         "item/ledger-shape-from-context"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0071",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T16:10:00Z",
+      "run": "run/0020",
+      "name": "phpstan found the ratchet in item 47 could not fire",
+      "rationale": "item/ledger-rule-witnesses exists to make a rule that cannot fire visible. It shipped, in its first pushed form, containing one.\n\nThe harness carried UNWITNESSED_BASELINE (the codes with no witness) and UNWITNESSED_BASELINE_MAX (a ceiling on that list's size), and run() compared them so a baseline growing past the ceiling would fail. Both are compile-time constants and both were 0, so phpstan rejected it outright: \"Comparison operation > between 0 and 0 is always false\".\n\nEvery human step missed it. The brief named this exact trap -- a baseline is where coverage rots, enforce the shrink mechanically. The worker built the ceiling for that reason and reported it as the mechanism. I reviewed it, verified the coverage equality, spot-checked four mutations, and approved. A static analyser caught what three careful passes did not.\n\nRemoved, not suppressed: a decorative guard is worse than none, which is this item's own thesis turned on itself. What holds the line now is a Pest assertion that the baseline is empty -- a tripwire on the SOURCE rather than runtime state, which is the honest shape at the floor, since the baseline starts empty and has nowhere to ratchet down to. The only event worth detecting is somebody adding an entry, and that now means editing an assertion in the same diff a reviewer reads.\n\nTHE LESSON, which is not 'run phpstan' -- CI already did. It is that a guard comparing two things the author controls at the same moment is not a guard. The ceiling and the list were written in one commit by one author with one intent; nothing about that arrangement could ever disagree with itself. A check earns its name by being able to disagree with the thing it checks.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-rule-witnesses"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0072",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T16:12:00Z",
+      "run": "run/0020",
+      "name": "An auto-formatter and a manifest of exact source strings are on a quiet collision course",
+      "rationale": ".github/mutations.json identifies each guard by an exact substring of its source file, and mutation-check.php requires that substring to match exactly once. The repository also runs a pint workflow that reformats code and pushes the result onto the branch, unattended.\n\nThose two facts are in tension by construction. A formatter that changes a quote style, a unary-operator space or a trailing comma on a line some entry targets breaks the match -- and the failure does not say so. It surfaces as \"matched no test at all\", which since decision/0064 means the entry is reported as unproven rather than silently passing, but still points a reader at the manifest's NAME rather than at the reformat that actually moved the line.\n\nIt happened twice in one run: pint pushed onto item 46's branch and onto item 47's. Both times the fix was to re-verify all entries, and both times all of them still matched -- pint had touched lines nothing targeted. That is luck, not design, and worth recording BEFORE it is not luck.\n\nTHE PRACTICE: after any push that was not yours -- a formatter's, a merge from main, anybody's -- re-check that every mutations.json remove string still matches exactly once before reading CI as meaningful. It costs one command. The exact-once rule is what makes the collision loud instead of silent, and it only helps if somebody runs it at the moment the collision can happen.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/mutation-filter-regex",
+        "item/ledger-rule-witnesses"
       ],
       "supersedes": null
     }
