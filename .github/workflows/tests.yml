@@ -618,7 +618,7 @@ jobs:
             echo "SMOKE_ADMIN_PASSWORD=Doccum-Smoke-${RUN_ID}!Aa9"
             echo "SMOKE_FILE_NAME=smoke-${RUN_ID}.txt"
             echo "SMOKE_FILE_MARKER=smokeword${DIGITS}"
-            # item/upgrade-preserves-access (issue #210): a second account,
+            # item/upgrade-smoke (issue #210): a second account,
             # created directly against the database by the "Seed pre-upgrade
             # rows" step below (never through the installer or /register),
             # so it needs its own credentials rather than reusing the
@@ -697,7 +697,7 @@ jobs:
           fi
           echo "at least one asset URL is https on the forwarded host -- OK"
 
-      # item/upgrade-preserves-access (issue #210): everything from "Smoke
+      # item/upgrade-smoke (issue #210): everything from "Smoke
       # test the image" onward has driven ONE container up from an
       # empty volume, so by this point every row in it -- the admin user,
       # the roles RolesAndPermissionsSeeder created -- was written by the

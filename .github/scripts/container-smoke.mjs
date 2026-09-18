@@ -24,7 +24,7 @@
 //                 file, wait for extraction, confirm it is findable by
 //                 search. Run once, against a freshly booted, empty-volume
 //                 container.
-//   seed-stale -- item/upgrade-preserves-access (issue #210): writes a user
+//   seed-stale -- item/upgrade-smoke (issue #210): writes a user
 //                 row with email_verified_at NULL and a role edited away
 //                 from RolesAndPermissionsSeeder's defaults directly into
 //                 the database, and rolls back the backfill migration's own
@@ -108,7 +108,7 @@ const REPLACE_TIMEOUT_MS = Number(env('REPLACE_TIMEOUT_MS', '20000'));
 // env()'s "missing required variable" check just by loading this module.
 const SMOKE_FORWARDED_HOST = env('SMOKE_FORWARDED_HOST', '');
 
-// item/upgrade-preserves-access (issue #210): seedStaleRows() (the
+// item/upgrade-smoke (issue #210): seedStaleRows() (the
 // 'seed-stale' phase) and checkStaleUserReachesTheApp()/
 // checkStaleRolePermissionStaysRevoked() (called from 'verify') all need to
 // agree on this one account, across two separate `node` invocations in the
@@ -2869,7 +2869,7 @@ function checkRolePermissionSurvivesContainerReplacement(phase) {
 }
 
 /**
- * item/upgrade-preserves-access (issue #210): everything above proves DATA
+ * item/upgrade-smoke (issue #210): everything above proves DATA
  * survives a container REPLACEMENT that happens to reuse the exact same
  * image on both sides -- which proves a restart, not an upgrade across a
  * code change. The cheaper substitute to maintaining and pulling an older
@@ -2921,6 +2921,12 @@ function checkRolePermissionSurvivesContainerReplacement(phase) {
  * No Playwright here at all -- this is a database seed, not a page
  * interaction, so it runs synchronously through tinker() the same way
  * checkRolePermissionSurvivesContainerReplacement() above does.
+ */
+/**
+ * item/upgrade-smoke (issue #210) is the CHECK; item/upgrade-preserves-access,
+ * the already-shipped fix, is what it checks. Both cite issue #210 and they are
+ * easy to confuse: the backfill migration this seeds against belongs to the
+ * second, and this function exists to make the first able to fail.
  */
 function seedStaleRows() {
   const php = [
@@ -2986,7 +2992,7 @@ function seedStaleRows() {
 }
 
 /**
- * item/upgrade-preserves-access (issue #210): the counterpart to
+ * item/upgrade-smoke (issue #210): the counterpart to
  * seedStaleRows() above, called from runVerify() AFTER the container has
  * been replaced. Confirms the account seedStaleRows() inserted with
  * email_verified_at NULL -- and whose backfill migration was forced back
@@ -3044,7 +3050,7 @@ async function checkStaleUserReachesTheApp(browser, phase) {
 }
 
 /**
- * item/upgrade-preserves-access (issue #210), the role-permission half.
+ * item/upgrade-smoke (issue #210), the role-permission half.
  * seedStaleRows() revoked STALE_REMOVED_PERMISSION from STALE_ROLE_NAME
  * directly against the database, on the pre-replacement container -- the
  * same class of edit checkRolePermissionSurvivesContainerReplacement()
