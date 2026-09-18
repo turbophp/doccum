@@ -3,6 +3,19 @@
 Date: 2026-09-15
 Status: Approved (pending final spec review)
 
+**Revisions — 2026-09-18 (`item/spec-reconcile`, see `decision/0077`):**
+reconciled this document against the shipped product without renaming or
+removing any heading. §2's "Search engine" row is marked superseded — Laravel
+Scout was never installed; search runs through the project's own `SearchIndex`
+seam described in §8. The other Scout mentions in §13–§15 (default driver,
+env vars, test doubles, the scaffold list) are corrected to describe that same
+seam rather than Scout, for the same reason. §13's base image is corrected
+from 8.4 to 8.5 to match the Dockerfile. §16's FTS5 entry is marked superseded
+— `Fts5SearchIndex` has shipped as the SQLite default described in §8, not a
+post-v1 optimisation. This is a content-only reconciliation: no claim is made
+that the surrounding prose is otherwise complete or current, only that these
+specific, verified points of drift are corrected or marked.
+
 ## 1. Overview
 
 doccum is a self-hosted, open-source document management system. Users organise
@@ -46,7 +59,7 @@ a remote service through environment variables alone.
 | Decision | Choice | Rationale |
 |---|---|---|
 | Search scope | Metadata + extracted text + OCR | Documents must be findable by content, not just filename. |
-| Search engine | Laravel Scout, engine deferred | Code against Scout's interface; ship on the database driver, adopt Typesense/Meilisearch once there is real data to tune against. |
+| Search engine | ~~Laravel Scout, engine deferred~~ **Superseded, see §8** — the project's own `SearchIndex` seam, engine deferred | Original rationale: code against Scout's interface; ship on the database driver, adopt Typesense/Meilisearch once there is real data to tune against. Superseded because Scout was never installed — the database-driver `LIKE` scan Scout would have shipped on is exactly what §8 identifies as the worst default, so the seam ships FTS5 on SQLite directly instead and keeps the later engine swap. |
 | Properties | Admin-defined definitions, typed values | Validation, consistent filters, working range/date sorting. |
 | Access control | Spatie roles + per-directory ACL with subtree inheritance | Capability and location are separate questions. |
 | File lifecycle | Versions + soft-delete trash | Standard DMS expectation; overwrites recoverable. |
@@ -1022,7 +1035,7 @@ Plus `README.md` (what it is, screenshot, three-line quick start), `LICENSE`
 
 ## 13. Infrastructure
 
-Base image **`serversideup/php:8.4-frankenphp-bookworm`** for `app`, `worker`,
+Base image **`serversideup/php:8.5-frankenphp-bookworm`** for `app`, `worker`,
 `worker-ingest`, and `scheduler` — one image, different commands. A thin
 `Dockerfile` layers on `poppler-utils`, `tesseract-ocr` plus language data, the
 built Vite assets, and vendor. Debian rather than Alpine because tesseract
@@ -1055,7 +1068,8 @@ mail send or a reindex.
 account:
 
 - **SQLite by default** on a named volume — no database container at all.
-- **Scout on the `database` driver by default** — no search service required.
+- **The `SearchIndex` seam on its embedded default by default** (`Fts5SearchIndex`
+  on SQLite, `LikeSearchIndex` elsewhere; see §8) — no search service required.
   Typesense/Meilisearch arrive behind the `search` profile.
 - **Queue and cache on the `database`/`file` drivers by default** — no Redis
   container is required at all; `cache` profile opts into Redis when wanted.
@@ -1076,10 +1090,12 @@ require editing the compose file rather than the environment.
 
 **No application code ever names a container.** Every boundary is environment
 driven: `DB_*`, `FILESYSTEM_DISK` / `AWS_ENDPOINT` / `AWS_BUCKET`, `REDIS_HOST`,
-`SCOUT_DRIVER` and engine host, `QUEUE_CONNECTION`, `MAIL_*`. Moving to managed
-Postgres, real S3, and hosted search is editing `.env` and removing profiles from
-`COMPOSE_PROFILES` — no code change and no rebuild. `.env.example` documents the
-local and remote columns side by side.
+`QUEUE_CONNECTION`, `MAIL_*`. The `SearchIndex` seam has no driver setting of
+its own — it follows `DB_CONNECTION` (§8) — so a hosted engine arrives as a
+new implementation of the seam, not a new environment variable. Moving to
+managed Postgres, real S3, and hosted search is editing `.env` and removing
+profiles from `COMPOSE_PROFILES` — no code change and no rebuild.
+`.env.example` documents the local and remote columns side by side.
 
 `compose.override.yml` adds development conveniences (source bind-mount, Vite dev
 server) without touching the production-shaped base file.
@@ -1094,7 +1110,8 @@ fixtures; the scanned-PDF fallback threshold; purge guards; period derivation
 and object-key construction.
 
 **Feature** — one suite per Livewire component, with `Storage::fake` for MinIO,
-Scout's `collection` driver, and `Queue::fake`. Policy coverage asserts that a
+the real `SearchIndex` implementation against the test SQLite connection, and
+`Queue::fake`. Policy coverage asserts that a
 user without a grant sees neither the directory, its files, nor any search
 result referencing them.
 
@@ -1114,7 +1131,8 @@ routes, so an API change that outruns its documentation fails CI.
 ## 15. Milestones
 
 1. Scaffold — Laravel 13, Livewire 4 starter kit with Flux free, Pest, Spatie,
-   Scout, MinIO disk, Docker image and compose, MIT LICENSE.
+   MinIO disk, Docker image and compose, MIT LICENSE. (Scout was scaffolded
+   in the original plan; it was dropped before shipping — see §2 and §8.)
 2. Tree and data model — directories, files, migrations, factories, path logic.
 3. Access control — `DirectoryAccess`, policies, Spatie roles and seeded
    permissions, first-run setup screen.
@@ -1132,7 +1150,9 @@ routes, so an API change that outruns its documentation fails CI.
 ## 16. Deferred
 
 - Search engine selection (Typesense vs Meilisearch) once real data exists.
-- SQLite FTS5 virtual table as an optimisation over the LIKE-based default.
+- ~~SQLite FTS5 virtual table as an optimisation over the LIKE-based default.~~
+  Superseded — shipped as `Fts5SearchIndex`, the default `SearchIndex` on
+  SQLite; see §8. No longer deferred.
 - Aggregate statistics rollups (counts and bytes per directory/owner/mime).
 - Version thinning policies and extracted-text pruning for archived files.
 - Multi-tenancy, antivirus scanning, check-out locking, approval workflows.
