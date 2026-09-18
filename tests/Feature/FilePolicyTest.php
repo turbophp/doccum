@@ -184,10 +184,30 @@ it('refuses to update a file whose directory is cascade-trashed, even with acces
     giveAccess($this->dir, $this->user, AccessLevel::Manage);
     $file = File::factory()->for($this->dir, 'directory')->create();
 
+    // Restored, DIRECTORY left trashed -- the same isolation
+    // 'refuses to replace a file whose directory is cascade-trashed' already
+    // carries, and for the same reason, which item/file-policy-trashed-file-guards
+    // has now made true of this test too. TrashDirectory cascades onto every
+    // descendant file, so a plain cascade leaves $file->trashed() true, and
+    // update()'s new trashed-FILE guard runs first and refuses on its own. That made
+    // this test pass with the liveDirectory() guard deleted, and the mutation
+    // harness said so in as many words: "STILL PASSES with the guard deleted.
+    // The guard is not load-bearing, or the test does not exercise it."
+    //
+    // Restoring just the file leaves the directory guard as the only thing that
+    // can refuse. It is a reachable state rather than a contrivance: restore(),
+    // delete() and purge() resolve the directory withTrashed() on purpose, so a
+    // cascade-trashed file can be restored one at a time, which leaves it live
+    // beneath a directory that is still trashed.
     app(TrashDirectory::class)->handle($this->dir->fresh());
-    $trashedFile = File::withTrashed()->findOrFail($file->id);
 
-    expect($this->user->fresh()->can('update', $trashedFile))->toBeFalse();
+    $cascaded = File::withTrashed()->findOrFail($file->id);
+    $cascaded->restore();
+
+    $live = File::findOrFail($file->id);
+    expect($live->trashed())->toBeFalse();
+
+    expect($this->user->fresh()->can('update', $live))->toBeFalse();
 });
 
 it('refuses to move a file whose source directory is cascade-trashed, even with access to a live destination', function () {
@@ -196,10 +216,30 @@ it('refuses to move a file whose source directory is cascade-trashed, even with 
     giveAccess($destination, $this->user, AccessLevel::Edit);
     $file = File::factory()->for($this->dir, 'directory')->create();
 
+    // Restored, DIRECTORY left trashed -- the same isolation
+    // 'refuses to replace a file whose directory is cascade-trashed' already
+    // carries, and for the same reason, which item/file-policy-trashed-file-guards
+    // has now made true of this test too. TrashDirectory cascades onto every
+    // descendant file, so a plain cascade leaves $file->trashed() true, and
+    // move()'s new trashed-FILE guard runs first and refuses on its own. That made
+    // this test pass with the liveDirectory() guard deleted, and the mutation
+    // harness said so in as many words: "STILL PASSES with the guard deleted.
+    // The guard is not load-bearing, or the test does not exercise it."
+    //
+    // Restoring just the file leaves the directory guard as the only thing that
+    // can refuse. It is a reachable state rather than a contrivance: restore(),
+    // delete() and purge() resolve the directory withTrashed() on purpose, so a
+    // cascade-trashed file can be restored one at a time, which leaves it live
+    // beneath a directory that is still trashed.
     app(TrashDirectory::class)->handle($this->dir->fresh());
-    $trashedFile = File::withTrashed()->findOrFail($file->id);
 
-    expect($this->user->fresh()->can('move', [$trashedFile, $destination]))->toBeFalse();
+    $cascaded = File::withTrashed()->findOrFail($file->id);
+    $cascaded->restore();
+
+    $live = File::findOrFail($file->id);
+    expect($live->trashed())->toBeFalse();
+
+    expect($this->user->fresh()->can('move', [$live, $destination]))->toBeFalse();
 });
 
 it('refuses a legal hold on a file whose directory is cascade-trashed, even for a periods.manage holder with access', function () {
@@ -208,10 +248,30 @@ it('refuses a legal hold on a file whose directory is cascade-trashed, even for 
     giveAccess($this->dir, $holder, AccessLevel::Manage);
     $file = File::factory()->for($this->dir, 'directory')->create();
 
+    // Restored, DIRECTORY left trashed -- the same isolation
+    // 'refuses to replace a file whose directory is cascade-trashed' already
+    // carries, and for the same reason, which item/file-policy-trashed-file-guards
+    // has now made true of this test too. TrashDirectory cascades onto every
+    // descendant file, so a plain cascade leaves $file->trashed() true, and
+    // legalHold()'s new trashed-FILE guard runs first and refuses on its own. That made
+    // this test pass with the liveDirectory() guard deleted, and the mutation
+    // harness said so in as many words: "STILL PASSES with the guard deleted.
+    // The guard is not load-bearing, or the test does not exercise it."
+    //
+    // Restoring just the file leaves the directory guard as the only thing that
+    // can refuse. It is a reachable state rather than a contrivance: restore(),
+    // delete() and purge() resolve the directory withTrashed() on purpose, so a
+    // cascade-trashed file can be restored one at a time, which leaves it live
+    // beneath a directory that is still trashed.
     app(TrashDirectory::class)->handle($this->dir->fresh());
-    $trashedFile = File::withTrashed()->findOrFail($file->id);
 
-    expect($holder->fresh()->can('legalHold', $trashedFile))->toBeFalse();
+    $cascaded = File::withTrashed()->findOrFail($file->id);
+    $cascaded->restore();
+
+    $live = File::findOrFail($file->id);
+    expect($live->trashed())->toBeFalse();
+
+    expect($holder->fresh()->can('legalHold', $live))->toBeFalse();
 });
 
 // restore(), delete() and purge() each carry their own "if ($directory ===
