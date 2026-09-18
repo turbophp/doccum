@@ -86,7 +86,16 @@ it('permits re-granting users.manage to a role that already holds it', function 
     expect($admin->fresh()->hasPermissionTo('users.manage'))->toBeTrue();
 });
 
-it('changes what can() answers in the same request once the permission cache is forgotten', function () {
+// The name deliberately contains no parentheses. .github/scripts/
+// mutation-check.php passes expectFailing to `php artisan test --filter`,
+// which PHPUnit treats as a REGEX, and it is shell-escaped but not
+// regex-escaped. An earlier name here contained "can()", so the pattern
+// matched the literal "can" and then demanded " answers" immediately --
+// which the real name never provides. Zero tests matched, and guards
+// reported the test as not passing with the guard in place. It failed
+// loudly rather than silently, but the trap is real for any future name:
+// issue #180.
+it('changes what a permission check answers in the same request once the cache is forgotten', function () {
     $member = Role::findByName('member');
     $user = User::factory()->create();
     $user->assignRole('member');

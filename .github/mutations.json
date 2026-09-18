@@ -361,6 +361,6 @@
     "why": "item/admin-roles (issue #19) doneWhen, clause one: 'toggling a permission changes what the Policy allows in the same request.' Spatie\\Permission\\PermissionRegistrar caches the whole role/permission mapping in-process -- the same cache database/seeders/RolesAndPermissionsSeeder::run() forgets before it seeds, for exactly this reason. Without this call the database changes correctly (syncPermissions() still runs) while every in-request read of that permission keeps answering from the mapping cached before the write. The named test asserts on a User resolved AFTER the change, in the same process and request. That shape was forced by CI rather than chosen: asserting on the already-resolved instance failed even with this call present, because a hydrated model carries authorization state the action holds no reference to and cannot clear. The registrar's cache is the only thing this call governs, so it is the only thing the test asserts -- and because that cache is process-global, a newly loaded User consults the same stale mapping when the call is gone, which is what makes removal detectable.",
     "file": "app/Actions/Roles/SetRolePermissions.php",
     "remove": "        app(PermissionRegistrar::class)->forgetCachedPermissions();\n",
-    "expectFailing": "changes what can() answers in the same request once the permission cache is forgotten"
+    "expectFailing": "changes what a permission check answers in the same request once the cache is forgotten"
   }
 ]
