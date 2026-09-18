@@ -1038,10 +1038,17 @@ async function checkTopbar(page, phase) {
  *     guard deleted -> fail: locator.waitFor: Timeout 8000ms exceeded
  *     restored      -> pass
  *
- * That was run against the dev server, NOT against the built image, so it
- * proves the assertion discriminates and does not yet prove it discriminates
- * in the container. The first CI run of this check is what establishes the
- * second half.
+ * That was run against the dev server first, and the container then found
+ * something the dev server could not: the preview pointed at the DOWNLOAD
+ * route, which answers Content-Disposition: attachment and, where object
+ * storage can issue one, redirects to a presigned URL. On a dev machine that
+ * redirect lands on Laravel's own /storage path and renders; in the image it
+ * names MinIO on loopback:9000, which the browser on :8080 cannot reach, so
+ * the frame stayed blank and this assertion timed out at 15s.
+ *
+ * That is the check doing exactly the job CLAUDE.md keeps it for -- a green
+ * suite and a passing dev-server run both said the preview worked. The fix is
+ * FilePreviewController, which always streams and always inline.
  */
 async function checkFilePreviewShowsTheFileContents(page, phase) {
   const name = 'DoccumSmokePreviewTarget.txt';

@@ -341,7 +341,7 @@
                         <th class="w-44 py-1.5 font-medium"><flux:link wire:click="sortBy('owner')" variant="subtle" class="cursor-pointer hover:text-ink">{{ __('Owner') }}</flux:link></th>
                         <th class="w-44 py-1.5 font-medium"><flux:link wire:click="sortBy('modified')" variant="subtle" class="cursor-pointer hover:text-ink">{{ __('Modified') }}</flux:link></th>
                         <th class="w-24 py-1.5 text-right font-medium"><flux:link wire:click="sortBy('size')" variant="subtle" class="cursor-pointer hover:text-ink">{{ __('Size') }}</flux:link></th>
-                        <th class="w-24 py-1.5"></th>
+                        <th class="w-32 py-1.5"></th>
                     </tr>
                 </thead>
 
@@ -393,7 +393,7 @@
                                  accessibility tree -- reachable by keyboard, and by
                                  Playwright, which treats opacity:0 as visible. --}}
                             <td class="py-1 text-right">
-                                <span class="inline-flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                                <span class="flex items-center justify-end gap-1 pr-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                                     <flux:link
                                         :href="route('files.browse', $item)"
                                         wire:navigate
@@ -456,7 +456,7 @@
                             data-file-id="{{ $item->id }}"
                             x-on:click="$wire.selectRow({{ $item->id }}, $event.shiftKey, $event.ctrlKey || $event.metaKey)"
                             @class([
-                                'h-8 cursor-pointer border-b border-rule/40',
+                                'group h-8 cursor-pointer border-b border-rule/40',
                                 'hover:bg-chrome' => ! in_array($item->id, $selectedIds, true),
                                 'bg-select/10' => in_array($item->id, $selectedIds, true),
                             ])
@@ -507,7 +507,7 @@
                             <td class="num py-1 text-ink-2">{{ $item->updated_at?->format('Y-m-d H:i') }}</td>
                             <td class="num py-1 text-right text-ink-2">{{ \Illuminate\Support\Number::fileSize($item->size) }}</td>
                             <td class="py-1 text-right">
-                                <span class="inline-flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                                <span class="flex items-center justify-end gap-1 pr-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                                     <flux:link
                                         wire:click="preview({{ $item->id }})"
                                         variant="subtle"
@@ -848,7 +848,12 @@
 
             @php
                 $mime = $previewing->mime ?? '';
-                $source = route('files.download', $previewing);
+                // files.preview, not files.download: download answers
+                // Content-Disposition: attachment (an <iframe> pointed at that
+                // downloads instead of showing) and may redirect to a presigned
+                // URL on a host the browser cannot reach -- which is the
+                // container exactly. See FilePreviewController.
+                $source = route('files.preview', $previewing);
             @endphp
 
             @if ($previewing->currentVersion === null)
@@ -880,6 +885,7 @@
                      tesseract, to show what every browser already shows. --}}
                 <iframe
                     src="{{ $source }}"
+                    sandbox=""
                     title="{{ $previewing->name }}"
                     class="h-full min-h-[60vh] w-full rounded border border-rule bg-chrome"
                     data-test="preview-frame"

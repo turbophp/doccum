@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DirectoryArchiveDownloadController;
 use App\Http\Controllers\FileDownloadController;
+use App\Http\Controllers\FilePreviewController;
 use App\Http\Controllers\FileVersionDownloadController;
 use App\Livewire\Admin\PropertyDefinitions;
 use App\Livewire\Files\Browser;
@@ -28,6 +29,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::get('/directories/archives/{archive}/download', DirectoryArchiveDownloadController::class)
     ->middleware('auth')
     ->name('directories.archives.download');
+
+Route::get('/files/{file}/preview', FilePreviewController::class)
+    ->middleware('auth')
+    ->name('files.preview');
 
 Route::get('/files/{file}/download', FileDownloadController::class)
     ->middleware('auth')
