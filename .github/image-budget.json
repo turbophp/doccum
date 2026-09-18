@@ -1,8 +1,8 @@
 {
-  "uncompressedBytes": 0,
-  "compressedBytes": 0,
+  "uncompressedBytes": 979591435,
+  "compressedBytes": 308438108,
   "tolerancePercent": 2,
-  "measuredAtCommit": "UNMEASURED",
-  "note": "Sentinel values. Nobody who wrote this file could build the image -- the environment's egress policy blocks the registries the build needs -- so no number is guessed here. decision/0087 was written against exactly that failure mode: a budget that is a guess dressed as a requirement. The first CI run of .github/scripts/image-size.sh against a real build prints the two numbers; copy them in by hand with the SHA of the commit they were measured at. While measuredAtCommit reads UNMEASURED the gate is inactive.",
+  "measuredAtCommit": "70b4380",
+  "note": "Measured, not guessed. These are the two numbers .github/scripts/image-size.sh printed for doccum:ci built from commit 70b4380 in run 35390054625: 979591435 bytes uncompressed (934.2 MiB) and 308438108 bytes compressed (294.1 MiB). decision/0087 defines the budget as exactly this -- the first honest measurement -- because nobody working on the item could build the image and a number invented from reading the Dockerfile would have been a guess dressed as a requirement. The gate is live from here: a later build over either figure plus the tolerance below fails, and raising a figure takes a Decision saying why.",
   "toleranceNote": "tolerancePercent is the measurement's noise floor, not slack. The Dockerfile pins serversideup/php:8.5-frankenphp-bookworm and node:26-bookworm-slim by TAG rather than by digest and installs apt packages unpinned, so two builds of the SAME commit on different days differ by amounts this repository did not cause. A byte-exact ratchet would go red on somebody else's upstream rebuild, and a gate that fires when nothing here changed trains people to re-run it instead of reading it -- which is how a real growth gets waved through later. Pinning the bases by digest would remove the need for this and is a larger change than item/image-size."
 }

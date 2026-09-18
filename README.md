@@ -68,15 +68,14 @@ gated in `.github/workflows/tests.yml`'s `image` job and printed again by
 
 | | Uncompressed | Compressed |
 |---|---|---|
-| Size | TBD | TBD |
-| Measured at commit | TBD | TBD |
+| Size | 934.2 MiB (979,591,435 bytes) | 294.1 MiB (308,438,108 bytes) |
+| Measured at commit | `70b4380` | `70b4380` |
 
-These are `TBD` because no build of this image has run yet in the
-environment that wrote this file — the first CI run that measures the image
-fills in both numbers and the commit they came from, replacing this
-placeholder. "Compressed" is a gzip of the whole `docker save` tarball, not
-what a registry pull downloads; see the script for why that distinction
-matters.
+Both figures come from the first CI run that built and measured the image,
+not from an estimate. "Compressed" is a gzip of the whole `docker save`
+tarball, not what a registry pull downloads — a pull fetches each layer's own
+gzipped blob and skips layers it already has — so treat it as a stable way to
+ask *did this get bigger*, not as a download time.
 
 The check allows a small stated tolerance above the recorded figure, kept in
 `.github/image-budget.json`. That is the measurement's noise floor rather than
