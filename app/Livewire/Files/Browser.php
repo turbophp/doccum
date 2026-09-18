@@ -172,8 +172,32 @@ class Browser extends Component
      */
     public function selectDirectory(int $directoryId, DirectoryAccess $access): void
     {
+        // At the root the lookup accepts a true filesystem root (parent_id IS
+        // NULL, which is all this branch used to accept) OR a reach root --
+        // item/files-three-pane's nested case, whose parent_id is not null and
+        // which the landing pane now lists, so it must be selectable from it.
+        //
+        // Deliberately a UNION of the two, never reachRootIds() alone. Scoping
+        // the lookup to reachRootIds() would make an id the viewer cannot view
+        // fail to RESOLVE, so an unviewable directory would answer 404 from
+        // findOrFail() instead of 403 from the authorize() below -- swapping a
+        // policy decision for an existence check. 'refuses to select a
+        // directory the viewer cannot view' caught exactly that, across all
+        // six test jobs: ModelNotFoundException where it asserts 403.
+        //
+        // Which way that SHOULD answer is issue #109's question for the whole
+        // surface, and it is not this item's to settle in one method. What
+        // matters here is that the answer does not change silently as a side
+        // effect of a UI item: authorisation stays the gate, and the lookup
+        // only ever widens what can be found.
+        $rootCandidates = Directory::query()
+            ->where(function (Builder $query) use ($access): void {
+                $query->whereNull('parent_id')
+                    ->orWhereIn('id', $access->reachRootIds(auth()->user()));
+            });
+
         $subdirectory = $this->directory === null
-            ? Directory::query()->whereIn('id', $access->reachRootIds(auth()->user()))->findOrFail($directoryId)
+            ? $rootCandidates->findOrFail($directoryId)
             : Directory::query()->where('parent_id', $this->directory->getKey())->findOrFail($directoryId);
 
         // Deliberately NOT in .github/mutations.json, and the reason is worth
