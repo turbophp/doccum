@@ -128,9 +128,31 @@
                      selected there are two file inputs on the page, and the container
                      smoke's shared uploadAndProveStored() helper must be able to say
                      which one it means. --}}
+                {{-- wire:loading.attr="disabled" with wire:target naming the UPLOAD
+                     PROPERTY -- not a method -- is what closes issue #106. A file input
+                     posts its bytes to Livewire's upload endpoint the moment it changes,
+                     and until that POST answers the server-side property is still
+                     unpopulated. Clicking Upload inside that window dispatches store()
+                     against an empty property: it fails `required|file`, and the
+                     _finishUpload commit that lands a moment later re-renders over the
+                     error, so the person sees no file stored and nothing said. PR #129's
+                     probe caught it three times in one run, and the split is exactly the
+                     upload endpoint's latency -- every discarded upload had it answer in
+                     ~550ms, every stored one in ~18ms.
+
+                     Targeting the property makes Livewire hold the button disabled for
+                     the whole upload, so the racing click cannot be made. The container
+                     smoke asserts the disabled state against a deliberately delayed
+                     upload endpoint, which is also what proves Flux forwarded these
+                     attributes to the real <button> -- that is not assumed here. --}}
                 <form wire:submit="store" class="flex items-end gap-4" data-test="upload-form">
                     <flux:input wire:model="upload" :label="__('Upload a file')" type="file" />
-                    <flux:button type="submit" variant="primary">{{ __('Upload') }}</flux:button>
+                    <flux:button
+                        type="submit"
+                        variant="primary"
+                        wire:loading.attr="disabled"
+                        wire:target="upload"
+                    >{{ __('Upload') }}</flux:button>
                 </form>
             @endif
         </div>
@@ -192,7 +214,14 @@
                                     :label="__('Replace with a new version')"
                                     type="file"
                                 />
-                                <flux:button type="submit" data-test="replace-file-button">{{ __('Replace') }}</flux:button>
+                                {{-- Same guard as the Upload button above, for the same
+                                     reason and against the same window; see its comment. --}}
+                                <flux:button
+                                    type="submit"
+                                    data-test="replace-file-button"
+                                    wire:loading.attr="disabled"
+                                    wire:target="replacement"
+                                >{{ __('Replace') }}</flux:button>
                             </form>
                         @endcan
 

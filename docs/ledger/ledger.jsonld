@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T23:50:00Z",
+  "dateModified": "2026-09-18T00:35:00Z",
   "latestRun": "run/0017",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -496,10 +496,12 @@
         "item/files-actions-ui"
       ],
       "doneWhen": "The container smoke follows a Download link and asserts the bytes arrive and match the uploaded checksum -- that assertion is pushed FIRST and shown red against today's main, demonstrating the defect through the product's own harness before anything changes. A Decision records how the collision between spec 11 (bytes never pass through PHP) and spec 13 (one container, one port) is resolved, and names what the chosen option costs. The presigned host follows X-Forwarded-Host, so it does not break behind a reverse proxy the way it breaks on 127.0.0.1. The per-version download route added by item/files-versions-replace is covered by the same assertion.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-17T23:53:10Z",
+      "endTime": "2026-09-18T00:06:45Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/127"
+      ]
     },
     {
       "@id": "item/sqlite-immediate-transactions",
@@ -514,10 +516,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "config/database.php states an IMMEDIATE transaction_mode rather than the skeleton's DEFERRED, so the write lock is taken at BEGIN and busy_timeout covers the queue worker's SELECT-then-UPDATE; the container smoke prints transaction_mode alongside journal_mode and busy_timeout, so a silent revert is visible in the log; and sqlite-busy-timeout-stated's why is corrected, since it currently cites the jobs-table lock as something the stated timeout already fixes. The suite cannot reach this at all -- QUEUE_CONNECTION is sync, per decision/0020 -- and the item says so rather than inventing a test.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T00:08:32Z",
+      "endTime": "2026-09-18T00:11:35Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/128"
+      ]
     },
     {
       "@id": "item/upload-silent-discard",
@@ -532,8 +536,8 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "The container smoke carries request, requestfailed, response, console and pageerror listeners plus Livewire's upload events, and one instrumented run distinguishes the three bugs this has been treated as one of: never sent, sent and failed, or sent and answered with the state lost. Diagnosis is time-boxed to two CI rounds. Whether or not the cause is named, the operator gets recourse: a form that has not completed an upload within a stated interval re-enables its control and says so, instead of leaving a dead button with no error. If the cause is not named, it is filed as post-v1 with what the instrumented run did show.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-18T00:14:00Z",
       "endTime": null,
       "result": []
     },
@@ -1821,6 +1825,88 @@
       "mergedAt": "2026-09-17T22:36:13Z",
       "mergeSha": "9d6a93d13f9e9cb8b1dd9e916a28932d8716dc50",
       "mergedIn": "run/0016"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/126",
+      "@type": "PullRequest",
+      "identifier": 126,
+      "name": "ledger: reliability defects become items 23-25, ahead of the feature work",
+      "implements": [
+        "item/download-reaches-the-browser",
+        "item/sqlite-immediate-transactions",
+        "item/upload-silent-discard"
+      ],
+      "run": "run/0017",
+      "state": "merged",
+      "dateCreated": "2026-09-17T23:48:17Z",
+      "headSha": "681d8c565a227204061bd759f636bcc8015eef0f",
+      "mergedAt": "2026-09-17T23:51:44Z",
+      "mergeSha": "bcfddbf7bcf960d2807755ee41b27b1a1399ff59",
+      "mergedIn": "run/0017"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/127",
+      "@type": "PullRequest",
+      "identifier": 127,
+      "name": "item/download-reaches-the-browser: serve the bytes when a presigned URL would be unreachable (#74)",
+      "implements": [
+        "item/download-reaches-the-browser"
+      ],
+      "run": "run/0017",
+      "state": "merged",
+      "dateCreated": "2026-09-17T23:53:10Z",
+      "headSha": "c1a3b6c07e9ecb9fd26d1030b0f9253d5d5470d5",
+      "mergedAt": "2026-09-18T00:06:45Z",
+      "mergeSha": "a63188ec2087eb40237904ad99966ebce54be811",
+      "mergedIn": "run/0017"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/128",
+      "@type": "PullRequest",
+      "identifier": 128,
+      "name": "item/sqlite-immediate-transactions: begin write transactions IMMEDIATE (#121)",
+      "implements": [
+        "item/sqlite-immediate-transactions"
+      ],
+      "run": "run/0017",
+      "state": "merged",
+      "dateCreated": "2026-09-18T00:08:32Z",
+      "headSha": "21c1b2429df0a122daf2cbfc2fbc9b122cf3b064",
+      "mergedAt": "2026-09-18T00:11:35Z",
+      "mergeSha": "9f67dc6a1cdade7d4617715c50195f101cc8c12f",
+      "mergedIn": "run/0017"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/129",
+      "@type": "PullRequest",
+      "identifier": 129,
+      "name": "Fix issue #106: the Upload click was racing the file input's own upload",
+      "implements": [
+        "item/upload-silent-discard"
+      ],
+      "run": "run/0017",
+      "state": "open",
+      "dateCreated": "2026-09-18T00:14:00Z",
+      "headSha": "c75a3a87416b6985ccc9b7aad00c0a347c7bdca3",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/130",
+      "@type": "PullRequest",
+      "identifier": 130,
+      "name": "MUTATION -- DO NOT MERGE: remove the Upload button's in-flight guard",
+      "implements": [
+        "item/upload-silent-discard"
+      ],
+      "run": "run/0017",
+      "state": "open",
+      "dateCreated": "2026-09-18T00:40:00Z",
+      "headSha": "a9a0fedbcc2d0d2cf15cacc80b635cc88ecc87fd",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -2305,6 +2391,26 @@
         "item/v1-audit"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0030",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T00:35:00Z",
+      "run": "run/0017",
+      "name": "Issue 106 is a race with the upload itself, and the retries that hid it are removed",
+      "rationale": "Measured, not argued. PR 129 shipped instrumentation and nothing else -- listeners on request, response, requestfailed, console and pageerror -- and its second round caught the discard three times in one run. Every discarded upload had its POST to Livewire's upload endpoint answer in about 550ms with the store() commit issued roughly 14ms after it, while the upload was still in flight. Every stored upload had the upload answer in about 18ms with the commit issued after it. Nothing else separates them. A file input posts its bytes the moment it changes and the component property is not populated until that POST answers, so a submit click inside that window runs store() against an empty property: it fails required|file, and the _finishUpload commit landing a moment later re-renders over the validation error. The person sees no file stored and nothing said. replaceFile() posts through the same path and had the same race.\n\nCredit where it belongs: issue 106 section 2 hypothesised a race in these words -- the smoke \"clicks Upload anyway against a form referencing a temporary file that has not landed\" -- eight runs before this. What it got wrong was the address. It treated the race as the smoke's, and prescribed a test-side fix (wait for the upload response instead of networkidle), so the fix landed in the harness and the product kept the defect; the loop then spent three runs and a \"no request, no error\" description walking away from the right answer. An ordinary person choosing a file and clicking Upload inside half a second hits exactly this, and on a slow link the window is seconds wide, not milliseconds. The lesson is not that the race was unforeseen. It is that a race observed through a test gets attributed to the test, and that the question \"could a user do this?\" was never asked of a hypothesis that had already been written down.\n\nNone of the three candidates this loop had been carrying was right on its face. It was not \"never sent\" and not \"sent and failed\": the request was sent and answered 200, and the state was lost between two commits that raced. decision/0027 was right that the standing description was a guess; this is what the measurement returned in its place.\n\nThe first instrumented round still cost a CI round, and for the same reason the bug survived three runs: it filtered requests to a guessed '/livewire/' prefix and printed nothing at all across a run driving the installer, search and the file browser. This install serves those endpoints under a per-deploy hash, /livewire-a49e10a7/. run/0014 records that exact mistake already -- a waitForResponse against a guessed '/livewire/upload-file' became the failure it was written to observe. An instrument may not assume the shape of what it measures, and a negative filter (everything that is not a static asset) assumes nothing.\n\nThe fix is wire:loading.attr=\"disabled\" with wire:target naming the upload PROPERTY on both submit buttons, so the racing click cannot be made. It is asserted against a deliberately stalled upload endpoint, because the real window is about eighteen milliseconds wide; the disabled assertion is load-bearing and the enabled-before and re-enabled-after assertions are labelled in the source as controls, since a resting state proves nothing and a guard that wedged the button shut forever would satisfy the disabled half alone. That check is also the only thing proving Flux forwards those attributes to the real button rather than swallowing them, which is the same question that made data-test unusable on flux:input.\n\nThe consequence for practice is the part worth carrying forward. Both retries built on this bug are deleted: uploadAndProveStored() and checkReplaceAddsASecondVersion() each retried the whole interaction three times, and a retry is what made the race invisible -- the second attempt always ran after the upload had landed, so the check reported success and the defect stayed in the product. Those retries were added in good faith, twice, and each time they moved the failure somewhere else rather than removing it: one wedged on a disabled button, the other turned a ledger-only pull request red. A retry around a nondeterministic interaction converts a product defect into a testing inconvenience and then charges rent. The replace check's max(version_number) assertion tightens from >= 2 to exactly 2 for the same reason, the loose bound having existed only to tolerate a retry landing a third version. The probe itself stays, because the cheapest thing in this whole sequence was the run that measured rather than reasoned.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface",
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/upload-silent-discard",
+        "item/container-smoke-ci",
+        "item/files-versions-replace"
+      ],
+      "supersedes": [
+        "decision/0026"
+      ]
     }
   ]
 }
