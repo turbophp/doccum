@@ -13,10 +13,11 @@
     "item/login-by-username",
     "item/files-three-pane",
     "item/directory-access-ui",
-    "item/trash-view"
+    "item/trash-view",
+    "item/download-missing-object"
   ],
-  "commit": "1e5067b1cf5cce0153f4461edab410aace417ac2",
-  "tests": 695,
-  "assertions": 1427,
+  "commit": "baca8da9ad5a98dae1bd63e9a1b1274f816f168a",
+  "tests": 697,
+  "assertions": 1433,
   "description": "Opened on the consult's findings rather than on the next backlog item, and the backlog was reshaped to say so. Two items are new: item/file-policy-trashed-file-guards at order 26, ahead of the remaining UI work, and item/login-by-username beside the admin items. The first piece of work is not an item at all but item/container-smoke-ci again -- the verify phase claiming object storage it never read. That one is first because everything else in this loop is verified through that phase, and a check that reports a subsystem it cannot see is worth less than no check."
 }
