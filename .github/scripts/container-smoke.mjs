@@ -1031,10 +1031,23 @@ async function checkForgotPasswordSameResponseRegardlessOfAccount(browser, phase
  *     ARG/LABEL entirely independently of anything Laravel resolves at
  *     runtime. The check requires pill == label == config, so it fails
  *     whenever any one of those three disagrees with the other two -- not
- *     just when the Blade renders a hardcoded literal. Confirmed by mutation:
- *     an image built with DOCCUM_VERSION=9.9.9 while DOCCUM_VERSION was
- *     overridden to a different value at container-run time makes this throw,
- *     naming all three values.
+ *     just when the Blade renders a hardcoded literal.
+ *
+ *     BE PRECISE ABOUT WHAT THIS DOES AND DOES NOT CATCH, because the phrase
+ *     "cross-source" flatters it. The label and the env var both come from
+ *     the SAME `ARG DOCCUM_VERSION` at build time, so a single wrong
+ *     --build-arg sets both of them wrongly and identically, and this check
+ *     passes. What it does catch is a runtime value that has drifted from
+ *     what the image says it is -- a container started with DOCCUM_VERSION
+ *     overridden, a Blade literal, an ENV that never reaches config() -- and
+ *     that is a real class of defect, but it is NOT "the image was built
+ *     from the tag it claims".
+ *
+ *     Nothing here can prove that half: no tag exists in this job, and the
+ *     only independent witness to it is the git ref the release ran from.
+ *     item/release-v0-1-0 owns it, by cutting a throwaway pre-release tag
+ *     and reading the label off the published image -- release.yml has never
+ *     run at all (decision/0075), so that path is entirely unexercised.
  */
 async function checkTopbar(page, phase) {
   const version = versionFromContainer();
