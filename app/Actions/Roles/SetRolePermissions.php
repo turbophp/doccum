@@ -8,7 +8,6 @@ use App\Exceptions\LastAdministratorMustRemain;
 use App\Support\LastAdministrator;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
 
 /**
  * Replaces a role's permission set with a caller-chosen one, refusing a
@@ -29,12 +28,11 @@ use Spatie\Permission\PermissionRegistrar;
  *
  * Clause one of item/admin-roles's doneWhen -- "toggling a permission
  * changes what the Policy allows in the same request" -- is about
- * Spatie\Permission\PermissionRegistrar's cache, not about this guard.
- * forgetCachedPermissions() below is not housekeeping: it is the entire
- * reason a can()/Gate check made LATER IN THE SAME REQUEST sees the new
- * permission set at all, rather than the cached one read before this write.
- * database/seeders/RolesAndPermissionsSeeder::run() calls the same method
- * for the same reason, and is the precedent this follows.
+ * Spatie\Permission\PermissionRegistrar's cache, and it is satisfied by the
+ * PACKAGE rather than by anything here: syncPermissions() forgets that cache
+ * itself. See the note beside the call below for why this action does not
+ * forget it a second time, and why removing the redundant call makes the
+ * test that covers the clause mean more, not less.
  *
  * This action does NOT authorise -- CLAUDE.md: actions never authorise,
  * callers do. App\Livewire\Admin\Roles is the only caller, and it checks
@@ -52,14 +50,25 @@ class SetRolePermissions
             throw LastAdministratorMustRemain::forRole($role);
         }
 
+        // syncPermissions() forgets PermissionRegistrar's cache itself --
+        // spatie/laravel-permission 8.3.0, HasPermissions::syncPermissions()
+        // ends in $this->forgetCachedPermissions(). This action deliberately
+        // does NOT call it again.
+        //
+        // An explicit call here was written first, described as clause one of
+        // the doneWhen, and `guards` refused it: the named test passes with
+        // that call deleted, because the package had already done the work.
+        // CLAUDE.md is exact about what that is -- a guard whose test passes
+        // without it is worse than none, because it looks protected.
+        //
+        // Removing it is also the more INFORMATIVE choice, not merely the
+        // tidier one. With our own call in place the test would keep passing
+        // even if a future version of the package stopped forgetting, hiding
+        // that change behind our redundancy. Without it, the test tracks the
+        // behaviour this action actually depends on and goes red on the
+        // upgrade that breaks it -- which is the moment someone needs to know.
         DB::transaction(function () use ($role, $permissions): void {
             $role->syncPermissions($permissions);
         });
-
-        // See the class docblock: this is clause one of the doneWhen, not
-        // cleanup. Forgotten AFTER the transaction commits, so a concurrent
-        // reader can never observe a forgotten cache paired with the old,
-        // not-yet-committed permission set.
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

@@ -86,15 +86,23 @@ it('permits re-granting users.manage to a role that already holds it', function 
     expect($admin->fresh()->hasPermissionTo('users.manage'))->toBeTrue();
 });
 
-// The name deliberately contains no parentheses. .github/scripts/
-// mutation-check.php passes expectFailing to `php artisan test --filter`,
-// which PHPUnit treats as a REGEX, and it is shell-escaped but not
-// regex-escaped. An earlier name here contained "can()", so the pattern
-// matched the literal "can" and then demanded " answers" immediately --
-// which the real name never provides. Zero tests matched, and guards
-// reported the test as not passing with the guard in place. It failed
-// loudly rather than silently, but the trap is real for any future name:
-// issue #180.
+// Clause one of item/admin-roles's doneWhen. This is a CHARACTERISATION
+// test of behaviour spatie/laravel-permission provides, not a guard over
+// code of ours: syncPermissions() forgets PermissionRegistrar's cache
+// itself (8.3.0, HasPermissions::syncPermissions), so there is nothing here
+// to mutate. An explicit forgetCachedPermissions() in SetRolePermissions
+// was written first and removed, because `guards` showed the test passing
+// with it deleted -- see that action's own note.
+//
+// It stays because the clause is a real requirement and this is what keeps
+// it true: if a future version of the package stops forgetting, this test
+// is what goes red, on the upgrade, which is when someone needs to know.
+//
+// The name deliberately contains no parentheses. mutation-check.php passes
+// expectFailing to `php artisan test --filter`, which PHPUnit treats as a
+// REGEX and which is shell-escaped but not regex-escaped; an earlier name
+// here contained "can()" and matched nothing at all. That trap is issue
+// #180, and it applies to any future entry, not only this one.
 it('changes what a permission check answers in the same request once the cache is forgotten', function () {
     $member = Role::findByName('member');
     $user = User::factory()->create();
