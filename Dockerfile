@@ -52,6 +52,16 @@ COPY --from=vendor --chown=www-data:www-data /app/vendor ./vendor
 COPY --from=assets --chown=www-data:www-data /app/public/build ./public/build
 
 USER root
+
+# MUTATION -- DO NOT MERGE. A deliberately fat, deliberately INCOMPRESSIBLE
+# layer, to show .github/scripts/image-size.sh actually fails a grown image.
+# /dev/urandom rather than /dev/zero on purpose: a zero-filled file gzips away
+# to almost nothing, so it would blow the uncompressed budget while leaving the
+# compressed half of the gate untested, and half a gate shown to work is not a
+# gate shown to work. 50 MB is ~5% over the uncompressed ceiling and ~16% over
+# the compressed one, both clear of the recorded 2% tolerance.
+RUN head -c 52428800 /dev/urandom > /mutation-fat.bin
+
 COPY docker/entrypoint.d/ /etc/entrypoint.d/
 RUN chmod +x /etc/entrypoint.d/*.sh
 
