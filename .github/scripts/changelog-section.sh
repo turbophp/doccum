@@ -15,10 +15,19 @@
 #   <version>        e.g. "0.1.0", "v0.1.0" (a leading "v" is stripped)
 #   [changelog-file] defaults to CHANGELOG.md in the current directory
 #
-# Matches both "## [1.2.3]" and "## [1.2.3] - 2026-01-01" -- anything after
-# the closing bracket, as long as it is separated by whitespace, is ignored.
-# It does NOT match "## [1.2.3-rc1]" when asked for "1.2.3": the bracket has
-# to close right after the version text.
+# Matches both "## [1.2.3]" and "## [1.2.3] - 2026-01-01". It does NOT match
+# "## [1.2.3-rc1]" when asked for "1.2.3", nor "## [0.1.0]" when asked for
+# "0.1": the bracket has to close right after the version text.
+#
+# NO REGEX IS USED FOR ANY OF THAT MATCHING, and that is deliberate rather
+# than stylistic. An earlier version built an ERE containing [[:space:]] in
+# a shell variable and handed it to awk as a DYNAMIC regex. It worked under
+# mawk 1.3.4 20240123 locally and matched nothing under the awk on GitHub's
+# runners, so the heading was found by grep, the body came back empty, and
+# the script reported "has an empty body" for a section that plainly has
+# one. POSIX character classes in a dynamic regex are not portable across
+# awk implementations; literal prefix comparisons are. Keep it that way --
+# this script's whole job is to be trustworthy about emptiness.
 set -euo pipefail
 
 if [ "$#" -lt 1 ]; then
@@ -34,40 +43,40 @@ if [ ! -f "$file" ]; then
   exit 1
 fi
 
-# The only characters a semver version can contain that are also basic-regex
-# metacharacters are dots; escape defensively rather than assume that holds.
-escaped_version=$(printf '%s' "$version" | sed -e 's/[.[\*^$]/\\&/g')
-
-heading_pattern="^## \\[${escaped_version}\\]([[:space:]].*)?\$"
-
-if ! grep -E -q "$heading_pattern" "$file"; then
-  echo "changelog-section: no '## [${version}]' section found in ${file}" >&2
-  exit 1
-fi
-
-# One pass: skip everything up to and including the matching heading, collect
-# every line up to (not including) the next "## " heading or end of file,
-# then trim leading/trailing blank lines so a section that is heading-only
-# (all blank lines) is detected as empty below.
-body=$(awk -v pat="$heading_pattern" '
+# One pass, no regex: find the heading by literal prefix, require what
+# follows the closing bracket to be nothing or whitespace, collect until the
+# next "## " heading, then trim blank lines from both ends. Exit codes:
+# 0 body printed, 3 no such heading, 4 heading present but body blank.
+set +e
+body=$(awk -v want="## [${version}]" '
+  function is_blank(s) { return s ~ /^[ \t\r]*$/ }
   found {
-    if ($0 ~ /^## /) exit
+    if (substr($0, 1, 3) == "## ") { exit }
     lines[++n] = $0
     next
   }
-  $0 ~ pat { found = 1 }
+  index($0, want) == 1 {
+    rest = substr($0, length(want) + 1)
+    first = substr(rest, 1, 1)
+    if (rest == "" || first == " " || first == "\t" || first == "\r") { found = 1 }
+  }
   END {
-    start = 1
-    end = n
-    while (start <= end && lines[start] ~ /^[[:space:]]*$/) start++
-    while (end >= start && lines[end] ~ /^[[:space:]]*$/) end--
+    if (!found) { exit 3 }
+    start = 1; end = n
+    while (start <= end && is_blank(lines[start])) start++
+    while (end >= start && is_blank(lines[end])) end--
+    if (start > end) { exit 4 }
     for (i = start; i <= end; i++) print lines[i]
   }
 ' "$file")
+status=$?
+set -e
 
-if [ -z "$(printf '%s' "$body" | tr -d '[:space:]')" ]; then
-  echo "changelog-section: '## [${version}]' section in ${file} has an empty body" >&2
-  exit 1
-fi
+case "$status" in
+  0) ;;
+  3) echo "changelog-section: no '## [${version}]' section found in ${file}" >&2; exit 1 ;;
+  4) echo "changelog-section: '## [${version}]' section in ${file} has an empty body" >&2; exit 1 ;;
+  *) echo "changelog-section: awk failed with status ${status} reading ${file}" >&2; exit 1 ;;
+esac
 
 printf '%s\n' "$body"
