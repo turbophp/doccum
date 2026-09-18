@@ -114,10 +114,10 @@ class RolesAndPermissionsSeeder extends Seeder
      */
     private function createRoleIfMissing(string $name, array $defaultPermissions): void
     {
-        $role = Role::findOrCreate($name, 'web');
-
-        if ($role->wasRecentlyCreated) {
-            $role->givePermissionTo($defaultPermissions);
-        }
+        // MUTATION -- DO NOT MERGE. The destructive behaviour of issue #214
+        // restored, so the new verify-phase smoke check has to prove it can
+        // actually fail. An assertion nobody has seen fail is worth nothing
+        // (decision/0067).
+        Role::findOrCreate($name, 'web')->syncPermissions($defaultPermissions);
     }
 }
