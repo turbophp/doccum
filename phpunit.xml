@@ -26,6 +26,14 @@
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
         <env name="DB_URL" value=""/>
+        <!-- Pinned so the suite is hermetic. Every storage test fakes the
+             "documents" disk and asserts against it by name, but
+             DocumentStorage resolves config('doccum.storage.disk'), which
+             reads DOCCUM_DISK from the developer's own .env. Setting that
+             locally (to run without MinIO, say) makes the code write to a
+             different disk than the one the test faked, and "uploads a file"
+             then fails with nothing in the diff to explain why. -->
+        <env name="DOCCUM_DISK" value="documents"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
