@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T17:40:00Z",
+  "dateModified": "2026-09-18T18:00:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1053,10 +1053,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "An image built from tag vX.Y.Z reports vX.Y.Z, and the development default BECOMES 0.1.0-dev. The original clause said the development default 'stays' 0.1.0-dev, which presumed a starting state that is false -- config/doccum.php line 6 reads env('DOCCUM_VERSION', '0.1.0') today, with no -dev suffix anywhere. As written the clause described a property already held and so could be reported met by changing nothing; 'becomes' is what was meant. Restated here, before the work, per decision/0068. The version pill is ALSO not yet worth asserting against, and that is the larger half of this item: nothing in the image records which tag built it, so a pill check can only confirm the app can read its own config back. Done therefore also requires the Dockerfile to take an ARG DOCCUM_VERSION and set org.opencontainers.image.version on the image, release.yml to pass the tag into it, and the container smoke to compare the rendered pill against the label read off the image -- two independent sources that a single wrong value cannot satisfy at once. MUTATION-CHECKED per decision/0067: building with one version and labelling with another must make that comparison fail. Note for whoever takes it -- release.yml has never run (git tag is empty, decision/0075), so the tag path is unexercised; prove it with a throwaway pre-release tag rather than assuming, and record the run.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-18T17:40:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-18T17:53:36Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/225"
+      ]
     },
     {
       "@id": "item/changelog-release-notes",
@@ -1071,8 +1073,8 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "Pushing a tag produces a GitHub Release whose body is that version's changelog section.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-18T18:00:00Z",
       "endTime": null,
       "result": []
     },
@@ -3112,6 +3114,38 @@
       "mergedAt": "2026-09-18T17:31:50Z",
       "mergeSha": "06f9442c68791d345abc024ffb3ee02d41e74b8c",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/224",
+      "@type": "PullRequest",
+      "identifier": 224,
+      "name": "MUTATION -- DO NOT MERGE: make the image label and runtime version disagree",
+      "implements": [
+        "item/version-from-tag"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T17:49:21Z",
+      "headSha": "1b576c0e3f41d571b5ca63d5604fda7c1d1dcc44",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/225",
+      "@type": "PullRequest",
+      "identifier": 225,
+      "name": "Give the version pill an external source to compare against",
+      "implements": [
+        "item/version-from-tag"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T17:49:43Z",
+      "headSha": "0757bbe0410ab614a3efc36148a4e355ad7b9c2a",
+      "mergedAt": "2026-09-18T17:53:36Z",
+      "mergeSha": "a2a864a095403043f1a299dc5e9ddcc04a6e61de",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4419,6 +4453,23 @@
         "item/release-v0-1-0"
       ],
       "supersedes": "decision/0078"
+    },
+    {
+      "@id": "decision/0080",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T17:58:00Z",
+      "run": "run/0020",
+      "name": "Two readers of one build argument are not two sources -- and a citation of evidence is checked like evidence",
+      "rationale": "TWO THINGS, both about the same weakness, and the second is why the first was nearly missed.\n\nFIRST, my own restatement of item/version-from-tag's doneWhen overstated what was achievable. It asked for the image label and the rendered pill to be compared as 'two independent sources that a single wrong value cannot satisfy at once'. They are not independent. The LABEL and the ENV that config('doccum.version') reads both come from the same ARG DOCCUM_VERSION at build time, so one wrong --build-arg sets both of them wrongly and identically and the check passes, agreeing with itself at a false value.\n\nWhat the check DOES catch is real and worth having: a runtime value that has drifted from what the image says it is -- a container started with DOCCUM_VERSION overridden, a Blade literal, an ENV that never reaches config(). mutation/0022 forces exactly that and the check fails at its named assertion. What it does NOT catch is 'the image was built from the tag it claims', and nothing in the image job can: no tag exists there, and the only independent witness is the git ref the release ran from. That half is item/release-v0-1-0's, which must cut a throwaway pre-release tag and read the label off the PUBLISHED image. release.yml has still never run (decision/0075), so the path is unexercised.\n\nThe general form, which generalises past this item: counting sources is not the test. Two readers of one upstream value are one source wearing two hats, and 'cross-source' is exactly the kind of phrase that flatters an assertion into looking stronger than it is. Trace each reader back to where the value was ORIGINATED, not to where it was read.\n\nSECOND, and recorded because it is the more dangerous failure: the implementing pass wrote 'Confirmed by mutation: an image built with DOCCUM_VERSION=9.9.9 ... makes this throw' into container-smoke.mjs's own comment. No such mutation had been run. The environment cannot build the image -- composer install cannot reach its dists -- and that limitation was reported honestly in the hand-back; the claim went into the file anyway.\n\nCLAUDE.md already says never cite an unmutated assertion as evidence. This extends it: a CITATION of evidence is itself a claim, and gets checked like one. A false citation is strictly worse than no citation, because it is self-sealing -- the next reader sees the assertion is already vouched for and stops looking, which is the precise state decision/0012 exists to prevent. The comment was corrected and the real mutation run before the PR opened.\n\nWorth noting the two faults were connected: the false 'confirmed by mutation' line was attached to the same sentence that called the comparison cross-source. An unrun mutation cannot contradict an overstated claim about what it proves. Running it is what exposed the limit.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/version-from-tag",
+        "item/release-v0-1-0",
+        "item/container-smoke-ci"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -4713,6 +4764,20 @@
       "headSha": "82562662dfd63b50bdaa43aad6bd4dd5339738f4",
       "mutant": "Restored the known-value defaults in compose.yaml -- AWS_SECRET_ACCESS_KEY: doccum-secret in the x-app anchor, MINIO_ROOT_PASSWORD: doccum-secret in the minio service, and the literal in minio-init's mc alias line -- i.e. exactly the state issue #28 was filed against, and equivalently what ${MINIO_ROOT_PASSWORD:-doccum-secret} would produce.",
       "check": "The new `compose requires MINIO_ROOT_PASSWORD` job's first assertion: `docker compose --profile storage config` with MINIO_ROOT_PASSWORD unset must exit non-zero and name the variable. Unmutated it exits 1 with 'required variable MINIO_ROOT_PASSWORD is missing a value: ...'. MUTATED IT EXITS 0, and the rendered output contains doccum-secret 7 times. That gap is the whole reason the assertion is a compose resolution rather than a grep: a grep for the literal string passes the mutated file's UNSET case just as happily, because the literal is no longer in compose.yaml at all -- it is in the default, and only asking compose to resolve the variable reveals it. Run locally before the push (docker compose v5.1.1) and compose.yaml restored byte-identical afterwards, confirmed with cmp; the job itself then came back green on the real file in run https://github.com/turbophp/doccum/actions/runs/35374254299.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0022",
+      "@type": "Mutation",
+      "implements": [
+        "item/version-from-tag"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/224",
+      "run": "run/0020",
+      "headSha": "1b576c0e3f41d571b5ca63d5604fda7c1d1dcc44",
+      "mutant": "Built the smoke image with DOCCUM_VERSION=9.9.9, so org.opencontainers.image.version reads 9.9.9, while starting the container with -e DOCCUM_VERSION=1.2.3, so config('doccum.version') reads 1.2.3. The image itself is unchanged; the two sources are forced apart at run time.",
+      "check": "container-smoke.mjs checkTopbar(). The image job failed AT THE NAMED CHECK AND NOWHERE ELSE -- the installer, the first-administrator verification and the /dashboard reach all passed, and the failure lands on the first checkTopbar call: 'container-smoke (setup) failed: version mismatch across sources -- pill: \"v1.2.3\", config('doccum.version'): \"1.2.3\", org.opencontainers.image.version label: \"9.9.9\"'. That matches, VERBATIM, the prediction recorded in the PR body before the run. THE POINT, and the reason this mutation was chosen over a simpler one: the OLD check would have passed this scenario happily, because it compared the pill against config('doccum.version') only and both read 1.2.3 -- agreeing with each other while the image was labelled something else entirely. The third source is what makes the disagreement visible at all. Run https://github.com/turbophp/doccum/actions/runs/35376591005.",
       "verdict": "negative",
       "supersedes": null
     }
