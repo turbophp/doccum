@@ -73,11 +73,27 @@ Every hour, the loop wakes and runs these steps in order.
    `Completed`. Ties break toward whatever unblocks the most other items.
 5. **Execute.** Hand the item to a Sonnet worker with its plan, the relevant
    spec section and `CLAUDE.md`. One item per branch, one branch per PR.
+
+   The worker's brief is the item's `doneWhen`, and that is the ONLY thing
+   that binds them. A decision can decide that work belongs to an item; only
+   the item's `doneWhen` can require it (`decision/0083`). So when a decision
+   binds an item, write the clause into that item's `doneWhen` carrying the
+   decision id, and leave the reasoning in the decision. Do not assemble a
+   brief out of the graph: `affects` points backwards at where a decision
+   came from, not forwards at who must obey it.
 6. **Verify through CI.** Push, open the PR, let the workflows run. Local
    runs are a convenience; the CI matrix is the verification of record,
    because it covers SQLite, PostgreSQL and MySQL and it boots the container.
 7. **Update the ledger.** Append the run, move the item's status, record any
    decision taken and why.
+
+   A decision that calls for a change somewhere else is not finished until
+   that change is in the same pull request. `decision/0074` adopted a
+   promotion rule for LOOP.md and `CLAUDE.md`, and for two hours nothing in
+   either file changed -- the rule existed only as a node saying it existed,
+   which reads as solved and is worse than no rule (`decision/0084`). If a
+   decision says an item's `doneWhen`, this file or `CLAUDE.md` must change,
+   change it in the same commit or do not record the decision yet.
 8. **Consult.** Every fourth iteration, or whenever the backlog shape changes,
    ask Fable whether the remaining road to v1 and the ledger vocabulary still
    describe reality. Fold the answer back into the ledger.

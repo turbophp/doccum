@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T18:45:00Z",
+  "dateModified": "2026-09-18T18:55:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1115,7 +1115,7 @@
         "item/version-from-tag",
         "item/release-gate"
       ],
-      "doneWhen": "Its original clause -- 'docker pull of the 0.1.0 image works on amd64 and arm64 and boots to the installer' -- is CIRCULAR as written: pulling the published image requires the release to have already run, which is the thing being verified. The route out is a throwaway PRE-RELEASE tag (v0.1.0-rc1 or similar): cut it, let the pipeline run end to end, verify against what it actually published, then delete the tag and its release. RESTATED ALSO BECAUSE THE ITEM WAS CARRYING DEBTS ITS OWN CLAUSE NEVER NAMED. decisions 0080 and 0081 assign three proofs here that the text did not mention, which is exactly the drift between a decision and an item that leaves a requirement unowned. Named explicitly now: (1) ARM64, ACTUALLY BOOTED. release.yml publishes linux/amd64,linux/arm64 and tests.yml's image job builds and boots amd64 ONLY -- no arm64 binary has ever been executed in this project (decision/0076). Pull and boot the published image on both: amd64 on ubuntu-latest, arm64 NATIVELY on ubuntu-24.04-arm, which is free here because the repository is public. QEMU is rejected: a failure under emulation is ambiguous between emulation bug and image bug and so reads in neither direction. If the native runner turns out unavailable, DROP linux/arm64 from release.yml and strike the claim from here and item/tag-v1-0-0 rather than shipping a manifest nobody has booted. (2) THE TAG REACHES THE IMAGE. item/version-from-tag wired ARG DOCCUM_VERSION through to an org.opencontainers.image.version label, but the label and config('doccum.version') both derive from that one ARG, so the smoke's three-way check agrees with itself at a false value if the build arg is wrong (decision/0080). The only independent witness is the git ref the release ran from. Assert here that the published image's label equals the tag that triggered the run. (3) THE RELEASE CARRIES THE CHANGELOG. item/changelog-release-notes built the extractor and wired release.yml to create a Release, and nothing has ever created one (decision/0081). Assert the pre-release tag produced a Release whose body is that version's section. Sized M, not S, because that is three independent proofs plus a first-ever pipeline run; see decision/0083. The gate is NOT here -- it is item/release-gate, which lands first.",
+      "doneWhen": "Its original clause -- 'docker pull of the 0.1.0 image works on amd64 and arm64 and boots to the installer' -- is CIRCULAR as written: pulling the published image requires the release to have already run, which is the thing being verified. The route out is a throwaway PRE-RELEASE tag (v0.1.0-rc1 or similar): cut it, let the pipeline run end to end, verify against what it actually published, then delete the tag and its release. RESTATED ALSO BECAUSE THE ITEM WAS CARRYING DEBTS ITS OWN CLAUSE NEVER NAMED. decisions 0080 and 0081 assign three proofs here that the text did not mention, which is exactly the drift between a decision and an item that leaves a requirement unowned. Named explicitly now: (1) ARM64, ACTUALLY BOOTED. release.yml publishes linux/amd64,linux/arm64 and tests.yml's image job builds and boots amd64 ONLY -- no arm64 binary has ever been executed in this project (decision/0076). Pull and boot the published image on both: amd64 on ubuntu-latest, arm64 NATIVELY on ubuntu-24.04-arm, which is free here because the repository is public. QEMU is rejected: a failure under emulation is ambiguous between emulation bug and image bug and so reads in neither direction. If the native runner turns out unavailable, DROP linux/arm64 from release.yml and strike the claim from here and item/tag-v1-0-0 rather than shipping a manifest nobody has booted. (2) THE TAG REACHES THE IMAGE. item/version-from-tag wired ARG DOCCUM_VERSION through to an org.opencontainers.image.version label, but the label and config('doccum.version') both derive from that one ARG, so the smoke's three-way check agrees with itself at a false value if the build arg is wrong (decision/0080). The only independent witness is the git ref the release ran from. Assert here that the published image's label equals the tag that triggered the run. (3) THE RELEASE CARRIES THE CHANGELOG. item/changelog-release-notes built the extractor and wired release.yml to create a Release, and nothing has ever created one (decision/0081). Assert the pre-release tag produced a Release whose body is that version's section. Sized M, not S, because that is three independent proofs plus a first-ever pipeline run; see decision/0083. The gate is NOT here -- it is item/release-gate, which lands first. ADDED AFTER CONSULTATION, because proof (3) as written CANNOT PASS: changelog-section.sh exits 1 for a pre-release tag -- verified, 'no \\'## [0.1.0-rc1]\\' section found' -- so on an rc tag `image` pushes and `release` then fails, publishing an image and creating no Release. item/changelog-release-notes' guard blocks this item's own plan. RESOLVED HERE rather than left for the run to discover: the extractor maps X.Y.Z-<suffix> to the [X.Y.Z] section and the Release is created with prerelease: true. That is the behaviour every future rc needs anyway; inventing a throwaway [0.1.0-rc1] section would put a lie in the changelog. Because the guard changes, mutation/0023 is RE-RUN, not assumed to still hold. The pre-release suffix is MANDATORY, not 'or similar': under docker/metadata-action's default flavor latest=auto a bare v0.1.0 would move the `latest` tag, and this rc must not. The amd64/arm64 boot jobs live in release.yml with needs: image -- named here because item/tag-v1-0-0's clause presumes they exist and nothing else creates them. And deleting the rc tag and its Release does NOT delete the ghcr package version, which GITHUB_TOKEN cannot do: either the rc image stays published, which the README must be able to live with, or a human deletes it -- write down which, as the manual step it is.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -1419,12 +1419,16 @@
         "item/ci-db-matrix",
         "item/container-smoke-ci",
         "item/directory-access-ui",
+        "item/directory-force-delete-orphans",
         "item/home-dashboard",
         "item/image-size",
         "item/openapi-reference",
         "item/purge-commands",
         "item/readme-owner",
-        "item/trash-view"
+        "item/smoke-installer-names-the-bounce",
+        "item/spec-reconcile",
+        "item/trash-view",
+        "item/upgrade-smoke"
       ],
       "doneWhen": "A checklist in the PR body walks spec milestones 1 to 11 and this backlog; pint clean, phpstan at or below baseline, smoke green; a manual run of the published image through install, upload, share, search, trash and a purge dry run is recorded.",
       "actionStatus": "PotentialActionStatus",
@@ -1446,7 +1450,7 @@
       "dependsOn": [
         "item/v1-audit"
       ],
-      "doneWhen": "docker run of the 1.0.0 image boots to the installer on amd64 and arm64; the GitHub Release exists; the ledger's about.version reads 1.0.0.",
+      "doneWhen": "docker run of the 1.0.0 image boots to the installer on amd64 and arm64; the GitHub Release exists; the ledger's about.version reads 1.0.0. ADDED AFTER CONSULTATION. This clause presumes machinery nobody has built and would half-publish as written. (1) CHANGELOG.md has no [1.0.0] section -- verified -- so the tag push would push the image and THEN fail at `release`, which is exactly the half-published state item/changelog-release-notes was built to prevent, produced by its own guard. Require: a [1.0.0] section exists and the changelog-section job passes for it BEFORE the tag is pushed. (2) 'boots on amd64 and arm64' presumes the boot jobs item/release-v0-1-0 adds to release.yml; name them rather than presuming. (3) Add: `docker pull ghcr.io/turbophp/doccum` with no tag resolves to 1.0.0. The README quick start pulls latest and LOOP.md's stopping condition says ghcr carries the image; nothing currently asserts the two agree. (4) Say who updates the ledger's release node after the tag, since the loop's stopping rule reads it and this is the last item before it.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -4559,6 +4563,24 @@
         "item/changelog-release-notes"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0084",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T18:55:00Z",
+      "run": "run/0020",
+      "name": "decision/0074's promotion rule was never implemented, and its falsifier passed by self-citation",
+      "rationale": "decision/0074 adopted a promotion rule in two layers and NEITHER EXISTS OUTSIDE ITS OWN TEXT. Verified: git log on docs/LOOP.md and CLAUDE.md since that decision is EMPTY; neither file contained a single decision id; no item was ever filed for the promotedTo field. The rule existed only as a node saying it existed -- which is worse than no rule, because it reads as solved.\n\nWORSE, ITS FALSIFIER PASSED BY SELF-CITATION. I set the test as 'within two runs, a worker PR description cites a decision id', and PRs #222, #225 and #228 each cite one -- 0067, 0075, 0081. I wrote all three bodies, and each cites a decision I had written minutes earlier in the same run. That is the orchestrator quoting itself, not evidence that a decision reached a worker through a brief. decision/0080's rule applies to my own falsifier: a citation of evidence is a claim and gets checked like one. A falsifier that cannot distinguish routing from self-quotation tests nothing.\n\nThe clock was broken too: 'within two runs' has elapsed ZERO runs. run/0020 opened at 08:36Z, is still active, and holds 36 of 83 decisions and 35 merges. A deadline denominated in runs has no hand when a run lasts a day. Denominate future falsifiers in MERGED WORKER PRS.\n\nWITHDRAWN, not deferred: the promotedTo field, unfiled, and the step-5 rule about assembling a brief from `affects`. Deferring would leave the ledger reading as if a record layer were coming.\n\nADOPTED INSTEAD, because it is what actually worked without being named: a decision that binds an item is written into that item's doneWhen as a clause carrying the decision id, and the rationale stays in the decision. That is decision/0083's rule, and the recent items already do it -- item/release-gate's text cites 0016, 0067, 0075 and 0082; item/release-v0-1-0's cites 0076, 0080, 0081 and 0083. The routing complaint that motivated 0074 has largely cured itself as a side effect: decisions 0075-0083 point `affects` forward, and 5 of 16 open v1 items now have no affecting decision, all of them short and unambiguous.\n\nTHE RULE THIS PRODUCES, and the reason this PR carries a LOOP.md and CLAUDE.md diff rather than only a node: a decision that calls for a change somewhere else is not finished until that change is in the same pull request. LOOP.md step 7 now says so. CLAUDE.md gains the two rules that generalise past any one item -- 0073's boot-time 'create what is absent, never assert what a set must be', and 0080's 'a citation of evidence is a claim' with 'counting readers is not counting sources'. That is the whole promotion backlog; no machinery is being built for it.\n\nAlso settled from the same consultation, each verified against the repository first: item/v1-audit's dependsOn omitted item/spec-reconcile -- decision/0077's entire argument is that the spec is the standard the audit measures against -- plus upgrade-smoke, smoke-installer-names-the-bounce and directory-force-delete-orphans; all four added. item/release-v0-1-0's changelog proof could not pass, because changelog-section.sh exits 1 on a pre-release tag: item 50's guard blocks item 52's plan, resolved by mapping X.Y.Z-<suffix> to the [X.Y.Z] section with prerelease: true and RE-RUNNING mutation/0023. item/tag-v1-0-0 would half-publish, since no [1.0.0] section exists.\n\nOne recommendation from that consultation is REJECTED: that item/release-gate order `verify` before the ancestry check so the verify mutation can be isolated. The objection is right -- a branch commit fails ancestry regardless, so one mutation cannot speak for two guards (decision/0018) -- but reordering makes every stray tag burn the full suite first. Better isolation, no reordering: tag 9e2f7af, a real historical commit that IS an ancestor of main and whose `image` check was red (both verified). Ancestry passes, verify fails, nothing publishes, and no failing test has to be merged to main to arrange it.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/v1-audit",
+        "item/release-v0-1-0",
+        "item/tag-v1-0-0",
+        "item/release-gate"
+      ],
+      "supersedes": "decision/0074"
     }
   ],
   "mutations": [
