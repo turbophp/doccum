@@ -204,6 +204,19 @@
                             <flux:menu.item :href="route('admin.users')" icon="cog-6-tooth" wire:navigate data-test="nav-settings-users">
                                 {{ __('Settings') }}
                             </flux:menu.item>
+
+                            {{-- item/admin-roles (issue #19): a second entry, not a
+                                 second "Settings" -- two links with the identical
+                                 accessible name "Settings" on one menu would make
+                                 every locator by that name ambiguous under
+                                 Playwright's strict mode (see the sidebar-home
+                                 mutation entry in .github/mutations.json for the
+                                 same lesson learned the hard way). Reuses
+                                 users.manage rather than a new permission --
+                                 App\Livewire\Admin\Roles's own docblock says why. --}}
+                            <flux:menu.item :href="route('admin.roles')" icon="shield-check" wire:navigate data-test="nav-settings-roles">
+                                {{ __('Roles') }}
+                            </flux:menu.item>
                         @endcan
                     </flux:menu.radio.group>
 

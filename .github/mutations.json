@@ -348,5 +348,19 @@
     "file": "app/Actions/Users/SetUserRoles.php",
     "remove": "                throw LastAdministratorMustRemain::forUser($user);\n",
     "expectFailing": "refuses to strip the sole holder of users.manage down to a role with no permission"
+  },
+  {
+    "id": "set-role-permissions-refuses-to-strip-last-administrator",
+    "why": "item/admin-roles (issue #19): the admin Roles page changes a ROLE's permission set through App\\Actions\\Roles\\SetRolePermissions, and Spatie's syncPermissions() writes the role_has_permissions pivot table directly -- exactly like SetUserRoles's own syncRoles() call, it fires no Eloquent model event, so nothing else in the application observes this write at all (verified for this item: no model hook, no observer, no listener anywhere sees a permission sync). This throw is therefore the ENTIRE protection for this path, one level more dangerous than the user-role case beside it -- editing one role strips `users.manage` from every user who holds that role at once, not just one account. Remove it and an operator can uncheck users.manage on the admin role through the ordinary admin UI, with no error, and lock themselves and everyone else out with no way back in.",
+    "file": "app/Actions/Roles/SetRolePermissions.php",
+    "remove": "            throw LastAdministratorMustRemain::forRole($role);\n",
+    "expectFailing": "refuses to strip users.manage from a role that is its sole holder"
+  },
+  {
+    "id": "set-role-permissions-forgets-cached-permissions",
+    "why": "item/admin-roles (issue #19) doneWhen, clause one: 'toggling a permission changes what the Policy allows in the same request.' Spatie\\Permission\\PermissionRegistrar caches the whole role/permission mapping in-process, the same cache database/seeders/RolesAndPermissionsSeeder::run() forgets before it seeds for exactly this reason. Without this call, a can()/Gate check made LATER IN THE SAME REQUEST after a role's permissions change -- the admin page re-rendering itself, or any authorization check on the same request that toggled a box -- would answer from the mapping cached before the write, not the one just committed. This looks like housekeeping and is actually the whole of clause one: remove it and the database changes correctly (syncPermissions() still runs) while every in-request read of that permission keeps answering as if it had not.",
+    "file": "app/Actions/Roles/SetRolePermissions.php",
+    "remove": "        app(PermissionRegistrar::class)->forgetCachedPermissions();\n",
+    "expectFailing": "changes what can() answers in the same request once the permission cache is forgotten"
   }
 ]

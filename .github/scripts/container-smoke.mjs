@@ -2497,6 +2497,113 @@ async function checkAdminUsersPage(page, phase) {
 }
 
 /**
+ * item/admin-roles (issue #19): drives the roles x permissions matrix at
+ * /admin/roles the way an operator would -- toggle a box, save, prove the
+ * database moved; then attempt the refused change and prove it did NOT.
+ * Follows checkAdminUsersPage() above exactly (same "prove the effect, not
+ * a resting state" shape CLAUDE.md asks for): every failure path dumps
+ * container state naming what was being proved, then throws with
+ * { dumped: true }, and the last-admin error element is checked absent
+ * BEFORE the refusing click so its later visibility actually proves
+ * something about that click, not merely that the element can render.
+ */
+async function checkAdminRolesPage(page, phase) {
+  console.log(`[${phase}] opening /admin/roles as the administrator`);
+  await page.goto(`${BASE_URL}/admin/roles`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="roles-permissions-table"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  const memberRow = page.locator('[data-test="role-row"][data-role-name="member"]');
+  const memberPeriodsCheckbox = memberRow.locator('[data-test="role-permission-checkbox"][data-permission="periods.manage"]');
+
+  if (await memberPeriodsCheckbox.isChecked()) {
+    dumpContainerState(
+      `[${phase}] the member role's periods.manage checkbox was already checked before checkAdminRolesPage toggled it`
+      + ' -- RolesAndPermissionsSeeder::MEMBER_PERMISSIONS changed underneath this check',
+    );
+    throw Object.assign(new Error('member role already holds periods.manage before the toggle'), { dumped: true });
+  }
+
+  console.log(`[${phase}] granting periods.manage to the member role through the real form`);
+  await memberPeriodsCheckbox.check();
+  await memberRow.locator('[data-test="save-role-permissions-button"]').click();
+
+  function memberHoldsPeriodsManage() {
+    const php = [
+      "$r = \\Spatie\\Permission\\Models\\Role::findByName('member');",
+      "echo 'HOLDS:' . ($r->hasPermissionTo('periods.manage') ? 'yes' : 'no');",
+    ].join(' ');
+    return tinker(php);
+  }
+
+  let output = memberHoldsPeriodsManage();
+  const grantDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  while (Date.now() < grantDeadline && !/HOLDS:yes/.test(output)) {
+    await sleep(POLL_INTERVAL_MS);
+    output = memberHoldsPeriodsManage();
+  }
+
+  if (!/HOLDS:yes/.test(output)) {
+    dumpContainerState(
+      `[${phase}] toggling periods.manage for the member role through /admin/roles never reached the database -- raw output: ${output}`,
+    );
+    throw Object.assign(new Error('member role never gained periods.manage through the real form'), { dumped: true });
+  }
+  console.log(`[${phase}] the member role gained periods.manage through the real form -- OK`);
+
+  console.log(`[${phase}] attempting, through the UI, to uncheck users.manage on the admin role`);
+  const adminRow = page.locator('[data-test="role-row"][data-role-name="admin"]');
+  const adminUsersManageCheckbox = adminRow.locator('[data-test="role-permission-checkbox"][data-permission="users.manage"]');
+
+  if (!(await adminUsersManageCheckbox.isChecked())) {
+    dumpContainerState(`[${phase}] the admin role's users.manage checkbox was already unchecked before the refused-change attempt`);
+    throw Object.assign(new Error('admin role does not hold users.manage before the refusal check'), { dumped: true });
+  }
+
+  const rolesLastAdminError = page.locator('[data-test="roles-last-admin-error"]');
+  if (await rolesLastAdminError.isVisible()) {
+    dumpContainerState(`[${phase}] roles-last-admin-error was already visible before Save was clicked for the admin role`);
+    throw Object.assign(new Error('roles-last-admin-error was visible before the refusing click, so it proves nothing about the click'), { dumped: true });
+  }
+
+  await adminUsersManageCheckbox.uncheck();
+  await adminRow.locator('[data-test="save-role-permissions-button"]').click();
+
+  function adminRoleStillHoldsUsersManage() {
+    const php = [
+      "$r = \\Spatie\\Permission\\Models\\Role::findByName('admin');",
+      "echo 'HOLDS:' . ($r->hasPermissionTo('users.manage') ? 'yes' : 'no');",
+    ].join(' ');
+    return tinker(php);
+  }
+
+  let holdsOutput = adminRoleStillHoldsUsersManage();
+  const holdsDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  while (Date.now() < holdsDeadline && !/HOLDS:yes/.test(holdsOutput)) {
+    await sleep(POLL_INTERVAL_MS);
+    holdsOutput = adminRoleStillHoldsUsersManage();
+  }
+
+  if (!/HOLDS:yes/.test(holdsOutput)) {
+    dumpContainerState(
+      `[${phase}] the admin role no longer holds users.manage after the refused permission change -- raw output: ${holdsOutput}`,
+    );
+    throw Object.assign(new Error('admin role lost users.manage through a change the guard was supposed to refuse'), { dumped: true });
+  }
+  console.log(`[${phase}] the admin role still holds users.manage after the attempted change -- the write was refused -- OK`);
+
+  try {
+    await rolesLastAdminError.waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] the database confirms the refused permission change held, but [data-test="roles-last-admin-error"] never became visible`
+      + ' -- the guard held, but the operator would have seen nothing explaining why the click did nothing',
+    );
+    throw Object.assign(new Error('roles-last-admin-error never became visible after a refused permission change'), { dumped: true });
+  }
+  console.log(`[${phase}] the last-administrator refusal is visible on the roles page -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -2756,6 +2863,9 @@ async function runSetup() {
 
     console.log('[setup] creating a user through /admin/users and checking its home directory, its 403 for a non-admin, and the last-administrator guard (issue #18)');
     await checkAdminUsersPage(page, 'setup');
+
+    console.log('[setup] toggling a role permission through /admin/roles and checking the last-administrator guard on a role edit (issue #19)');
+    await checkAdminRolesPage(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();
