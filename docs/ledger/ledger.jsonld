@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T08:36:30Z",
+  "dateModified": "2026-09-18T09:30:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -782,10 +782,12 @@
         "item/admin-users"
       ],
       "doneWhen": "Toggling a permission changes what the Policy allows in the same request; the admin role cannot lose users.manage.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T08:45:00Z",
+      "endTime": "2026-09-18T09:24:28Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/179"
+      ]
     },
     {
       "@id": "item/admin-periods",
@@ -1540,6 +1542,42 @@
         "item/directory-access-ui"
       ],
       "doneWhen": "A directories.share permission gates DirectoryPolicy::manageAccess() and nothing else, so a member may hand out access to a subtree they hold Manage on without also gaining move and delete over it -- which is what granting directories.manage wholesale would do, and why this needs its own permission rather than a reused one. Both layers still apply; no layer is removed from manageAccess(). See decision/0036, which decided that sharing is an administrator act for v1.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/mutation-filter-regex",
+      "@type": "Action",
+      "order": 120,
+      "name": "mutation-check.php must regex-escape expectFailing",
+      "url": "https://github.com/turbophp/doccum/issues/180",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "A mutation whose expectFailing contains a regex metacharacter still selects exactly the named test, and a filter that selects no test at all is reported as a tooling error rather than as the assertion failing.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/smoke-livewire-settle",
+      "@type": "Action",
+      "order": 121,
+      "name": "A smoke click must wait for the request it started, not for networkidle",
+      "url": "https://github.com/turbophp/doccum/issues/182",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "checkTrashViewRestoreAndPurge() reads the database only after the Livewire round trip each click started has landed, and the helper that does so cannot be defeated by a renamed endpoint.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -2570,6 +2608,40 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/179",
+      "@type": "PullRequest",
+      "identifier": 179,
+      "name": "Settings: roles and their permission matrix -- and the Settings menu that hid two of its own sections",
+      "implements": [
+        "item/admin-roles"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T09:00:19Z",
+      "headSha": "cd59f3a5c0898cd1ef4b5e99ed4aec3a53f00268",
+      "mergedAt": "2026-09-18T09:24:28Z",
+      "mergeSha": "f975ea38fe7ffd4b03d963028d2e7a792d0c862c",
+      "mergedIn": "run/0020",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35329371766",
+      "mainConclusion": "success"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/181",
+      "@type": "PullRequest",
+      "identifier": 181,
+      "name": "MUTATION -- DO NOT MERGE: item 36's smoke assertion, shown to fail",
+      "implements": [
+        "item/admin-roles"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T09:25:40Z",
+      "headSha": "8cd0485c1a0e97718d01ecbcadb083d1076a105b",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -3367,6 +3439,101 @@
         "item/ledger-main-push-record"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0048",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T09:30:00Z",
+      "run": "run/0020",
+      "name": "A page nothing links to is not shipped, and route()-based tests cannot tell",
+      "rationale": "item/admin-roles opened by finding that item/admin-users's page was UNREACHABLE in the product. The Settings entries in the account menu were `@can('properties.manage') ... @elsecan('users.manage')`, and the seeded admin role holds every permission, so the first branch always won for the only administrator a shipped instance has. /admin/users had no link anywhere.\n\nNothing caught it, and each reason is a pattern rather than an oversight. Every feature test reaches the page through route(). The container smoke navigates by URL. AppShellTest's own isolation of the \"users.manage but not properties.manage\" case uses a DIRECT grant, and its comment says why -- \"no admin role, which would hold properties.manage too and mask this\". The workaround that made the users-only case testable is precisely what kept the real case invisible: every existing assertion used a viewer holding exactly ONE permission, and the defect only exists for a viewer holding several.\n\nSO THE RULE, for any item that adds a page: one assertion must be made as the viewer a shipped instance actually has -- the administrator holding EVERYTHING -- and it must reach the page the way an operator does, from the shell, not from route(). Both were added here, in AppShellTest and in checkTopbar. An `@elsecan` chain between independent capabilities is now a smell in this codebase: independent permissions get independent `@can` blocks.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/admin-roles",
+        "item/admin-users",
+        "item/topbar-shell"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0049",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T09:30:00Z",
+      "run": "run/0020",
+      "name": "The invariant, not the role named admin",
+      "rationale": "item/admin-roles's doneWhen reads \"the admin role cannot lose users.manage\". It is implemented instead as: a permission change is refused when it would leave ZERO users holding users.manage anywhere in the instance.\n\nThe literal clause protects a string. Rename the role and the protection silently stops applying; create a custom role that is the only carrier of users.manage and it was never protected at all. The invariant is what the clause is trying to express, and it is the one an operator would state if asked.\n\nIt is implemented as a sibling method on App\\Support\\LastAdministrator rather than a second implementation, so the user-side rule (item/admin-users: deleting the sole holder, stripping their role) and the role-side rule (editing the role out from under every holder at once) cannot drift. Its load-bearing clause is \"some OTHER role\": the role being edited is exactly the grant being removed, so it cannot be what saves anyone from losing the permission. Its load-bearing early return is inherited too -- if nobody holds the permission at all, every role edit is PERMITTED, or an instance in that state would refuse every edit forever with no UI path left to grant it back.\n\nAlso recorded because it is one level more dangerous than the user-side case, and the code says so: no Eloquent event fires on a Spatie permission sync -- syncPermissions() writes the pivot directly, and Spatie's cache hooks bind to Role/Permission model saves, not pivot syncs. item/admin-users has a model hook behind its action as a guarantee nothing bypasses. This path has nothing behind it. The action's own correctness is the whole of the protection.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/admin-roles",
+        "item/admin-users"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0050",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T09:30:00Z",
+      "run": "run/0020",
+      "name": "PHPUnit --filter is a regex, and a filter that matches nothing reports as a failing assertion",
+      "rationale": "The guards job refused this item with `set-role-permissions-forgets-cached-permissions: \"...\" does not pass with the guard in place`. That statement was FALSE, and believing it cost a diagnosis: the test passed perfectly well.\n\n.github/scripts/mutation-check.php shell-escapes expectFailing before passing it to `--filter`, but does not REGEX-escape it, and --filter is a regex. The test name contained `can()`; the parentheses were read as an empty capture group, so the pattern matched only the paren-less text, no test was selected, and a run that executes zero tests exits non-zero -- which the script reports in the same words it uses for an assertion that genuinely failed.\n\nTwo separate lessons. The tooling one is filed as #180 (item/mutation-filter-regex): escape it, and report \"selected no tests\" as its own outcome, because those two states mean opposite things -- one says the guard is not load-bearing, the other says the harness never looked. The discipline one is that a tool's own diagnosis is evidence, not fact: this message named the wrong cause with complete confidence, and the first fix attempted was a rewrite of a test that had nothing wrong with it.\n\nAll expectFailing values in the tree were then audited. Thirteen contain `.` or `/`, which match themselves and are harmless; none carries a character that changes what the pattern matches. The test here was renamed rather than left to depend on that audit staying true.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/admin-roles",
+        "item/mutation-filter-regex"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0051",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T09:30:00Z",
+      "run": "run/0020",
+      "name": "When a mutation says a guard is not load-bearing, deleting the guard can be the right answer",
+      "rationale": "SetRolePermissions was written with an explicit `forgetCachedPermissions()` call after the sync, described in the design as the whole of doneWhen clause one -- \"toggling a permission changes what the Policy allows in the same request\". guards refused it: the named test STILL PASSED with that call deleted.\n\nThe reason was in the package, not in the test. Spatie\\Permission\\Traits\\HasPermissions::syncPermissions() (8.3.0) ends in $this->forgetCachedPermissions() itself. Our call was repeating work already done.\n\nThe reflex when a mutation fails this way is to strengthen the test until it detects the guard. Here that would have been wrong, because the guard was not doing anything: the honest options were to delete it or to admit the clause is satisfied by the dependency. Deleting it is also the more INFORMATIVE choice. With our own call present, the test would keep passing even if a future release stopped forgetting -- our redundancy would hide exactly the upgrade that breaks us. Without it, the test tracks the behaviour the action actually depends on and goes red on that upgrade, which is the moment someone needs to know. It is relabelled as what it is: a characterisation test over the package's contract, not a guard over our own code.\n\nCLAUDE.md already says a guard whose test passes without it is worse than none, because it looks protected. This adds the corollary: the fix is not always a better test.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/admin-roles"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0052",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T09:30:00Z",
+      "run": "run/0020",
+      "name": "A dot in a wire:model path is nesting, so a permission name cannot be a path segment",
+      "rationale": "The roles matrix was first bound as `wire:model=\"permissionChoice.{roleId}.{permission}\"`, one boolean per cell -- the obvious shape. Every save then failed with PermissionDoesNotExist: no permission named 'periods'.\n\nLivewire reads a dot in a property path as array nesting, and EVERY name in RolesAndPermissionsSeeder::PERMISSIONS contains one. `permissionChoice.1.periods.manage` bound ['periods']['manage'], and the component read back the key 'periods'. The binding is a list of checked names per role instead, with the permission name carried as the checkbox's `value`, where a dot is just a character.\n\nThe general rule for this codebase: a domain string that may contain a dot -- a permission name, a property key, a MIME type, a filename -- may be a wire:model VALUE but never a segment of the path. Worth recording because the failure surfaced two layers away from its cause, as a package exception naming a permission nobody wrote, and because the obvious binding is the broken one.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/admin-roles"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0053",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T09:30:00Z",
+      "run": "run/0020",
+      "name": "networkidle is not a settle for a click that starts a Livewire request",
+      "rationale": "An image job on this item's branch failed in checkTrashViewRestoreAndPurge() -- a check belonging to item/trash-view, on a branch whose diff touches nothing in that path: `RESTORE_LIVE:yes PURGED_GONE:no`.\n\nIt is the check, not Purge. The container access log for that run has no 4xx and no 5xx anywhere, and exactly two Livewire POSTs with Referer /trash -- both clicks were made and both were handled normally. The purge POST is logged as handled AFTER the check had already read the database and reported it still present.\n\nThe mechanism is that `waitForLoadState('networkidle')` resolves once the page has had no network activity for 500ms -- and Livewire does not issue its XHR synchronously inside the click handler. Called immediately after the click, it can find the page still idle and resolve instantly, before the request it is supposed to be settling has started. The `.catch(() => {})` means there is not even a timeout to notice. The next statement shells into the container to run tinker, which takes about a second to boot Laravel: just enough to lose the race. Restore survives only by luck, because the whole purge sequence runs after it.\n\nThis is worse than a flake: it makes the two assertions that are item/trash-view's recorded evidence intermittently meaningless. The fix (#182, item/smoke-livewire-settle) waits for the RESPONSE the click caused, registered before the click, the way setFileAndWaitForUpload() already does -- which keeps decision/0033 intact, since it waits on the request, never on the row disappearing. Two constraints carried over from run/0014: the matcher may not hard-code the endpoint, whose prefix carries a per-install hash, and it must degrade to today's behaviour rather than become the failure if Livewire renames it.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/smoke-livewire-settle",
+        "item/trash-view"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -3563,6 +3730,20 @@
       "headSha": "d7f57e52f480d1a112602bba3ee6f2865c2fc06e",
       "mutant": "Removed only the `throw LastAdministratorMustRemain::forUser($user);` from App\\Actions\\Users\\SetUserRoles, leaving the surrounding if intact so the file stayed valid PHP and the check would fail on behaviour rather than on a parse error.",
       "check": "container-smoke.mjs checkAdminUsersPage() stage four -- the image job failed at the named assertion \"smokeadmin353247520941 lost users.manage through a change the guard was supposed to refuse\", not on a locator timeout. The container access log immediately before it shows the stage-three 403 for the scratch member and then a 200 on the Livewire POST to /admin/users, which is the refused change going through: the check reached the assertion and the assertion is what failed.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0015",
+      "@type": "Mutation",
+      "implements": [
+        "item/admin-roles"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/181",
+      "run": "run/0020",
+      "headSha": "8cd0485c1a0e97718d01ecbcadb083d1076a105b",
+      "mutant": "Removed only the `wire:click=\"saveRole({{ $role->id }})\"` attribute from the Save button in resources/views/livewire/admin/roles.blade.php. The button still renders, still carries its data-test, and is still clickable -- it simply no longer reaches the component. Chosen because it is invisible to every other job: App\\Livewire\\Admin\\Roles::saveRole() is untouched, so AdminRolesTest, which calls that method directly through Livewire's test harness, stays green, as do guards, lint and all six test matrix jobs.",
+      "check": "container-smoke.mjs checkAdminRolesPage() -- the image job failed at the named assertion \"member role never gained periods.manage through the real form\", dumping \"toggling periods.manage for the member role through /admin/roles never reached the database -- raw output: HOLDS:no\". Not a locator timeout on the way there: the log shows the check opened /admin/roles, found the member row, found the periods.manage checkbox, confirmed it started unchecked, ticked it and clicked Save. Only the database failed to move, which is what a Save button that no longer reaches its component looks like from outside. The other twelve checks on the same run all passed -- guards, lint, build assets, composer audit, dependency review, validate ledger and all six test matrix jobs -- which is the other half of the evidence: AdminRolesTest calls saveRole() directly through Livewire's test harness and cannot see this defect at all. Run https://github.com/turbophp/doccum/actions/runs/35329472286.",
       "verdict": "negative",
       "supersedes": null
     }
