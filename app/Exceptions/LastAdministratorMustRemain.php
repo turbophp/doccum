@@ -20,7 +20,7 @@ use RuntimeException;
  * single-admin instance, bricks it: nobody left can reach Settings, reassign
  * a role, or create another admin.
  *
- * User::booted()'s `deleting` hook and App\Actions\Users\SetUserRoles both
+ * User::booting()'s `deleting` hook and App\Actions\Users\SetUserRoles both
  * raise this, the same "the guard belongs where nothing can bypass it" shape
  * App\Exceptions\UsernameWouldBeAmbiguous already argues for on this model --
  * see that class's own docblock.

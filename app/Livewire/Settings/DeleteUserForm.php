@@ -33,7 +33,7 @@ class DeleteUserForm extends Component
         // $logout FIRST and only attempted delete() second. On a
         // single-admin instance (the shape doccum ships in by
         // construction) that meant the sole admin's own session was
-        // already ended by the time User::booted()'s deleting hook threw
+        // already ended by the time User::booting()'s deleting hook threw
         // LastAdministratorMustRemain -- logged out AND greeted with an
         // uncaught exception, while still being the only admin left and
         // nothing actually deleted. Attempting delete() first and only
@@ -42,7 +42,7 @@ class DeleteUserForm extends Component
         //
         // Deliberately not a second, separately-computed check: that would
         // be a second place deciding the same thing, with its own chance to
-        // drift from what User::booted() actually enforces. This IS that
+        // drift from what User::booting() actually enforces. This IS that
         // same guard -- delete() is the one thing that can trigger it, so
         // calling it (and catching what it throws) is the "pre-check": the
         // hook below is still the guarantee (nothing bypasses it, e.g. a
