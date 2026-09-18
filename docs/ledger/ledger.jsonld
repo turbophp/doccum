@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T21:20:00Z",
+  "dateModified": "2026-09-18T22:47:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1504,10 +1504,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "SearchIndexer::forProperty() reads $property->subject and passes it to directoryFor(Model $subject). subject is a morphTo, so the related model's SoftDeletes scope applies and it resolves to NULL once the subject is trashed -- into a parameter that is not nullable. The return type is already ?Directory and both consumers handle null ($directory?->getKey(), $directory?->ancestorIds() ?? []), so the nullable case was anticipated one line further down and only the parameter type disagrees. Reached through SearchProjectionObserver::saved(), which indexes on every Property save, so any write to a property on a trashed file or directory hits it. FOUND BY ACCIDENT, which is why it is filed rather than fixed inside item/directory-force-delete-orphans: a test there built properties on already-trashed subjects and three tests died here before reaching an assertion. That branch reordered its fixture instead of patching this, so the defect stayed visible. Done when directoryFor() accepts ?Model (or forProperty() handles the null before calling it), with a test that indexes a property on a soft-deleted subject and fails with the parameter type as it stands today. Fix this WITH item/directory-policy-trashed-update, not instead of it: a nullable parameter alone converts a crash into a silently permitted edit, which is worse.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T21:46:00Z",
+      "endTime": "2026-09-18T22:02:38Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/254"
+      ]
     },
     {
       "@id": "item/directory-policy-trashed-update",
@@ -1522,10 +1524,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "FilePolicy::update() refuses a trashed file, with its reasoning stated in place: editing something delete() already hid is a reveal update() must not reopen. DirectoryPolicy::update() has no equivalent -- it returns access->can($user, $directory, Edit) and nothing else. The second authorisation layer does not cover for it, DELIBERATELY: DirectoryAccess::resolve() checks PROPER ancestors only, excluding the directory's own trashed state, because restoring a directory is a manage check that can only ever be reached while it is trashed (issue #49). So a directory trashed on its own still resolves Edit from a grant above it, layer two passes, layer one has no guard, and PropertyPanel::save()'s authorize('update', $subject) lets a metadata edit through. Both layers must pass and here only one is asking. NOT VERIFIED and not claimed: whether today's UI offers a route to a trashed directory's property panel. That does not decide it -- in a two-layer model the policy is the guard of record, and 'no current screen happens to reach it' is the state in which a guard silently stops existing -- but practical severity today may be low. Done when DirectoryPolicy::update() refuses a trashed directory, MUTATION-CHECKED per CLAUDE.md: delete the guard, watch the test fail, restore it. Check DirectoryPolicy's other verbs against FilePolicy's in the same pass; this was found by reading two files side by side, not by a sweep, so it should not be assumed to be the only gap.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T21:46:00Z",
+      "endTime": "2026-09-18T22:02:38Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/254"
+      ]
     },
     {
       "@id": "item/vector-index-seam",
@@ -3434,6 +3438,23 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/254",
+      "@type": "PullRequest",
+      "identifier": 254,
+      "name": "A trashed directory refuses metadata edits; indexing a trashed subject stops throwing",
+      "implements": [
+        "item/directory-policy-trashed-update",
+        "item/search-indexer-null-subject"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T21:54:11Z",
+      "headSha": "66befe0d34bd8a0d5d1fbdc9b3d5d1384c3a7231",
+      "mergedAt": "2026-09-18T22:02:38Z",
+      "mergeSha": "f41d432b8070c4c12a17ff94e6959238c36d8185",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -5324,6 +5345,20 @@
       "headSha": "7581911eab71664e5a8f265261a353d7f7150204",
       "mutant": "Removed the UPDATE from database/migrations/2026_09_18_150000_backfill_email_verified_at_for_existing_users.php's up(), leaving the migration present and still recording itself as run -- the fix gone, not the migration. Its now-unused DB import went with it so pint could not fail the PR for a reason unrelated to the assertion.",
       "check": "run/35395221353. INSIDE THE SMOKE the mutant was precise: checkStaleUserReachesTheApp failed with 'the user seeded with email_verified_at NULL before the replacement is bounced to the email verification notice (/email/verify) ... the backfill migration did not reach this row across the replacement, so it is stranded exactly the way issue #210 describes', while checkStaleRolePermissionStaysRevoked next to it PASSED -- 'member still lacks files.restore after the container replacement -- the edit survived -- OK'.\n\nWHAT IT DOES NOT SHOW, recorded because the board overstates it. All six test jobs also went red, through tests/Feature/BackfillEmailVerifiedAtMigrationTest.php, which inserts a raw row bypassing the factory and invokes the migration's own up() against it. The prediction written into the mutation PR before the run said every test job would stay green because no suite test asserts on this migration -- that was FALSE, taken from the implementing agent's report and never checked, where one grep over tests/ would have settled it. So this run does not show the smoke is what stands between the defect and a green tree; citing the red board as proof of the smoke's value counts one defect twice.\n\nThe smoke's MARGINAL guarantee over that unit test, which is what it actually earned here: the unit test proves the migration's SQL works when called directly; the smoke proves it EXECUTES during a real container replacement, against a row predating the image. Isolating that alone would need a mutation to boot-time migration, which cannot be done narrowly -- skipping migrations at boot breaks the first boot and fails everything.\n\nThe run also found a defect in the new code that only a firing diagnostic could show: the message read 'instead of the page this was asked for instead of /dashboard', because describeLanding() already supplies the first clause. Fixed in bed6912 before merge. Closed unmerged.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0028",
+      "@type": "Mutation",
+      "implements": [
+        "item/directory-policy-trashed-update"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/254",
+      "run": "run/0020",
+      "headSha": "66befe0d34bd8a0d5d1fbdc9b3d5d1384c3a7231",
+      "mutant": "DirectoryPolicy::update()'s trashed guard deleted -- BY CI, not by a branch. This is the first mutation in this ledger with no mutation PR, and the absence is the finding: .github/mutations.json entry directory-policy-update-refuses-trashed-directory names the guard text and the test, and the guards job runs mutation-check.php, which removes the text, runs the named test, requires it to FAIL, and restores it. Registering a guard IS the mutation here.",
+      "check": "The guards job on PR #254's own green run, quoted from its log:\n  guard present  -> \"refuses to update a trashed directory, even with access held through a grant above it\" passes\n  guard deleted  -> \"refuses to update a trashed directory, even with access held through a grant above it\" fails, as it must\n\nWHAT NEARLY HAPPENED, recorded because it is the reusable part. I had the mutation branch cut and the guard removed via the registry's own remove string before checking what the guards job actually runs. That branch would have proven nothing already proven, and would have turned guards RED for a structural reason: mutation-check.php requires the remove text to match exactly once, and with the guard already deleted it matches zero times. A mutation PR that fails on the registry rather than on the assertion is the same worthless red as one that fails on pint.\n\nSo the cost of mutation-checking a guard expressible as a contiguous block of code is one mutations.json entry, not a PR and a CI cycle. The mutation-PR workflow remains necessary for what the registry cannot express: smoke assertions (the guard is a container behaviour, not a line to delete) and anything whose removal must be observed in the image job.\n\nThe test itself is discriminating rather than merely passing: the grant sits on the PARENT and it asserts can('update', $child) true BEFORE trashing and false after, so a refusal cannot be explained by the user never having had access.",
       "verdict": "negative",
       "supersedes": null
     }
