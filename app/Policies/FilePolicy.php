@@ -34,6 +34,34 @@ use App\Services\DirectoryAccess;
  * subtree for good, one way or the other, and a blanket refusal would make a
  * cascade-trashed file permanently unrecoverable and unpurgeable. See issue
  * #62 and spec §5.
+ *
+ * A SEPARATE question, independent of the directory guard above, is a file
+ * trashed ON ITS OWN (TrashFile, not a directory cascade) while its
+ * directory stays live. There are three deliberate postures on that, not
+ * one rule for all seven abilities, and only one of them used to be
+ * deliberate:
+ *
+ *   - replace() refuses outright ($file->trashed() checked first, before
+ *     even resolving the directory). See replace()'s own docblock for why:
+ *     StoreFileVersion looks a file up with the default, non-trashed query,
+ *     so calling it for an independently-trashed file would silently CREATE
+ *     a second file under the same name instead of erroring.
+ *   - update(), move() and legalHold() also refuse outright, the same
+ *     shape and placement as replace(): editing metadata, relocating, or
+ *     freezing/unfreezing purge-eligibility on a file already trashed is
+ *     the same reveal-and-modify replace() refuses, and restore() is the
+ *     sanctioned way out of that state before doing any of the three. This
+ *     was the actual gap issue #116 closes -- these three resolved the
+ *     file's LIVE-DIRECTORY question correctly (via liveDirectory()) but
+ *     never asked the file's OWN trashed() question at all, which is a
+ *     different fact than #62 ever addressed.
+ *   - delete(), restore() and purge() deliberately do NOT check
+ *     $file->trashed(): they are how a file gets INTO the trash, OUT of it,
+ *     or destroyed for good, so refusing on trashed() would make trashing a
+ *     file made it permanently untouchable by the very operations meant to
+ *     act on that state.
+ *
+ * See issue #116.
  */
 class FilePolicy
 {
@@ -67,6 +95,14 @@ class FilePolicy
 
     public function update(User $user, File $file): bool
     {
+        if ($file->trashed()) {
+            // A file trashed on its own, independently of its directory,
+            // refuses metadata edits for the same reason replace() refuses a
+            // new version: editing something delete() already hid is a
+            // reveal update() must not reopen. See the class docblock.
+            return false;
+        }
+
         $directory = $this->liveDirectory($file);
 
         if ($directory === null) {
@@ -223,6 +259,13 @@ class FilePolicy
      */
     public function move(User $user, File $file, Directory $newDirectory): bool
     {
+        if ($file->trashed()) {
+            // A file trashed on its own must refuse relocation the same way
+            // update() refuses editing it: restore first, then move. See the
+            // class docblock.
+            return false;
+        }
+
         $directory = $this->liveDirectory($file);
 
         if ($directory === null) {
@@ -247,6 +290,14 @@ class FilePolicy
     public function legalHold(User $user, File $file): bool
     {
         if (! $user->can('periods.manage')) {
+            return false;
+        }
+
+        if ($file->trashed()) {
+            // A file trashed on its own is no longer a live purge-eligibility
+            // question; placing or lifting a hold on it is restore()'s
+            // business to unblock, not legalHold()'s to reach around. See the
+            // class docblock.
             return false;
         }
 

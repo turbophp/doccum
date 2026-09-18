@@ -161,6 +161,27 @@
     "expectFailing": "refuses to replace a trashed file, live directory, full access"
   },
   {
+    "id": "file-policy-update-refuses-trashed-file",
+    "why": "item/file-policy-trashed-file-guards (issue #116): update() must refuse a file that is trashed on its own, independently of whether its directory is live. Before this, update() only ever asked liveDirectory()'s question and never the file's own trashed() question, so a grant on a live directory could edit metadata on a file already sitting in the trash -- the same reveal-and-modify replace() already refuses for a new version.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($file->trashed()) {\n            // A file trashed on its own, independently of its directory,\n            // refuses metadata edits for the same reason replace() refuses a\n            // new version: editing something delete() already hid is a\n            // reveal update() must not reopen. See the class docblock.\n            return false;\n        }\n\n",
+    "expectFailing": "refuses to update a trashed file, live directory, full access"
+  },
+  {
+    "id": "file-policy-move-refuses-trashed-file",
+    "why": "item/file-policy-trashed-file-guards (issue #116): move() must refuse a file that is trashed on its own, independently of whether its source and destination directories are live. Before this, move() only ever asked liveDirectory()'s question about the source, never the file's own trashed() question, so a grant on both ends could relocate a file already sitting in the trash.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($file->trashed()) {\n            // A file trashed on its own must refuse relocation the same way\n            // update() refuses editing it: restore first, then move. See the\n            // class docblock.\n            return false;\n        }\n\n",
+    "expectFailing": "refuses to move a trashed file, live source and destination, full access"
+  },
+  {
+    "id": "file-policy-legal-hold-refuses-trashed-file",
+    "why": "item/file-policy-trashed-file-guards (issue #116): legalHold() must refuse a file that is trashed on its own, independently of whether its directory is live. Before this, legalHold() checked periods.manage and liveDirectory() but never the file's own trashed() question, so a periods.manage holder with directory access could freeze or unfreeze purge-eligibility on a file already sitting in the trash.",
+    "file": "app/Policies/FilePolicy.php",
+    "remove": "        if ($file->trashed()) {\n            // A file trashed on its own is no longer a live purge-eligibility\n            // question; placing or lifting a hold on it is restore()'s\n            // business to unblock, not legalHold()'s to reach around. See the\n            // class docblock.\n            return false;\n        }\n\n",
+    "expectFailing": "refuses a legal hold on a trashed file, live directory, periods.manage and full access"
+  },
+  {
     "id": "browser-replace-file",
     "why": "item/files-versions-replace (issue #102): replacing a file through the panel must require files.upload and edit access, and StoreFileVersion itself never checks -- actions never authorise (CLAUDE.md). Without this the Replace control would let anyone who can open the file's detail panel overwrite it with a new version.",
     "file": "app/Livewire/Files/Browser.php",

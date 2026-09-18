@@ -390,3 +390,43 @@ it('refuses replace for a user with edit but no files.upload permission, proving
 
     expect($stranger->can('replace', $file))->toBeFalse();
 });
+
+// item/file-policy-trashed-file-guards (issue #116): update(), move() and
+// legalHold() had a gap replace() already closed -- they resolved the
+// file's LIVE-DIRECTORY question (liveDirectory(), see #62) but never asked
+// the file's OWN trashed() question at all, independently of its directory.
+// Each case below trashes the FILE ALONE via $file->delete() and leaves its
+// directory untouched and live -- never TrashDirectory, which cascades onto
+// the file and would let the directory guard do the refusing instead of the
+// one under test (the exact mistake already made once on replace(), see
+// that test's own comment above). Full access and every other capability
+// are granted, so the trashed-file guard is the only thing left that can
+// refuse.
+
+it('refuses to update a trashed file, live directory, full access', function () {
+    giveAccess($this->dir, $this->user, AccessLevel::Manage);
+    $file = File::factory()->for($this->dir, 'directory')->create();
+    $file->delete();
+
+    expect($this->user->fresh()->can('update', $file->fresh()))->toBeFalse();
+});
+
+it('refuses to move a trashed file, live source and destination, full access', function () {
+    $destination = Directory::factory()->create();
+    giveAccess($this->dir, $this->user, AccessLevel::Manage);
+    giveAccess($destination, $this->user, AccessLevel::Manage);
+    $file = File::factory()->for($this->dir, 'directory')->create();
+    $file->delete();
+
+    expect($this->user->fresh()->can('move', [$file->fresh(), $destination]))->toBeFalse();
+});
+
+it('refuses a legal hold on a trashed file, live directory, periods.manage and full access', function () {
+    $holder = User::factory()->create();
+    $holder->assignRole('admin');
+    giveAccess($this->dir, $holder, AccessLevel::Manage);
+    $file = File::factory()->for($this->dir, 'directory')->create();
+    $file->delete();
+
+    expect($holder->fresh()->can('legalHold', $file->fresh()))->toBeFalse();
+});
