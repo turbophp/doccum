@@ -907,44 +907,6 @@
       "result": []
     },
     {
-      "@id": "item/email-verification-decided",
-      "@type": "Action",
-      "order": 43,
-      "name": "Email verification either enforces something or stops claiming to",
-      "url": "https://github.com/turbophp/doccum/issues/161",
-      "isBasedOn": [
-        "spec:10-user-facing-surface"
-      ],
-      "size": "S",
-      "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "An unverified user's treatment is DECIDED and enforced, and a test asserts it. Today config/fortify.php enables Features::emailVerification(), the dashboard route carries the `verified` middleware, and four EmailVerificationTest tests pass -- while nothing is gated, because User extends Illuminate\\Foundation\\Auth\\User (which supplies the MustVerifyEmail TRAIT) but declares only `implements PasskeyUser`, and EnsureEmailIsVerified gates on the CONTRACT. The instanceof is false, so every unverified user passes straight through. Either route is acceptable: implement the contract and apply `verified` consistently, or remove the feature and the middleware so nothing claims a guarantee the system does not make. What is NOT acceptable is leaving the current shape. Whichever is chosen, the test asserting an unverified user's treatment is mutation-checked -- the existing four pass with the guard enforcing nothing, which is exactly what a mutation would have caught and is why this sat unnoticed. If verification stays, the no-mailer case must be answered rather than assumed: a fresh container has no mailer configured, so implementing the contract would redirect a newly registered user -- including the installer's first administrator -- to a notice they can never satisfy. The container smoke proves the first admin still reaches the app. The route inconsistency is settled in the same pass: files.browse, files.download, search and admin.* carry `auth` alone while dashboard carries `auth` + `verified`.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
-      "@id": "item/extraction-missing-object",
-      "@type": "Action",
-      "order": 44,
-      "name": "A missing object is distinguishable on the extraction path too",
-      "url": "https://github.com/turbophp/doccum/issues/153",
-      "isBasedOn": [
-        "spec:7-text-extraction"
-      ],
-      "size": "S",
-      "release": "v1.0.0",
-      "dependsOn": [
-        "item/download-missing-object"
-      ],
-      "doneWhen": "DocumentStorage::downloadToTemp() throws the typed ObjectMissingFromStorage rather than a bare RuntimeException, so the extraction path can tell \"the row exists but the bytes are gone\" from any other storage failure -- the distinction item/download-missing-object made on the two download routes, on the path ExtractText actually uses. AND what the queue does with it is asserted rather than inherited: whether the job stops retrying against bytes that are never coming back, and what file_texts.status an operator can read afterwards. The failure mode here is not a bad HTTP status but a queue that may never settle, which is less visible than #134 was and harder to diagnose. Note that the test queue is synchronous and production is not, so an assertion about retry behaviour must be written to hold in production, not merely in the suite.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
       "order": 45,
