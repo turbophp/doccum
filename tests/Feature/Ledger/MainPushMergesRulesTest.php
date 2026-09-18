@@ -24,19 +24,28 @@ use App\Support\LedgerValidator;
 |   2. Run.commit is DEFINED as the last merges entry's mergeSha;
 |   3. outcome: completed requires the last entry's testsConclusion and
 |      ledgerConclusion to both be "success" -- gated behind
-|      MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN (20), because real history
+|      MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN (8), because real history
 |      violates it twice (run/0000's last merge, and run/0008's -- see that
 |      constant's own docblock) and rewriting `outcome` to hide that is
 |      exactly the fudging CLAUDE.md's mutation-check discipline exists to
-|      catch. The constant is private, so its value is asserted against
-|      directly here, the same as MutationNodeRulesTest.php does for
+|      catch. 8 is the LAST run that violates, not the newest run that
+|      exists: the gate must grandfather what history forces and nothing
+|      more, or it exempts twelve runs that would have passed. The constant
+|      is private, so its value is asserted against directly here, the same
+|      as MutationNodeRulesTest.php does for
 |      MUTATION_RULES_EFFECTIVE_AFTER_RUN.
+|   4. the external-list check: every commit on main BEFORE the newest one
+|      the ledger records must itself be recorded. This is the clause the
+|      item calls the difference between a rule and bookkeeping, and it is
+|      the only one that can catch a merge nobody wrote down -- so it needs
+|      an assertion that FAILS, not merely the "no history: errors here"
+|      line in LedgerIntegrityTest.php, which survives deleting the check.
 |
 | docs/ is dockerignored (see CLAUDE.md), so these tests skip cleanly when
 | docs/ledger is absent, same as the other Ledger test files.
 */
 
-const MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN_UNDER_TEST = 20;
+const MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN_UNDER_TEST = 8;
 
 beforeEach(function () {
     if (! is_dir(base_path('docs/ledger'))) {
@@ -454,4 +463,68 @@ it('does not apply the outcome rule AT the effective threshold run, where real h
     } finally {
         removeMergesFixture($dir);
     }
+});
+
+/**
+ * The shas the ledger actually records for its newest run, oldest first.
+ *
+ * Derived from the real ledger rather than a fixture on purpose: the check
+ * under test compares the ledger against an EXTERNAL list, so feeding it a
+ * list built from the same fixture it validates would prove nothing about
+ * the comparison.
+ */
+function recordedShasOfNewestRun(): array
+{
+    $files = glob(base_path('docs/ledger/runs/*.jsonld'));
+    sort($files);
+    $run = json_decode((string) file_get_contents((string) end($files)), true);
+
+    return array_map(
+        static fn (array $entry): string => (string) $entry['mergeSha'],
+        array_values(array_filter($run['merges'] ?? [], 'is_array')),
+    );
+}
+
+it('reports a commit on main that no run records, when a later commit is recorded', function () {
+    $shas = recordedShasOfNewestRun();
+
+    // Fewer than two recorded merges and "interior" has no meaning; the
+    // newest run always has more, but say so rather than assert nothing.
+    expect(count($shas))->toBeGreaterThan(1);
+
+    $hole = str_repeat('a', 40);
+
+    // Guard present: every sha the external list names is recorded.
+    expect(LedgerValidator::validate(base_path('docs/ledger'), mergesFixtureSpecPath(), $shas))->toBe([]);
+
+    // An unrecorded commit with recorded ones AFTER it is a hole somebody
+    // left -- the ledger-only merge nobody wrote down, which is the exact
+    // shape of both times main has gone red.
+    $withHole = $shas;
+    array_splice($withHole, 1, 0, [$hole]);
+
+    $errors = LedgerValidator::validate(base_path('docs/ledger'), mergesFixtureSpecPath(), $withHole);
+
+    expect($errors)->toHaveCount(1);
+    expect($errors[0])->toContain($hole)
+        ->toContain('a LATER commit does');
+});
+
+it('does not report a commit newer than everything the ledger records', function () {
+    // A merge commit cannot appear in the ledger it contains: its sha does
+    // not exist until the merge happens. Requiring it would make `validate
+    // ledger` red on main from the instant any PR merges, and red again
+    // after the very ledger pass that recorded the previous merges -- a
+    // deadlock, not a strict rule. Such a commit becomes interior, and so
+    // caught by the test above, as soon as a later merge is recorded.
+    $shas = recordedShasOfNewestRun();
+    $freshMerge = str_repeat('b', 40);
+
+    $errors = LedgerValidator::validate(
+        base_path('docs/ledger'),
+        mergesFixtureSpecPath(),
+        array_merge($shas, [$freshMerge]),
+    );
+
+    expect($errors)->toBe([]);
 });

@@ -134,12 +134,20 @@ final class LedgerValidator
      * CLAUDE.md's mutation-check discipline exists to prevent.
      *
      * So, the same shape as MUTATION_RULES_EFFECTIVE_AFTER_RUN above: the
-     * rule binds only for a run numbered after this constant -- the last
-     * run number that exists as of this item landing -- so every run
-     * already closed is grandfathered by construction, and the rule catches
-     * every run from here on.
+     * rule binds only for a run numbered after this constant.
+     *
+     * The value is the LAST RUN THAT ACTUALLY VIOLATES IT (run/0008), not
+     * the newest run in existence. Those are very different numbers and the
+     * difference is the whole point: computed over the backfill, exactly two
+     * runs close on a red merge -- run/0000 and run/0008 -- so a threshold of
+     * 8 grandfathers precisely them and binds runs 9 onward, which is twelve
+     * runs of real closed history this rule is now checked against. Setting
+     * it to the newest run instead would exempt all twelve, and the rule
+     * would read as enforcing twenty runs of history while enforcing none of
+     * it: a guard that looks like protection, which is the thing this
+     * codebase keeps having to dig out (decision/0062).
      */
-    private const MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN = 20;
+    private const MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN = 8;
 
     /**
      * 'active' is the run currently being worked, and it exists because the
@@ -1569,10 +1577,31 @@ final class LedgerValidator
             }
         }
 
+        // Only commits up to the NEWEST one the ledger records can be
+        // required to be recorded. A merge commit's own sha cannot appear in
+        // the ledger that merge commit contains -- it does not exist until
+        // the merge happens -- so demanding completeness all the way to the
+        // tip makes `validate ledger` red on main from the instant any PR
+        // merges, and red again after the very ledger pass that recorded the
+        // previous merges. That is not a strict rule, it is a deadlock.
+        //
+        // Contiguity instead: anything BEFORE the newest recorded merge and
+        // not itself recorded is a hole somebody left, which is exactly the
+        // failure this item exists to catch (both times main went red it was
+        // a ledger-only merge nobody wrote down). Anything AFTER it is simply
+        // not recorded yet, and becomes interior -- and so caught -- the
+        // moment a later merge is recorded.
+        $lastKnownIndex = -1;
+        foreach ($mainPushShas as $index => $sha) {
+            if (isset($known[$sha])) {
+                $lastKnownIndex = $index;
+            }
+        }
+
         $errors = [];
-        foreach ($mainPushShas as $sha) {
-            if (! isset($known[$sha])) {
-                $errors[] = "history: commit '$sha' is on main (per git log since the previous completed run) but does not appear in any run's merges.";
+        foreach ($mainPushShas as $index => $sha) {
+            if ($index < $lastKnownIndex && ! isset($known[$sha])) {
+                $errors[] = "history: commit '$sha' is on main (per git log since the previous completed run) but does not appear in any run's merges, and a LATER commit does -- so this is a merge nobody wrote down, not one not yet recorded.";
             }
         }
 
