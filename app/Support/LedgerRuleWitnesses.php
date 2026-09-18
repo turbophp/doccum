@@ -181,7 +181,7 @@ final class LedgerRuleWitnesses
      * baseline, and checks both halves of doneWhen clause 2: the expected
      * code fires, and nothing else does.
      *
-     * @param array{id: string, code: string, select: string, mutate: callable(string): (list<string>|null)} $witness
+     * @param  array{id: string, code: string, select: string, mutate: callable(string): (list<string>|null)}  $witness
      */
     private static function runOne(array $witness, string $baselineDir, string $specPath): ?string
     {
@@ -240,7 +240,7 @@ final class LedgerRuleWitnesses
             [
                 'id' => 'structural-undeclared-key',
                 'code' => 'structural',
-                'select' => "adding an undefined key to the first Action in ledger.items",
+                'select' => 'adding an undefined key to the first Action in ledger.items',
                 /** @return list<string>|null */
                 'mutate' => static function (string $dir): ?array {
                     $ledger = self::readLedger($dir);
@@ -285,7 +285,7 @@ final class LedgerRuleWitnesses
             [
                 'id' => 'enum-pr-headsha-not-hex',
                 'code' => 'enum',
-                'select' => "overwriting headSha on the first merged PullRequest that has one",
+                'select' => 'overwriting headSha on the first merged PullRequest that has one',
                 /** @return list<string>|null */
                 'mutate' => static function (string $dir): ?array {
                     $ledger = self::readLedger($dir);
@@ -312,7 +312,7 @@ final class LedgerRuleWitnesses
             [
                 'id' => 'graph-self-cycle',
                 'code' => 'graph',
-                'select' => "adding the first Action with actionStatus PotentialActionStatus as its own dependsOn",
+                'select' => 'adding the first Action with actionStatus PotentialActionStatus as its own dependsOn',
                 /** @return list<string>|null */
                 'mutate' => static function (string $dir): ?array {
                     $ledger = self::readLedger($dir);
@@ -328,7 +328,7 @@ final class LedgerRuleWitnesses
             [
                 'id' => 'status-completed-missing-starttime',
                 'code' => 'status',
-                'select' => "nulling startTime on the first Action with actionStatus CompletedActionStatus",
+                'select' => 'nulling startTime on the first Action with actionStatus CompletedActionStatus',
                 /** @return list<string>|null */
                 'mutate' => static function (string $dir): ?array {
                     $ledger = self::readLedger($dir);
@@ -342,7 +342,7 @@ final class LedgerRuleWitnesses
             [
                 'id' => 'pr-implements-empty',
                 'code' => 'pr',
-                'select' => "emptying implements on the first merged PullRequest",
+                'select' => 'emptying implements on the first merged PullRequest',
                 /** @return list<string>|null */
                 'mutate' => static function (string $dir): ?array {
                     $ledger = self::readLedger($dir);
@@ -370,7 +370,7 @@ final class LedgerRuleWitnesses
             [
                 'id' => 'mutation-negative-empty-check',
                 'code' => 'mutation',
-                'select' => "blanking check on the first negative Mutation with a non-empty check that implements no spec:10 item",
+                'select' => 'blanking check on the first negative Mutation with a non-empty check that implements no spec:10 item',
                 /** @return list<string>|null */
                 'mutate' => static function (string $dir): ?array {
                     $ledger = self::readLedger($dir);
@@ -440,7 +440,7 @@ final class LedgerRuleWitnesses
             [
                 'id' => 'spec-anchor-bogus',
                 'code' => 'spec-anchor',
-                'select' => "overwriting isBasedOn on the last Action in ledger.items",
+                'select' => 'overwriting isBasedOn on the last Action in ledger.items',
                 /** @return list<string>|null */
                 'mutate' => static function (string $dir): ?array {
                     $ledger = self::readLedger($dir);

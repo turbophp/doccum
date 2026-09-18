@@ -1274,7 +1274,7 @@ final class LedgerValidator
      * trip a spurious 'canonical:' error alongside whatever category it
      * actually means to isolate, purely as an artifact of re-encoding.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public static function canonicalize(array $data): string
     {
