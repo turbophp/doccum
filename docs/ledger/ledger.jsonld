@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T00:45:00Z",
+  "dateModified": "2026-09-18T01:08:00Z",
   "latestRun": "run/0018",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -559,10 +559,12 @@
         "item/files-versions-replace"
       ],
       "doneWhen": "Every FilePolicy ability states its posture on a file trashed on its own in a LIVE directory, rather than three postures existing by accident: replace() refuses, update()/move()/legalHold() do not, and delete()/restore()/purge() deliberately must not. update(), move() and legalHold() refuse a trashed file; a FilePolicyTest case covers each; each carries a mutations.json entry. The reachability question is SETTLED rather than assumed -- a Livewire::test() case selects a file, trashes it out of band, calls renameFile() and asserts WHICH guard refused (403 from the policy, not 404 from a scoped restoration query), so the verdict says whether Livewire's restoration applies the SoftDeletingScope; that answer is recorded either way, because it is the same fact replace()'s guard rests on.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": null
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T00:47:00Z",
+      "endTime": "2026-09-18T01:06:00Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/135"
+      ]
     },
     {
       "@id": "item/files-three-pane",
@@ -1950,6 +1952,71 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/131",
+      "@type": "PullRequest",
+      "identifier": 131,
+      "name": "Prove object storage persisted, instead of saying so from a SQLite row",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T00:37:00Z",
+      "headSha": "227e3eae6449594947181906bf376fb41eefb21f",
+      "mergedAt": "2026-09-18T00:47:00Z",
+      "mergeSha": "59f86faf3f2ced96f1e50f827127fcf8707ef946",
+      "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/132",
+      "@type": "PullRequest",
+      "identifier": 132,
+      "name": "MUTATION -- DO NOT MERGE: empty /data/objects between the two containers",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0018",
+      "state": "closed",
+      "dateCreated": "2026-09-18T00:37:30Z",
+      "headSha": "4978f298cc8f548ddf1dd00c4e7f79a62b5564d4",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/133",
+      "@type": "PullRequest",
+      "identifier": 133,
+      "name": "ledger: close run/0017, open run/0018, reshape the backlog on the consult",
+      "implements": [
+        "item/file-policy-trashed-file-guards",
+        "item/login-by-username"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T00:42:00Z",
+      "headSha": "be7b62b6299193802b5e2d2efd8d817b5d60c120",
+      "mergedAt": "2026-09-18T00:45:50Z",
+      "mergeSha": "880ff18227e60a8526f2dbccd80f8a546a58c53c",
+      "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/135",
+      "@type": "PullRequest",
+      "identifier": 135,
+      "name": "item/file-policy-trashed-file-guards: state every ability's posture on a file trashed on its own (#116)",
+      "implements": [
+        "item/file-policy-trashed-file-guards"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T00:56:00Z",
+      "headSha": "ef1059dee3f55736c01656d2c466eb8829493bf8",
+      "mergedAt": "2026-09-18T01:06:00Z",
+      "mergeSha": "444a3541626affc449767ac46fb35f42553e152a",
+      "mergedIn": "run/0018"
     }
   ],
   "decisions": [
@@ -2474,6 +2541,23 @@
         "item/api-presigned-upload",
         "item/trash-view",
         "item/v1-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0032",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T01:08:00Z",
+      "run": "run/0018",
+      "name": "Livewire does not scope its model-property restoration, and adding a guard can de-fang an older one",
+      "rationale": "Two findings from item/file-policy-trashed-file-guards, both measured, and the second has no precedent in this ledger.\n\nFIRST: Livewire's restoration of a public Model property does NOT apply the SoftDeletingScope. It hands the trashed model back, so Browser::renameFile() reaches authorize('update', ...) and the policy is what refuses. The test was written to assert a SPECIFIC status because 403 and 404 mean opposite things here -- 403 that the policy refused, 404 that renameFile()'s own null check answered because the model was never hydrated -- and assertForbidden()-or-404 would have passed in both worlds and settled nothing. CI answered 403 green on the first run across five test jobs. Issue 116 was therefore REACHABLE rather than theoretical: a file trashed by another user between two of this user's requests really would have been renameable. It also retroactively vindicates replace()'s guard, which had rested on this same unread fact since item/files-versions-replace.\n\nWhat makes it worth a Decision rather than a code comment is that the reasoning went the other way, twice and independently. The implementing worker argued for 404 from the implicit-route-model-binding analogy, said so in its own report, and then flagged that it had asserted 403 anyway -- an honest contradiction it could have quietly smoothed over. The design consult argued for 404 from newQueryForRestoration(). Neither could read Livewire's source, because there is no vendor/ in this environment. Both were wrong. That is the third time in this loop a plausible chain of reasoning about framework internals has been overturned by a single CI run (decision/0028 and decision/0030 are the others), and the pattern is now firm enough to act on: a claim about framework behaviour that cannot be read here is not an argument to be won, it is a measurement to be taken, and the cheapest measurement is a test that asserts the discriminating observable.\n\nThe item's own shape is the generalisable part. The test was SPLIT: a guarantee half asserting the security property (a file trashed on its own is not renameable through the browser), which is true under both mechanisms and stays green whichever CI reported; and a discriminant half asserting the one thing that differs. Conflating them is what forces a coin flip, and a coin flip on an assertion is how an unverified claim gets written down as a fact. Separating them means the guarantee never depends on the unknown, and the unknown gets settled without risking the guarantee.\n\nSECOND, and this one is new: ADDING A CORRECT GUARD CAN SILENTLY DE-FANG AN OLDER GUARD'S PROOF. The guards job failed its first round not on any of the three new mutations -- all three passed -- but on three PRE-EXISTING ones: file-policy-{update,move,legal-hold}-refuses-trashed-directory all reported \"STILL PASSES with the guard deleted\". TrashDirectory cascades onto every descendant file, so a cascade-trashed file is itself trashed; the new trashed-FILE guard runs before liveDirectory() and refuses on its own; and deleting the directory guard stopped changing the outcome. Three tests that were genuinely load-bearing the day before stopped being so, with no change to their own code, and the suite stayed green the entire time.\n\nThis is over-determination arriving from a direction the loop had not considered. Every previous instance (run/0014's browser-select-directory-view, run/0015's, and replace()'s own) was a test that never isolated its guard to begin with. This one was correct when written and was invalidated by a later, unrelated-looking, entirely correct change. It follows that a mutation entry is not a permanent certificate: it is a claim about the code as it stood, and any new refusal placed EARLIER in the same method can void it. The practical rule is that adding a guard to a method means re-reading every existing mutation entry for that method, and the guards job is what makes that mechanical rather than a matter of remembering -- it is the only instrument in this project that can see the failure at all.\n\nThe fix is the isolation replace()'s equivalent test already carried: restore the file, leave the directory trashed, and assert $live->trashed() is false before the real assertion so the premise cannot rot silently. It is a reachable state rather than a contrivance, because restore(), delete() and purge() resolve the directory withTrashed() precisely so a cascade-trashed file can be restored one at a time.",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "affects": [
+        "item/file-policy-trashed-file-guards",
+        "item/files-versions-replace",
+        "item/file-policy-null-directory"
       ],
       "supersedes": null
     }
