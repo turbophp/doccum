@@ -97,3 +97,30 @@ it('is a no-op against an empty users table, matching a fresh install', function
 
     expect(DB::table('users')->count())->toBe(0);
 });
+
+it('still unlocks a user whose created_at is null, rather than leaving them locked out', function () {
+    // $table->timestamps() makes created_at NULLABLE, and only Eloquent's
+    // create() guarantees to fill it -- a query-builder insert(), a seeder,
+    // or an operator importing rows from another system does not.
+    //
+    // A bare `created_at` reference would set this row's email_verified_at
+    // to null, leave whereNull matching it on every future run, and leave
+    // exactly this user locked out: silently, permanently, by the migration
+    // written so that nobody is locked out. The COALESCE is what makes the
+    // fix cover everyone it claims to.
+    DB::table('users')->insert([
+        'name' => 'Imported User',
+        'username' => 'imported',
+        'email' => 'imported@example.com',
+        'email_verified_at' => null,
+        'password' => 'irrelevant-hash',
+        'created_at' => null,
+        'updated_at' => null,
+    ]);
+
+    backfillEmailVerifiedAtMigration()->up();
+
+    $row = DB::table('users')->where('email', 'imported@example.com')->first();
+
+    expect($row->email_verified_at)->not->toBeNull();
+});

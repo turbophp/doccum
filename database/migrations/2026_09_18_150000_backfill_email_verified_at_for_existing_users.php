@@ -53,9 +53,18 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // COALESCE, not a bare `created_at`: $table->timestamps() makes
+        // created_at NULLABLE, and Laravel only guarantees to fill it on
+        // Eloquent create() -- a query-builder insert(), a seeder or an
+        // operator's import does not. A row with a null created_at would be
+        // set to null by a bare reference, leave whereNull matching it
+        // forever, and leave exactly that user still locked out, silently,
+        // by the migration written to stop anyone being locked out.
+        // CURRENT_TIMESTAMP is standard in SQLite, MySQL and PostgreSQL
+        // alike, so this stays portable across all three test legs.
         DB::table('users')
             ->whereNull('email_verified_at')
-            ->update(['email_verified_at' => DB::raw('created_at')]);
+            ->update(['email_verified_at' => DB::raw('COALESCE(created_at, CURRENT_TIMESTAMP)')]);
     }
 
     /**
