@@ -12,7 +12,9 @@
     "item/admin-periods",
     "item/admin-roles",
     "item/email-verification-decided",
+    "item/extraction-missing-object",
     "item/ledger-id-uniqueness",
+    "item/mutation-filter-regex",
     "item/smoke-livewire-settle"
   ],
   "commit": "c47ad90d203fd697e364c5d15e9c7ffd1560d714",
