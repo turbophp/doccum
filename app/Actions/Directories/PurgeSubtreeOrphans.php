@@ -34,7 +34,16 @@ use Illuminate\Database\Eloquent\Collection;
  * - A property's search projection has to be forgotten while the property
  *   row still exists, and the file/directory row it is attached to is a
  *   mass-deleted-or-about-to-be-cascaded row that fires no model events, so
- *   nothing else would ever tell the index to drop it.
+ *   nothing else would ever tell the index to drop it. Worth being exact
+ *   about what this buys, because the test below does NOT prove it and
+ *   should not be read as though it did: `search_documents` rows carry a
+ *   `directory_id` foreign key and so are cascaded away with everything
+ *   else, and Fts5SearchIndex::search() INNER JOINs the shadow table back
+ *   to them -- so a shadow row whose projection is gone cannot surface in
+ *   anybody's results. What forgetting prevents is the shadow table growing
+ *   without bound, not a leak. It is here because PurgeFile and
+ *   PeriodPurger do it on the file-at-a-time path and an action that skipped
+ *   it would read as though the difference were meaningful.
  * - The properties themselves are deleted directly: the morph columns on
  *   `properties` carry no foreign key (a property can point at either a
  *   directory or a file), so the SQL cascade that removes the directory and
@@ -105,11 +114,34 @@ class PurgeSubtreeOrphans
         // properties are the existing forceDeleted hook's job, not this one's.
         $descendantIds = array_values(array_diff($subtreeIds, [$directory->getKey()]));
 
-        if ($descendantIds !== []) {
-            Property::query()
-                ->where('subject_type', 'directory')
-                ->whereIn('subject_id', $descendantIds)
-                ->delete();
+        if ($descendantIds === []) {
+            return;
         }
+
+        // Descendant directories get the same treatment their files just got,
+        // and for the same reason. SearchIndexer::forDirectory() builds a
+        // projection row for a directory exactly as it does for a file, so a
+        // subtree of directories that vanishes by cascade leaves the same
+        // stale shadow rows behind. Forgetting the files but not the
+        // directories they sat in would be an asymmetry with no reason for
+        // it, and the next reader would have to work out whether it was
+        // deliberate.
+        Directory::withTrashed()
+            ->whereIn('id', $descendantIds)
+            ->with('properties')
+            ->chunkById(200, function (Collection $directories): void {
+                foreach ($directories as $descendant) {
+                    foreach ($descendant->properties as $property) {
+                        $this->indexer->forget($property);
+                    }
+
+                    $this->indexer->forget($descendant);
+                }
+            });
+
+        Property::query()
+            ->where('subject_type', 'directory')
+            ->whereIn('subject_id', $descendantIds)
+            ->delete();
     }
 }

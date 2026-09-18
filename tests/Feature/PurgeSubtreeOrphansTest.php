@@ -100,9 +100,21 @@ it('removes every object beneath a force-deleted directory through DocumentStora
     // The primary evidence: the objects are gone from the store itself.
     // Asserting the rows are gone instead would pass on the broken cascade
     // too, since the cascade is precisely what removes the rows.
+    // Collected rather than asserted one at a time, so a failure names every
+    // object that survived instead of stopping at the first. The four are
+    // four different bugs -- the root's file, the one a level down, the
+    // independently trashed file, and the one inside the independently
+    // trashed child -- and a per-key toBeFalse() would report them
+    // identically and hide the other three.
+    $survivors = [];
+
     foreach ($this->objectKeys as $label => $key) {
-        expect(Storage::disk('documents')->exists($key))->toBeFalse();
+        if (Storage::disk('documents')->exists($key)) {
+            $survivors[] = $label;
+        }
     }
+
+    expect($survivors)->toBe([]);
 });
 
 it('deletes the properties of every descendant directory and file', function () {
