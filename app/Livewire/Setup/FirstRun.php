@@ -402,7 +402,6 @@ class FirstRun extends Component
         // #[Fillable(...)] list, so it is set via forceFill(), the same
         // pattern App\Actions\Fortify\ResetUserPassword already uses for a
         // guarded column.
-        $user->forceFill(['email_verified_at' => now()])->save();
 
         $user->assignRole('admin');
 
