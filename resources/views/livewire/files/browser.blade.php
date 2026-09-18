@@ -1,16 +1,86 @@
 <section class="w-full space-y-6">
-    <div class="flex items-center justify-between">
-        <flux:breadcrumbs>
-            <flux:breadcrumbs.item :href="route('files.browse')" wire:navigate>{{ __('Files') }}</flux:breadcrumbs.item>
-            @if ($directory)
-                <flux:breadcrumbs.item>{{ $directory->name }}</flux:breadcrumbs.item>
-            @endif
-        </flux:breadcrumbs>
-    </div>
+    @if ($breadcrumbs->isNotEmpty())
+        {{-- Every ancestor the viewer may VIEW, root first, current directory
+             last -- and no others: an ancestor with no grant anywhere on it
+             (a grant made directly on a NESTED directory, per
+             DirectoryAccess) is not in $breadcrumbs at all, so there is
+             nothing here for the view itself to filter. See
+             Browser::breadcrumbTrail(). The final crumb (the directory being
+             browsed) carries no href, matching the read-only "you are here"
+             convention the rest of the app already used. --}}
+        <div class="flex items-center justify-between">
+            <flux:breadcrumbs>
+                @foreach ($breadcrumbs as $index => $crumb)
+                    @if ($index === $breadcrumbs->count() - 1)
+                        <flux:breadcrumbs.item>
+                            <span data-test="breadcrumb-item">{{ $crumb->name }}</span>
+                        </flux:breadcrumbs.item>
+                    @else
+                        <flux:breadcrumbs.item :href="route('files.browse', $crumb)" wire:navigate>
+                            <span data-test="breadcrumb-item">{{ $crumb->name }}</span>
+                        </flux:breadcrumbs.item>
+                    @endif
+                @endforeach
+            </flux:breadcrumbs>
+        </div>
+    @endif
 
     <div class="flex gap-8">
+        {{-- The Files sidebar (spec §10): Home pinned first, then the
+             viewer's reach roots and their viewable descendants --
+             $sidebarTree, resolved ENTIRELY by DirectoryAccess::reachTree()
+             (render()'s own comment says why: filtering happens in the
+             query, never here). Collapse state lives in localStorage,
+             keyed per directory id, wrapped in try/catch because it throws
+             in a private window -- see CLAUDE.md and the doccum design
+             spec §10a. --}}
+        <aside
+            class="w-56 shrink-0 space-y-4 border-r pr-4"
+            data-test="directory-tree"
+            x-data="{
+                expanded: (() => {
+                    try {
+                        const raw = localStorage.getItem('doccum-sidebar-expanded');
+
+                        return raw ? JSON.parse(raw) : {};
+                    } catch (e) {
+                        return {};
+                    }
+                })(),
+                isExpanded(id) {
+                    return this.expanded[id] !== false;
+                },
+                toggle(id) {
+                    this.expanded[id] = ! this.isExpanded(id);
+
+                    try {
+                        localStorage.setItem('doccum-sidebar-expanded', JSON.stringify(this.expanded));
+                    } catch (e) {
+                        // Private window, or storage disabled -- the tree
+                        // still renders (everything simply stays expanded
+                        // for the rest of this page load).
+                    }
+                },
+            }"
+        >
+            @if ($homeDirectory)
+                <div data-test="sidebar-home">
+                    <flux:link :href="route('files.browse', $homeDirectory)" wire:navigate>{{ __('Home') }}</flux:link>
+                </div>
+            @endif
+
+            <ul data-test="sidebar-tree" class="space-y-1">
+                @include('livewire.files.partials.directory-tree', ['nodes' => $sidebarTree])
+            </ul>
+        </aside>
+
         <div class="flex-1 space-y-6">
-            <div class="space-y-2">
+            {{-- data-test scopes the container-smoke's own navigation: at the
+                 root of the browser ($directory === null) this list and the
+                 sidebar both render the SAME reach roots (issue #99), so a
+                 directory's name is no longer a unique link on the landing
+                 page and any locator has to say which of the two it means. --}}
+            <div class="space-y-2" data-test="directories-list">
                 <flux:heading level="2">{{ __('Directories') }}</flux:heading>
 
                 @forelse ($directories as $item)

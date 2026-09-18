@@ -198,6 +198,57 @@ it('still resolves a grant made directly on the directory being trashed, checked
     expect(app(DirectoryAccess::class)->levelFor($this->user, $trashedMid))->toBe(AccessLevel::Manage);
 });
 
+// --- reach roots (item/files-three-pane, issue #104/#99) -------------------
+
+it('treats a directly-granted nested directory as a reach root when its own parent is not viewable', function () {
+    grant($this->mid, $this->user, AccessLevel::View);
+
+    $roots = app(DirectoryAccess::class)->reachRootIds($this->user);
+
+    // $this->mid's parent ($this->root) carries no grant at all -- not
+    // viewable -- so $mid is the top of this viewer's reach.
+    expect($roots)->toContain($this->mid->id)
+        // $this->leaf is viewable too (inherited from $mid), but its
+        // parent ($mid) IS viewable, so leaf is a descendant, not a root.
+        ->and($roots)->not->toContain($this->leaf->id)
+        // $this->root itself is not viewable at all -- it must not appear
+        // just because a directory beneath it does.
+        ->and($roots)->not->toContain($this->root->id);
+});
+
+it('treats a directory with no viewable parent, including a genuinely root-level one, as a reach root', function () {
+    grant($this->root, $this->user, AccessLevel::Edit);
+
+    $roots = app(DirectoryAccess::class)->reachRootIds($this->user);
+
+    expect($roots)->toBe([$this->root->id]);
+});
+
+it('resolves every filesystem root, and nothing nested, for a holder of directories.view-all', function () {
+    $this->user->assignRole('admin');
+
+    $roots = app(DirectoryAccess::class)->reachRootIds($this->user);
+
+    // Every directory is viewable to this user, so a reach root here is
+    // exactly a TRUE filesystem root: $this->root and $this->elsewhere,
+    // both parent_id IS NULL -- never $this->mid or $this->leaf, whose
+    // parents are viewable too.
+    expect($roots)->toEqualCanonicalizing([$this->root->id, $this->elsewhere->id]);
+});
+
+it('returns an empty reach for a user with no grants at all', function () {
+    expect(app(DirectoryAccess::class)->reachRootIds($this->user))->toBe([]);
+});
+
+it('nests every viewable descendant under its reach root in reachTree()', function () {
+    grant($this->mid, $this->user, AccessLevel::Manage);
+
+    $tree = app(DirectoryAccess::class)->reachTree($this->user);
+
+    expect($tree->pluck('id')->all())->toBe([$this->mid->id])
+        ->and($tree->first()->children->pluck('id')->all())->toBe([$this->leaf->id]);
+});
+
 it('caches a denial instead of re-querying it', function () {
     $access = app(DirectoryAccess::class);
 

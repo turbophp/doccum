@@ -260,7 +260,7 @@ it('refuses to move a file without edit access on both ends', function () {
     expect($file->fresh()->directory_id)->toBe($this->mine->id);
 });
 
-it('lists only edit-reachable directories as move destinations, filtered in the query', function () {
+it('offers an edit-reachable move destination and refuses a view-only one', function () {
     $editable = Directory::factory()->create(['name' => 'Editable']);
     DirectoryGrant::create([
         'directory_id' => $editable->id,
@@ -284,11 +284,42 @@ it('lists only edit-reachable directories as move destinations, filtered in the 
 
     $file = File::factory()->for($this->mine, 'directory')->create();
 
+    // The "is offered" half is unchanged: a presence assertion is unaffected
+    // by anything else the page renders.
+    //
+    // The "is not offered" half CANNOT stay a page-wide assertDontSee, and
+    // that is item/files-three-pane's doing rather than a weakening. The
+    // sidebar now renders every directory the viewer may see on every /files
+    // page -- that is the item, and issue #99's fix -- and
+    // ViewOnlyDestination is viewable, so it legitimately appears. A
+    // page-wide assertDontSee can no longer tell "absent from the move
+    // dropdown" from "absent from the page", and no fixture can dodge it:
+    // any viewable directory appears in the tree, as a reach root or as a
+    // viewable descendant.
+    //
+    // So the second half asks the stronger question directly -- can a
+    // View-level destination actually be moved into? -- which is the thing
+    // the narrowing exists to prevent and which no page text can fake. It is
+    // also a sharper case than "refuses to move a file without edit access
+    // on both ends" below: that one uses a destination the user cannot see
+    // at all, where this one sits exactly on the View/Edit boundary.
+    //
+    // Honestly stated: what is NOT covered any more is the UX-level claim
+    // that the dropdown omits the option. The security property is the
+    // refusal, and that is what is asserted here.
     Livewire::actingAs($this->user)
         ->test(Browser::class, ['directory' => $this->mine])
         ->call('selectFile', $file->id)
-        ->assertSee('Editable')
-        ->assertDontSee('ViewOnlyDestination');
+        ->assertSee('Editable');
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectFile', $file->id)
+        ->set('moveFileDestinationId', $viewOnly->id)
+        ->call('moveFile')
+        ->assertForbidden();
+
+    expect($file->fresh()->directory_id)->toBe($this->mine->id);
 });
 
 it('trashes a file through the browser', function () {
