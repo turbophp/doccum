@@ -4,6 +4,7 @@ use App\Http\Controllers\FileDownloadController;
 use App\Http\Controllers\FileVersionDownloadController;
 use App\Livewire\Admin\PropertyDefinitions;
 use App\Livewire\Files\Browser;
+use App\Livewire\Home\Index as Home;
 use App\Livewire\Search\Results;
 use App\Livewire\Setup\FirstRun;
 use App\Livewire\Trash\Index as Trash;
@@ -13,8 +14,14 @@ Route::livewire('/setup', FirstRun::class)->name('setup');
 
 Route::view('/', 'welcome')->name('home');
 
+// item/home-dashboard (issue #16): this was starter-kit scaffolding
+// (Route::view('dashboard', 'dashboard'), a static placeholder view with
+// three empty tiles) -- replaced with the real Home destination spec §10
+// names, kept on the SAME route name ('dashboard') so every existing
+// route('dashboard') caller (the topbar's own Home link, Profile's
+// post-save redirect, welcome.blade.php) needs no change at all.
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::view('dashboard', 'dashboard')->name('dashboard');
+    Route::livewire('dashboard', Home::class)->name('dashboard');
 });
 
 Route::get('/files/{file}/download', FileDownloadController::class)

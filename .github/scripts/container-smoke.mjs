@@ -898,6 +898,56 @@ async function checkTopbar(page, phase) {
 }
 
 /**
+ * item/home-dashboard (issue #16): confirms the Home destination (spec §10)
+ * is wired to real data, not a static placeholder -- the starter kit's own
+ * `dashboard` view before this item, which rendered three empty tiles no
+ * matter what the database held. FILE_NAME, uploaded by uploadAndProveStored()
+ * moments before this is called, must show up by name in Home's "Recent
+ * files" section.
+ *
+ * This is the one assertion that requires the feature to DO something, not
+ * merely observe a resting state (CLAUDE.md's own topbar lesson): an empty
+ * "Recent files" section, or its absence, or Home simply 200-ing, would all
+ * pass a check that only asked "did the page load". A query that forgot to
+ * filter through DirectoryAccess correctly and came back empty, one wired to
+ * the wrong column so nothing ever matches, or a Flux component
+ * (Home/Index.php's own view) that fails to resolve in the image, would
+ * each leave this empty or absent, and only requiring THIS upload's OWN name
+ * to appear is what turns that into a failure here rather than a green run
+ * that never looked.
+ */
+async function checkHomeDashboardShowsRecentUpload(page, phase) {
+  await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
+
+  await page.locator('[data-test="home-recent-files"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  // Named failure, not a bare locator timeout. The mutation for this item
+  // (recents resolved but never rendered) failed here with nothing but
+  // "locator.waitFor: Timeout 10000ms exceeded" -- attributable only because
+  // this check's own console line happened to be the last thing printed,
+  // which is luck rather than evidence. Rule 3 of the Mutation vocabulary
+  // says a failure that names no assertion is not evidence, and every other
+  // check in this file already says what it wanted.
+  const row = page.locator('[data-test="home-recent-file-row"]').filter({ hasText: FILE_NAME });
+
+  try {
+    await row.waitFor({ timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] Home rendered but listed no recent-files row for ${FILE_NAME}`
+      + ' -- the page is up and the query may well be right; what is missing is'
+      + ' the row reaching the DOM',
+    );
+    throw Object.assign(
+      new Error(`Home listed no recent-files row for ${FILE_NAME}`),
+      { dumped: true },
+    );
+  }
+
+  console.log(`[${phase}] Home lists ${FILE_NAME} under "Recent files" -- real data, not a placeholder`);
+}
+
+/**
  * item/files-three-pane (issue #104/#99): creates two nested subdirectories
  * inside the directory the page is currently showing, navigates into both,
  * and counts the breadcrumb. tests/Feature/FileBrowserTest.php already
@@ -2383,6 +2433,9 @@ async function runSetup() {
       `This is a doccum container smoke test document containing the marker word ${FILE_MARKER}.\n`,
       'setup',
     );
+
+    console.log('[setup] checking Home lists the just-uploaded file under Recent files (issue #16)');
+    await checkHomeDashboardShowsRecentUpload(page, 'setup');
 
     console.log(`[setup] waiting up to ${EXTRACTION_TIMEOUT_MS}ms for extraction to finish`);
     await waitForExtraction();

@@ -81,11 +81,37 @@
             }"
         >
             @if ($homeDirectory)
+                {{-- item/home-dashboard (issue #16): the topbar ALSO has a
+                     nav item named "Home" (spec §10 names both this pinned
+                     entry and the topbar's one "Home", so the collision is
+                     the spec's, not this component's). WCAG "label in name"
+                     requires an accessible name that CONTAINS the visible
+                     text, so this keeps the visible text "Home" and adds
+                     aria-label="Home directory" -- distinguishing it from
+                     the topbar's link without renaming what a viewer reads.
+                     Not the username (the tree's first entry already reads
+                     that) and not "My files" -- a term spec §10 never uses.
+
+                     A plain <a>, not flux:link, on purpose: flux:link is
+                     only KNOWN to forward arbitrary attributes when there is
+                     a real href turning it into an <a> (see the Trash link
+                     comment below), and even then this codebase does not
+                     know it forwards aria-label specifically -- if Flux put
+                     it on some wrapping element instead of the <a> itself,
+                     the ANCHOR's own accessible name (computed from ITS
+                     attributes and content) would be unaffected and this
+                     fix would silently do nothing. Writing the anchor by
+                     hand removes that doubt. --}}
                 <div data-test="sidebar-home">
-                    <flux:link :href="route('files.browse', $homeDirectory)" wire:navigate variant="ghost" class=" flex h-8 items-center gap-2 rounded px-2 text-sm font-medium text-ink hover:bg-sheet">
-                        <flux:icon.home variant="micro" class="shrink-0 text-ink-2" />
+                    <a
+                        href="{{ route('files.browse', $homeDirectory) }}"
+                        wire:navigate
+                        aria-label="{{ __('Home directory') }}"
+                        class="flex h-8 items-center gap-2 rounded px-2 text-sm font-medium text-ink hover:bg-sheet"
+                    >
+                        <flux:icon.home variant="micro" class="shrink-0 text-ink-2" aria-hidden="true" />
                         {{ __('Home') }}
-                    </flux:link>
+                    </a>
                 </div>
             @endif
 
