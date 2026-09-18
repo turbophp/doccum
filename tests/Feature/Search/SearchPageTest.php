@@ -10,6 +10,7 @@ use App\Models\DirectoryGrant;
 use App\Models\File;
 use App\Models\Property;
 use App\Models\PropertyDefinition;
+use App\Models\SearchDocument;
 use App\Models\User;
 use App\Search\SearchIndex;
 use App\Services\SearchIndexer;
@@ -92,7 +93,7 @@ it('narrows results with a mime filter, applied inside the query', function () {
 it('narrows results with a period filter, applied inside the query', function () {
     grantView($this->dir, $this->user);
 
-    \App\Models\SearchDocument::where('subject_type', 'file')->where('title', 'Lease.pdf')
+    SearchDocument::where('subject_type', 'file')->where('title', 'Lease.pdf')
         ->update(['period_year' => 2024]);
 
     Livewire::actingAs($this->user)->test(Results::class)
@@ -117,7 +118,7 @@ it('narrows results with a property filter, on its typed column', function () {
     // flattened properties -- which just replaced the body carrying "tenant"
     // set in beforeEach. Restore it, the same way indexFile() does elsewhere
     // in this suite, so the query word still matches.
-    $doc = \App\Models\SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->first();
+    $doc = SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->first();
     $doc->update(['body' => 'the tenant shall maintain the premises in good repair']);
     app(SearchIndex::class)->put($doc->fresh());
 
@@ -142,7 +143,7 @@ it('never lets a property filter surface a document outside the viewer reach', f
     Property::for($file, $definition)->setValue(100);
     app(SearchIndexer::class)->index($file->fresh());
 
-    $doc = \App\Models\SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->first();
+    $doc = SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->first();
     $doc->update(['body' => 'the tenant shall maintain the premises in good repair']);
     app(SearchIndex::class)->put($doc->fresh());
 

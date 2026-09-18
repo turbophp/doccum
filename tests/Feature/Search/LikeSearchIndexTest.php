@@ -7,6 +7,7 @@ use App\Models\Directory;
 use App\Models\File;
 use App\Models\Property;
 use App\Models\PropertyDefinition;
+use App\Models\SearchDocument;
 use App\Search\LikeSearchIndex;
 use App\Services\SearchIndexer;
 
@@ -72,7 +73,7 @@ it('returns nothing at all when the viewer can reach nothing, via the LIKE fallb
 
 it('scopes to a period when asked, via the LIKE fallback', function () {
     $file = likeIndexFile('Old.pdf', 'tenant');
-    \App\Models\SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)
+    SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)
         ->update(['period_year' => 2020]);
 
     expect(app(LikeSearchIndex::class)->search('tenant', $this->visible, ['period_year' => 2020]))->toHaveCount(1)
