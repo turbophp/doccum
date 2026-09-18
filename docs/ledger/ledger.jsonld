@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T06:14:39Z",
+  "dateModified": "2026-09-18T07:01:59Z",
   "latestRun": "run/0019",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -716,10 +716,12 @@
         "item/ci-green-baseline"
       ],
       "doneWhen": "Each filter is applied inside the query with the permission filter still active; the property filter uses the typed value columns.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T06:20:00Z",
+      "endTime": "2026-09-18T07:00:52Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/165"
+      ]
     },
     {
       "@id": "item/login-by-username",
@@ -2344,6 +2346,38 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/165",
+      "@type": "PullRequest",
+      "identifier": 165,
+      "name": "item/search-filters: every filter inside the query, permission scope intact (#17)",
+      "implements": [
+        "item/search-filters"
+      ],
+      "run": "run/0019",
+      "state": "merged",
+      "dateCreated": "2026-09-18T06:41:00Z",
+      "headSha": "c2ab9021735cf3a331ca215a4f06c984aff120dd",
+      "mergedAt": "2026-09-18T07:00:52Z",
+      "mergeSha": "cea56539137af4f9d339d52d0d01f8775a60b6e5",
+      "mergedIn": "run/0019"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/166",
+      "@type": "PullRequest",
+      "identifier": 166,
+      "name": "MUTATION -- DO NOT MERGE: the FTS5 index ignores the period_year filter",
+      "implements": [
+        "item/search-filters"
+      ],
+      "run": "run/0019",
+      "state": "closed",
+      "dateCreated": "2026-09-18T06:56:00Z",
+      "headSha": "e2f7664eaf5e91ad5cea5a14dc4b052e37a7b38b",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -3022,6 +3056,23 @@
         "item/container-smoke-ci"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0041",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T07:05:00Z",
+      "run": "run/0019",
+      "name": "Four CI rounds, four different findings -- and a mutation that showed the per-engine coverage is real",
+      "rationale": "item/search-filters took four CI rounds and each one found something different. Recorded separately because collapsing them into \"it took four rounds\" loses three findings.\n\nROUND ONE, phpstan: five errors, none of them the one I had predicted in the pull request body. I had written that phpstan would likely object to a deliberate double assignment in Fts5SearchIndex; it never mentioned it. The five were all in PropertyFilter, and two had distinct causes. PropertyDefinition casts data_type to PropertyDataType but carried no @property annotation, so phpstan read the string column and $definition->data_type->column() looked like calling a method on a string -- DirectoryGrant already carries exactly that annotation for exactly that reason, and its own comment says the other annotated models do too; this one was simply missed. And PropertyDefinition::find() took a mixed value off a query string, which phpstan widens to Model|Collection|null because find() also accepts arrays of keys. The obvious repair there is a cast, and the cast is wrong: (int) \"abc\" is 0, which looks up definition zero and returns a silent wrong answer instead of no answer. Validated with filter_var and looked up through whereKey()->first() instead.\n\nROUND TWO, the baseline: the annotation fixed more than the file this item added. Three other call sites had been confused by the same missing annotation and BASELINED that way -- SetProperties calling cast(), includes() and rules(), Property calling cast() and column(). phpstan's baseline is strict about entries that no longer match, so the round went red for the opposite reason to the first: not new errors, but five dead ignore rules. The baseline shrinks from 40 blocks to 35, removed because the errors are gone rather than silenced. Worth noting that the strictness which reddened the round is the same strictness that turned a local fix into a measurable reduction; a lenient baseline would have kept five dead entries forever.\n\nROUND THREE, a wedge six checks downstream: image failed in checkTrashViewRestoreAndPurge's second upload with the Upload button stuck disabled for twenty seconds. The probe showed that upload completing fully -- all four requests, all 200 -- and then twenty seconds of no network activity at all. A wedged Livewire loading state, not a dropped click. main was green with the same check, so the difference was this branch, and the only thing it adds upstream is the new search-filter check, whose last action fills the year field with an empty string -- a DEBOUNCED commit -- and returns as soon as the row reappears. That proves one round trip landed, not that the component went idle. decision/0033 is precisely this shape: a check that leaves the browser mid-navigation blames its successor, and the blame lands somewhere unrelated and expensive to trace. A networkidle settle was added. This attribution is CONSISTENT with the next run passing and is not confirmed by it -- one green run does not prove an intermittent wedge gone, and it is recorded as the mechanism judged most likely rather than as a reproduction.\n\nROUND FOUR, infrastructure: docker buildx got a 502 from the registry pulling moby/buildkit while booting the builder, before the image was built or a single [setup] line printed. That is the one case the rules allow a re-run, and it was spent there. It says nothing either way about round three's fix.\n\nTHE GUARD THE WORKER CAUGHT ITSELF. Before any of that, the implementing worker reported -- rather than let pass -- that its own FTS5 mutation entry failed for the wrong reason: removing the SQL fragment \"AND d.directory_id IN (...)\" alone left the directory ids in $bindings, so the placeholder count desynced and SQLite threw. The guard would have \"failed when removed\" by proving SQLite counts placeholders, not that the predicate keeps unreachable documents out. DirectoryPolicy's entry spells out the same trap for a policy clause in as many words. It was reachable here because the predicate and its bindings were built in two separate places, so no contiguous removal could take both; they are now built together, both defaulting to empty, so removal leaves valid SQL that simply stops restricting by directory.\n\nTHE FINDING NOBODY PLANNED. The mutation dropped period_year from the FTS5 filter list, and the test matrix split exactly along the backend boundary: both sqlite jobs red, both pgsql and both mysql jobs green, because those run LikeSearchIndex which was untouched. This item's largest risk was a filter implemented in one backend and forgotten in the other -- green on one engine, broken or leaking on another. The split is incidental evidence that such a gap would surface as a per-engine failure rather than hiding behind assertions duplicated across two files that do not actually exercise different code.\n\nWHAT IS NOT PROVEN. Only the PERIOD filter has a smoke assertion shown to fail. Mime, type and property have tests including out-of-reach cases, and the two property-filter permission guards are mechanical entries that guards re-proves every run, but the container-level evidence covers period alone.",
+      "isBasedOn": [
+        "spec:8-search"
+      ],
+      "affects": [
+        "item/search-filters",
+        "item/container-smoke-ci",
+        "item/ci-green-baseline"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -3176,6 +3227,20 @@
       "headSha": "1ce601675b4a98ba4409a4b77dece11f5dcb8af2",
       "mutant": "The Home view resolves $recentFiles and renders no rows from it; the component, its query and the DirectoryAccess filter are untouched",
       "check": "container-smoke.mjs checkHomeDashboardShowsRecentUpload() -- the wait for a home-recent-file-row containing the uploaded file name",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0012",
+      "@type": "Mutation",
+      "implements": [
+        "item/search-filters"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/166",
+      "run": "run/0019",
+      "headSha": "e2f7664eaf5e91ad5cea5a14dc4b052e37a7b38b",
+      "mutant": "period_year drops out of the filter list Fts5SearchIndex iterates, so the index ignores a Year the caller asked for; the permission scope and every other filter are untouched",
+      "check": "container-smoke.mjs checkSearchFilterExcludesByPeriod() -- the detached wait proving the row LEAVES the page under a year it cannot carry",
       "verdict": "negative",
       "supersedes": null
     }
