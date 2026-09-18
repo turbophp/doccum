@@ -271,5 +271,12 @@
     "why": "item/trash-view (issue #15): the trashed DIRECTORIES listing must be narrowed to the ids viewableTrashedDirectoryIds() resolved, the same shape as the files query beside it. Without this whereIn(), render() would hand the view every trashed directory in the instance regardless of who may see it.",
     "remove": "            ->whereIn('id', $trashedDirectoryIds)\n",
     "expectFailing": "never lists another user's trashed directory, asserted against the query result itself"
+  },
+  {
+    "id": "home-recent-files-query-scoped-to-reach",
+    "why": "item/home-dashboard's (issue #16) own doneWhen: recents are filtered by DirectoryAccess in the query. Without this whereIn(), Home would list the most recently updated files across the WHOLE instance, regardless of who may reach them.",
+    "file": "app/Livewire/Home/Index.php",
+    "remove": "                ->whereIn('directory_id', $viewable)\n",
+    "expectFailing": "never lists another user's file in recents, asserted against the query result itself"
   }
 ]

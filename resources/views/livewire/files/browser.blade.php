@@ -64,8 +64,34 @@
             }"
         >
             @if ($homeDirectory)
+                {{-- item/home-dashboard (issue #16): the topbar ALSO has a
+                     nav item named "Home" (spec §10 names both this pinned
+                     entry and the topbar's one "Home", so the collision is
+                     the spec's, not this component's). WCAG "label in name"
+                     requires an accessible name that CONTAINS the visible
+                     text, so this keeps the visible text "Home" and adds
+                     aria-label="Home directory" -- distinguishing it from
+                     the topbar's link without renaming what a viewer reads.
+                     Not the username (the tree's first entry already reads
+                     that) and not "My files" -- a term spec §10 never uses.
+
+                     A plain <a>, not flux:link, on purpose: flux:link is
+                     only KNOWN to forward arbitrary attributes when there is
+                     a real href turning it into an <a> (see the Trash link
+                     comment below), and even then this codebase does not
+                     know it forwards aria-label specifically -- if Flux put
+                     it on some wrapping element instead of the <a> itself,
+                     the ANCHOR's own accessible name (computed from ITS
+                     attributes and content) would be unaffected and this
+                     fix would silently do nothing. Writing the anchor by
+                     hand removes that doubt. --}}
                 <div data-test="sidebar-home">
-                    <flux:link :href="route('files.browse', $homeDirectory)" wire:navigate>{{ __('Home') }}</flux:link>
+                    <a
+                        href="{{ route('files.browse', $homeDirectory) }}"
+                        wire:navigate
+                        aria-label="{{ __('Home directory') }}"
+                        class="text-sm text-zinc-800 hover:underline dark:text-white"
+                    >{{ __('Home') }}</a>
                 </div>
             @endif
 
