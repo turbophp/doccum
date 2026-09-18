@@ -387,19 +387,47 @@
                             <td class="truncate py-1 text-ink-2">{{ $item->creator?->name }}</td>
                             <td class="num py-1 text-ink-2">{{ $item->updated_at?->format('Y-m-d H:i') }}</td>
                             <td class="py-1 text-right text-ink-2">&mdash;</td>
+                            {{-- Icon actions, named by aria-label rather than by
+                                 visible text. Opacity rather than hidden, so the row
+                                 does not reflow on hover and the controls stay in the
+                                 accessibility tree -- reachable by keyboard, and by
+                                 Playwright, which treats opacity:0 as visible. --}}
                             <td class="py-1 text-right">
-                                <span class="inline-flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
+                                <span class="inline-flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                                    <flux:link
+                                        :href="route('files.browse', $item)"
+                                        wire:navigate
+                                        variant="subtle"
+                                        :aria-label="__('Open')"
+                                        class="inline-flex size-6 items-center justify-center rounded text-ink-2 hover:bg-sheet hover:text-ink"
+                                    ><flux:icon.folder-open variant="micro" /></flux:link>
+
                                     <flux:link
                                         wire:click="downloadDirectoryZip({{ $item->id }})"
                                         variant="subtle"
                                         data-test="directory-zip-button"
-                                        class="cursor-pointer text-xs text-ink-2 hover:text-ink"
-                                    >{{ __('Zip') }}</flux:link>
+                                        :aria-label="__('Compress')"
+                                        class="cursor-pointer inline-flex size-6 items-center justify-center rounded text-ink-2 hover:bg-sheet hover:text-ink"
+                                    ><flux:icon.archive-box-arrow-down variant="micro" /></flux:link>
+
                                     <flux:link
                                         wire:click="selectDirectory({{ $item->id }})"
                                         variant="subtle"
-                                        class="cursor-pointer text-xs text-ink-2 hover:text-ink"
-                                    >{{ __('Details') }}</flux:link>
+                                        :aria-label="__('Details')"
+                                        class="cursor-pointer inline-flex size-6 items-center justify-center rounded text-ink-2 hover:bg-sheet hover:text-ink"
+                                    ><flux:icon.information-circle variant="micro" /></flux:link>
+
+                                    @can('delete', $item)
+                                        <flux:button
+                                            variant="subtle"
+                                            size="xs"
+                                            icon="trash"
+                                            :aria-label="__('Trash')"
+                                            wire:click="trashDirectoryRow({{ $item->id }})"
+                                            wire:confirm="{{ __('Trash this folder and everything beneath it? It can be restored later from Trash.') }}"
+                                            data-test="row-trash-directory"
+                                        />
+                                    @endcan
                                 </span>
                             </td>
                         </tr>
@@ -479,7 +507,38 @@
                             <td class="num py-1 text-ink-2">{{ $item->updated_at?->format('Y-m-d H:i') }}</td>
                             <td class="num py-1 text-right text-ink-2">{{ \Illuminate\Support\Number::fileSize($item->size) }}</td>
                             <td class="py-1 text-right">
-                                <flux:link :href="route('files.download', $item)" variant="subtle" class=" text-xs text-ink-2 hover:text-ink">{{ __('Download') }}</flux:link>
+                                <span class="inline-flex items-center gap-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                                    <flux:link
+                                        wire:click="preview({{ $item->id }})"
+                                        variant="subtle"
+                                        :aria-label="__('View')"
+                                        data-test="row-preview"
+                                        class="cursor-pointer inline-flex size-6 items-center justify-center rounded text-ink-2 hover:bg-sheet hover:text-ink"
+                                    ><flux:icon.eye variant="micro" /></flux:link>
+
+                                    {{-- A real href whose accessible name is exactly
+                                         "Download": the container smoke reads this link's
+                                         href and fetches it to compare bytes, so it must
+                                         stay a link and keep that name. --}}
+                                    <flux:link
+                                        :href="route('files.download', $item)"
+                                        variant="subtle"
+                                        :aria-label="__('Download')"
+                                        class="inline-flex size-6 items-center justify-center rounded text-ink-2 hover:bg-sheet hover:text-ink"
+                                    ><flux:icon.arrow-down-tray variant="micro" /></flux:link>
+
+                                    @can('delete', $item)
+                                        <flux:button
+                                            variant="subtle"
+                                            size="xs"
+                                            icon="trash"
+                                            :aria-label="__('Trash')"
+                                            wire:click="trashFileRow({{ $item->id }})"
+                                            wire:confirm="{{ __('Trash this file? It can be restored later from Trash.') }}"
+                                            data-test="row-trash-file"
+                                        />
+                                    @endcan
+                                </span>
                             </td>
                         </tr>
                     @empty
@@ -714,5 +773,72 @@
                 @endif
             </div>
         @endif
+
+    {{-- File preview. Its open/closed state lives on the server, in
+         previewFileId, so the dialog is simply not rendered when nothing is
+         being previewed and `dismiss` routes Escape and the scrim through
+         $wire.closePreview() -- the same path the close button takes.
+
+         previewFile() re-authorises on every render rather than trusting the
+         id it was opened with: access can be revoked between opening a preview
+         and the next round trip, and a dialog left hanging open is exactly
+         where that would go unnoticed. --}}
+    @php
+        $previewing = $this->previewFile();
+    @endphp
+
+    @if ($previewing)
+        <x-modal
+            state="true"
+            size="full"
+            dismiss="$wire.closePreview()"
+            :title="$previewing->name"
+            test="preview-modal"
+        >
+            <x-slot:controls>
+                <flux:button
+                    size="xs"
+                    icon="arrow-down-tray"
+                    :href="route('files.download', $previewing)"
+                    data-test="preview-download"
+                >{{ __('Download') }}</flux:button>
+            </x-slot:controls>
+
+            @php
+                $mime = $previewing->mime ?? '';
+                $source = route('files.download', $previewing);
+            @endphp
+
+            @if (str_starts_with($mime, 'image/'))
+                {{-- Contained rather than cropped: a scan is read, not admired,
+                     and cutting its edges off hides exactly the margins that
+                     carry stamps and signatures. --}}
+                <img
+                    src="{{ $source }}"
+                    alt="{{ $previewing->name }}"
+                    class="mx-auto max-h-full max-w-full object-contain"
+                    data-test="preview-image"
+                />
+            @elseif ($mime === 'application/pdf' || str_starts_with($mime, 'text/'))
+                {{-- An iframe, so the browser's own PDF and text viewers do the
+                     work. Bundling a JavaScript PDF renderer would add
+                     megabytes to an image that already ships MinIO and
+                     tesseract, to show what every browser already shows. --}}
+                <iframe
+                    src="{{ $source }}"
+                    title="{{ $previewing->name }}"
+                    class="h-full min-h-[60vh] w-full rounded border border-rule bg-chrome"
+                    data-test="preview-frame"
+                ></iframe>
+            @else
+                <div class="flex h-full min-h-[40vh] flex-col items-center justify-center gap-3 text-center" data-test="preview-unsupported">
+                    <flux:icon.document variant="outline" class="size-10 text-rule" />
+                    <p class="text-sm text-ink-2">
+                        {{ __('No preview for :type files. Download it to open in another application.', ['type' => $mime ?: __('these')]) }}
+                    </p>
+                </div>
+            @endif
+        </x-modal>
+    @endif
     </div>
 </section>

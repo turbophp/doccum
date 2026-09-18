@@ -148,6 +148,11 @@ class Browser extends Component
     public ?int $archiveId = null;
 
     /**
+     * The file being previewed, if any.
+     */
+    public ?int $previewFileId = null;
+
+    /**
      * Maps a sort key the view can pass to sortBy()/wire:click to the
      * actual column orderBy() sees. This is the whitelist: resolveSortColumn()
      * below is the only thing that may ever read it, and nothing else may
@@ -373,6 +378,97 @@ class Browser extends Component
      * onto its own child is an ordinary slip, and a stack trace is the wrong
      * answer to it.
      */
+    /**
+     * Trash one row from the listing, without selecting it first.
+     *
+     * Separate methods per kind rather than one with a type string: the two
+     * take different actions and answer to different policies, and the row
+     * already knows which it is. Both re-resolve and re-authorise, and the
+     * directory one is scoped to children of the directory being browsed --
+     * the same scoping bulkTrash() uses, for the same reason: this listing
+     * renders nothing else.
+     */
+    public function trashFileRow(int $fileId, TrashFile $action): void
+    {
+        $file = File::query()->findOrFail($fileId);
+
+        $this->authorize('delete', $file);
+
+        $action->handle($file);
+
+        if ($this->selectedFile?->getKey() === $file->getKey()) {
+            $this->selectedFile = null;
+        }
+
+        if ($this->previewFileId === $file->getKey()) {
+            $this->previewFileId = null;
+        }
+    }
+
+    public function trashDirectoryRow(int $directoryId, TrashDirectory $action): void
+    {
+        abort_if($this->directory === null, 404);
+
+        $subject = Directory::query()
+            ->where('parent_id', $this->directory->getKey())
+            ->find($directoryId);
+
+        abort_if($subject === null, 404);
+
+        $this->authorize('delete', $subject);
+
+        $action->handle($subject);
+
+        if ($this->selectedDirectory?->getKey() === $subject->getKey()) {
+            $this->selectedDirectory = null;
+        }
+    }
+
+    /**
+     * Open a file in the preview dialog.
+     *
+     * Authorised with `view`, the same ability the detail panel and the
+     * listing already require -- a preview shows the bytes the person could
+     * download anyway, in a frame instead of a save dialog. The id is
+     * re-resolved against the viewer's reach rather than trusted, because it
+     * arrives from the client like any other.
+     */
+    public function preview(int $fileId): void
+    {
+        $file = File::query()->findOrFail($fileId);
+
+        $this->authorize('view', $file);
+
+        $this->previewFileId = $file->getKey();
+    }
+
+    public function closePreview(): void
+    {
+        $this->previewFileId = null;
+    }
+
+    /**
+     * The file the preview dialog is showing, re-authorised on every render.
+     *
+     * Not cached on the component: access can be revoked between opening the
+     * dialog and the next round trip, and a preview left hanging open is
+     * exactly where that would go unnoticed.
+     */
+    public function previewFile(): ?File
+    {
+        if ($this->previewFileId === null) {
+            return null;
+        }
+
+        $file = File::query()->find($this->previewFileId);
+
+        if ($file === null || auth()->user()?->cannot('view', $file)) {
+            return null;
+        }
+
+        return $file;
+    }
+
     public function dropMove(string $subjectType, int $subjectId, int $targetDirectoryId, MoveFile $moveFile, MoveDirectory $moveDirectory): void
     {
         $destination = Directory::query()->findOrFail($targetDirectoryId);
