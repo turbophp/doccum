@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T03:55:03Z",
+  "dateModified": "2026-09-18T04:37:18Z",
   "latestRun": "run/0018",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -671,11 +671,13 @@
       "dependsOn": [
         "item/trash-view"
       ],
-      "doneWhen": "A Mutation node type exists on the Ledger, sibling to pullRequests and decisions, carrying implements, pullRequest, run, headSha, mutant (what was broken), check (the named assertion that must trip) and verdict, one of negative (the check went red -- the good outcome), positive (the guard is not load-bearing) or void (the run died before reaching the assertion, so it is evidence of nothing). LedgerValidator enforces three rules: a Completed item based on spec:10 must be implements-referenced by at least one negative Mutation with a non-empty check; a positive or void Mutation blocks its item's Completion until a later one supersedes it; and check is required on a negative verdict, because a failure that names no assertion is not evidence. Decision gains an evidence term referencing Mutation nodes, so a decision claiming a guard is load-bearing either cites a run or visibly does not -- and the absence is the signal, no rule needed. PullRequest gains mainRunUrl and mainConclusion, and a Run may not reach outcome completed while a PR merged in it lacks mainConclusion, which makes LOOP step 3's claim about main's ref a recorded fact rather than a habit. The six historical mutation PRs (118, 122, 130, 132, 141, 145, 148, 149) are back-filled with verdicts read from their workflow runs; existing PR node names are left alone, because history is append-only. The 39 mechanical entries in mutations.json get no nodes: mutation-check.php re-proves them every CI run, so their evidence is the green tests run itself.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "doneWhen": "A Mutation node type exists on the Ledger, sibling to pullRequests and decisions, carrying implements, pullRequest, run, headSha, mutant (what was broken), check (the named assertion that must trip) and verdict, one of negative (the check went red -- the good outcome), positive (the guard is not load-bearing) or void (the run died before reaching the assertion, so it is evidence of nothing). LedgerValidator enforces three rules: a Completed item based on spec:10 must be implements-referenced by at least one negative Mutation with a non-empty check; a positive or void Mutation blocks its item's Completion until a later one supersedes it; and check is required on a negative verdict, because a failure that names no assertion is not evidence. Decision gains an evidence term referencing Mutation nodes, so a decision claiming a guard is load-bearing either cites a run or visibly does not -- and the absence is the signal, no rule needed. PullRequest gains mainRunUrl and mainConclusion, and a Run may not reach outcome completed while a PR merged in it lacks mainConclusion, which makes LOOP step 3's claim about main's ref a recorded fact rather than a habit. The historical mutation PRs are back-filled with verdicts read from their workflow runs -- NINE of them (118, 122, 130, 132, 141, 145, 148, 149, 154), yielding ten nodes because #148 ran twice; the clause said \"six\" and then listed eight, which was my miscount when I wrote it, and #154 postdates the text. Corrected here at completion rather than quietly, because a count nobody checked is how the void run in that very list nearly passed for proof; existing PR node names are left alone, because history is append-only. The 39 mechanical entries in mutations.json get no nodes: mutation-check.php re-proves them every CI run, so their evidence is the green tests run itself.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T04:00:00Z",
+      "endTime": "2026-09-18T04:35:56Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/156"
+      ]
     },
     {
       "@id": "item/home-dashboard",
@@ -2276,6 +2278,22 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/156",
+      "@type": "PullRequest",
+      "identifier": 156,
+      "name": "item/ledger-mutation-nodes: mutation runs become ledger nodes with verdicts (#150)",
+      "implements": [
+        "item/ledger-mutation-nodes"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T04:30:00Z",
+      "headSha": "970c1c897c48194c75f63d64c8638914a262973d",
+      "mergedAt": "2026-09-18T04:35:56Z",
+      "mergeSha": "1238b251801a815155927d3f74a326b3195780c6",
+      "mergedIn": "run/0018"
     }
   ],
   "decisions": [
@@ -2902,6 +2920,23 @@
       "affects": [
         "item/download-missing-object",
         "item/download-reaches-the-browser"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0038",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T04:40:00Z",
+      "run": "run/0018",
+      "name": "A mutation run is a ledger node with a verdict, and negative is the good outcome",
+      "rationale": "item/ledger-mutation-nodes exists because this run nearly recorded a proof that did not exist, and because a decision node four items earlier already had.\n\nWHAT THE LEDGER COULD NOT SAY. A hand-run image mutation was a PullRequest node with state closed and a name beginning MUTATION -- DO NOT MERGE. From the vocabulary alone that is indistinguishable from an abandoned branch, and nothing recorded the VERDICT at all. Three things this run produced could not be expressed: PR 148's first head went red, on the mutation branch, in the check the mutation targets, and proved nothing because it died in the check's setup; decision/0030 called an assertion load-bearing on reasoning rather than on a run, and that went unnoticed for four items; and RESTORE_LIVE:yes is a prediction correctly labelled in prose, in a pull request comment and in a decision node -- prose being exactly where the previous one hid.\n\nTHE SHAPE, AND WHY MUTATION IS NOT A FIELD ON PULLREQUEST. A void run and its rebuild share one PR number, so a mutation is not a pull request. mutation/0007 (void, head e80ee98, check null) and mutation/0008 (negative, head 22d0e37, supersedes mutation/0007) are the pair the vocabulary exists for, and the second is what lets the first be recorded honestly rather than quietly force-pushed away.\n\nTHE WORD NEGATIVE IS DELIBERATE AND STAYS UNCOMFORTABLE. negative is the GOOD outcome: the check went red when the guard was removed. positive means the guard is not load-bearing and blocks its item. void means no evidence either way. Naming the good outcome \"passed\" would let a reader skim the field and get it backwards, which is the failure this whole item is about.\n\nTHE RULES BITE, AND THAT WAS MEASURED RATHER THAN ASSERTED. With the grandfather constant set to -1, the validator rejects the real ledger with 39 issues -- four Completed spec:10 items with no negative Mutation, and thirty-five merged PullRequests lacking mainConclusion. Un-superseding mutation/0007 rejects item/trash-view's Completion by name. Nulling a negative verdict's check is rejected, because a failure that names no assertion is a locator timeout wearing a verdict. Each was broken against the real ledger and restored, twice: once by the implementing worker and once independently here, because the rule that a prediction is not a finding applies to the item that introduces it more than to any other.\n\nTHE GRANDFATHER IS HONEST, NOT CONVENIENT. Four Completed spec:10 items have no mutation node, and TWO of them completed in run/0017, the same run as item/upload-silent-discard, which has one. Simultaneous items cannot be separated by a date or a run boundary, so inventing a cutoff would have been a fiction that happened to produce the right answer. The rules instead count from the run after the one that introduced them, and the -1 run above is the evidence that this grandfathers a known four rather than silencing everything.\n\nA MISCLASSIFICATION OF MINE, CAUGHT BY THE RULE IT WOULD HAVE BROKEN. I filed this item as spec:10-user-facing-surface. It is a validator change; item/container-smoke-ci, its closest sibling, is spec:13-infrastructure. Rule 1 keys off spec:10, so the wrong tag would have demanded a container-smoke mutation for a change that cannot sensibly carry one -- shielded only by the grandfather, which is accidental protection resting on a mistake. Fixed before completion, while the item was still a backlog entry rather than history.\n\nWHAT THIS ITEM DELIBERATELY DID NOT DO. mainRunUrl and mainConclusion are vocabulary populated on nothing: the nine mutation PRs are closed-unmerged and have no main run to read, and the thirty-five historical merged PRs were left alone because history is append-only. Decision.evidence is retrofitted onto nothing, decision/0030 included -- the absence is the signal the item argued for, so leaving it absent is the design rather than an omission. And the 39 mechanical entries in mutations.json get no nodes, because mutation-check.php re-proves them every CI run; by the same argument MutationNodeRulesTest re-proves these three rules every run, so this item needs no mutation node of its own either.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-mutation-nodes",
+        "item/trash-view",
+        "item/upload-silent-discard"
       ],
       "supersedes": null
     }
