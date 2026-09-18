@@ -849,6 +849,26 @@ function checkEmbeddedSqlitePragmas() {
  * No file is created: the page is reloaded rather than the upload completed,
  * because checkBulkTrashLeavesUnselectedFilesAlone() later asserts the
  * listing holds only its survivor and an extra row here would break it.
+ *
+ * MUTATION RECORD, both directions measured against a built image:
+ *
+ *   correct build -> image PASSES
+ *     https://github.com/turbophp/doccum/actions/runs/35291038177/job/105433709149
+ *     [setup] the Upload button is disabled while the upload is in flight
+ *
+ *   wire:loading.attr="disabled" wire:target="upload" deleted from the Upload
+ *   button, Replace's guard left intact -> image FAILS, here and nowhere else
+ *     https://github.com/turbophp/doccum/actions/runs/35291156937/job/105433912606
+ *     the Upload button stayed ENABLED while the upload endpoint was stalled
+ *
+ * Note which half moved. "[setup] the Upload button starts enabled" printed on
+ * the MUTATED image too, so the enabled-before assertion is worth nothing on
+ * its own -- exactly the topbar lesson CLAUDE.md records, measured again rather
+ * than assumed. Only the disabled assertion changed.
+ *
+ * This is also the answer to the forwarding question that made data-test
+ * unusable on flux:input: deleting these attributes changed the shipped
+ * image's behaviour, so Flux does forward them to the real <button>.
  */
 async function checkUploadButtonIsDisabledWhileTheFileIsStillUploading(page, phase) {
   const name = 'DoccumSmokeUploadRaceProbe.txt';
