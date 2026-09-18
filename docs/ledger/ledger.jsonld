@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T17:20:00Z",
+  "dateModified": "2026-09-18T17:40:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1033,10 +1033,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "compose.yaml contains no occurrence of doccum-secret -- it appears three times today, at the x-app environment anchor (AWS_SECRET_ACCESS_KEY) and twice inside the storage profile (MINIO_ROOT_PASSWORD, and the mc alias line in minio-init) -- and the storage profile REFUSES TO RESOLVE without MINIO_ROOT_PASSWORD supplied, via compose's own ${VAR:?message} form rather than a default. The original third clause, 'the default stack still boots under the smoke job', is struck: no CI job boots compose at all -- tests.yml's image job drives a single `docker run` container -- so the clause named a check that does not exist and could never be met or failed. It was also ambiguous about which stack it meant: with no profiles selected the default stack has no minio at all, since minio and minio-init are both profiles: [storage], so 'the default stack' and 'the thing the removed secret belongs to' are not the same set of services. See decision/0078. Verified instead by `docker compose config`, which resolves variables and interpolation WITHOUT starting anything: with the storage profile selected and MINIO_ROOT_PASSWORD unset it must exit non-zero naming that variable, and with it set it must exit zero and its rendered output must contain no doccum-secret. That is a real check of exactly the property the item is about, it costs seconds, and it needs no running daemon beyond the compose CLI. MUTATION-CHECKED per decision/0067, and the mutation is the point rather than a formality: restoring a default -- ${MINIO_ROOT_PASSWORD:-doccum-secret} instead of :? -- must make the unset case exit ZERO, which is the precise failure mode a hand-written grep for 'doccum-secret' would pass while the stack silently kept a known password. Actually booting the compose stack in CI is separate work and is NOT in this item: see item/compose-boot-ci.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-18T17:05:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-18T17:31:50Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/222"
+      ]
     },
     {
       "@id": "item/version-from-tag",
@@ -1050,9 +1052,9 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [],
-      "doneWhen": "An image built from tag vX.Y.Z reports vX.Y.Z; the development default stays 0.1.0-dev.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "doneWhen": "An image built from tag vX.Y.Z reports vX.Y.Z, and the development default BECOMES 0.1.0-dev. The original clause said the development default 'stays' 0.1.0-dev, which presumed a starting state that is false -- config/doccum.php line 6 reads env('DOCCUM_VERSION', '0.1.0') today, with no -dev suffix anywhere. As written the clause described a property already held and so could be reported met by changing nothing; 'becomes' is what was meant. Restated here, before the work, per decision/0068. The version pill is ALSO not yet worth asserting against, and that is the larger half of this item: nothing in the image records which tag built it, so a pill check can only confirm the app can read its own config back. Done therefore also requires the Dockerfile to take an ARG DOCCUM_VERSION and set org.opencontainers.image.version on the image, release.yml to pass the tag into it, and the container smoke to compare the rendered pill against the label read off the image -- two independent sources that a single wrong value cannot satisfy at once. MUTATION-CHECKED per decision/0067: building with one version and labelling with another must make that comparison fail. Note for whoever takes it -- release.yml has never run (git tag is empty, decision/0075), so the tag path is unexercised; prove it with a throwaway pre-release tag rather than assuming, and record the run.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-18T17:40:00Z",
       "endTime": null,
       "result": []
     },
@@ -3094,6 +3096,22 @@
       "mergedAt": "2026-09-18T16:54:34Z",
       "mergeSha": "739b577af0b1ead0d3b348f260e4f69f2b9af758",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/222",
+      "@type": "PullRequest",
+      "identifier": 222,
+      "name": "compose requires MINIO_ROOT_PASSWORD instead of the doccum-secret default",
+      "implements": [
+        "item/compose-secret"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T17:28:24Z",
+      "headSha": "82562662dfd63b50bdaa43aad6bd4dd5339738f4",
+      "mergedAt": "2026-09-18T17:31:50Z",
+      "mergeSha": "06f9442c68791d345abc024ffb3ee02d41e74b8c",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4384,6 +4402,23 @@
         "item/release-v0-1-0"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0079",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T17:38:00Z",
+      "run": "run/0020",
+      "name": "Compose interpolates the whole file whatever profile you select, so a per-profile requirement cannot be expressed",
+      "rationale": "decision/0078 said item/compose-secret was done when 'the storage profile REFUSES TO RESOLVE without MINIO_ROOT_PASSWORD supplied'. That phrasing is not achievable and this supersedes it on that point alone. Everything else in 0078 -- that a doneWhen naming a check which does not exist is struck rather than reinterpreted, that `docker compose config` is the right verifier, that the mutation must be a restored DEFAULT rather than a removed literal -- stands and was borne out.\n\nTHE FACT: docker compose interpolates the ENTIRE file before it applies profile selection. Verified on Compose v5.1.1: with MINIO_ROOT_PASSWORD unset, `docker compose config` fails on services.minio even with NO profile selected, and even with `--profile nonexistent`. A ${VAR:?} anywhere in the file therefore makes that variable required for every invocation. There is no way to scope a required variable to a profile in one compose file.\n\nSo the requirement now falls on the documented default stack too, which does not use the value at all: `app` runs DOCCUM_EMBEDDED_STORAGE=true, 48-doccum-storage.sh generates a random password into /data/minio.env, and RuntimeConfigServiceProvider::applyEmbeddedStorage() overwrites documents.key/secret/endpoint from that file for all four services, which share the db:/data volume. A first pass also put the :? on the x-app anchor's AWS_SECRET_ACCESS_KEY, which made the tax worse and the reason wrong; that is :- now, and the refusal lives on the storage profile's own minio service, which is the only place the password sets anything.\n\nWHY THE COST WAS TAKEN rather than engineered around, which is the part worth keeping: the tempting alternative is no :? anywhere, letting MinIO reject an empty root password when it starts. That is better scoped and strictly worse evidence -- it moves the refusal into a boot NOTHING IN CI PERFORMS, so it would ship a guarantee nobody has ever watched hold. item/compose-boot-ci is post-v1 and is the only thing that could verify it. A refusal CI can prove today beats a better-scoped one it cannot, and that ordering -- provable over elegant -- is the general rule here.\n\nThe cost is paid in documentation rather than hidden: README and HANDOVER say the variable is needed before ANY docker compose command, and compose.yaml states the interpolation fact beside both markers so nobody moves them back without meeting it.\n\nWorth noting how this was found, because the pattern keeps recurring: not by reading compose.yaml, which is consistent with the wrong model, but by running the command in both states and being surprised. The subagent flagged the anchor as suspicious and was right; the deeper fact that scoping the marker does not scope the requirement surfaced only when the no-profile case was actually executed.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/compose-secret",
+        "item/compose-boot-ci",
+        "item/release-v0-1-0"
+      ],
+      "supersedes": "decision/0078"
     }
   ],
   "mutations": [
@@ -4664,6 +4699,20 @@
       "headSha": "b5638fb1dc042ca5039acfb5c9941d273e54e527",
       "mutant": "Restored issue #214's destructive behaviour in RolesAndPermissionsSeeder::run() -- createRoleIfMissing() replaced by Role::findOrCreate($name, 'web')->syncPermissions($defaultPermissions), so every container boot puts both roles back to the seeder's constants. Three tokens, the exact defect the item was filed against.",
       "check": "TWO independent guards, and the run separates them cleanly. (1) container-smoke.mjs checkRolePermissionSurvivesContainerReplacement() -- the image job failed AT THE NAMED CHECK AND NOWHERE ELSE: the whole setup phase ran to completion, through the last-administrator refusal, closing 2020-01, the public-signup 404/200 flip, the forwarded-proto reset URL and the byte-identical forgot-password answer, and then '[verify] the member role no longer holds periods.manage after the container was replaced -- raw output: HOLDS:no', 'container-smoke (verify) failed: member role lost periods.manage across a container restart'. (2) RolesAndPermissionsTest 'it leaves an operator-edited role alone when re-seeded' -- 1 failed, 1 skipped, 859 passed, so exactly one case out of 860, its own, with 'Failed asserting that an array contains periods.manage'. lint, build assets and guards stayed green, which is what a three-token seeder change should leave. The prediction was recorded in the PR body BEFORE the run, naming the phase, the message and the HOLDS:no line, with the standard stated as: if it fails anywhere other than that named check, the assertion is measuring something other than what it claims. It did not. The other direction was then observed rather than inferred -- the same smoke line reads '-- OK' on the merged fix. Run https://github.com/turbophp/doccum/actions/runs/35370360355.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0021",
+      "@type": "Mutation",
+      "implements": [
+        "item/compose-secret"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/222",
+      "run": "run/0020",
+      "headSha": "82562662dfd63b50bdaa43aad6bd4dd5339738f4",
+      "mutant": "Restored the known-value defaults in compose.yaml -- AWS_SECRET_ACCESS_KEY: doccum-secret in the x-app anchor, MINIO_ROOT_PASSWORD: doccum-secret in the minio service, and the literal in minio-init's mc alias line -- i.e. exactly the state issue #28 was filed against, and equivalently what ${MINIO_ROOT_PASSWORD:-doccum-secret} would produce.",
+      "check": "The new `compose requires MINIO_ROOT_PASSWORD` job's first assertion: `docker compose --profile storage config` with MINIO_ROOT_PASSWORD unset must exit non-zero and name the variable. Unmutated it exits 1 with 'required variable MINIO_ROOT_PASSWORD is missing a value: ...'. MUTATED IT EXITS 0, and the rendered output contains doccum-secret 7 times. That gap is the whole reason the assertion is a compose resolution rather than a grep: a grep for the literal string passes the mutated file's UNSET case just as happily, because the literal is no longer in compose.yaml at all -- it is in the default, and only asking compose to resolve the variable reveals it. Run locally before the push (docker compose v5.1.1) and compose.yaml restored byte-identical afterwards, confirmed with cmp; the job itself then came back green on the real file in run https://github.com/turbophp/doccum/actions/runs/35374254299.",
       "verdict": "negative",
       "supersedes": null
     }
