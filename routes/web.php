@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\DirectoryArchiveDownloadController;
 use App\Http\Controllers\FileDownloadController;
 use App\Http\Controllers\FileVersionDownloadController;
 use App\Livewire\Admin\PropertyDefinitions;
@@ -26,6 +27,10 @@ Route::view('/', 'welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', Home::class)->name('dashboard');
 });
+
+Route::get('/directories/archives/{archive}/download', DirectoryArchiveDownloadController::class)
+    ->middleware('auth')
+    ->name('directories.archives.download');
 
 Route::get('/files/{file}/download', FileDownloadController::class)
     ->middleware('auth')

@@ -351,3 +351,84 @@ it('trashes nothing when a selected id no longer exists', function () {
 
     expect($mine->fresh()->trashed())->toBeFalse();
 });
+
+// --- folders in the selection ----------------------------------------------
+//
+// Folders tick alongside files and go into the same bulk trash. What matters
+// is that they inherit the same all-or-nothing rule: a refusal on a folder
+// must not leave the files already trashed, and an id that resolves to
+// nothing must stop the whole operation rather than be quietly dropped.
+
+it('trashes selected folders alongside selected files', function () {
+    // An admin, because DirectoryPolicy::delete asks for directories.manage
+    // and a member does not hold it -- see the refusal test below, which is
+    // the same scenario from the other side.
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    grant($this->mine, $admin, AccessLevel::Manage);
+
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+    $folder = Directory::factory()->for($this->mine, 'parent')->create(['name' => 'Sub']);
+
+    Livewire::actingAs($admin)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->set('selectedIds', [$file->id])
+        ->set('selectedDirectoryIds', [$folder->id])
+        ->call('bulkTrash')
+        ->assertOk();
+
+    expect($file->fresh()->trashed())->toBeTrue()
+        ->and($folder->fresh()->trashed())->toBeTrue();
+});
+
+it('trashes nothing at all when the viewer may delete the file but not the folder', function () {
+    // The member holds Manage on the directory through its grant, so
+    // FilePolicy::delete passes for the file -- but DirectoryPolicy::delete
+    // also requires the global directories.manage permission, which the
+    // member role does not carry. This is the two-layer rule doing its job,
+    // and the point of the test is the FILE: it is authorised first and would
+    // already be in the trash if the folder were authorised after the fact
+    // rather than before anything is trashed.
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+    $folder = Directory::factory()->for($this->mine, 'parent')->create(['name' => 'Sub']);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->set('selectedIds', [$file->id])
+        ->set('selectedDirectoryIds', [$folder->id])
+        ->call('bulkTrash')
+        ->assertForbidden();
+
+    expect($file->fresh()->trashed())->toBeFalse()
+        ->and($folder->fresh()->trashed())->toBeFalse();
+});
+
+it('trashes nothing at all when a selected folder is not a child of the browsed directory', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+    grant($this->mine, $admin, AccessLevel::Manage);
+
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+    $elsewhere = Directory::factory()->create(['name' => 'Elsewhere']);
+
+    Livewire::actingAs($admin)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->set('selectedIds', [$file->id])
+        ->set('selectedDirectoryIds', [$elsewhere->id])
+        ->call('bulkTrash')
+        ->assertNotFound();
+
+    expect($file->fresh()->trashed())->toBeFalse()
+        ->and($elsewhere->fresh()->trashed())->toBeFalse();
+});
+
+it('toggles a folder in and out of the selection', function () {
+    $folder = Directory::factory()->for($this->mine, 'parent')->create(['name' => 'Sub']);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectDirectoryRow', $folder->id)
+        ->assertSet('selectedDirectoryIds', [$folder->id])
+        ->call('selectDirectoryRow', $folder->id)
+        ->assertSet('selectedDirectoryIds', []);
+});

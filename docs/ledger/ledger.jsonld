@@ -827,9 +827,125 @@
       "result": []
     },
     {
-      "@id": "item/api-sanctum-tokens",
+      "@id": "item/email-verification-decided",
       "@type": "Action",
       "order": 39,
+      "name": "Email verification either enforces something or stops claiming to",
+      "url": "https://github.com/turbophp/doccum/issues/161",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "An unverified user's treatment is DECIDED and enforced, and a test asserts it. Today config/fortify.php enables Features::emailVerification(), the dashboard route carries the `verified` middleware, and four EmailVerificationTest tests pass -- while nothing is gated, because User extends Illuminate\\Foundation\\Auth\\User (which supplies the MustVerifyEmail TRAIT) but declares only `implements PasskeyUser`, and EnsureEmailIsVerified gates on the CONTRACT. The instanceof is false, so every unverified user passes straight through the one route that guards on it. Either route is acceptable: implement the contract and apply `verified` consistently, or remove Features::emailVerification() and the middleware so nothing claims a guarantee the system does not make. What is NOT acceptable is leaving the present shape, where the guard reads as protection and enforces nothing. The test asserting an unverified user's treatment is mutation-checked. The existing four pass with the guard doing nothing, which is exactly what a mutation would have caught and is why this went unnoticed. If verification stays, the no-mailer case is answered rather than assumed: a fresh container configures no mailer, so implementing the contract would redirect a newly registered user -- including the installer's first administrator -- to a notice they can never satisfy, locking them out of their own instance on first boot. The container smoke proves the first admin still reaches the app. The route inconsistency is settled in the same pass: files.browse, files.download, search and admin.* carry `auth` alone where dashboard carries `auth` + `verified`.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/extraction-missing-object",
+      "@type": "Action",
+      "order": 40,
+      "name": "A missing object is distinguishable on the extraction path too",
+      "url": "https://github.com/turbophp/doccum/issues/153",
+      "isBasedOn": [
+        "spec:7-text-extraction"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/download-missing-object"
+      ],
+      "doneWhen": "DocumentStorage::downloadToTemp() throws the typed ObjectMissingFromStorage rather than a bare RuntimeException, so a caller can tell \"the row exists but the bytes are gone\" from any other storage failure -- the distinction item/download-missing-object made on the two download routes, applied to the path ExtractText actually uses. AND what the queue does with it is asserted rather than inherited: whether the job stops retrying against bytes that are never coming back, and what file_texts.status an operator can read afterwards. The failure mode here is not a bad HTTP status but a queue that may never settle, which is less visible than issue #134 was and harder to diagnose. The test queue is synchronous and production's is not, so any assertion about retry or backoff must be written to hold in production rather than only in the suite.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/ledger-main-push-record",
+      "@type": "Action",
+      "order": 41,
+      "name": "Every push to main is recorded per run, and CI can prove none is missing",
+      "url": "https://github.com/turbophp/doccum/issues/172",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/ledger-mutation-nodes"
+      ],
+      "doneWhen": "A Run records every push to main in its window, not only those carrying a PullRequest node. runErrors() iterates `pullRequests`, and ledger-only PRs have no node at all, so the rule speaks for 3 of run/0019's 8 merges -- and the uncovered class has the worse record, since BOTH times main has gone red it was a ledger-only merge (9e2f7af, fixed by #158; 6663282, fixed by #138). Shape: `Run.merges`, a list of {mergeSha, pullRequest|null, mergedAt, testsRun, testsConclusion, ledgerRun, ledgerConclusion}. Two NAMED workflow fields rather than a list, because LOOP step 3 names exactly `tests` and `ledger` and those are the whole of what a main push triggers, so a closed pair cannot under-report where a list is only as complete as its caller. mainRunUrl/mainConclusion move off PullRequest so the fact has one home. Rules, each mutation-checked: every merged PullRequest's mergeSha appears in its mergedIn run's merges, which catches an item PR omitted from the list; Run.commit is DEFINED as the last entry's mergeSha; and outcome completed requires the last entry's conclusions to be success, so \"run/0018 closes green\" stops being prose and becomes checked. And the clause without which this is only bookkeeping: omission is detectable only against an external list. ledger.yml checks out at the default fetch-depth 1; at fetch-depth 0 the CLI wrapper hands the validator `git log --first-parent <previous completed run's commit>..HEAD` and the validator asserts every sha appears in some Run.merges. LedgerValidator stays framework-free and file-only -- the WRAPPER supplies the git fact, the two-caller seam its docblock already describes. No node-shaped fix substitutes for this: whatever type is added, the validator iterates nodes that exist, and a merge nobody wrote down stays invisible.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/ledger-field-audit",
+      "@type": "Action",
+      "order": 42,
+      "name": "Three ledger fields read as evidence and record nothing: enforce each or delete it",
+      "url": "https://github.com/turbophp/doccum/issues/173",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/ledger-main-push-record"
+      ],
+      "doneWhen": "Decision.evidence is populated on 0 of 43 decisions and its resolveEach branch has never run on real data -- the state decision/0043 just corrected one node type over. decision/0038 argued the absence would itself be a signal, but a signal absent in 100% of cases carries none, and decisions 0038/0040/0042 each rest on a specific mutation verdict without citing it. Either require it on a Decision whose `affects` names an item carrying a Mutation node in the same run, or delete the key. Run.tests and Run.assertions are copied forward rather than measured: run/0016 and run/0017 both report 649/1340 across a run that merged three items, and run/0019 carried run/0018's 701/1446 while merging three more. Either read them from the recorded main run, which item/ledger-main-push-record makes available, or remove them -- and either give -1 the stated meaning \"not measured\" or abolish it. Run.commit has no stated semantics beyond a sha shape and is inconsistent: every run's is its last substantive merge EXCEPT run/0017, whose dbf7ce7 is the #123 merge that closed run/0016 -- main at run/0017's start, equal to its startTime rather than to its work. Each resolution is mutation-checked: deleting the enforcement reddens a named test. A field that is DELETED needs no test, since its absence from ALLOWED_KEYS is the assertion and LedgerIntegrityTest already fails an unknown key.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/email-verification-decided",
+      "@type": "Action",
+      "order": 43,
+      "name": "Email verification either enforces something or stops claiming to",
+      "url": "https://github.com/turbophp/doccum/issues/161",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "An unverified user's treatment is DECIDED and enforced, and a test asserts it. Today config/fortify.php enables Features::emailVerification(), the dashboard route carries the `verified` middleware, and four EmailVerificationTest tests pass -- while nothing is gated, because User extends Illuminate\\Foundation\\Auth\\User (which supplies the MustVerifyEmail TRAIT) but declares only `implements PasskeyUser`, and EnsureEmailIsVerified gates on the CONTRACT. The instanceof is false, so every unverified user passes straight through. Either route is acceptable: implement the contract and apply `verified` consistently, or remove the feature and the middleware so nothing claims a guarantee the system does not make. What is NOT acceptable is leaving the current shape. Whichever is chosen, the test asserting an unverified user's treatment is mutation-checked -- the existing four pass with the guard enforcing nothing, which is exactly what a mutation would have caught and is why this sat unnoticed. If verification stays, the no-mailer case must be answered rather than assumed: a fresh container has no mailer configured, so implementing the contract would redirect a newly registered user -- including the installer's first administrator -- to a notice they can never satisfy. The container smoke proves the first admin still reaches the app. The route inconsistency is settled in the same pass: files.browse, files.download, search and admin.* carry `auth` alone while dashboard carries `auth` + `verified`.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/extraction-missing-object",
+      "@type": "Action",
+      "order": 44,
+      "name": "A missing object is distinguishable on the extraction path too",
+      "url": "https://github.com/turbophp/doccum/issues/153",
+      "isBasedOn": [
+        "spec:7-text-extraction"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/download-missing-object"
+      ],
+      "doneWhen": "DocumentStorage::downloadToTemp() throws the typed ObjectMissingFromStorage rather than a bare RuntimeException, so the extraction path can tell \"the row exists but the bytes are gone\" from any other storage failure -- the distinction item/download-missing-object made on the two download routes, on the path ExtractText actually uses. AND what the queue does with it is asserted rather than inherited: whether the job stops retrying against bytes that are never coming back, and what file_texts.status an operator can read afterwards. The failure mode here is not a bad HTTP status but a queue that may never settle, which is less visible than #134 was and harder to diagnose. Note that the test queue is synchronous and production is not, so an assertion about retry behaviour must be written to hold in production, not merely in the suite.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/api-sanctum-tokens",
+      "@type": "Action",
+      "order": 45,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -849,7 +965,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 40,
+      "order": 46,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -872,7 +988,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 41,
+      "order": 47,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -892,7 +1008,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 42,
+      "order": 48,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -912,7 +1028,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 43,
+      "order": 49,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -933,7 +1049,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 44,
+      "order": 50,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -953,7 +1069,7 @@
     {
       "@id": "item/compose-secret",
       "@type": "Action",
-      "order": 45,
+      "order": 51,
       "name": "Remove the known-value secret from compose.yaml",
       "url": "https://github.com/turbophp/doccum/issues/28",
       "isBasedOn": [
@@ -971,7 +1087,7 @@
     {
       "@id": "item/version-from-tag",
       "@type": "Action",
-      "order": 46,
+      "order": 52,
       "name": "The version pill reports the released tag",
       "url": "https://github.com/turbophp/doccum/issues/29",
       "isBasedOn": [
@@ -989,7 +1105,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 47,
+      "order": 53,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -1007,7 +1123,7 @@
     {
       "@id": "item/changelog-release-notes",
       "@type": "Action",
-      "order": 48,
+      "order": 54,
       "name": "A changelog that becomes the release notes",
       "url": "https://github.com/turbophp/doccum/issues/31",
       "isBasedOn": [
@@ -1025,7 +1141,7 @@
     {
       "@id": "item/release-v0-1-0",
       "@type": "Action",
-      "order": 49,
+      "order": 55,
       "name": "Tag v0.1.0 to prove the release pipeline",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
@@ -1047,7 +1163,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 50,
+      "order": 56,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -1069,7 +1185,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 51,
+      "order": 57,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -1100,7 +1216,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 52,
+      "order": 58,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -2331,7 +2447,9 @@
       "headSha": "466ebdda9605c651c386266ae7f90f8641822e4a",
       "mergedAt": "2026-09-18T06:12:33Z",
       "mergeSha": "98d7a7ed26924346f05575ef8f2a32ccee2acd0b",
-      "mergedIn": "run/0019"
+      "mergedIn": "run/0019",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35313905166",
+      "mainConclusion": "success"
     },
     {
       "@id": "https://github.com/turbophp/doccum/pull/162",
@@ -2363,7 +2481,9 @@
       "headSha": "c2ab9021735cf3a331ca215a4f06c984aff120dd",
       "mergedAt": "2026-09-18T07:00:52Z",
       "mergeSha": "cea56539137af4f9d339d52d0d01f8775a60b6e5",
-      "mergedIn": "run/0019"
+      "mergedIn": "run/0019",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35317433273",
+      "mainConclusion": "success"
     },
     {
       "@id": "https://github.com/turbophp/doccum/pull/166",
@@ -2395,7 +2515,9 @@
       "headSha": "9ff8a305761b1f23536e78d80d3c45bafbe76e21",
       "mergedAt": "2026-09-18T07:36:46Z",
       "mergeSha": "30c759c83e6f50ff667803603713ee2b0be5b770",
-      "mergedIn": "run/0019"
+      "mergedIn": "run/0019",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35320262780",
+      "mainConclusion": "success"
     },
     {
       "@id": "https://github.com/turbophp/doccum/pull/169",
@@ -3122,6 +3244,43 @@
         "item/login-by-username",
         "item/email-folding",
         "item/directory-access-ui"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0043",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T07:52:00Z",
+      "run": "run/0019",
+      "name": "main's push run becomes recorded evidence at merge time, and the field's limits are stated with it",
+      "rationale": "mainRunUrl and mainConclusion shipped with item/ledger-mutation-nodes as vocabulary only, populated on zero nodes, and #156's own merge message says so. They are not decoration and not optional: LedgerValidator::runErrors() refuses to let a run past MUTATION_RULES_EFFECTIVE_AFTER_RUN carry outcome completed while any PullRequest merged in it lacks mainConclusion. run/0019 is the first run the rule binds on, so the run could not have been closed at all without this.\n\nPOPULATED MID-RUN, NOT AT CLOSE, AND THAT IS THE POINT. Closing the run is when the validator would have demanded these, and it is the worst moment to supply them: three merges back, the run URLs would have to be found again and matched to shas from memory, and the temptation would be to write success because main is green NOW rather than because that merge's own push run was green THEN. The field can only honestly record a verification that was actually performed at the merge it describes. All three were -- LOOP step 3 re-reads main's own push runs after every merge, filtered to head_branch main and event push -- so this change is transcription, not reconstruction. The obligation is now discharged as each merge happens.\n\nWHAT THE FIELD DOES NOT ASSERT, WRITTEN DOWN BECAUSE IT READS LIKE IT DOES. A push to main starts TWO workflows here: tests (the image build, guards, lint, pint, build assets, composer audit, dependency review and the six-engine matrix) and ledger (the validator alone). mainRunUrl is singular. It names the tests run, because that is the substantive one. So mainConclusion: success does NOT by itself state that the ledger workflow was also green on that sha. Both were checked for all three of these merges; the schema records one. A later reader must not take the field as a claim about every workflow on that commit, and the schema was not widened mid-run to make it one -- decision/0040 refused the same widening for the same reason. Turning mainRunUrl into a list of every workflow run on the merge sha is a legitimate future change; its cost is that a record is then only as complete as the caller filling it, where today the field has one stated meaning it cannot quietly under-report.\n\nTHE RULE MISSES THE ONE CLASS OF MERGE THAT HAS ACTUALLY BROKEN MAIN. PullRequest nodes exist for item PRs and mutation PRs. Ledger-only PRs -- #151, #155, #157, #159, #164, #167, #170 -- have no node at all, by consistent practice rather than by any rule. The validator's check reaches only nodes that exist, so it cannot notice a ledger merge whose main run went red. That is not hypothetical: main went red at 9e2f7af on a ledger-only merge, which is decision/0039 and PR #158, and again at 6663282 before it (PR #138). Both times the breakage was pre-existing and a ledger diff merely triggered the run that exposed it -- which is exactly why those merges are worth recording rather than exempt. Named here as a known gap rather than closed in passing: giving ledger PRs nodes changes what a PullRequest node means (it currently means a PR that implements a backlog item, and 'implements' is a required key), so it is a schema question for its own item, not a field to start filling silently.\n\nA SECOND LIMIT, FOUND WHILE WRITING THIS DOWN. The rule requires mainConclusion to be PRESENT, not to be success. MutationNodeRulesTest's own fixture proves it: the same run validates clean with mainConclusion 'failure'. That is deliberate and should stay -- main has genuinely been red after a merge here, and a schema that could not record a red merge would force the ledger to lie exactly where it matters most. But it means \"every merged PullRequest carries a mainConclusion\" is NOT \"main was green after every merge\", and the field reads like the second. The run's own description is where a red merge has to be explained; the field only guarantees the question was asked.\n\nAND THE CHECKS ON THESE FIELDS HAD NEVER RUN. LedgerValidator checks mainConclusion against GitHub's conclusion enum and mainRunUrl against a pattern pinned to turbophp/doccum. Because the fields were populated on zero nodes, neither branch had ever executed -- not against the real ledger, and not against a fixture either: MutationNodeRulesTest exercised only the presence rule, with 'success' and 'failure', both valid. Two unfalsifiable branches that read as validation. This change is the first execution of both, and it is therefore the change that owes them a test, by decision/0034's rule -- a latent gap is closed by whatever makes it live, not filed. Tests added here for a conclusion GitHub never returns ('green', which is what a hand-written value looks like) and for a well-formed Actions run URL belonging to another repository, which would read as evidence while proving nothing about this project's main branch.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-mutation-nodes",
+        "item/home-dashboard",
+        "item/search-filters",
+        "item/login-by-username"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0044",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T08:05:00Z",
+      "run": "run/0019",
+      "name": "The orphan sweep ran with a broken instrument, and the consult found the field I had copied forward",
+      "rationale": "LOOP step 1's sweep, plus a Fable consultation on decision/0043, and both produced a correction to my own work.\n\nTHE SWEEP'S METHOD WAS WRONG, WHICH MATTERS MORE THAN ITS RESULT. I listed open issues carrying no item by searching the ledger for the string '/issues/N'. That found five orphans. It was a false-negative scan: an issue folded into a doneWhen is named in PROSE, as '#86', not as a URL. Three of the five were already disposed of -- #86 in item/trash-view (directory purge out of v1 scope, the cascade hazard written in as a constraint the build honoured), #115 in item/api-presigned-upload (the replace entry point is REQUIRED there, because the API commit step has no Directory and no client filename), and #109 in item/api-content (404-or-403 settled as 404 for the whole product, Browser::moveFile/moveDirectory included). Only #161 and #153 were real. This is the second time a too-narrow grep nearly produced a wrong action in this project: the first was an escaped apostrophe in a test source that made a correct mutation entry look broken. A sweep run with a broken instrument is worse than no sweep, because it reports completeness. The rule going forward: match both the URL and the bare '#N' form, and across runs/ as well as ledger.jsonld.\n\nTHE TWO REAL ORPHANS. #161 is the sharper one: email verification is enabled in config, the dashboard route carries the `verified` middleware, four tests pass -- and nothing is gated, because User gets MustVerifyEmail's TRAIT from its base class while EnsureEmailIsVerified gates on the CONTRACT, which User does not declare. The instanceof is false and every unverified user walks through. The same shape as the defects HANDOVER.md records under 'a green suite is not proof', and it is not a one-line fix: a fresh container has no mailer, so implementing the contract naively locks the installer's first administrator out of their own instance. #153 is the extraction path's bare RuntimeException, the shape item/download-missing-object fixed on the download routes. Both are now items rather than notes, because LOOP step 4 picks items and nothing else.\n\nTHE CONSULT SAID decision/0043 WAS HALF RIGHT, AND IT WAS RIGHT ABOUT WHICH HALF. Not widening the schema in passing was correct. Leaving the gap as prose was not: decision/0038's own words are that prose is 'exactly where the previous one hid', and LOOP step 1 says an undisposed issue stays invisible until item/v1-audit, which has no slack. Filing an item is not a schema change and needed no deferral. The gap is now item/ledger-main-push-record.\n\nAND IT RE-DIAGNOSED THE GAP, CORRECTLY. I had it as 'ledger PRs have no node'. That is the symptom. The condition is that the ledger enumerates pushes BY PullRequest node, and no schema change closes an enumeration gap -- whatever type is added, runErrors() iterates nodes that exist, so a merge nobody wrote down stays invisible under every option I had listed. The only thing that closes it is a cross-check against an external list, and the lever was already there: ledger.yml checks out the repository at fetch-depth 1, and at depth 0 the CLI wrapper can hand the validator `git log --first-parent`. The design consultation excluded git from the VALIDATOR; it never excluded the workflow that already has the checkout. That clause is the difference between the item being a guarantee and being bookkeeping.\n\nONE CLAIM CHECKED AND REJECTED. The consult reported that decision/0043's own commit was a non-merge commit sitting directly on main, and reasoned from it that 'pushes to main are not all PR nodes' in a stronger sense than ledger PRs. It hedged appropriately, and it was wrong: 6bdfd7d was a commit on the branch behind PR #171, read while that branch existed, and it reached main as the merge a0e9db2. `git log --first-parent origin/main` shows every push to main is a merge commit. The ratio it drew the conclusion from survives anyway -- run/0019 has 8 merges and 3 carry mainConclusion -- so the finding stands and its supporting fact did not. Verified before acting, per the loop's standing instruction that this consultant is reliable on substance and not on details.\n\nA THIRD DECORATIVE FIELD, AND IT IS MINE. Run.tests and Run.assertions are copied forward rather than measured. run/0016 and run/0017 both read 649/1340 across a run that merged three items; run/0019 carried run/0018's 701/1446 while merging three more. I opened run/0019 and copied those numbers. They are set to -1 here, which the schema already permits, because a copied number reads as a measurement and is therefore worse than no number -- and they cannot be re-measured in this environment, where there is no vendor/ and the suite runs only in CI. Run.commit is the same family: no stated semantics, and run/0017's is main at that run's START rather than its work. Both go to item/ledger-field-audit, together with Decision.evidence, which is populated on 0 of 43 decisions and whose branch has never executed -- the exact state decision/0043 corrected for mainConclusion, one node type over, and which I would not have looked for had the consult not asked.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/email-verification-decided",
+        "item/extraction-missing-object",
+        "item/ledger-main-push-record",
+        "item/ledger-field-audit",
+        "item/ledger-mutation-nodes"
       ],
       "supersedes": null
     }

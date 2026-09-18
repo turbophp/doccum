@@ -18,6 +18,25 @@ The container is the product. A green suite is necessary and not sufficient —
 run the thing before believing a feature works. Several bugs in this codebase
 were invisible to a fully green suite.
 
+## Node and the lockfile
+
+Use Node 22 (`.nvmrc`, and `engines` in package.json). CI pins it, and npm
+versions disagree about this lockfile in a way that breaks the build:
+
+- npm 10 (Node 22) records `react` — motion's peer — in `package-lock.json`.
+- npm 11 (Node 24) removes it, and **rewrites the lockfile as a side effect of
+  `npm run build` and `npm ci`**, silently, with no output.
+
+So a lockfile generated on Node 24 fails CI with `Missing: react@19.3.0 from
+lock file`, and "fixing" it on Node 24 undoes the fix in the same breath —
+including the act of verifying it. This has cost four CI cycles. If that error
+appears, regenerate under Node 22 and check `react` is in the lockfile before
+committing:
+
+```bash
+nvm use 22 && rm -rf node_modules package-lock.json && npm install && npm ci
+```
+
 ## Conventions
 
 - `declare(strict_types=1);` at the top of every PHP file, migrations included.
