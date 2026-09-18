@@ -398,9 +398,31 @@ async function clickOnceUploadSettles(page, button, phase, label) {
  * while this helper was also sensitive to the guard and stopped being so the
  * moment it wasn't.
  */
+/**
+ * New folder and Upload live in dialogs now, so their controls are hidden
+ * until the dialog is open. fill() and click() both check actionability, so
+ * the opening click is not optional -- this is exactly the "a control inside
+ * a closed popover is one it cannot reach" case CLAUDE.md warns about, met
+ * head-on rather than by leaving the controls lying on the toolbar.
+ *
+ * Both are idempotent: the dialog is x-show, so clicking the opener while it
+ * is already open is harmless.
+ */
+async function openNewFolderDialog(page) {
+  await page.locator('[data-test="new-folder-button"]').click();
+  await page.locator('[data-test="new-folder-modal"]').waitFor({ state: 'visible', timeout: 10000 });
+}
+
+async function openUploadDialog(page) {
+  await page.locator('[data-test="open-upload-button"]').click();
+  await page.locator('[data-test="upload-modal"]').waitFor({ state: 'visible', timeout: 10000 });
+}
+
 async function uploadAndProveStored(page, name, contents, phase) {
   const tmpFile = path.join(os.tmpdir(), name);
   fs.writeFileSync(tmpFile, contents);
+
+  await openUploadDialog(page);
 
   // Through setFileAndWaitForUpload(), never a bare setInputFiles(): this
   // helper is called twice in a row by checkTrashViewRestoreAndPurge(), and
@@ -981,7 +1003,8 @@ async function checkBreadcrumbNavigatesTwoLevels(page, phase) {
   // strict mode refuses to guess which one this means.
   const list = page.locator('[data-test="directories-list"]');
 
-  await page.getByLabel('New folder', { exact: true }).fill(level1);
+  await openNewFolderDialog(page);
+  await page.getByLabel('Folder name', { exact: true }).fill(level1);
   await Promise.all([
     list.getByText(level1, { exact: true }).waitFor({ timeout: 10000 }),
     page.getByRole('button', { name: 'Create', exact: true }).click(),
@@ -1012,7 +1035,8 @@ async function checkBreadcrumbNavigatesTwoLevels(page, phase) {
   await list.getByRole('link', { name: level1, exact: true }).click();
   await list.getByText(level1, { exact: true }).waitFor({ state: 'detached', timeout: 10000 });
 
-  await page.getByLabel('New folder', { exact: true }).fill(level2);
+  await openNewFolderDialog(page);
+  await page.getByLabel('Folder name', { exact: true }).fill(level2);
   await Promise.all([
     list.getByText(level2, { exact: true }).waitFor({ timeout: 10000 }),
     page.getByRole('button', { name: 'Create', exact: true }).click(),
@@ -1244,6 +1268,8 @@ async function checkUploadButtonIsDisabledWhileTheFileIsStillUploading(page, pha
   const name = 'DoccumSmokeUploadRaceProbe.txt';
   const tmpFile = path.join(os.tmpdir(), name);
   fs.writeFileSync(tmpFile, 'Never submitted. This file exists only to open an upload window.\n');
+
+  await openUploadDialog(page);
 
   const button = page.getByRole('button', { name: 'Upload', exact: true });
 
@@ -2019,7 +2045,8 @@ async function checkGrantAndRevokeDirectoryAccess(page, phase) {
   // reach-root landing pane), and this is what lets the row-scoped
   // locators below name THIS row unambiguously.
   const list = page.locator('[data-test="directories-list"]');
-  await page.getByLabel('New folder', { exact: true }).fill(dirName);
+  await openNewFolderDialog(page);
+  await page.getByLabel('Folder name', { exact: true }).fill(dirName);
   await Promise.all([
     list.getByText(dirName, { exact: true }).waitFor({ timeout: 10000 }),
     page.getByRole('button', { name: 'Create', exact: true }).click(),

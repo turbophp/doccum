@@ -2,6 +2,14 @@
 @import '../../vendor/livewire/flux/dist/flux.css';
 
 @source '../views';
+
+/*
+ * The drop-target ring is applied from JavaScript (resources/js/shell/dnd.js),
+ * so these class names appear in no template and Tailwind would never generate
+ * them. Without this the ring is simply absent and a drag has no feedback at
+ * all -- which looks exactly like drag-and-drop not working.
+ */
+@source inline("ring-2 ring-inset ring-select");
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../vendor/livewire/flux/stubs/**/*.blade.php';
 
@@ -128,4 +136,12 @@ ui-checkbox[data-indeterminate] [data-flux-checkbox-indicator] {
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
     }
+}
+
+/*
+ * Alpine sets x-cloak on elements that are hidden until it boots. Without
+ * this rule every dialog in the app is briefly visible on first paint.
+ */
+[x-cloak] {
+    display: none !important;
 }

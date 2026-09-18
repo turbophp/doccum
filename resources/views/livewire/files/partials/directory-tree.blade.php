@@ -14,7 +14,7 @@
     x-data.
 --}}
 @foreach ($nodes as $node)
-    <li data-test="sidebar-directory" data-directory-id="{{ $node->id }}">
+    <li data-test="sidebar-directory" data-directory-id="{{ $node->id }}" data-drop-directory-id="{{ $node->id }}">
         <div class="group flex h-7 items-center gap-1 rounded px-1 hover:bg-sheet">
             @if ($node->children->isNotEmpty())
                 {{-- A plain <button>, not flux:button: this is a dense tree

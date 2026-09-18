@@ -1,0 +1,121 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Enums\AccessLevel;
+use App\Livewire\Files\Browser;
+use App\Models\Directory;
+use App\Models\File;
+use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
+
+// Dragging is a gesture, not a second set of rules: dropMove() re-resolves and
+// re-authorises both ends through the same policies the Move selects use. A
+// drop arrives as three integers from the client, and the DOM they came from
+// proves nothing about what the person may do.
+
+beforeEach(function () {
+    Storage::fake('documents');
+    $this->seed(RolesAndPermissionsSeeder::class);
+
+    // Two actors, because the two layers answer differently. The admin holds
+    // directories.view-all, which resolves Manage on EVERY directory -- so it
+    // can never demonstrate a refusal for being out of reach. The member holds
+    // grants on these two directories and nothing else, which is what makes
+    // "cannot reach" a real state rather than a hypothetical one.
+    $this->admin = User::factory()->create();
+    $this->admin->assignRole('admin');
+
+    $this->user = User::factory()->create();
+    $this->user->assignRole('member');
+
+    $this->source = Directory::factory()->create(['name' => 'Inbox']);
+    $this->target = Directory::factory()->create(['name' => 'Filed']);
+
+    grant($this->source, $this->user, AccessLevel::Manage);
+    grant($this->target, $this->user, AccessLevel::Manage);
+});
+
+it('moves a dropped file into the directory it was dropped on', function () {
+    $file = File::factory()->for($this->source, 'directory')->create(['name' => 'a.txt']);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'file', $file->id, $this->target->id)
+        ->assertOk();
+
+    expect($file->fresh()->directory_id)->toBe($this->target->id);
+});
+
+it('moves a dropped folder into the directory it was dropped on', function () {
+    // An admin: DirectoryPolicy::move asks for the global directories.manage
+    // on top of access, and a member does not hold it.
+    $folder = Directory::factory()->for($this->source, 'parent')->create(['name' => 'Sub']);
+
+    Livewire::actingAs($this->admin)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'directory', $folder->id, $this->target->id)
+        ->assertOk();
+
+    expect($folder->fresh()->parent_id)->toBe($this->target->id);
+});
+
+it('refuses a drop into a directory the viewer cannot reach, and moves nothing', function () {
+    $file = File::factory()->for($this->source, 'directory')->create(['name' => 'a.txt']);
+    $elsewhere = Directory::factory()->create(['name' => 'Not mine']);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'file', $file->id, $elsewhere->id)
+        ->assertForbidden();
+
+    expect($file->fresh()->directory_id)->toBe($this->source->id);
+});
+
+it('refuses a drop of a file the viewer cannot reach', function () {
+    $strangersDirectory = Directory::factory()->create(['name' => 'Theirs']);
+    $file = File::factory()->for($strangersDirectory, 'directory')->create(['name' => 'secret.txt']);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'file', $file->id, $this->target->id)
+        ->assertForbidden();
+
+    expect($file->fresh()->directory_id)->toBe($strangersDirectory->id);
+});
+
+it('reports a folder dropped into itself as a refusal rather than an exception', function () {
+    $folder = Directory::factory()->for($this->source, 'parent')->create(['name' => 'Sub']);
+    $child = Directory::factory()->for($folder, 'parent')->create(['name' => 'Deeper']);
+
+    Livewire::actingAs($this->admin)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'directory', $folder->id, $child->id)
+        ->assertOk()
+        ->assertDispatched('drop-refused');
+
+    expect($folder->fresh()->parent_id)->toBe($this->source->id);
+});
+
+it('refuses a subject type it does not recognise', function () {
+    Livewire::actingAs($this->admin)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'user', 1, $this->target->id)
+        ->assertNotFound();
+});
+
+it('refuses a folder drop from someone who may reach both ends but holds no directories.manage', function () {
+    // Both layers, visibly independent: the member has Manage on the source
+    // AND on the destination, so every access check passes -- and the move is
+    // still refused, because the global permission is a separate question.
+    $folder = Directory::factory()->for($this->source, 'parent')->create(['name' => 'Sub']);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'directory', $folder->id, $this->target->id)
+        ->assertForbidden();
+
+    expect($folder->fresh()->parent_id)->toBe($this->source->id);
+});

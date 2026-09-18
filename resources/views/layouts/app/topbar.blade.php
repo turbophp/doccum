@@ -12,7 +12,9 @@
         @include('partials.head')
     </head>
     <body class="flex min-h-screen flex-col bg-white dark:bg-zinc-800">
-        <flux:header class="sticky top-0 z-40 w-full max-w-none border-b border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
+        <flux:header class="sticky top-0 z-40 flex w-full max-w-none items-center gap-4 border-b border-zinc-200 bg-zinc-50 px-4 dark:border-zinc-700 dark:bg-zinc-900">
+            {{-- Left zone: wordmark and primary nav, sized to content. --}}
+            <div class="flex shrink-0 items-center gap-4">
             <a
                 href="{{ route('dashboard') }}"
                 class="flex items-center gap-2 text-lg font-semibold lowercase tracking-tight text-zinc-900 dark:text-white"
@@ -32,6 +34,7 @@
                     {{ __('Files') }}
                 </flux:navbar.item>
             </flux:navbar>
+            </div>
 
             {{-- Instance-wide search, in the chrome rather than on a page of
                  its own, because looking something up is the most common
@@ -47,7 +50,7 @@
                  that exact name would make every one of those locators
                  ambiguous under Playwright's strict mode. --}}
             <div
-                class="mx-6 hidden w-full max-w-xl flex-1 sm:block"
+                class="hidden min-w-0 flex-1 justify-center sm:flex"
                 x-data="{
                     hint: '⌘K',
                     init() {
@@ -70,7 +73,7 @@
                 }"
                 x-on:keydown.window="focusSearch($event)"
             >
-                <form method="GET" action="{{ route('search') }}" class="relative" data-test="header-search">
+                <form method="GET" action="{{ route('search') }}" class="relative w-full max-w-xl" data-test="header-search">
                     <flux:icon.magnifying-glass
                         variant="micro"
                         class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400"
@@ -97,6 +100,10 @@
             </div>
 
 
+
+            {{-- Right zone: sized to content, so the middle zone's growth is
+                 what pushes it against the edge. --}}
+            <div class="flex shrink-0 items-center gap-2">
 
             {{-- Notifications. The count is the only thing the bell says at
                  rest, and it says nothing at all when there is nothing unread:
@@ -196,6 +203,7 @@
                     </form>
                 </flux:menu>
             </flux:dropdown>
+            </div>
         </flux:header>
 
         <flux:main @class([

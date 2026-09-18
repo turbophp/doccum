@@ -349,6 +349,55 @@ class Browser extends Component
         }
     }
 
+    /**
+     * Move a dragged row into a directory.
+     *
+     * The same two actions and the same two policies the Move selects use --
+     * dragging is a gesture, not a second set of rules. What it does NOT trust
+     * is the request: the subject and the destination are both re-resolved and
+     * re-authorised here, because a drop is three client-supplied integers and
+     * the DOM it came from proves nothing.
+     *
+     * A duplicate name or a directory dropped into itself comes back as a
+     * refusal the status line can show, not an exception: dragging a folder
+     * onto its own child is an ordinary slip, and a stack trace is the wrong
+     * answer to it.
+     */
+    public function dropMove(string $subjectType, int $subjectId, int $targetDirectoryId, MoveFile $moveFile, MoveDirectory $moveDirectory): void
+    {
+        $destination = Directory::query()->findOrFail($targetDirectoryId);
+
+        if ($subjectType === 'file') {
+            $file = File::query()->findOrFail($subjectId);
+
+            $this->authorize('move', [$file, $destination]);
+
+            try {
+                $moveFile->handle($file, $destination);
+            } catch (DuplicateFileName|PeriodIsArchived $e) {
+                $this->dispatch('drop-refused', reason: $e->getMessage());
+            }
+
+            return;
+        }
+
+        if ($subjectType === 'directory') {
+            $subject = Directory::query()->findOrFail($subjectId);
+
+            $this->authorize('move', [$subject, $destination]);
+
+            try {
+                $moveDirectory->handle($subject, $destination);
+            } catch (DuplicateDirectoryName|CannotMoveDirectoryIntoItself $e) {
+                $this->dispatch('drop-refused', reason: $e->getMessage());
+            }
+
+            return;
+        }
+
+        abort(404);
+    }
+
     public function moveFile(MoveFile $action): void
     {
         abort_if($this->selectedFile === null, 404);

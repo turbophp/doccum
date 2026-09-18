@@ -6,6 +6,7 @@
 // declared inputs and their import graph, so a module nothing imports is
 // silently absent in production and 404s in dev. Importing it here puts it in
 // the graph.
+import { startDragAndDrop } from './shell/dnd.js';
 import { move, springs, micro } from './shell/motion.js';
 
 // Exposed two ways, because the shell uses both.
@@ -22,3 +23,6 @@ document.addEventListener('alpine:init', () => {
     window.Alpine.magic('springs', () => springs);
     window.Alpine.magic('micro', () => micro);
 });
+
+// Delegated to the document, so it survives every Livewire DOM swap.
+startDragAndDrop();
