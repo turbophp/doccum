@@ -921,8 +921,28 @@ async function checkHomeDashboardShowsRecentUpload(page, phase) {
 
   await page.locator('[data-test="home-recent-files"]').waitFor({ state: 'visible', timeout: 10000 });
 
+  // Named failure, not a bare locator timeout. The mutation for this item
+  // (recents resolved but never rendered) failed here with nothing but
+  // "locator.waitFor: Timeout 10000ms exceeded" -- attributable only because
+  // this check's own console line happened to be the last thing printed,
+  // which is luck rather than evidence. Rule 3 of the Mutation vocabulary
+  // says a failure that names no assertion is not evidence, and every other
+  // check in this file already says what it wanted.
   const row = page.locator('[data-test="home-recent-file-row"]').filter({ hasText: FILE_NAME });
-  await row.waitFor({ timeout: 10000 });
+
+  try {
+    await row.waitFor({ timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] Home rendered but listed no recent-files row for ${FILE_NAME}`
+      + ' -- the page is up and the query may well be right; what is missing is'
+      + ' the row reaching the DOM',
+    );
+    throw Object.assign(
+      new Error(`Home listed no recent-files row for ${FILE_NAME}`),
+      { dumped: true },
+    );
+  }
 
   console.log(`[${phase}] Home lists ${FILE_NAME} under "Recent files" -- real data, not a placeholder`);
 }
