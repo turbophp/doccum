@@ -1897,11 +1897,23 @@ async function checkGrantAndRevokeDirectoryAccess(page, phase) {
   }
   console.log(`[${phase}] granting access through the panel wrote exactly one DirectoryGrant row -- OK`);
 
+  // Click, then ask the DATABASE, and only then look at the DOM.
+  //
+  // This used to Promise.all the click with a wait for the row to become
+  // detached -- which is the very thing revoking does, so the wait duplicated
+  // the assertion AND came first. On a broken revoke it threw
+  // "locator.waitFor: Timeout 10000ms exceeded ... 25 x locator resolved to
+  // visible <li data-test="directory-grant-row">" before the named check
+  // below could say "the grant row is still there". decision/0033's rule,
+  // written one item ago: never wait on the thing under test, or a defect in
+  // it surfaces as an opaque timeout instead of at the assertion.
+  //
+  // Database evidence first, DOM second, matching
+  // checkBulkTrashLeavesUnselectedFilesAlone()'s docblock. The DOM check
+  // still runs -- it is what proves the panel re-rendered rather than merely
+  // that the row went -- but it is no longer what fails first.
   page.once('dialog', (dialog) => dialog.accept());
-  await Promise.all([
-    grantRow.waitFor({ state: 'detached', timeout: 10000 }),
-    grantRow.getByRole('button', { name: 'Revoke', exact: true }).click(),
-  ]);
+  await grantRow.getByRole('button', { name: 'Revoke', exact: true }).click();
 
   output = grantCount();
   const revokeDeadline = Date.now() + REPLACE_TIMEOUT_MS;
@@ -1915,6 +1927,9 @@ async function checkGrantAndRevokeDirectoryAccess(page, phase) {
     throw Object.assign(new Error('revokeAccess() did not remove the DirectoryGrant row'), { dumped: true });
   }
   console.log(`[${phase}] revoking access through the panel removed the DirectoryGrant row -- OK`);
+
+  await grantRow.waitFor({ state: 'detached', timeout: 10000 });
+  console.log(`[${phase}] the panel stopped listing the revoked grant -- OK`);
 }
 
 /**
