@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T12:10:00Z",
+  "dateModified": "2026-09-18T13:22:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -869,10 +869,12 @@
         "item/download-missing-object"
       ],
       "doneWhen": "DocumentStorage::downloadToTemp() throws the typed ObjectMissingFromStorage rather than a bare RuntimeException, so a caller can tell \"the row exists but the bytes are gone\" from any other storage failure -- the distinction item/download-missing-object made on the two download routes, applied to the path ExtractText actually uses. AND what the queue does with it is asserted rather than inherited: whether the job stops retrying against bytes that are never coming back, and what file_texts.status an operator can read afterwards. The failure mode here is not a bad HTTP status but a queue that may never settle, which is less visible than issue #134 was and harder to diagnose. The test queue is synchronous and production's is not, so any assertion about retry or backoff must be written to hold in production rather than only in the suite.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T12:47:00Z",
+      "endTime": "2026-09-18T13:11:14Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/200"
+      ]
     },
     {
       "@id": "item/ledger-main-push-record",
@@ -927,10 +929,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "A mutation whose expectFailing contains a regex metacharacter still selects exactly the named test, and a filter that selects no test at all is reported as a tooling error rather than as the assertion failing.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T12:52:00Z",
+      "endTime": "2026-09-18T13:15:53Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/201"
+      ]
     },
     {
       "@id": "item/smoke-livewire-settle",
@@ -2842,6 +2846,40 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/200",
+      "@type": "PullRequest",
+      "identifier": 200,
+      "name": "A missing object is distinguishable on the extraction path",
+      "implements": [
+        "item/extraction-missing-object"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T13:07:20Z",
+      "headSha": "fb093b4d65652ead95ecdcb733d3770dcdc96c94",
+      "mergedAt": "2026-09-18T13:11:14Z",
+      "mergeSha": "642819513143028a9380e918f2e7541efae12969",
+      "mergedIn": "run/0020",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35348753478",
+      "mainConclusion": "success"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/201",
+      "@type": "PullRequest",
+      "identifier": 201,
+      "name": "mutation-check.php: escape the filter for the regex it is, and stop reporting proof it does not have",
+      "implements": [
+        "item/mutation-filter-regex"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T13:07:50Z",
+      "headSha": "fd9dc8164421d678277ed53eca5517ba391b2a18",
+      "mergedAt": "2026-09-18T13:15:53Z",
+      "mergeSha": "727fdc45ca9398d35ad150fed4b346bd0745711f",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -3876,6 +3914,37 @@
       "affects": [
         "item/email-verification-decided",
         "item/smoke-installer-names-the-bounce"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0063",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T13:20:00Z",
+      "run": "run/0020",
+      "name": "A mutation that kills the test before its assertion runs proves the wrong thing",
+      "rationale": "Item 43's first mutation entry, as delegated, removed `return preg_quote($expectFailing);` from buildFilterPattern(). That leaves a `: string` function returning nothing, so the mutation raised a TypeError -- the named test went red, and the entry would have passed the guards job.\n\nIt proves the wrong proposition. A TypeError means the LINE IS REQUIRED FOR THE FUNCTION TO RETURN AT ALL; it says nothing about whether the test checks the escaping, because the test dies before its assertion executes. Swap the assertion for `expect(true)->toBeTrue()` and the mutation still goes red. That is decision/0035's rule -- a red job alone is void, the failure must land AT the named assertion -- reached from a new direction: previously via a smoke check that collapsed upstream, here via a fatal inside the function under test.\n\nTHE RULE, and it is a design constraint on the code, not only on the manifest: when a line is going to be mutation-checked, write the surrounding code so that DELETING it degrades behaviour rather than breaking the contract. buildFilterPattern() is now a reassignment -- `$pattern = $expectFailing;` then `$pattern = preg_quote($pattern);` -- which looks mildly redundant and carries a comment saying why. Deleting the escape leaves a function that still returns a string, the unescaped one, and the failure lands on `expect(preg_match(...))->toBe(1)`. The redundancy is the point and is cheaper than the false confidence.\n\nAll four of item 43's mutations were then simulated locally before pushing -- apply the `remove` string, `php -l`, call the function, compare against the unmutated value -- which is how this was caught at review rather than after a green guards job had blessed it.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/mutation-filter-regex"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0064",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T13:22:00Z",
+      "run": "run/0020",
+      "name": "Only a test that ran and failed is mutation proof, and the evidence for that must be machine-readable",
+      "rationale": "Before item 43, mutation-check.php accepted ANY non-pass from the deleted-guard run as proof the guard was load-bearing. So a `remove` string whose deletion broke the file's syntax scored as verified: nothing was collected, the run was red, the entry read as proven, and the guard had never been exercised. The script written to catch \"looks like coverage and is not\" contained an instance of it.\n\nThree outcomes are now distinguished from evidence rather than from Pest's prose. `--log-junit=<path>` is written per run and <testcase> elements are counted: zero means --filter matched nothing (a manifest/name error, #180's original bug), a positive count with a non-zero exit means a real test ran and failed, and NO LOG AT ALL means neither -- it is no evidence, reported as unclassifiable with a message saying to fix --log-junit rather than to go renaming entries. That third state exists because conflating it with \"matched no test\" would have blamed every entry in the manifest for names each one spells correctly, the moment the logging broke: #180's misdiagnosis in a new costume. Only the second outcome now counts as proof.\n\nTHE RISK WAS REAL AND IS NOW MEASURED. Tightening this applies to every entry at once, and there was no way to run the harness locally (no vendor/, composer install blocked by egress policy), so the PR said plainly that a pre-existing entry resting on a collection failure would go red and name itself, and that such a red would be a finding to fix rather than grounds to loosen the rule back. The answer came from CI: guards passed on 7df3e10 in 72 seconds across all 60 entries. No entry was resting on a collection failure, and --log-junit works under this Pest version -- had it not, all 60 would have reported unclassifiable. Recorded because it is a measurement, not a reassurance: the tightening cost nothing and the manifest was already sound by the stricter standard.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/mutation-filter-regex",
+        "item/extraction-missing-object"
       ],
       "supersedes": null
     }
