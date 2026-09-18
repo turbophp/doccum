@@ -14,6 +14,7 @@ use App\Exceptions\PeriodIsArchived;
 use App\Models\Directory;
 use App\Models\File;
 use App\Services\DirectoryAccess;
+use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -105,7 +106,15 @@ class Index extends Component
         }
     }
 
-    public function render()
+    // Typed, unlike Browser::render() and two others beside it. Those three
+    // are pre-existing phpstan-baseline.neon entries; CLAUDE.md reserves the
+    // baseline for exactly that and says to add none, so a new component
+    // declares what it returns rather than inheriting an exemption.
+    //
+    // The CONTRACT, Illuminate\Contracts\View\View, matching both components
+    // here that declare it -- view() returns the contract, so the concrete
+    // Illuminate\View\View would be a different phpstan error a round later.
+    public function render(): View
     {
         $user = auth()->user();
         $access = app(DirectoryAccess::class);
