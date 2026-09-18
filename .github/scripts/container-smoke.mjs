@@ -1851,7 +1851,20 @@ async function checkGrantAndRevokeDirectoryAccess(page, phase) {
   // browsed) -- "Details" is the same control selectDirectory() above
   // opens the property panel through.
   const row = page.locator('[data-test="directories-list"] > div').filter({ hasText: dirName });
-  await row.getByRole('link', { name: 'Details', exact: true }).click();
+
+  // getByText, NOT getByRole('link'). The row renders two flux:links and only
+  // the first is a link in the accessibility tree: the directory name carries
+  // :href, while Details carries wire:click alone, and an <a> with no href has
+  // no link role. getByRole('link', { name: 'Details' }) therefore matches
+  // nothing and waits out its full timeout:
+  //
+  //   locator.click: Timeout 30000ms exceeded.
+  //     waiting for locator('[data-test="directories-list"] > div')
+  //       .filter({ hasText: '...' }).getByRole('link', { name: 'Details' })
+  //
+  // The name link one line above IS role=link, which is exactly what makes
+  // this easy to get wrong -- the two look identical in the template.
+  await row.getByText('Details', { exact: true }).click();
   await page.locator('[data-test="grant-access-form"]').waitFor({ state: 'visible', timeout: 10000 });
 
   // Deliberately leaves the Level <flux:select> at its default ('view',
