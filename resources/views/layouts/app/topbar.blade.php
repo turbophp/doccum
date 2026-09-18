@@ -256,6 +256,31 @@
                                 {{ __('Archive periods') }}
                             </flux:menu.item>
                         @endcan
+
+                        {{--
+                            item/admin-instance-settings (issue #21): its own
+                            independent @can block, never @elsecan chained
+                            onto users.manage's block above -- see the note
+                            at the top of this menu. Gated on the SAME
+                            permission as Users and Roles, so chaining would
+                            not currently hide it from the seeded admin role
+                            the way the historical defect did, but writing
+                            it as its own block keeps that true even if a
+                            future change narrows one of these permissions
+                            independently of the others -- exactly the
+                            failure mode @elsecan produced here twice
+                            already.
+
+                            A distinct data-test (nav-settings-instance) and
+                            link text naming the section, not a fourth link
+                            reading "Settings" -- Playwright's strict mode
+                            makes duplicate accessible names ambiguous.
+                        --}}
+                        @can('users.manage')
+                            <flux:menu.item :href="route('admin.settings')" icon="adjustments-horizontal" wire:navigate data-test="nav-settings-instance">
+                                {{ __('Instance settings') }}
+                            </flux:menu.item>
+                        @endcan
                     </flux:menu.radio.group>
 
                     <flux:menu.separator />

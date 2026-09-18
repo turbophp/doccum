@@ -92,10 +92,19 @@ it('shows every settings section an administrator holding all permissions can re
         // Roles: the admin role masks a chained @elsecan, and only a check
         // that grants EVERY permission at once can catch that.
         ->assertSeeHtml('data-test="nav-settings-periods"')
+        // item/admin-instance-settings (issue #21): added to the SAME test,
+        // not isolated with its own direct grant -- see the comment above
+        // this test. It is gated on users.manage, already held here, so
+        // isolating it on its own would not catch an @elsecan chain the way
+        // the periods case above needed to; it is added here anyway so this
+        // test keeps being the one place that lists every Settings section
+        // a full administrator must be able to reach.
+        ->assertSeeHtml('data-test="nav-settings-instance"')
         ->assertSeeHtml(route('admin.properties'))
         ->assertSeeHtml(route('admin.users'))
         ->assertSeeHtml(route('admin.roles'))
-        ->assertSeeHtml(route('admin.periods'));
+        ->assertSeeHtml(route('admin.periods'))
+        ->assertSeeHtml(route('admin.settings'));
 });
 
 // Hiding the nav item is an affordance, not access control: strip the route's

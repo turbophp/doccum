@@ -37,7 +37,7 @@ function archived(int $year, int $month): ArchivePeriod
 }
 
 it('refuses a period that was never archived', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     fileIn(2020, 3);
 
     expect(fn () => app(PeriodPurger::class)->purge(2020, 3))
@@ -47,7 +47,7 @@ it('refuses a period that was never archived', function () {
 });
 
 it('refuses a period inside the retention window', function () {
-    config()->set('doccum.retention.purge_after_years', 7);
+    config()->set('doccum.settings.retention.purge_after_years', 7);
     archived(2024, 3);
     fileIn(2024, 3);
 
@@ -58,7 +58,7 @@ it('refuses a period inside the retention window', function () {
 });
 
 it('refuses every period when no retention window is configured', function () {
-    config()->set('doccum.retention.purge_after_years', null);
+    config()->set('doccum.settings.retention.purge_after_years', null);
     archived(2020, 3);
     fileIn(2020, 3);
 
@@ -71,7 +71,7 @@ it('refuses every period when no retention window is configured', function () {
 });
 
 it('refuses when a file in the period is under legal hold', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     fileIn(2020, 3);
     fileIn(2020, 3, ['legal_hold' => true]);
@@ -85,7 +85,7 @@ it('refuses when a file in the period is under legal hold', function () {
 });
 
 it('sees a legal hold on a trashed file too', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     $held = fileIn(2020, 3, ['legal_hold' => true]);
     $held->delete();
@@ -96,7 +96,7 @@ it('sees a legal hold on a trashed file too', function () {
 });
 
 it('names the blockers rather than just refusing', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     fileIn(2020, 3, ['legal_hold' => true, 'name' => 'Held.pdf']);
 
@@ -108,7 +108,7 @@ it('names the blockers rather than just refusing', function () {
 });
 
 it('carries the blockers on the exception it throws', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     fileIn(2020, 3, ['legal_hold' => true]);
 
@@ -125,7 +125,7 @@ it('carries the blockers on the exception it throws', function () {
 });
 
 it('reports what would go without touching anything', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     fileIn(2020, 3);
     fileIn(2020, 3);
@@ -139,7 +139,7 @@ it('reports what would go without touching anything', function () {
 });
 
 it('counts trashed files in the plan, because their objects still cost storage', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     fileIn(2020, 3);
     fileIn(2020, 3)->delete();
@@ -148,7 +148,7 @@ it('counts trashed files in the plan, because their objects still cost storage',
 });
 
 it('purges a period that passes every guard', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     $file = fileIn(2020, 3);
     $keep = fileIn(2025, 3);
@@ -162,7 +162,7 @@ it('purges a period that passes every guard', function () {
 });
 
 it('purges a trashed file, whose object is exactly what is being reclaimed', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     $trashed = fileIn(2020, 3);
     $trashed->delete();
@@ -173,7 +173,7 @@ it('purges a trashed file, whose object is exactly what is being reclaimed', fun
 });
 
 it('purges a whole year when no month is given', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     ArchivePeriod::factory()->create([
         'year' => 2020, 'month' => null, 'archived_at' => now()->subYears(3),
     ]);
@@ -190,7 +190,7 @@ it('purges a whole year when no month is given', function () {
 });
 
 it('takes the versions, text, properties and search rows with it', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     $file = fileIn(2020, 3);
     $version = FileVersion::factory()->for($file)->create(['version_number' => 1]);
@@ -211,7 +211,7 @@ it('takes the versions, text, properties and search rows with it', function () {
 });
 
 it('leaves nothing purged behind in the keyword index', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     $file = fileIn(2020, 3, ['name' => 'Zagglefrotz.pdf']);
     app(SearchIndexer::class)->index($file->refresh());
@@ -224,7 +224,7 @@ it('leaves nothing purged behind in the keyword index', function () {
 });
 
 it('leaves the directory structure standing', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     fileIn(2020, 3);
 
@@ -234,7 +234,7 @@ it('leaves the directory structure standing', function () {
 });
 
 it('deletes the objects it accounted for', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     $file = fileIn(2020, 3);
     $version = FileVersion::factory()->for($file)->create([
@@ -249,7 +249,7 @@ it('deletes the objects it accounted for', function () {
 });
 
 it('leaves another period objects alone', function () {
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     archived(2020, 3);
     $keep = fileIn(2025, 3);
     $keepVersion = FileVersion::factory()->for($keep)->create([
