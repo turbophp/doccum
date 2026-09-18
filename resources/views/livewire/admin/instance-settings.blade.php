@@ -29,7 +29,7 @@
         <flux:button type="submit" variant="primary" data-test="instance-name-save-button">{{ __('Save') }}</flux:button>
     </form>
 
-    <form wire:submit="saveSignup" class="max-w-lg space-y-4" data-test="instance-signup-form">
+    <form class="max-w-lg space-y-4" data-test="instance-signup-form">
         <flux:heading level="2">{{ __('Public sign-up') }}</flux:heading>
         <flux:text>{{ __('Off by default. When off, /register answers 404 instead of showing a form nobody should be able to reach.') }}</flux:text>
 
