@@ -66,9 +66,14 @@
 
                         // Chrome and Firefox both bind ⌘K/Ctrl-K to the address
                         // bar, so this only works if the default is refused.
+                        //
+                        // It opens the palette rather than focusing this field.
+                        // The field posts a GET to the results page, which is
+                        // the right thing without JavaScript and the wrong
+                        // thing with it: looking something up should not cost
+                        // you the listing you were reading.
                         event.preventDefault();
-                        this.$refs.q.focus();
-                        this.$refs.q.select();
+                        window.dispatchEvent(new CustomEvent('open-search-palette'));
                     },
                 }"
                 x-on:keydown.window="focusSearch($event)"
@@ -82,6 +87,7 @@
 
                     <input
                         x-ref="q"
+                        x-on:focus="window.dispatchEvent(new CustomEvent('open-search-palette'))"
                         type="search"
                         name="q"
                         value="{{ request()->routeIs('search') ? request()->query('q') : '' }}"
@@ -286,6 +292,10 @@
         ])>
             {{ $slot }}
         </flux:main>
+
+        @auth
+            <livewire:search.palette />
+        @endauth
 
         @persist('toast')
             <flux:toast.group>
