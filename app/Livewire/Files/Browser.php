@@ -476,7 +476,21 @@ class Browser extends Component
         // the directory at all.
         $this->authorize('manageAccess', $this->selectedDirectory);
 
-        $grant = $this->directoryGrantsQuery($this->selectedDirectory)->findOrFail($grantId);
+        // find() + abort_if, not findOrFail(): the scoping is identical either
+        // way, but the REFUSAL is not. findOrFail() raises
+        // ModelNotFoundException, which a real HTTP request renders as a 404
+        // and a Livewire component test does not -- it propagates, so
+        // assertNotFound() never sees a response and the test dies on the raw
+        // exception instead. That is what it did:
+        //
+        //   FAILED ... refuses to revoke a grant belonging to a different
+        //   directory -- ModelNotFoundException
+        //
+        // abort_if() is what this component already uses two lines above, and
+        // everywhere else it refuses; this was the outlier.
+        $grant = $this->directoryGrantsQuery($this->selectedDirectory)->find($grantId);
+
+        abort_if($grant === null, 404);
 
         $action->handle($grant);
     }
