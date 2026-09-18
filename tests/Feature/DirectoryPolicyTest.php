@@ -158,6 +158,55 @@ it('allows moving to the root with no destination to check', function () {
     expect($this->user->fresh()->can('move', [$this->dir, null]))->toBeTrue();
 });
 
+// item/directory-policy-trashed-move (issue #253): the same gap update() had
+// (see the trashed-update test above). DirectoryAccess::resolve() checks
+// proper ancestors only, deliberately excluding the directory's own trashed
+// state (issue #49), so a directory trashed on its own still resolves Manage
+// from a grant sitting on a live ancestor above it. move() had no equivalent
+// guard, so trashing a directory did not stop it being moved. The grant below
+// is placed on the PARENT, not on $child itself, so the assertion cannot pass
+// merely because access was refused for an unrelated reason -- it has to be
+// the trashed guard doing the refusing. Destination is null (a move to the
+// root) so the newParent-trashed guard added alongside this one is not what
+// is under test here.
+it('refuses to move a trashed directory, even with access held through a grant above it', function () {
+    $parent = Directory::factory()->create();
+    $child = Directory::factory()->for($parent, 'parent')->create();
+    $this->user->givePermissionTo('directories.manage');
+    give($parent, $this->user, AccessLevel::Manage);
+
+    expect($this->user->fresh()->can('move', [$child, null]))->toBeTrue();
+
+    $child->delete();
+
+    expect($this->user->fresh()->can('move', [$child->fresh(), null]))->toBeFalse();
+});
+
+// Companion to the trashed-directory guard above, but a different bug, not a
+// different flavour of the same one: DirectoryAccess resolves Edit on a
+// trashed $newParent the same self-trashed-excused way it resolves Manage on
+// a trashed $directory, so this is not about visibility. Directory::
+// syncPath() looks the new parent's path up through the default
+// (non-trashed) query scope, so moving into a trashed destination would
+// rebuild the moved subtree's `path` missing that segment and its leading
+// '/' -- corrupting the column ancestorIds() and hasTrashedProperAncestor()
+// both trust. The grant is placed directly on $destination, since a trashed
+// directory's OWN trashed state -- not an ancestor's -- is what this guard
+// answers.
+it('refuses to move a directory into a trashed destination, even with edit access granted on it', function () {
+    $this->user->givePermissionTo('directories.manage');
+    give($this->dir, $this->user, AccessLevel::Manage);
+
+    $destination = Directory::factory()->create();
+    give($destination, $this->user, AccessLevel::Edit);
+
+    expect($this->user->fresh()->can('move', [$this->dir, $destination]))->toBeTrue();
+
+    $destination->delete();
+
+    expect($this->user->fresh()->can('move', [$this->dir, $destination->fresh()]))->toBeFalse();
+});
+
 it('requires directories.manage to trash a directory (delete() gates it), manage access alone is not enough', function () {
     give($this->dir, $this->user, AccessLevel::Manage);
 
