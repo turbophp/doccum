@@ -14,16 +14,19 @@ jobs:
   # `image`, so a stray commit fails in seconds rather than after the whole
   # test suite has run against it.
   #
-  # actions/checkout only fetches the ref being built (shallow, depth 1 by
-  # default), so origin/main is not present locally yet -- `git merge-base`
-  # would error "not a valid object name" without the explicit fetch below.
-  # A plain `git fetch origin main` (no --depth) is used deliberately: the
-  # repository has never negotiated a shallow boundary for main specifically
-  # (only for the tag/branch actions/checkout just fetched), so this pulls
-  # main's complete history rather than a truncated one -- a truncated
-  # history of main could make a genuine ancestor look like a false
-  # negative, which is the one failure mode worse than the defect this item
-  # exists to close.
+  # `fetch-depth: 0` rather than a shallow checkout plus a later fetch, and
+  # the distinction matters more than it looks. actions/checkout defaults to
+  # depth 1, which leaves a .git/shallow boundary; a subsequent
+  # `git fetch origin main` inside a shallow repository is negotiated against
+  # that boundary, and `git merge-base --is-ancestor` walking into a grafted
+  # parent can answer "not an ancestor" for a commit that plainly is one.
+  #
+  # That false negative is the ONE failure mode worse than the defect this
+  # job closes: it blocks a legitimate release, at the moment somebody is
+  # trying to ship, with an error that accuses the commit rather than the
+  # checkout. Fetching the full history costs seconds on a release path that
+  # runs at most a few times a year, and removes the question entirely
+  # instead of reasoning about git's shallow negotiation.
   ancestry-check:
     name: tagged commit is on main
     runs-on: ubuntu-latest
@@ -31,6 +34,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Fetch main so ancestry can be checked
         run: git fetch --no-tags origin main
