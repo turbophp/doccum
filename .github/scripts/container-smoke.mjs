@@ -19,20 +19,33 @@
 // the workflow -- see the "Install Playwright" step -- and never added to
 // package.json).
 //
-// Run as: node .github/scripts/container-smoke.mjs <setup|verify>
-//   setup  -- complete the installer, check the topbar shell, upload a file,
-//             wait for extraction, confirm it is findable by search. Run
-//             once, against a freshly booted, empty-volume container.
-//   verify -- log in again and confirm the file and its search hit survived
-//             the container being replaced, then log out through the account
-//             menu. Run in a fresh browser context (no cookies carried over),
-//             against a NEW container started from the same image on the same
-//             named volume -- not `docker restart`, which would keep the old
-//             container's writable layer and prove nothing (issue #91).
+// Run as: node .github/scripts/container-smoke.mjs <setup|seed-stale|verify>
+//   setup      -- complete the installer, check the topbar shell, upload a
+//                 file, wait for extraction, confirm it is findable by
+//                 search. Run once, against a freshly booted, empty-volume
+//                 container.
+//   seed-stale -- item/upgrade-smoke (issue #210): writes a user
+//                 row with email_verified_at NULL and a role edited away
+//                 from RolesAndPermissionsSeeder's defaults directly into
+//                 the database, and rolls back the backfill migration's own
+//                 `migrations` row so the next boot genuinely re-runs it --
+//                 making this volume look like it predates the candidate
+//                 image rather than merely holding a static edited row. Run
+//                 against the STILL-RUNNING setup container, before it is
+//                 replaced. See seedStaleRows()'s own docblock.
+//   verify     -- log in again and confirm the file and its search hit
+//                 survived the container being replaced, that the
+//                 seed-stale row and role edit survived it too, then log
+//                 out through the account menu. Run in a fresh browser
+//                 context (no cookies carried over), against a NEW
+//                 container started from the same image on the same named
+//                 volume -- not `docker restart`, which would keep the old
+//                 container's writable layer and prove nothing (issue #91).
 //
 // All credentials and the marker text searched for come from the environment
-// (set by the workflow step that invokes this), so both phases agree on them
-// without this script persisting any state of its own between invocations.
+// (set by the workflow step that invokes this), so all three phases agree on
+// them without this script persisting any state of its own between
+// invocations.
 
 import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
@@ -95,9 +108,43 @@ const REPLACE_TIMEOUT_MS = Number(env('REPLACE_TIMEOUT_MS', '20000'));
 // env()'s "missing required variable" check just by loading this module.
 const SMOKE_FORWARDED_HOST = env('SMOKE_FORWARDED_HOST', '');
 
+// item/upgrade-smoke (issue #210): seedStaleRows() (the
+// 'seed-stale' phase) and checkStaleUserReachesTheApp()/
+// checkStaleRolePermissionStaysRevoked() (called from 'verify') all need to
+// agree on this one account, across two separate `node` invocations in the
+// same job -- so, like ADMIN_* above, it comes from the environment rather
+// than being generated twice. Fallbacks to '' rather than a required read:
+// the 'setup' phase loads this same module but never touches these, and
+// should not have to know they exist.
+const STALE_USER_USERNAME = env('SMOKE_STALE_USER_USERNAME', '');
+const STALE_USER_EMAIL = env('SMOKE_STALE_USER_EMAIL', '');
+const STALE_USER_PASSWORD = env('SMOKE_STALE_USER_PASSWORD', '');
+
+// The role and permission seedStaleRows() edits to look like an operator's
+// change that predates the replacement, and the pair
+// checkStaleRolePermissionStaysRevoked() reads back afterwards. Not
+// threaded through the environment like the credentials above: unlike a
+// per-run email or password, nothing about these two needs to differ
+// between runs or agree with anything outside this file, so a fixed
+// default is enough. 'member'/'files.restore' is deliberately NOT
+// periods.manage -- checkAdminRolesPage() (runSetup()) and
+// checkRolePermissionSurvivesContainerReplacement() (runVerify()) already
+// own that permission for the opposite edit (grant, not revoke); reusing it
+// here would make the two checks step on each other's state.
+const STALE_ROLE_NAME = env('SMOKE_STALE_ROLE_NAME', 'member');
+const STALE_REMOVED_PERMISSION = env('SMOKE_STALE_REMOVED_PERMISSION', 'files.restore');
+
+// database/migrations/2026_09_18_150000_backfill_email_verified_at_for_existing_users.php's
+// own name, exactly as Laravel records it in the `migrations` table (the
+// filename minus `.php`). Identifies a FILE in this repository, not
+// something that varies by run, so it is a literal here rather than an env
+// var -- see seedStaleRows()'s docblock for why this needs to be deleted at
+// all.
+const STALE_BACKFILL_MIGRATION = '2026_09_18_150000_backfill_email_verified_at_for_existing_users';
+
 const phase = process.argv[2];
-if (phase !== 'setup' && phase !== 'verify') {
-  console.error('Usage: node container-smoke.mjs <setup|verify>');
+if (phase !== 'setup' && phase !== 'seed-stale' && phase !== 'verify') {
+  console.error('Usage: node container-smoke.mjs <setup|seed-stale|verify>');
   process.exit(2);
 }
 
@@ -2822,6 +2869,224 @@ function checkRolePermissionSurvivesContainerReplacement(phase) {
 }
 
 /**
+ * item/upgrade-smoke (issue #210): everything above proves DATA
+ * survives a container REPLACEMENT that happens to reuse the exact same
+ * image on both sides -- which proves a restart, not an upgrade across a
+ * code change. The cheaper substitute to maintaining and pulling an older
+ * published image (whose schema only drifts further from HEAD with every
+ * migration this repository ships) is to make the CURRENT volume look like
+ * it predates the candidate image in the two ways that have actually
+ * locked a real instance out before:
+ *
+ *   - an unverified user (email_verified_at NULL): every account made
+ *     before item/email-verification-decided shipped is in exactly this
+ *     state. database/migrations/2026_09_18_150000_backfill_email_verified_at_for_existing_users.php
+ *     exists to fix that up on upgrade -- see that migration's own
+ *     docblock for the full reasoning.
+ *   - a role whose permissions an operator edited away from
+ *     RolesAndPermissionsSeeder's defaults -- the same class of edit
+ *     checkAdminRolesPage()/checkRolePermissionSurvivesContainerReplacement()
+ *     above already cover for a GRANT made through the real /admin/roles
+ *     form; this covers the opposite direction, a REVOKE made directly
+ *     against the database, the way an older instance's history could
+ *     equally well have produced it.
+ *
+ * Called from a DEDICATED workflow step ("Seed pre-upgrade rows before
+ * replacing the container"), run against the STILL-RUNNING pre-replacement
+ * container, before "Replace the container, keeping only the volume" tears
+ * it down -- this is the one point where a write lands on the named volume
+ * the replacement is about to reuse, from a container that still holds the
+ * live SQLite connection onto it.
+ *
+ * The migrations-table delete is the detail that makes this a genuine
+ * re-run of the migration rather than a restart against a row that merely
+ * happens to be NULL. The backfill migration already ran once, as a no-op,
+ * the moment THIS container first booted (docker/entrypoint.d migrates
+ * before FirstRun has created any user at all -- see 49-doccum-init.sh's
+ * own comment on that ordering), and Laravel records a migration as
+ * applied in `migrations` and never re-runs it. Inserting a NULL row now
+ * and simply restarting would therefore leave that row NULL forever
+ * regardless of whether the backfill code exists at all -- an assertion
+ * that could never observe the fix being absent is not a check,
+ * whatever it asserts. Deleting this ONE migration's own tracking row puts
+ * it back in the "not yet run against this data" state a genuinely
+ * upgraded instance would be in; the migration's own UPDATE is a plain,
+ * idempotent `WHERE email_verified_at IS NULL`, so re-running it is safe.
+ * This is exactly what decision/0067's mutation check needs: reverting the
+ * migration's up() to a no-op must leave this row NULL even after it is
+ * forced to run again -- which is what makes checkStaleUserReachesTheApp()
+ * below fail under that mutation, rather than trivially passing because
+ * nothing here ever gave the migration a reason to run.
+ *
+ * No Playwright here at all -- this is a database seed, not a page
+ * interaction, so it runs synchronously through tinker() the same way
+ * checkRolePermissionSurvivesContainerReplacement() above does.
+ */
+/**
+ * item/upgrade-smoke (issue #210) is the CHECK; item/upgrade-preserves-access,
+ * the already-shipped fix, is what it checks. Both cite issue #210 and they are
+ * easy to confuse: the backfill migration this seeds against belongs to the
+ * second, and this function exists to make the first able to fail.
+ */
+function seedStaleRows() {
+  const php = [
+    "$u = \\App\\Models\\User::create(['name' => 'Stale Smoke User',",
+    `'username' => '${STALE_USER_USERNAME}', 'email' => '${STALE_USER_EMAIL}',`,
+    `'password' => '${STALE_USER_PASSWORD}']);`,
+    // User::create() already leaves this NULL -- nothing on this model
+    // auto-verifies an account it creates -- but setting it explicitly
+    // says outright what "seed a row in the pre-change state" means,
+    // rather than resting on an absence this function never actually
+    // asked for.
+    "$u->forceFill(['email_verified_at' => null])->save();",
+    "$deleted = \\Illuminate\\Support\\Facades\\DB::table('migrations')",
+    `->where('migration', '${STALE_BACKFILL_MIGRATION}')->delete();`,
+    `$role = \\Spatie\\Permission\\Models\\Role::findByName('${STALE_ROLE_NAME}');`,
+    // Read BEFORE revoking, same reason checkAdminRolesPage() above checks
+    // memberPeriodsCheckbox.isChecked() before toggling it: if
+    // RolesAndPermissionsSeeder::MEMBER_PERMISSIONS ever drifted and
+    // ${STALE_ROLE_NAME} never held ${STALE_REMOVED_PERMISSION} to begin
+    // with, revoking it "succeeds" and HOLDS_AFTER_REVOKE:no would look
+    // identical to a real revoke -- proving nothing about survival across
+    // the replacement below.
+    `$heldBefore = $role->hasPermissionTo('${STALE_REMOVED_PERMISSION}');`,
+    `$role->revokePermissionTo('${STALE_REMOVED_PERMISSION}');`,
+    "echo 'SEED:' . ($u->email_verified_at === null ? 'unverified' : 'verified')",
+    "  . ' MIGRATION_ROW_DELETED:' . $deleted",
+    "  . ' HELD_BEFORE_REVOKE:' . ($heldBefore ? 'yes' : 'no')",
+    `  . ' HOLDS_AFTER_REVOKE:' . ($role->hasPermissionTo('${STALE_REMOVED_PERMISSION}') ? 'yes' : 'no');`,
+  ].join(' ');
+
+  const output = tinker(php);
+
+  if (!/SEED:unverified/.test(output)) {
+    dumpContainerState(`seeding the stale user left it verified instead of unverified -- raw output: ${output}`);
+    throw Object.assign(new Error('seeded stale user is not actually unverified'), { dumped: true });
+  }
+
+  if (!/MIGRATION_ROW_DELETED:1/.test(output)) {
+    dumpContainerState(
+      `deleting ${STALE_BACKFILL_MIGRATION}'s own row from \`migrations\` did not affect exactly one row -- raw output: ${output}`
+      + ' -- either that name no longer matches the migration file, or this ran twice against the same volume',
+    );
+    throw Object.assign(new Error('did not delete exactly one migrations row for the backfill migration'), { dumped: true });
+  }
+
+  if (!/HELD_BEFORE_REVOKE:yes/.test(output)) {
+    dumpContainerState(
+      `${STALE_ROLE_NAME} did not hold ${STALE_REMOVED_PERMISSION} before this tried to revoke it -- raw output: ${output}`
+      + ' -- RolesAndPermissionsSeeder::MEMBER_PERMISSIONS no longer includes it, so revoking it here would prove nothing',
+    );
+    throw Object.assign(new Error(`${STALE_ROLE_NAME} never held ${STALE_REMOVED_PERMISSION} to begin with`), { dumped: true });
+  }
+
+  if (!/HOLDS_AFTER_REVOKE:no/.test(output)) {
+    dumpContainerState(`revoking ${STALE_REMOVED_PERMISSION} from ${STALE_ROLE_NAME} did not take -- raw output: ${output}`);
+    throw Object.assign(new Error(`${STALE_ROLE_NAME} still holds ${STALE_REMOVED_PERMISSION} right after revoking it`), { dumped: true });
+  }
+
+  console.log(
+    `[seed-stale] seeded ${STALE_USER_EMAIL} unverified, deleted the backfill migration's own tracking row, `
+    + `and revoked ${STALE_REMOVED_PERMISSION} from ${STALE_ROLE_NAME} -- the volume now looks pre-upgrade`,
+  );
+}
+
+/**
+ * item/upgrade-smoke (issue #210): the counterpart to
+ * seedStaleRows() above, called from runVerify() AFTER the container has
+ * been replaced. Confirms the account seedStaleRows() inserted with
+ * email_verified_at NULL -- and whose backfill migration was forced back
+ * into a "not yet run against this row" state -- reaches an authenticated
+ * page rather than being stranded on Fortify's verification notice.
+ *
+ * Reports through describeLanding() rather than a bare boolean: CLAUDE.md
+ * and this file's own describeLanding() docblock are explicit about why --
+ * mutation/0019 cost checkAdminUsersPage() a run where an HTTP 200 read
+ * exactly like an authorisation bypass and was actually the verification
+ * notice rendering. This check states plainly, on failure, that it is the
+ * SAME bounce, so nobody has to rediscover that by reading the source.
+ *
+ * Logs in and navigates in its own newContext(): this account has no
+ * relationship to the admin session the rest of runVerify() drives, and
+ * reusing that page could carry a cookie that hides a real failure here.
+ */
+async function checkStaleUserReachesTheApp(browser, phase) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+    await page.getByLabel('Username or email', { exact: true }).fill(STALE_USER_EMAIL);
+    await page.getByLabel('Password', { exact: true }).fill(STALE_USER_PASSWORD);
+    await Promise.all([
+      page.waitForURL((u) => u.pathname !== '/login', { timeout: 15000 }),
+      page.getByRole('button', { name: 'Log in' }).click(),
+    ]);
+
+    // dashboard, not /files or /search: it is the one route behind
+    // ['auth', 'verified'] that carries no further `can:` permission, so a
+    // bounce here can only be about verification, never about this
+    // freshly-created, role-less account lacking some unrelated capability.
+    await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
+    const pathname = new URL(page.url()).pathname;
+
+    if (pathname !== '/dashboard') {
+      dumpContainerState(
+        // describeLanding() already ends in "instead of the page this was
+        // asked for" on a verification bounce, so naming /dashboard again
+        // after it produced "instead of ... instead of /dashboard" in the
+        // mutation run. The route this asked for is stated up front instead.
+        `[${phase}] the user seeded with email_verified_at NULL before the replacement, `
+        + `asked for /dashboard after logging in and ${describeLanding(page)} -- `
+        + (pathname === VERIFICATION_NOTICE_PATH
+          ? 'the backfill migration did not reach this row across the replacement, so it is stranded exactly the way issue #210 describes'
+          : 'landed somewhere neither this check nor the login flow expected'),
+      );
+      throw Object.assign(new Error(`stale user landed on ${pathname} instead of /dashboard`), { dumped: true });
+    }
+
+    console.log(
+      `[${phase}] the user seeded unverified before the replacement reached ${describeLanding(page)} -- `
+      + 'the backfill migration protected it across the upgrade -- OK',
+    );
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * item/upgrade-smoke (issue #210), the role-permission half.
+ * seedStaleRows() revoked STALE_REMOVED_PERMISSION from STALE_ROLE_NAME
+ * directly against the database, on the pre-replacement container -- the
+ * same class of edit checkRolePermissionSurvivesContainerReplacement()
+ * above already covers for a permission GRANTED through the real
+ * /admin/roles form. This is the mirror case: a permission REVOKED must
+ * not come BACK after the replacement either, which is exactly what issue
+ * #214's fix (RolesAndPermissionsSeeder's createRoleIfMissing() touching
+ * nothing on a role that already exists) is supposed to guarantee
+ * regardless of which direction the edit went.
+ *
+ * Pure tinker, like checkRolePermissionSurvivesContainerReplacement()
+ * above: this is a database persistence question, not a rendering one.
+ */
+function checkStaleRolePermissionStaysRevoked(phase) {
+  const php = [
+    `$r = \\Spatie\\Permission\\Models\\Role::findByName('${STALE_ROLE_NAME}');`,
+    `echo 'HOLDS:' . ($r && $r->hasPermissionTo('${STALE_REMOVED_PERMISSION}') ? 'yes' : 'no');`,
+  ].join(' ');
+  const output = tinker(php);
+
+  if (!/HOLDS:no/.test(output)) {
+    dumpContainerState(
+      `[${phase}] ${STALE_ROLE_NAME} holds ${STALE_REMOVED_PERMISSION} again after the container was replaced -- raw output: ${output}`
+      + ` -- seedStaleRows() revoked it directly against the database before the replacement; something on this boot`
+      + ` reset ${STALE_ROLE_NAME}'s permissions back to RolesAndPermissionsSeeder's defaults (issue #214)`,
+    );
+    throw Object.assign(new Error(`${STALE_ROLE_NAME} regained ${STALE_REMOVED_PERMISSION} across a container restart`), { dumped: true });
+  }
+  console.log(`[${phase}] ${STALE_ROLE_NAME} still lacks ${STALE_REMOVED_PERMISSION} after the container replacement -- the edit survived -- OK`);
+}
+
+/**
  * item/admin-periods (issue #20): closes a finished period through the real
  * /admin/periods form and proves, via tinker, that the resulting
  * ArchivePeriod row now exists and is archived -- CLAUDE.md's own rule,
@@ -3398,6 +3663,12 @@ async function runVerify() {
     console.log('[verify] checking the member role still holds the periods.manage permission granted during setup, across the container replacement (issue #214)');
     checkRolePermissionSurvivesContainerReplacement('verify');
 
+    console.log('[verify] checking a role permission revoked directly against the database before the replacement stayed revoked (issue #210/#214)');
+    checkStaleRolePermissionStaysRevoked('verify');
+
+    console.log('[verify] checking a user seeded with email_verified_at NULL before the replacement still reaches the app instead of being stranded on the verification notice (issue #210)');
+    await checkStaleUserReachesTheApp(browser, 'verify');
+
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
     await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
     await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
@@ -3476,6 +3747,8 @@ async function runVerify() {
   try {
     if (phase === 'setup') {
       await runSetup();
+    } else if (phase === 'seed-stale') {
+      seedStaleRows();
     } else {
       await runVerify();
     }
