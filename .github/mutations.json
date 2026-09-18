@@ -369,5 +369,12 @@
     "file": "app/Livewire/Admin/Periods.php",
     "remove": "        if ($typed !== $plan->label()) {\n            $this->addError('purge.'.$periodId, __('Type the exact period label, :label, to confirm.', [\n                'label' => $plan->label(),\n            ]));\n\n            return;\n        }\n\n",
     "expectFailing": "refuses to purge a period when the confirmation text does not exactly equal the label"
+  },
+  {
+    "id": "ledger-duplicate-id-caught-before-nodes-overwrite",
+    "why": "issue #185: LedgerValidator::idErrors() used to open with a duplicate-@id check that could never fire, because it iterated $nodes -- a PHP array keyed by @id, whose keys are unique by construction. The real duplicate was destroyed one step earlier, in collectAndCheckStructure(), where a second node sharing an @id silently overwrote the first at $nodes[$id] = [...]. Two items were duplicated in docs/ledger/ledger.jsonld on main, undetected, for exactly this reason. Remove this guard and a second node reusing an @id is once again absorbed into $nodes with no trace, which is what let that happen.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "            if (isset($nodes[$id])) {\n                // $nodes is keyed by @id, so a second node sharing it would\n                // silently overwrite the first here and this duplicate would\n                // never be visible again -- catch it now, one step before\n                // that happens. This is why idErrors() used to carry a\n                // \"duplicate @id\" check that could never fire: by the time\n                // it ran, $nodes already had unique keys by construction.\n                // JSON-LD merges nodes that share an @id, so two entries for\n                // one id are not two items to any consumer -- they are one\n                // item whose fields came from whichever copy parsed last.\n                $errors[] = \"id: '$id' is defined by more than one node -- JSON-LD merges nodes sharing an @id, so this is not two items to any consumer, it is one item whose fields came from whichever copy parsed last.\";\n            }\n\n",
+    "expectFailing": "flags a node that redefines an id already used by an earlier node"
   }
 ]

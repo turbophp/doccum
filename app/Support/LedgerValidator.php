@@ -364,6 +364,19 @@ final class LedgerValidator
                 return;
             }
 
+            if (isset($nodes[$id])) {
+                // $nodes is keyed by @id, so a second node sharing it would
+                // silently overwrite the first here and this duplicate would
+                // never be visible again -- catch it now, one step before
+                // that happens. This is why idErrors() used to carry a
+                // "duplicate @id" check that could never fire: by the time
+                // it ran, $nodes already had unique keys by construction.
+                // JSON-LD merges nodes that share an @id, so two entries for
+                // one id are not two items to any consumer -- they are one
+                // item whose fields came from whichever copy parsed last.
+                $errors[] = "id: '$id' is defined by more than one node -- JSON-LD merges nodes sharing an @id, so this is not two items to any consumer, it is one item whose fields came from whichever copy parsed last.";
+            }
+
             $nodes[$id] = ['type' => $type, 'node' => $node];
 
             $structuralKeys = array_diff(array_keys($node), ['@id', '@type', '@context']);
@@ -450,14 +463,14 @@ final class LedgerValidator
     private static function idErrors(array $nodes): array
     {
         $errors = [];
-        $seen = [];
 
+        // Duplicate-@id detection does NOT belong here: $nodes is keyed by
+        // @id, so its keys are unique by construction and a loop like this
+        // one used to sit beside this comment doing nothing. The real check
+        // lives in collectAndCheckStructure(), before $nodes[$id] is
+        // assigned -- the one point where a second node sharing an @id is
+        // still visible, before it overwrites the first.
         foreach ($nodes as $id => $entry) {
-            if (isset($seen[$id])) {
-                $errors[] = "id: '$id' is used by more than one node.";
-            }
-            $seen[$id] = true;
-
             $pattern = match ($entry['type']) {
                 'Action' => self::ITEM_ID_PATTERN,
                 'Run' => self::RUN_ID_PATTERN,
