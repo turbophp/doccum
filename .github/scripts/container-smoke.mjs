@@ -203,6 +203,41 @@ function dumpContainerState(reason) {
   }
 }
 
+// Fortify's default path for its `verification.notice` route -- see
+// laravel/fortify's routes/routes.php,
+// `RoutePath::for('verification.notice', '/email/verify')` -- and NOT
+// overridden here: config/fortify.php was read before writing this and
+// carries no path override. If that ever changes, the constant is the one
+// place to fix it, not either of the two call sites below.
+const VERIFICATION_NOTICE_PATH = '/email/verify';
+
+/**
+ * item/smoke-installer-names-the-bounce (issue #197). Two places in this
+ * file report a destination the browser was asked to reach, and both used
+ * to be misreadable in the same way: mutation/0019 sent checkAdminUsersPage()
+ * an HTTP 200 from `/admin/users` that read exactly like an authorisation
+ * bypass and was not one. Playwright's goto() and waitForURL() both follow
+ * redirects, so a status code, or a bare "did the URL change", describes
+ * whatever the browser was FINALLY sent to -- not the page that was asked
+ * for. The member in that run held no `users.manage`, was unverified, and
+ * had been redirected to Fortify's own verification notice; the 200 was
+ * that notice rendering, not `/admin/users` answering for real.
+ *
+ * So both sites now go through this one helper instead of each inlining its
+ * own "where did we end up" text: one wording to keep honest, not two that
+ * read alike and can drift. It reports the pathname actually reached, and
+ * names the verification notice explicitly rather than leaving a caller to
+ * rediscover, from a raw path or a raw status, that a bounce happened at
+ * all -- which is the exact rediscovery mutation/0019 had to do by reading
+ * the check's source rather than its output.
+ */
+function describeLanding(page) {
+  const pathname = new URL(page.url()).pathname;
+  return pathname === VERIFICATION_NOTICE_PATH
+    ? `bounced to the email verification notice (${pathname}) instead of the page this was asked for`
+    : `landed on ${pathname}`;
+}
+
 /**
  * Whether a files row exists for this name, asked once. No waiting, no
  * retrying -- callers decide what to do about a `false`.
@@ -1185,61 +1220,6 @@ async function checkHomeDashboardShowsRecentUpload(page, phase) {
   }
 
   console.log(`[${phase}] Home lists ${FILE_NAME} under "Recent files" -- real data, not a placeholder`);
-}
-
-/**
- * item/email-verification-decided (issue #161): User now implements
- * MustVerifyEmail for real, and `dashboard` carries the `verified`
- * middleware -- so if the first administrator were not verified at
- * creation, checkHomeDashboardShowsRecentUpload() below (and everything
- * this smoke does afterwards, all of it as this same logged-in admin) would
- * fail at the very first /dashboard visit. That is real coverage, but it is
- * diffuse: it would show up as an unrelated-looking cascade of failures
- * with no assertion naming the actual cause. This gives that fact a name of
- * its own, right after the installer hands back control and before
- * anything else has a chance to obscure it.
- *
- * Evidence through tinker() first (the column itself), then the DOM as
- * confirmation (the middleware actually letting the request through) --
- * the same order checkAdminInstanceSettingsPage() uses for its own
- * round-trip check.
- */
-async function checkFirstAdminIsVerified(page, phase) {
-  const output = tinker(
-    "$u = \\App\\Models\\User::first(); echo 'VERIFIED:' . ($u && $u->hasVerifiedEmail() ? 'yes' : 'no');",
-  );
-
-  if (!output.includes('VERIFIED:yes')) {
-    dumpContainerState(
-      `[${phase}] the first administrator's email_verified_at is not set right after setup -- raw tinker output: ${output.trim()}`,
-    );
-    throw Object.assign(
-      new Error('the first administrator was not verified at creation'),
-      { dumped: true },
-    );
-  }
-  console.log(`[${phase}] the first administrator's email_verified_at is set -- OK`);
-
-  await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
-
-  try {
-    // data-test="home-recent-files" (resources/views/livewire/home/index.
-    // blade.php) renders unconditionally, with or without any recent files
-    // -- exactly what makes it safe to check here, before this admin has
-    // uploaded anything at all. Its absence means the request never reached
-    // Home\Index, which is what a `verified` redirect to email verification
-    // would look like.
-    await page.locator('[data-test="home-recent-files"]').waitFor({ state: 'visible', timeout: 10000 });
-  } catch {
-    dumpContainerState(
-      `[${phase}] /dashboard did not render Home for the first administrator -- current URL: ${page.url()}. Likely redirected to email verification instead of reaching a 'verified' route.`,
-    );
-    throw Object.assign(
-      new Error("the first administrator could not reach /dashboard, a 'verified' route"),
-      { dumped: true },
-    );
-  }
-  console.log(`[${phase}] the first administrator reaches /dashboard, a 'verified' route -- OK`);
 }
 
 /**
@@ -2616,14 +2596,28 @@ async function checkAdminUsersPage(page, phase) {
       memberPage.getByRole('button', { name: 'Log in' }).click(),
     ]);
 
+    // mutation/0019: goto() follows redirects, so `status` is the FINAL
+    // response, not necessarily /admin/users's own. A 403 straight from
+    // /admin/users and a 200 from a bounce to the verification notice are
+    // both "the status is not 403 for the page this was asked for" in two
+    // different ways, so describeLanding() (above fileRowExists()) is read
+    // alongside the status rather than the status standing alone -- a bare
+    // "HTTP 200, expected 403" is exactly what that mutation's run produced,
+    // and it reads like an authorisation bypass whether or not it is one.
     const response = await memberPage.goto(`${BASE_URL}/admin/users`, { waitUntil: 'domcontentloaded' });
     const status = response ? response.status() : null;
+    const landing = describeLanding(memberPage);
 
     if (status !== 403) {
-      dumpContainerState(`[${phase}] /admin/users answered HTTP ${status} for ${memberUsername}, who holds no users.manage -- expected 403`);
-      throw Object.assign(new Error(`/admin/users did not 403 for ${memberUsername}, answered ${status}`), { dumped: true });
+      dumpContainerState(
+        `[${phase}] /admin/users answered HTTP ${status} for ${memberUsername}, who holds no users.manage -- expected 403. ${landing}.`,
+      );
+      throw Object.assign(
+        new Error(`/admin/users did not 403 for ${memberUsername} (answered ${status}) -- ${landing}`),
+        { dumped: true },
+      );
     }
-    console.log(`[${phase}] /admin/users answered 403 for ${memberUsername} -- OK`);
+    console.log(`[${phase}] /admin/users answered 403 for ${memberUsername}, ${landing} -- OK`);
   } finally {
     await memberContext.close();
   }
@@ -3214,24 +3208,52 @@ async function runSetup() {
     await page.getByLabel('Confirm password', { exact: true }).fill(ADMIN_PASSWORD);
 
     console.log('[setup] submitting the administrator form');
-    await Promise.all([
-      // submit() ends in `redirect()->route('files.browse')` (see
-      // FirstRun::submit) -- a real, full-page redirect, not a Livewire
-      // ->navigate() morph, so a plain URL wait is enough.
-      //
-      // This wait is the whole of issue #97's evidence. Put the redirect back
-      // to '/' and it times out here, because '/' is Route::view('/',
-      // 'welcome') -- Laravel's starter page. The page.goto() below cannot
-      // rescue it: this wait runs first.
-      page.waitForURL((u) => u.pathname === '/files', { timeout: 15000 }),
-      page.getByRole('button', { name: 'Create administrator account' }).click(),
-    ]);
-    console.log('[setup] installer complete, admin created and logged in');
+    try {
+      await Promise.all([
+        // submit() ends in `redirect()->route('files.browse')` (see
+        // FirstRun::submit) -- a real, full-page redirect, not a Livewire
+        // ->navigate() morph, so a plain URL wait is enough.
+        //
+        // This wait is the whole of issue #97's evidence. Put the redirect back
+        // to '/' and it times out here, because '/' is Route::view('/',
+        // 'welcome') -- Laravel's starter page. The page.goto() below cannot
+        // rescue it: this wait runs first.
+        //
+        // It is ALSO, since item/email-verification-decided (issue #161),
+        // the whole of mutation/0018's evidence: `files.browse` carries the
+        // `verified` middleware, so any change that leaves the first
+        // administrator unverified fails HERE, by construction, before
+        // control is even handed back to this script -- there used to be a
+        // separate checkFirstAdminIsVerified() function, called right after
+        // this Promise.all, that tried to name that failure on its own
+        // tinker/DOM evidence. item/smoke-installer-names-the-bounce
+        // (issue #197) removed it, because mutation/0018 showed it could
+        // never be the check a red run points at -- this wait always fails
+        // first. The catch block below is
+        // what makes THIS failure legible instead of a bare "Timeout
+        // 15000ms exceeded" -- unverified, the redirect bounces to Fortify's
+        // verification notice, and describeLanding() (mutation/0019, above
+        // fileRowExists()) names that explicitly instead of leaving a bare
+        // timeout, or a raw URL, open to being misread the way an HTTP 200
+        // was misread as a bypass elsewhere in this file.
+        page.waitForURL((u) => u.pathname === '/files', { timeout: 15000 }),
+        page.getByRole('button', { name: 'Create administrator account' }).click(),
+      ]);
+    } catch {
+      dumpContainerState(
+        `[setup] the installer never reached /files after submitting the administrator form -- ${describeLanding(page)}.`
+        + ' A bounce to the verification notice here means the first administrator was not verified at'
+        + ' creation (item/email-verification-decided, issue #161); a bounce anywhere else (e.g. back to'
+        + " '/', Laravel's starter welcome page) is issue #97's original failure mode instead.",
+      );
+      throw Object.assign(
+        new Error(`installer did not redirect to /files -- ${describeLanding(page)}`),
+        { dumped: true },
+      );
+    }
+    console.log(`[setup] installer complete, admin created and logged in -- ${describeLanding(page)}`);
 
     checkEmbeddedSqlitePragmas();
-
-    console.log('[setup] checking the first administrator is verified at creation and reaches a verified route (issue #161)');
-    await checkFirstAdminIsVerified(page, 'setup');
 
     console.log('[setup] opening the home directory');
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
