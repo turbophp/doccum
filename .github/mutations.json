@@ -351,9 +351,37 @@
   },
   {
     "id": "previewed-bytes-are-sandboxed-so-an-upload-cannot-run-as-the-app",
-    "why": "The preview endpoint serves somebody's uploaded bytes INLINE, same-origin, for a browser to render -- which the download endpoint never did. Without a sandbox policy an uploaded HTML page runs its own scripts with the viewer's session, so in a system built around people filing documents for each other, one upload acts as whoever opens it. The header carries `sandbox` with no allow-scripts: the document still renders, in an opaque origin, with scripts inert, and it holds however the response is loaded -- including a direct navigation, which an iframe's sandbox attribute does not cover. Remove the header and the response comes back with nothing stopping it executing.",
+    "why": "The preview endpoint serves somebody's uploaded bytes INLINE, same-origin, for a browser to render -- which the download endpoint never did. Without a sandbox policy an uploaded HTML page runs its own scripts with the viewer's session, so in a system built around people filing documents for each other, one upload acts as whoever opens it. `sandbox` with no allow-scripts answers that: opaque origin, scripts inert, and it holds however the response is loaded -- including a direct navigation, which an iframe's sandbox attribute does not cover. The header is sent for markup ONLY, because sandbox disables plugins and blanked the PDF viewer; remove the assignment and executable markup is served with nothing stopping it.",
     "file": "app/Http/Controllers/FilePreviewController.php",
-    "remove": "                'Content-Security-Policy' => \"sandbox; default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'\",\n",
+    "remove": "            $headers['Content-Security-Policy'] =\n                \"sandbox; default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'\";\n",
     "expectFailing": "neutralises uploaded HTML with a sandbox policy"
+  },
+  {
+    "id": "set-role-permissions-refuses-to-strip-last-administrator",
+    "why": "item/admin-roles (issue #19): the admin Roles page changes a ROLE's permission set through App\\Actions\\Roles\\SetRolePermissions, and Spatie's syncPermissions() writes the role_has_permissions pivot table directly -- exactly like SetUserRoles's own syncRoles() call, it fires no Eloquent model event, so nothing else in the application observes this write at all (verified for this item: no model hook, no observer, no listener anywhere sees a permission sync). This throw is therefore the ENTIRE protection for this path, one level more dangerous than the user-role case beside it -- editing one role strips `users.manage` from every user who holds that role at once, not just one account. Remove it and an operator can uncheck users.manage on the admin role through the ordinary admin UI, with no error, and lock themselves and everyone else out with no way back in.",
+    "file": "app/Actions/Roles/SetRolePermissions.php",
+    "remove": "            throw LastAdministratorMustRemain::forRole($role);\n",
+    "expectFailing": "refuses to strip users.manage from a role that is its sole holder"
+  },
+  {
+    "id": "periods-purge-refuses-when-not-purgeable",
+    "why": "item/admin-periods (issue #20): the purge control being disabled in the Blade view is a courtesy to the operator, not a guard -- a Livewire method call reaches /livewire/update directly with whatever payload the client sends, disabled attribute or not. Periods::purgePeriod() re-runs PeriodPurger::plan() itself and must refuse on that FRESH answer. Remove this check and purgePeriod() purges any period whose confirmation text matches its label, even one PeriodPurger::plan() says is not purgeable -- an open period, one still inside its retention window, or one with a file under legal hold.",
+    "file": "app/Livewire/Admin/Periods.php",
+    "remove": "        if (! $plan->purgeable) {\n            $this->addError('purge.'.$periodId, __('This period cannot be purged: :blockers', [\n                'blockers' => implode(' ', $plan->blockers),\n            ]));\n\n            return;\n        }\n\n",
+    "expectFailing": "refuses to purge a period when purgeable is false even though the request asks for it"
+  },
+  {
+    "id": "periods-purge-refuses-confirmation-mismatch",
+    "why": "item/admin-periods (issue #20): the confirmation text field is the only thing standing between a purgeable period and an irreversible delete, so it must be compared to the fresh plan's exact label with a strict comparison. Remove this check and purgePeriod() purges a purgeable period with no confirmation at all -- an empty string, or any other text, purges it just as well as the correct label typed exactly.",
+    "file": "app/Livewire/Admin/Periods.php",
+    "remove": "        if ($typed !== $plan->label()) {\n            $this->addError('purge.'.$periodId, __('Type the exact period label, :label, to confirm.', [\n                'label' => $plan->label(),\n            ]));\n\n            return;\n        }\n\n",
+    "expectFailing": "refuses to purge a period when the confirmation text does not exactly equal the label"
+  },
+  {
+    "id": "ledger-duplicate-id-caught-before-nodes-overwrite",
+    "why": "issue #185: LedgerValidator::idErrors() used to open with a duplicate-@id check that could never fire, because it iterated $nodes -- a PHP array keyed by @id, whose keys are unique by construction. The real duplicate was destroyed one step earlier, in collectAndCheckStructure(), where a second node sharing an @id silently overwrote the first at $nodes[$id] = [...]. Two items were duplicated in docs/ledger/ledger.jsonld on main, undetected, for exactly this reason. Remove this guard and a second node reusing an @id is once again absorbed into $nodes with no trace, which is what let that happen.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "            if (isset($nodes[$id])) {\n                // $nodes is keyed by @id, so a second node sharing it would\n                // silently overwrite the first here and this duplicate would\n                // never be visible again -- catch it now, one step before\n                // that happens. This is why idErrors() used to carry a\n                // \"duplicate @id\" check that could never fire: by the time\n                // it ran, $nodes already had unique keys by construction.\n                // JSON-LD merges nodes that share an @id, so two entries for\n                // one id are not two items to any consumer -- they are one\n                // item whose fields came from whichever copy parsed last.\n                $errors[] = \"id: '$id' is defined by more than one node -- JSON-LD merges nodes sharing an @id, so this is not two items to any consumer, it is one item whose fields came from whichever copy parsed last.\";\n            }\n\n",
+    "expectFailing": "flags a node that redefines an id already used by an earlier node"
   }
 ]

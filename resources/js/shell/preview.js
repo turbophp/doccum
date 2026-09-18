@@ -89,6 +89,21 @@ export function registerPreview(Alpine) {
         failure: '',
 
         init() {
+            this.start();
+
+            // Livewire replaces this subtree whenever the component
+            // re-renders -- stepping to the next file does exactly that -- and
+            // a fresh instance starts at `idle` again. Re-running from here
+            // covers the case where init() fires on markup Alpine has already
+            // seen.
+            this.$nextTick(() => {
+                if (this.state === 'idle') {
+                    this.start();
+                }
+            });
+        },
+
+        start() {
             if (config.kind === 'word') {
                 this.load('word');
             } else if (this.tab === 'code') {

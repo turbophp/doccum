@@ -120,3 +120,25 @@ it('refuses a type it will not promise to render inline', function () {
         ->get(route('files.preview', $file->fresh()))
         ->assertStatus(415);
 });
+
+it('does not sandbox a PDF, because the sandbox is what blanked it', function () {
+    // `sandbox` disables plugins, and the browser's built-in PDF viewer is
+    // one. Sending the header for every type served a perfectly valid PDF
+    // into an empty frame -- the response was 200 with the right bytes and
+    // the right content type, and the dialog showed nothing, which is the
+    // hardest kind of broken to read from a test suite.
+    //
+    // A PDF already renders inside the browser's own sandbox, so the header
+    // bought nothing here and cost the whole feature.
+    $file = uploadFor($this->dir, $this->user, 'contract.pdf', '%PDF-1.4 stub', 'application/pdf');
+    $file->currentVersion->update(['mime' => 'application/pdf']);
+
+    $response = $this->actingAs($this->user)->get(route('files.preview', $file->fresh()));
+
+    $response->assertOk();
+
+    expect($response->headers->get('content-security-policy'))->toBeNull()
+        // The protections that cost nothing are still there.
+        ->and($response->headers->get('x-content-type-options'))->toBe('nosniff')
+        ->and($response->headers->get('content-disposition'))->toStartWith('inline');
+});

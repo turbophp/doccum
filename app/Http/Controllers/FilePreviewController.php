@@ -36,6 +36,14 @@ class FilePreviewController extends Controller
 
     public function __construct(private readonly DocumentStorage $storage) {}
 
+    /** Types a browser will execute if it is allowed to. */
+    private static function isMarkup(string $mime): bool
+    {
+        return str_contains($mime, 'html')
+            || str_contains($mime, 'xml')
+            || str_contains($mime, 'svg');
+    }
+
     /**
      * Stream a file's bytes for the preview dialog, inline.
      *
@@ -74,35 +82,42 @@ class FilePreviewController extends Controller
             return response('The stored object for this file is missing.', 502);
         }
 
+        $headers = [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="'.addslashes($file->name).'"',
+            // The type above is a decision, not a hint: without this a
+            // browser may sniff the bytes and render as HTML something
+            // served as something else.
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, max-age=0, must-revalidate',
+        ];
+
+        // The sandbox goes on markup, and only on markup.
+        //
+        // Executable markup served same-origin is the actual hazard: an
+        // uploaded HTML page would otherwise run its scripts with the
+        // viewer's session. `sandbox` with no allow-scripts answers that --
+        // opaque origin, scripts inert -- and it holds however the response is
+        // loaded, including a direct navigation to the URL, which an iframe's
+        // own sandbox attribute does not cover.
+        //
+        // It must NOT be sent for anything else. `sandbox` disables plugins,
+        // and the browser's built-in PDF viewer is one, so sending this header
+        // for every type served a perfectly valid PDF into a blank frame. A
+        // PDF already renders inside the browser's own sandbox, and an image
+        // cannot execute at all.
+        if (self::isMarkup($mime)) {
+            $headers['Content-Security-Policy'] =
+                "sandbox; default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'";
+        }
+
         return response()->stream(
             function () use ($stream): void {
                 fpassthru($stream);
                 fclose($stream);
             },
             200,
-            [
-                'Content-Type' => $mime,
-                'Content-Disposition' => 'inline; filename="'.addslashes($file->name).'"',
-                // The type above is a decision, not a hint: without this a
-                // browser may sniff the bytes and render as HTML something
-                // served as something else.
-                'X-Content-Type-Options' => 'nosniff',
-
-                // Every response from here is somebody's uploaded bytes,
-                // served same-origin and rendered by a browser. `sandbox`
-                // with no allow-scripts puts the document in an opaque origin
-                // and stops its scripts executing -- so an uploaded HTML page
-                // previewed here cannot read or act as whoever opened it.
-                //
-                // This replaces rewriting text/html to text/plain, which
-                // achieved the same safety by making the preview useless for
-                // the one type people most want to look at. The header holds
-                // however the response is loaded, including a direct
-                // navigation to the URL, which an iframe's own sandbox
-                // attribute does not cover.
-                'Content-Security-Policy' => "sandbox; default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'",
-                'Cache-Control' => 'private, max-age=0, must-revalidate',
-            ],
+            $headers,
         );
     }
 }

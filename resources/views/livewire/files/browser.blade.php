@@ -902,10 +902,11 @@
                              than into this page's DOM. --}}
                         <div
                             class="h-full w-full"
+                            wire:key="preview-word-{{ $previewing->getKey() }}"
                             x-data="filePreview({ url: @js($source), mime: @js($mime), name: @js($previewing->name), kind: 'word' })"
                             data-test="preview-word"
                         >
-                            <template x-if="state === 'loading'">
+                            <template x-if="state === 'idle' || state === 'loading'">
                                 <div class="flex h-full items-center justify-center gap-2 text-sm text-ink-2">
                                     <flux:icon.arrow-path variant="micro" class="animate-spin" />
                                     {{ __('Converting document…') }}
@@ -939,6 +940,7 @@
 
                         <div
                             class="flex h-full w-full flex-col"
+                            wire:key="preview-text-{{ $previewing->getKey() }}"
                             x-data="filePreview({ url: @js($source), mime: @js($mime), name: @js($previewing->name), kind: 'text', initialTab: @js($rendersAsPage ? 'preview' : 'code') })"
                             data-test="preview-text"
                         >
@@ -970,7 +972,7 @@
                                 class="min-h-0 flex-1 overflow-auto rounded border border-rule bg-chrome"
                                 data-test="preview-code"
                             >
-                                <template x-if="state === 'loading'">
+                                <template x-if="state === 'idle' || state === 'loading'">
                                     <div class="p-4 text-sm text-ink-2">{{ __('Loading…') }}</div>
                                 </template>
 
@@ -989,9 +991,22 @@
 
                              sandbox="" because these are somebody's uploaded
                              bytes served same-origin. --}}
+                        {{-- No sandbox attribute here, deliberately: it
+                             disables plugins, and the browser's built-in PDF
+                             viewer IS a plugin, so sandboxing this frame
+                             serves a valid PDF into a blank rectangle. A PDF
+                             already renders inside the browser's own sandbox.
+                             The markup frame above, which can execute, keeps
+                             its sandbox. --}}
+                        {{-- #toolbar=0 asks the browser's PDF viewer for no
+                             toolbar, which removes its own Download and Print
+                             buttons. It is a request, not a guarantee -- the
+                             parameter is a Chrome/Edge convention and Firefox
+                             ignores it -- and it is not a control: the bytes
+                             are one URL away regardless, and the dialog's own
+                             Download button is the supported route. --}}
                         <iframe
-                            src="{{ $source }}"
-                            sandbox=""
+                            src="{{ $source }}#toolbar=0&navpanes=0&statusbar=0"
                             title="{{ $previewing->name }}"
                             class="h-full min-h-[60vh] w-full rounded border border-rule bg-chrome"
                             data-test="preview-frame"

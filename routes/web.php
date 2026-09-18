@@ -6,7 +6,9 @@ use App\Http\Controllers\DirectoryArchiveDownloadController;
 use App\Http\Controllers\FileDownloadController;
 use App\Http\Controllers\FilePreviewController;
 use App\Http\Controllers\FileVersionDownloadController;
+use App\Livewire\Admin\Periods;
 use App\Livewire\Admin\PropertyDefinitions;
+use App\Livewire\Admin\Roles;
 use App\Livewire\Admin\Users;
 use App\Livewire\Files\Browser;
 use App\Livewire\Home\Index as Home;
@@ -72,6 +74,21 @@ Route::livewire('admin/properties', PropertyDefinitions::class)
 Route::livewire('admin/users', Users::class)
     ->middleware(['auth', 'can:users.manage'])
     ->name('admin.users');
+
+// item/admin-roles (issue #19): gated on the SAME permission as admin.users
+// above, not a new roles.manage -- see App\Livewire\Admin\Roles's own
+// docblock for why.
+Route::livewire('admin/roles', Roles::class)
+    ->middleware(['auth', 'can:users.manage'])
+    ->name('admin.roles');
+
+// item/admin-periods (issue #20): its own permission, not users.manage --
+// closing and purging archive periods is a distinct administrative concern
+// from users and roles, and spec §10 lists "archive periods" as its own
+// Settings section.
+Route::livewire('admin/periods', Periods::class)
+    ->middleware(['auth', 'can:periods.manage'])
+    ->name('admin.periods');
 
 require __DIR__.'/settings.php';
 
