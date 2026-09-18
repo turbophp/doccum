@@ -453,5 +453,19 @@
     "file": "app/Support/LedgerValidator.php",
     "remove": "            if ($index < $lastKnownIndex && ! isset($known[$sha])) {\n                $errors[] = \"history: commit '$sha' is on main (per git log since the previous completed run) but does not appear in any run's merges, and a LATER commit does -- so this is a merge nobody wrote down, not one not yet recorded.\";\n            }\n",
     "expectFailing": "reports a commit on main that no run records, when a later commit is recorded"
+  },
+  {
+    "id": "ledger-vocabulary-rejects-a-key-misplaced-by-type",
+    "why": "item/ledger-field-audit (issue #173) removes Run.tests and Run.assertions, and its doneWhen says a DELETED field needs no test of its own because its absence from ALLOWED_KEYS is the assertion. That is only true while this branch exists, and LedgerIntegrityTest's own vocabulary test cannot establish it: it asserts the real ledger has no structural errors, which passes just as happily when the check is gone -- it cannot tell 'nothing breaks the vocabulary' from 'nothing is checking'. Every real node satisfies this branch, so only a node that violates it can prove it fires.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (! in_array($key, self::ALLOWED_KEYS[$type], true)) {\n                    $errors[] = \"structural: $context ($id) has key '$key', which is not allowed on a $type.\";\n                }\n",
+    "expectFailing": "rejects a key the vocabulary defines but does not allow on that type"
+  },
+  {
+    "id": "ledger-vocabulary-rejects-an-undefined-term",
+    "why": "The sibling of the entry above, and the branch that actually catches the fields this item deleted: Run.tests and Run.assertions were removed from context.jsonld as well, so re-adding `tests` to a run trips the undefined-term check and never reaches the per-type one. Remove this branch and that key is reported with the WRONG reason (as misplaced rather than as undefined), which is how a run file could carry a term no vocabulary defines while the message sends the reader looking at ALLOWED_KEYS instead.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (! in_array($key, $vocabTerms, true)) {\n                    $errors[] = \"structural: $context ($id) has key '$key', which context.jsonld does not define.\";\n\n                    continue;\n                }\n",
+    "expectFailing": "rejects a run key the vocabulary no longer defines"
   }
 ]

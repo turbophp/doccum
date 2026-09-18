@@ -13,8 +13,6 @@
     "item/purge-service"
   ],
   "commit": "2ef04dd5dcdded140d36f1807a7f1e0bc4337248",
-  "tests": 425,
-  "assertions": 886,
   "description": "Built purging and its commands, made CI the verification gate, and seeded this ledger. Opened PR #2. CI found five real defects that review had not: composer.json declared PHP ^8.3 while the lock required >= 8.4.1 so installs were impossible on 8.3; PeriodPurger::retentionCutoff() returned CarbonImmutable through a ?Carbon signature, a TypeError that made purging entirely non-functional and produced 23 failures; the phpstan gate compared against a stale count that hid two new findings; main was already failing 26 pint checks; and the assets job could not resolve Flux CSS without Composer. All three purge guards are now proven load-bearing by a CI job rather than by hand. The suite is green on PHP 8.4 with SQLite at 425 tests and 886 assertions, up from 386 and 818. PostgreSQL is red on two pre-existing installer tests, recorded as issue 37 and deliberately not folded into this PR. Nothing is merged, so no item is Completed.",
   "merges": []
 }

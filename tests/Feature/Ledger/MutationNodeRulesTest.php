@@ -92,8 +92,6 @@ function makeSmallMutationFixture(array $mutations, string $itemId = 'item/small
         'outcome' => 'completed',
         'touched' => [],
         'commit' => str_repeat('a', 40),
-        'tests' => 1,
-        'assertions' => 1,
         'description' => 'Fixture baseline run.',
         'merges' => [],
     ];
@@ -108,8 +106,6 @@ function makeSmallMutationFixture(array $mutations, string $itemId = 'item/small
         'outcome' => 'completed',
         'touched' => [$itemId],
         'commit' => str_repeat('d', 40),
-        'tests' => 1,
-        'assertions' => 1,
         'description' => 'Fixture run that completes the item under test.',
         // item/ledger-main-push-record (issue #172): a merged PR's mergeSha
         // must be in its mergedIn run's merges, and Run.commit is the last
@@ -230,8 +226,6 @@ function makeRunThresholdMutationFixture(array $mutations, ?string $testsConclus
             'outcome' => $outcome,
             'touched' => $touched,
             'commit' => str_repeat(dechex($n % 16), 40),
-            'tests' => 1,
-            'assertions' => 1,
             'description' => sprintf('Fixture filler run %d.', $n),
             'merges' => [],
         ];

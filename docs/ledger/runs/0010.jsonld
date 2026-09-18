@@ -12,8 +12,6 @@
     "item/pgsql-value-string-index"
   ],
   "commit": "02813272271f704ffada85fb09216de2afc35b6c",
-  "tests": 541,
-  "assertions": 1104,
   "description": "The last of the latent cross-driver defects the matrix uncovered in run/0001 is closed. PostgreSQL now indexes md5(value_string) rather than the column whole, which decision/0011 records along with what it can and cannot serve and the obligation it places on search-filters. decision/0005 had deferred that choice for want of a test to judge by, and was vindicated twice: the test settled it, and reproducing the failure produced PostgreSQL's own hint recommending exactly this remedy. Then fk-index-coverage emptied SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS, so the audit landed two runs ago now asserts the foreign key rule with no exceptions at all -- found six, recorded six, fixed six, excluded none. It passed fourteen checks on a first attempt with no rounds, the guard that made it safe being a check for any index leading with the column rather than one of a chosen name, since InnoDB had already created its own where MySQL was concerned. Also fixed, on main and not in any item, a race this loop introduced in run/0008: a test asserted every cascaded row shared the root's deleted_at, which had been true only while the pinning that guaranteed it existed. Removing that pinning for trashed_batch made the assertion a coin toss on timing, green by luck three times, and PostgreSQL's microsecond precision finally called it. The same flaw sat inside the test written to demonstrate that very failure mode.",
   "merges": [
     {

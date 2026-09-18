@@ -87,8 +87,6 @@ function makeDuplicateIdFixture(array $items): string
         'outcome' => 'completed',
         'touched' => [],
         'commit' => str_repeat('a', 40),
-        'tests' => 1,
-        'assertions' => 1,
         'description' => 'Fixture baseline run.',
         'merges' => [],
     ];

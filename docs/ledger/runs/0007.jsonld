@@ -12,8 +12,6 @@
     "item/trash-directory"
   ],
   "commit": "3702b8fc27d7da2f9157faddb8fa210315932976",
-  "tests": 509,
-  "assertions": 1043,
   "description": "content-actions landed: RenameFile, RenameDirectory and MoveFile, every collision check going through the name_key rule rather than a bare name comparison. Reading the code to brief the work turned up that MoveDirectory had no collision check at all, so moving a directory onto an existing sibling name silently produced the duplicate spec section 4 forbids; the rescoped issue said that action needed only test coverage, which was wrong, and the subagent flagged the contradiction between its brief and the issue instead of picking one silently. The check went in after the existing self-move guard and excludes the subject, so moving a directory into itself still raises its own exception. FilePolicy::move gates on directory access with no Spatie permission, which looks like a two-layer violation and is not: no file-editing capability exists to check against, and the pre-existing update, view and download are access-only for the same reason. trash-directory was then started, the first item that fixes a defect rather than adding a feature: a file in a live descendant of a trashed directory still prefix-matches a grant held on a live ancestor, so it stays searchable, and the brief requires its test to fail on main before it passes and its mutation entry to be withdrawn if the cascade alone would make it pass.",
   "merges": [
     {

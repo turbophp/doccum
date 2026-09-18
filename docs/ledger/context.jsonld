@@ -56,15 +56,12 @@
     "headSha": "headSha",
     "mergeSha": "mergeSha",
     "commit": "commit",
-    "tests": { "@id": "tests", "@type": "xsd:integer" },
-    "assertions": { "@id": "assertions", "@type": "xsd:integer" },
     "outcome": "outcome",
 
     "pullRequest": { "@id": "pullRequest", "@type": "@id" },
     "mutant": "mutant",
     "check": "check",
     "verdict": "verdict",
-    "evidence": { "@id": "evidence", "@type": "@id", "@container": "@set" },
 
     "merges": { "@id": "merges", "@container": "@list" },
     "testsRun": { "@id": "testsRun", "@type": "@id" },
