@@ -36,13 +36,47 @@ it('allows viewing with a view grant', function () {
     expect($this->user->can('view', $this->dir))->toBeTrue();
 });
 
-it('requires manage to grant access', function () {
-    give($this->dir, $this->user, AccessLevel::Edit);
+/**
+ * Rewritten, not weakened: its second assertion used to require that a plain
+ * member holding a Manage GRANT passes manageAccess(), which documented the
+ * ability as it shipped rather than the rule CLAUDE.md states -- two layers,
+ * both must pass. Spec §5 groups "grant/revoke access, move or delete the
+ * directory itself" as one capability, and move()/delete()/restore() all
+ * require directories.manage; only this one did not.
+ *
+ * That mattered because MEMBER_PERMISSIONS carries no directories.manage and
+ * every user holds manage on their own home directory by ordinary grant, so
+ * every member could hand out any level on their own subtree. Nothing called
+ * the ability from the UI, so it was never reachable -- item/directory-access-ui
+ * is what would have made it live.
+ *
+ * Both layers are now asserted independently, so neither can be dropped
+ * without a failure: the grant alone is refused, the permission alone is
+ * refused, and only the pair passes.
+ */
+it('requires BOTH directories.manage and a manage-level grant to grant access', function () {
+    // Level alone: a member with Manage on the directory but no permission.
+    give($this->dir, $this->user, AccessLevel::Manage);
     expect($this->user->can('manageAccess', $this->dir))->toBeFalse();
 
+    // Permission alone: directories.manage granted DIRECTLY to a member,
+    // deliberately not via the admin role. An admin holds
+    // directories.view-all, and DirectoryAccess::resolve() short-circuits
+    // that to AccessLevel::Manage on every directory -- so an admin fixture
+    // here would pass the level check by bypass and prove nothing about the
+    // grant, which is the trap this comment exists to stop the next person
+    // walking into. givePermissionTo() is how the rest of this file does it.
     DirectoryGrant::query()->delete();
-    give($this->dir, $this->user, AccessLevel::Manage);
-    expect($this->user->can('manageAccess', $this->dir))->toBeTrue();
+    $holder = User::factory()->create();
+    $holder->assignRole('member');
+    $holder->givePermissionTo('directories.manage');
+    give($this->dir, $holder, AccessLevel::Edit);
+    expect($holder->fresh()->can('manageAccess', $this->dir))->toBeFalse();
+
+    // Both.
+    DirectoryGrant::query()->delete();
+    give($this->dir, $holder, AccessLevel::Manage);
+    expect($holder->fresh()->can('manageAccess', $this->dir))->toBeTrue();
 });
 
 it('lets an admin reach anything', function () {
