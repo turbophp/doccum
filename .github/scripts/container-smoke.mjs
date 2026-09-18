@@ -74,6 +74,16 @@ const TRASH_CHECK_FILE_NAME = 'DoccumSmokeTrashTarget.txt';
 // 'verify' would fail for a reason that looks nothing like this item.
 const VERSIONS_CHECK_FILE_NAME = 'DoccumSmokeVersionTarget.txt';
 
+// item/trash-view (issue #15): the pair of documents checkTrashViewRestoreAndPurge()
+// below drives through the new /trash page's own Restore and Purge controls.
+// Two names, not one, so the check can prove both directions independently --
+// one comes back live, the other is gone for good -- rather than reusing
+// TRASH_CHECK_FILE_NAME, which checkTrashRemovesFileFromListingAndSearch()
+// above already trashes through a different door (the file detail panel) and
+// never restores.
+const TRASH_VIEW_RESTORE_FILE_NAME = 'DoccumSmokeTrashViewRestore.txt';
+const TRASH_VIEW_PURGE_FILE_NAME = 'DoccumSmokeTrashViewPurge.txt';
+
 const EXTRACTION_TIMEOUT_MS = Number(env('EXTRACTION_TIMEOUT_MS', '60000'));
 const POLL_INTERVAL_MS = Number(env('POLL_INTERVAL_MS', '2000'));
 const SEARCH_TIMEOUT_MS = Number(env('SEARCH_TIMEOUT_MS', '20000'));
@@ -1933,6 +1943,104 @@ async function checkGrantAndRevokeDirectoryAccess(page, phase) {
 }
 
 /**
+ * item/trash-view (issue #15): drives the new /trash page's own Restore and
+ * Purge controls against the real image. tests/Feature/TrashViewTest.php
+ * already covers authorisation and the query-level isolation through the
+ * test renderer; what only a browser against the built container can see is
+ * whether wire:click on this page's flux:button controls actually reaches
+ * Index::restoreFile()/purgeFile() at all -- a broken asset build or an
+ * unresolved Flux component leaves every Blade assertion green and both
+ * controls unusable.
+ *
+ * The two targets are trashed through `tinker`, not the Browser's own Trash
+ * button -- that flow is checkTrashRemovesFileFromListingAndSearch()'s job
+ * above, already proven. Staying out of that path keeps this check's DOM
+ * interaction scoped to the page actually under test.
+ *
+ * THE LOAD-BEARING ASSERTIONS (predicted, not proven here -- the mutation is
+ * run separately; see the task report): RESTORE_LIVE:yes and PURGED_GONE:yes,
+ * read from the database through tinker AFTER the two clicks, BEFORE either
+ * is treated as done -- decision/0033's rule ("never wait on the thing under
+ * test"), the same shape checkBulkTrashLeavesUnselectedFilesAlone() and
+ * checkGrantAndRevokeDirectoryAccess() already use. A missing
+ * `$this->authorize(...)` call would not be visible here (both callers are
+ * the admin, who passes either way) -- that gap is FilePolicy/
+ * DirectoryPolicy's own tests' job -- but a wire:click the built image
+ * dropped, an unresolved flux:button, or Index::restoreFile()/purgeFile()
+ * never reaching RestoreFile::handle()/PurgeFile::handle() all leave
+ * RESTORE_LIVE:no or PURGED_GONE:no, which is what this actually proves.
+ */
+async function checkTrashViewRestoreAndPurge(page, phase) {
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+
+  await uploadAndProveStored(page, TRASH_VIEW_RESTORE_FILE_NAME, 'Trashed by tinker, restored through /trash.\n', phase);
+  await uploadAndProveStored(page, TRASH_VIEW_PURGE_FILE_NAME, 'Trashed by tinker, purged through /trash.\n', phase);
+
+  tinker(
+    [
+      `\\App\\Models\\File::where('name', '${TRASH_VIEW_RESTORE_FILE_NAME}')->first()->delete();`,
+      `\\App\\Models\\File::where('name', '${TRASH_VIEW_PURGE_FILE_NAME}')->first()->delete();`,
+      "echo 'TRASHED:done';",
+    ].join(' '),
+  );
+
+  await page.goto(`${BASE_URL}/trash`, { waitUntil: 'domcontentloaded' });
+  // Only ever true AT THIS DESTINATION: '/files' renders no element with
+  // this data-test at all, unlike a heading or nav link that exists on both
+  // pages and would prove nothing about which page actually loaded.
+  await page.locator('[data-test="trashed-files-table"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  const restoreRow = page.locator('tr[data-test="trashed-file-row"]').filter({ hasText: TRASH_VIEW_RESTORE_FILE_NAME });
+  await restoreRow.waitFor({ timeout: 10000 });
+  await restoreRow.locator('[data-test="restore-file-button"]').click();
+  // Settles the request the click just started before this check moves on --
+  // never a wait on the row itself, which is the thing under test.
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+
+  const purgeRow = page.locator('tr[data-test="trashed-file-row"]').filter({ hasText: TRASH_VIEW_PURGE_FILE_NAME });
+  await purgeRow.waitFor({ timeout: 10000 });
+  page.once('dialog', (dialog) => dialog.accept());
+  await purgeRow.locator('[data-test="purge-file-button"]').click();
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+
+  const php = [
+    `$restored = \\App\\Models\\File::where('name', '${TRASH_VIEW_RESTORE_FILE_NAME}')->first();`,
+    `$purged = \\App\\Models\\File::withTrashed()->where('name', '${TRASH_VIEW_PURGE_FILE_NAME}')->first();`,
+    "echo 'RESTORE_LIVE:' . ($restored && !$restored->trashed() ? 'yes' : 'no');",
+    "echo ' PURGED_GONE:' . ($purged === null ? 'yes' : 'no');",
+  ].join(' ');
+
+  // Database evidence first -- no polling loop here, deliberately: both
+  // writes already happened synchronously inside the request each click
+  // above waited out via networkidle, unlike the queued work
+  // checkBulkTrashLeavesUnselectedFilesAlone() polls for.
+  const output = tinker(php);
+  const restoreLive = /RESTORE_LIVE:(\S+)/.exec(output)?.[1] === 'yes';
+  const purgedGone = /PURGED_GONE:(\S+)/.exec(output)?.[1] === 'yes';
+
+  if (!restoreLive) {
+    dumpContainerState(`[${phase}] ${TRASH_VIEW_RESTORE_FILE_NAME} was not restored through /trash -- raw output: ${output}`);
+    throw Object.assign(new Error(`${TRASH_VIEW_RESTORE_FILE_NAME} is not live after Restore on /trash`), { dumped: true });
+  }
+  console.log(`[${phase}] ${TRASH_VIEW_RESTORE_FILE_NAME} is live again -- Restore on /trash works`);
+
+  if (!purgedGone) {
+    dumpContainerState(`[${phase}] ${TRASH_VIEW_PURGE_FILE_NAME} still exists after Purge on /trash -- raw output: ${output}`);
+    throw Object.assign(new Error(`${TRASH_VIEW_PURGE_FILE_NAME} still exists after Purge on /trash`), { dumped: true });
+  }
+  console.log(`[${phase}] ${TRASH_VIEW_PURGE_FILE_NAME} is gone for good -- Purge on /trash works`);
+
+  // Only now the DOM, and only as confirmation that the ordinary listing
+  // agrees with what the database already proved above.
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.getByText(TRASH_VIEW_RESTORE_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
+  console.log(`[${phase}] the restored file is back in the ordinary listing -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -2180,6 +2288,9 @@ async function runSetup() {
 
     console.log('[setup] granting and revoking directory access through the detail panel (issue #14)');
     await checkGrantAndRevokeDirectoryAccess(page, 'setup');
+
+    console.log('[setup] restoring and purging trashed files through the new /trash page (issue #15)');
+    await checkTrashViewRestoreAndPurge(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();

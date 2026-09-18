@@ -67,6 +67,42 @@ class DirectoryAccess
     }
 
     /**
+     * Every TRASHED directory id the user may reach, for the Trash view
+     * (item/trash-view, issue #15) -- the query-level filter its doneWhen
+     * demands, never a view-side hide. Deliberately a SEPARATE method from
+     * viewableDirectoryIds() above, not a union folded into it: that method
+     * is built from Directory::query(), whose default scope excludes
+     * trashed rows entirely, and it is what search and the browser use to
+     * decide what is reachable AT ALL -- mixing a trashed id into that
+     * result would make a trashed directory look browsable again.
+     *
+     * Resolved through can(), the SAME per-directory check
+     * restore()/purge()/delete() already resolve through
+     * FilePolicy::directoryEvenIfTrashed() -- deliberately not a fresh rule
+     * written here. can() -> resolve() already answers correctly for a
+     * trashed directory checked ON ITSELF: the directories.view-all bypass
+     * short-circuits to Manage before hasTrashedProperAncestor() is ever
+     * consulted (an admin's reach is unconditional, cascades included), and
+     * an ordinary grant is refused the moment a PROPER ancestor is ALSO
+     * trashed -- so a directory nested inside a still-trashed parent is
+     * excluded here for everyone except that bypass, the same as it is
+     * everywhere else access is resolved. Reusing it is what keeps this
+     * list unable to disagree with what RestoreDirectory's own policy would
+     * actually allow.
+     *
+     * @return array<int, int>
+     */
+    public function viewableTrashedDirectoryIds(User $user): array
+    {
+        return Directory::onlyTrashed()
+            ->get()
+            ->filter(fn (Directory $directory): bool => $this->can($user, $directory, AccessLevel::View))
+            ->pluck('id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
+    }
+
+    /**
      * The tops of what a viewer may reach from /files: every viewable
      * directory whose parent is NOT viewable, including one whose parent
      * is null. A grant made directly on a nested directory, with no grant

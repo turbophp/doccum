@@ -6,6 +6,7 @@ use App\Livewire\Admin\PropertyDefinitions;
 use App\Livewire\Files\Browser;
 use App\Livewire\Search\Results;
 use App\Livewire\Setup\FirstRun;
+use App\Livewire\Trash\Index as Trash;
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/setup', FirstRun::class)->name('setup');
@@ -35,6 +36,14 @@ Route::get('/files/{file}/versions/{version}/download', FileVersionDownloadContr
 Route::livewire('/files/{directory?}', Browser::class)
     ->middleware('auth')
     ->name('files.browse');
+
+// '/trash' cannot collide with the parameterised '/files/{directory?}'
+// above -- they are different literal segments -- so there is nothing here
+// for route registration order to get wrong. See spec §10 ("Trash --
+// reached from Files") and issue #15.
+Route::livewire('/trash', Trash::class)
+    ->middleware('auth')
+    ->name('trash');
 
 Route::livewire('admin/properties', PropertyDefinitions::class)
     ->middleware(['auth', 'can:properties.manage'])

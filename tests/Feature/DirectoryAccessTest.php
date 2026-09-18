@@ -262,3 +262,56 @@ it('caches a denial instead of re-querying it', function () {
 
     expect($queries->filter(fn (string $q): bool => str_contains($q, 'directory_access')))->toBeEmpty();
 });
+
+// --- viewableTrashedDirectoryIds() (item/trash-view, issue #15) ------------
+
+it('includes a trashed directory the viewer holds a grant on', function () {
+    grant($this->root, $this->user, AccessLevel::Edit);
+    $this->root->delete();
+
+    $trashedIds = app(DirectoryAccess::class)->viewableTrashedDirectoryIds($this->user);
+
+    expect($trashedIds)->toContain($this->root->id);
+});
+
+it('excludes a trashed directory the viewer holds no access to', function () {
+    // $this->elsewhere is trashed but $this->user holds no grant on it at
+    // all -- the query-level clause item/trash-view's doneWhen is about:
+    // another user's trashed directory must never appear, here proven
+    // directly against the id list a Trash page's query filters with.
+    grant($this->root, $this->user, AccessLevel::Manage);
+    $this->root->delete();
+    $this->elsewhere->delete();
+
+    $trashedIds = app(DirectoryAccess::class)->viewableTrashedDirectoryIds($this->user);
+
+    expect($trashedIds)->not->toContain($this->elsewhere->id)
+        ->and($trashedIds)->toContain($this->root->id);
+});
+
+it('excludes a trashed directory nested under another still-trashed directory', function () {
+    // $this->leaf is trashed alongside its parent $this->mid -- the same
+    // cascade shape TrashDirectory produces. Restoring is only ever done at
+    // the top of a cascade (DirectoryPolicy::restore() would refuse $leaf
+    // directly, per hasTrashedProperAncestor()), so the Trash page must not
+    // offer it as a separate row either.
+    grant($this->root, $this->user, AccessLevel::Manage);
+    $this->mid->delete();
+    $this->leaf->delete();
+
+    $trashedIds = app(DirectoryAccess::class)->viewableTrashedDirectoryIds($this->user);
+
+    expect($trashedIds)->toContain($this->mid->id)
+        ->and($trashedIds)->not->toContain($this->leaf->id);
+});
+
+it('includes every trashed directory, cascades included, for a holder of directories.view-all', function () {
+    $this->user->assignRole('admin');
+    $this->mid->delete();
+    $this->leaf->delete();
+
+    $trashedIds = app(DirectoryAccess::class)->viewableTrashedDirectoryIds($this->user);
+
+    expect($trashedIds)->toContain($this->mid->id)
+        ->and($trashedIds)->toContain($this->leaf->id);
+});
