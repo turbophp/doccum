@@ -3,13 +3,12 @@
 
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
 @source '../../vendor/livewire/flux/stubs/**/*.blade.php';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Public Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
     --color-zinc-50: #fafafa;
     --color-zinc-100: #f5f5f5;
@@ -23,16 +22,39 @@
     --color-zinc-900: #171717;
     --color-zinc-950: #0a0a0a;
 
-    --color-accent: var(--color-neutral-800);
-    --color-accent-content: var(--color-neutral-800);
-    --color-accent-foreground: var(--color-white);
+    /*
+     * Shell tokens (design plan §1, "Palette"). Two neutral ramps and three
+     * semantic hues; this is the entire shell palette, and each semantic hue
+     * carries exactly one meaning. Dark overrides live in the `.dark` block
+     * below -- both are first-class, and nothing here assumes dark.
+     */
+    --color-sheet: #ffffff;
+    --color-chrome: #eef0f2;
+    --color-rule: #d3d8de;
+    --color-ink-2: #5b6470;
+    --color-ink: #1f252b;
+
+    --color-select: #2b5fd9;
+    --color-hold: #c42b1f;
+    --color-attention: #a05a00;
+
+    /* Flux: primary buttons stay ink; selection is a separate token. */
+    --color-accent: var(--color-ink);
+    --color-accent-content: var(--color-ink);
+    --color-accent-foreground: var(--color-sheet);
 }
 
 @layer theme {
     .dark {
-        --color-accent: var(--color-white);
-        --color-accent-content: var(--color-white);
-        --color-accent-foreground: var(--color-neutral-800);
+        --color-sheet: #1f2327;
+        --color-chrome: #181b1f;
+        --color-rule: #30363d;
+        --color-ink-2: #9aa3ad;
+        --color-ink: #e8ebee;
+        --color-select: #7aa2ff;
+        --color-hold: #ff7a70;
+        --color-attention: #e8a33c;
+        --color-accent-foreground: var(--color-sheet);
     }
 }
 
@@ -58,9 +80,52 @@
 input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {
-    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+    @apply outline-hidden ring-2 ring-select ring-offset-2 ring-offset-accent-foreground;
 }
 
-/* \[:where(&)\]:size-4 {
-    @apply size-4;
-} */
+/*
+ * Selection, not accent: a checked checkbox is a selected state, so it takes
+ * `select`, not the (deliberately grey) `--color-accent`. These rules sit
+ * outside any `@layer`, so -- like the focus-ring override above -- they beat
+ * Flux's own utilities regardless of specificity or :hover/:focus state
+ * (unlayered CSS always wins over anything inside a Tailwind `@layer`).
+ */
+ui-checkbox[data-checked] [data-flux-checkbox-indicator],
+ui-checkbox[data-indeterminate] [data-flux-checkbox-indicator] {
+    background-color: var(--color-select);
+}
+
+/*
+ * Numerals (design plan §2): every numeric cell and counter gets tabular
+ * figures so a column of sizes and dates aligns instead of wobbling.
+ */
+.num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+}
+
+/*
+ * Reduced motion, enforced for the CSS half of the shell (design plan §5).
+ *
+ * `move()` short-circuits before calling animate(), which covers every
+ * scripted animation. It cannot cover a CSS transition: the tree's disclosure
+ * chevrons rotate through `transition-transform`, deliberately, because a
+ * 120ms rotation does not need a spring and does not need JavaScript. Without
+ * this block those transitions keep running for a viewer who has asked the
+ * system for less motion, and the single-point-of-enforcement claim is only
+ * true of the half written in JavaScript.
+ *
+ * Durations collapse to 0.01ms rather than to `none` so that anything waiting
+ * on `transitionend` or `animationend` still receives its event and does not
+ * hang; the frame is over before it can be perceived either way.
+ */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
