@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T14:50:00Z",
+  "dateModified": "2026-09-18T15:25:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -993,10 +993,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "A dependsOn containing a non-string, an implements given as a bare string, and decision/0030's array-shaped supersedes each produce exactly one shape: error and no crash; a testsConclusion with a null testsRun, and a ledgerConclusion with a null ledgerRun, are each a run: error (this clause originally read \"a mainConclusion with a null mainRunUrl is a pr: error\"; item/ledger-main-push-record deleted both of those fields from PullRequest and moved the fact into Run.merges, so the clause is restated against the fields that inherited its intent rather than dropped -- checkMergeEntry() validates each field independently today, so an entry may claim a conclusion with no run to point at); the live ledger validates clean once decision/0030 is corrected; the rule has a mutations.json entry.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-18T14:50:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-18T15:14:48Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/208"
+      ]
     },
     {
       "@id": "item/ledger-rule-witnesses",
@@ -2948,6 +2950,22 @@
       "mergedAt": "2026-09-18T14:35:03Z",
       "mergeSha": "a30ba6778f74df78e675816aaf613988647737cf",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/208",
+      "@type": "PullRequest",
+      "identifier": 208,
+      "name": "The validator fails a wrong-shaped value instead of silently skipping it",
+      "implements": [
+        "item/ledger-shape-from-context"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T15:08:30Z",
+      "headSha": "fc1b88ef0a3f9eed4289e9eb293738a86d8d3e79",
+      "mergedAt": "2026-09-18T15:14:48Z",
+      "mergeSha": "e6d7eac84f751d87e5692f9bfc4add365f242f41",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4070,6 +4088,37 @@
         "spec:13-infrastructure"
       ],
       "affects": [
+        "item/ledger-shape-from-context"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0069",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T15:20:00Z",
+      "run": "run/0020",
+      "name": "An over-strict rule with a named exception is acceptable where a silent skip is not",
+      "rationale": "item/ledger-shape-from-context derives each term's shape from context.jsonld rather than from a hand-maintained list -- that is the item's whole point. It ships with one hand-maintained exception anyway: SHAPE_EXEMPT_TERMS = ['about'], because Ledger.about embeds a full SoftwareApplication node while the context declares it @type: @id.\n\nThe exemption is correct in substance. In JSON-LD, @type: @id coerces STRING values to IRIs; it does not forbid an embedded node object, which is legal under any term. So the shape derived for `about` is over-strict, and the data is fine.\n\nIt was still worth stopping over, in a run where five decisions have been about rules that look like they work and do not. The reason it passes: the exemption is keyed on the TERM'S NAME, so it will not generalise -- a second @id term that ever embeds a node will be wrongly reported. But that failure is LOUD. An over-strict rule reports something that is fine; it does not stay quiet about something that is broken. That asymmetry is the whole difference between this and the defect the item removes, where array_filter(..., 'is_string') dropped a malformed value and said nothing.\n\nTHE RULE: judge a shortcut by which direction it fails. A check that is too strict costs a false alarm and announces itself the first time it is wrong. A check that is too lenient costs nothing today and is indistinguishable from a working check for as long as nobody looks. Prefer the first, ship it with the exception named in one place, and revisit when a second case arrives -- rather than weakening the rule pre-emptively to accommodate a case that does not exist yet.\n\nRecorded here rather than left in PR #208's description so the next person meets the reasoning where they would meet the exemption, and can disagree with it.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-shape-from-context"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0070",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T15:25:00Z",
+      "run": "run/0020",
+      "name": "The main-push-history rule caught its author, three hours after it shipped",
+      "rationale": "item/ledger-main-push-record was justified on a specific claim: runErrors() iterated `pullRequests`, so a LEDGER-ONLY merge -- which by consistent practice carries no PullRequest node -- was invisible to every rule the validator had, and both times main had gone red it was exactly that class.\n\nWriting THIS pass, the rule fired:\n\n  history: commit 'c2dac7f9...' is on main but does not appear in any\n  run's merges, and a LATER commit does -- so this is a merge nobody\n  wrote down, not one not yet recorded.\n\nc2dac7f is the merge of PR #206, the ledger pass for item 42. It was trailing and legitimately unrecorded when it landed. The next pass -- this one -- should have recorded it, and instead jumped straight to the two newer merges. A ledger-only merge, omitted by the person who had just built the check for omitted ledger-only merges, within three hours of shipping it.\n\nWorth recording for three reasons.\n\nFirst, it is the difference between a rule tested against a fixture and a rule tested against the world. The witness tests for this rule pass an interior hole in deliberately. This was an accident, in real data, found by the check rather than by anyone re-reading the file.\n\nSecond, it validates the CONTIGUITY design from decision/0065 specifically. Under the original to-the-tip rule this omission could never have been distinguished from the ordinary state of a just-merged commit, because every pass has an unrecorded tip. Contiguity is what made \"not yet recorded\" and \"never recorded\" different things, and this is the first case where the difference mattered.\n\nThird, it is evidence about the author, not just the code: the omission happened while writing a ledger pass by hand, in a session whose entire subject has been checks that do not check. The habit is not the safeguard. The check is.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-main-push-record",
         "item/ledger-shape-from-context"
       ],
       "supersedes": null
