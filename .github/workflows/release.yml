@@ -59,3 +59,55 @@ jobs:
             DOCCUM_VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # item/changelog-release-notes (issue #31): a pushed tag is also supposed
+  # to produce a GitHub Release, body taken verbatim from that version's
+  # CHANGELOG.md section. Split from the `image` job (needs: image) so a
+  # release is never created ahead of -- or on top of a failed -- image
+  # push, but its own failure never blocks the image from having gone out.
+  #
+  # Guarded to the tag-push trigger only: this workflow also fires on
+  # workflow_dispatch, where github.ref is whatever branch was dispatched
+  # from, not a tag -- there is no version to read a changelog section for,
+  # and the job is skipped outright rather than failing confusingly deep
+  # inside changelog-section.sh. release-skipped-notice below exists so a
+  # workflow_dispatch run still says why, instead of a same-named job simply
+  # not appearing.
+  release:
+    runs-on: ubuntu-latest
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # github.ref_name for a tag push is the tag with the refs/tags/
+      # prefix already stripped by GitHub (e.g. "v0.1.0"), matching the
+      # `type=semver,pattern={{version}}` tag the `image` job above just
+      # pushed the container under. changelog-section.sh strips a leading
+      # "v" itself, so it is passed through unchanged here.
+      - name: Extract this version's changelog section
+        run: |
+          set -e
+          .github/scripts/changelog-section.sh "${{ github.ref_name }}" CHANGELOG.md > /tmp/release-notes.md
+          echo "Release notes for ${{ github.ref_name }}:"
+          cat /tmp/release-notes.md
+
+      # Pinned by commit SHA per this repo's convention (see tests.yml);
+      # e598afbe... is the commit the v3.0.3 tag points at.
+      - uses: softprops/action-gh-release@e598afbe1493e6b1bafb1f389cabb956eab91231 # v3.0.3
+        with:
+          tag_name: ${{ github.ref_name }}
+          body_path: /tmp/release-notes.md
+
+  release-skipped-notice:
+    runs-on: ubuntu-latest
+    needs: image
+    if: "!startsWith(github.ref, 'refs/tags/')"
+    steps:
+      - name: Explain why no Release was created
+        run: |
+          echo "::notice::This run was not a tag push (ref: ${{ github.ref }}), so no GitHub Release was created. Push a v* tag to publish one."

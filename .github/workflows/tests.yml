@@ -383,6 +383,82 @@ jobs:
 
           echo "MINIO_ROOT_PASSWORD set resolves cleanly with no doccum-secret in the rendered config"
 
+  # item/changelog-release-notes (issue #31): exercises
+  # .github/scripts/changelog-section.sh directly against the committed
+  # CHANGELOG.md, on every PR, so a change to either one that breaks the
+  # extractor is caught here rather than on the next real tag push -- which
+  # is the one place release.yml runs where nobody is watching for it.
+  #
+  # No `needs:` on purpose, same reasoning as compose-secret above: this is
+  # a couple of seconds of shell against a checked-out file, unrelated to
+  # anything the other jobs build.
+  changelog-section:
+    timeout-minutes: 5
+    name: changelog-section.sh extracts release notes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: An existing version extracts a correct, non-empty section
+        run: |
+          set +e
+          output="$(.github/scripts/changelog-section.sh 0.1.0 CHANGELOG.md)"
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error::expected 'changelog-section.sh 0.1.0' to exit 0, but it exited $status"
+            echo "$output"
+            exit 1
+          fi
+
+          if [ -z "$output" ]; then
+            echo "::error::expected non-empty output for version 0.1.0, got nothing"
+            exit 1
+          fi
+
+          # A known line from CHANGELOG.md's [0.1.0] section, so this fails
+          # if the section is ever emptied or the extractor starts grabbing
+          # the wrong one, not just if it exits non-zero.
+          known_line='Home dashboard: recent files, storage by period, and quick search.'
+          if ! printf '%s' "$output" | grep -qF "$known_line"; then
+            echo "::error::expected the [0.1.0] section to contain the known line '$known_line', but it did not"
+            echo "$output"
+            exit 1
+          fi
+
+          echo "version 0.1.0 extracted correctly:"
+          echo "$output"
+
+      # This is the load-bearing assertion (see CLAUDE.md and the item's
+      # doneWhen): an extractor that returns empty on a missing section lets
+      # release.yml publish a Release with a blank body, successfully, and
+      # nothing here would ever have caught it.
+      - name: A version that does not exist fails non-zero, naming itself
+        run: |
+          set +e
+          output="$(.github/scripts/changelog-section.sh 99.99.99 CHANGELOG.md 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::expected 'changelog-section.sh 99.99.99' to exit non-zero (no such section exists), but it exited 0 with output: $output"
+            exit 1
+          fi
+
+          if ! printf '%s' "$output" | grep -qF '99.99.99'; then
+            echo "::error::expected the failure message to name the missing version '99.99.99', but got: $output"
+            exit 1
+          fi
+
+          echo "missing version 99.99.99 correctly failed (exit $status), message names it:"
+          echo "$output"
+
   image:
     timeout-minutes: 30
     name: image
