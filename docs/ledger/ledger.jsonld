@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T05:46:22Z",
+  "dateModified": "2026-09-18T06:14:39Z",
   "latestRun": "run/0019",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -694,10 +694,12 @@
         "item/topbar-shell"
       ],
       "doneWhen": "Recents are filtered by DirectoryAccess so another user's file is absent; the page renders with zero data. Exactly one link on /files has the accessible name 'Home': spec 10 names BOTH the topbar entry and the sidebar's pinned entry 'Home', so the collision is the spec's rather than item/files-tree-sidebar's (issue #140). The sidebar entry keeps its visible text per the spec and carries an accessible name beginning with it ('Home directory'), so WCAG label-in-name holds; a test asserts the count of accessible-name matches and is shown failing against main first. Not renamed to the username (the tree's first entry already reads that) nor to 'My files' (a term the spec does not use).",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T05:45:00Z",
+      "endTime": "2026-09-18T06:12:33Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/160"
+      ]
     },
     {
       "@id": "item/search-filters",
@@ -2310,6 +2312,38 @@
       "mergedAt": "2026-09-18T04:49:23Z",
       "mergeSha": "221b30e91964a81e727ccc18bcfbbed571436ef8",
       "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/160",
+      "@type": "PullRequest",
+      "identifier": 160,
+      "name": "item/home-dashboard: recents filtered by DirectoryAccess, and one link named Home (#16)",
+      "implements": [
+        "item/home-dashboard"
+      ],
+      "run": "run/0019",
+      "state": "merged",
+      "dateCreated": "2026-09-18T05:59:00Z",
+      "headSha": "466ebdda9605c651c386266ae7f90f8641822e4a",
+      "mergedAt": "2026-09-18T06:12:33Z",
+      "mergeSha": "98d7a7ed26924346f05575ef8f2a32ccee2acd0b",
+      "mergedIn": "run/0019"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/162",
+      "@type": "PullRequest",
+      "identifier": 162,
+      "name": "MUTATION -- DO NOT MERGE: Home resolves recents but renders none",
+      "implements": [
+        "item/home-dashboard"
+      ],
+      "run": "run/0019",
+      "state": "closed",
+      "dateCreated": "2026-09-18T06:05:00Z",
+      "headSha": "1ce601675b4a98ba4409a4b77dece11f5dcb8af2",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -2971,6 +3005,23 @@
         "item/upload-silent-discard"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0040",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T06:15:00Z",
+      "run": "run/0019",
+      "name": "A mutation picked so only the assertion under test can catch it proves something about the mutation, not the assertion",
+      "rationale": "The first Mutation node required by rule 1 rather than volunteered, and the first whose result was deliberately not engineered to flatter the assertion it tests.\n\nWHAT WAS BROKEN. Home\\Index was left untouched -- the query, the DirectoryAccess whereIn and the SoftDeletes scope all still ran, and $recentFiles was still populated. Only the view stopped rendering rows, so /dashboard still answered 200 with its heading, its quick search and its empty state. That is the regression shape the container smoke exists for: a page that renders perfectly well without the thing it is for.\n\nTHE VERDICT. image went red inside checkHomeDashboardShowsRecentUpload(), immediately after that check's own console line, with every preceding check green -- so the harness reached its subject rather than dying on the way, which is the void-versus-negative distinction decision/0035 was written for.\n\nWHAT IT DOES NOT PROVE, WHICH IS THE POINT. The test matrix went red too. HomeDashboardTest asserts rendered output (assertSee at lines 85 and 132), so it is independently sensitive to exactly this breakage. The smoke assertion is real but NOT the only guard covering it. A mutation chosen so that nothing except the assertion under test can catch it proves something about the mutation rather than about the assertion; this one was picked to answer the question, and part of the answer was unflattering. Recorded rather than omitted, because the omission would have been invisible and the claim would have read stronger than the evidence.\n\nA FLAW IT EXPOSED IN THE HARNESS, CAUGHT BY A RULE SHIPPED TWO ITEMS EARLIER. The failure arrived as a bare \"locator.waitFor: Timeout 10000ms exceeded\", naming no assertion at all. It was attributable only because that check's console line happened to be the last thing printed -- luck, not evidence -- and rule 3 of the vocabulary introduced by item/ledger-mutation-nodes says in as many words that a failure naming no assertion is not evidence. The check now fails with \"Home listed no recent-files row for <name>\" plus a container dump, like every other check in the file. The assertion is unchanged, same locator and same wait, so the verdict still describes what merged; it was not re-run over an error string, and that is stated rather than implied.\n\nTHE SCHEMA CORRECTED ME WHILE I WROTE THIS. mutation/0011 was first written with url and rationale keys, and the validator refused both: a Mutation's key set is closed to implements, pullRequest, run, headSha, mutant, check, verdict and supersedes. That division is right and worth keeping -- a Mutation records what was broken, what tripped and what the verdict was; reasoning about what a verdict MEANS belongs in a Decision, where it can be argued with. The evidence link lives in the workflow run reachable from the pull request, not duplicated into the node.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/home-dashboard",
+        "item/ledger-mutation-nodes",
+        "item/container-smoke-ci"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -3111,6 +3162,20 @@
       "headSha": "95c5770e6a41db96478a086e34aa9c3ae6374bb5",
       "mutant": "FileDownloadController's readStream() moved back inside the streamDownload() callback, so the missing-object exception has nowhere left to change the response status once the status line is decided.",
       "check": "Tests\\Feature\\FileDownloadTest > it answers 502 with a logged object key -- assertStatus(502)",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0011",
+      "@type": "Mutation",
+      "implements": [
+        "item/home-dashboard"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/162",
+      "run": "run/0019",
+      "headSha": "1ce601675b4a98ba4409a4b77dece11f5dcb8af2",
+      "mutant": "The Home view resolves $recentFiles and renders no rows from it; the component, its query and the DirectoryAccess filter are untouched",
+      "check": "container-smoke.mjs checkHomeDashboardShowsRecentUpload() -- the wait for a home-recent-file-row containing the uploaded file name",
       "verdict": "negative",
       "supersedes": null
     }
