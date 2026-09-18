@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T04:37:18Z",
-  "latestRun": "run/0018",
+  "dateModified": "2026-09-18T05:46:22Z",
+  "latestRun": "run/0019",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -2032,7 +2032,7 @@
       ],
       "run": "run/0017",
       "state": "closed",
-      "dateCreated": "2026-09-18T00:40:00Z",
+      "dateCreated": "2026-09-18T00:25:07Z",
       "headSha": "a9a0fedbcc2d0d2cf15cacc80b635cc88ecc87fd",
       "mergedAt": null,
       "mergeSha": null,
@@ -2048,7 +2048,7 @@
       ],
       "run": "run/0018",
       "state": "merged",
-      "dateCreated": "2026-09-18T00:37:00Z",
+      "dateCreated": "2026-09-18T00:37:11Z",
       "headSha": "227e3eae6449594947181906bf376fb41eefb21f",
       "mergedAt": "2026-09-18T00:47:00Z",
       "mergeSha": "59f86faf3f2ced96f1e50f827127fcf8707ef946",
@@ -2064,7 +2064,7 @@
       ],
       "run": "run/0018",
       "state": "closed",
-      "dateCreated": "2026-09-18T00:37:30Z",
+      "dateCreated": "2026-09-18T00:37:35Z",
       "headSha": "4978f298cc8f548ddf1dd00c4e7f79a62b5564d4",
       "mergedAt": null,
       "mergeSha": null,
@@ -2081,7 +2081,7 @@
       ],
       "run": "run/0018",
       "state": "merged",
-      "dateCreated": "2026-09-18T00:42:00Z",
+      "dateCreated": "2026-09-18T00:42:41Z",
       "headSha": "be7b62b6299193802b5e2d2efd8d817b5d60c120",
       "mergedAt": "2026-09-18T00:45:50Z",
       "mergeSha": "880ff18227e60a8526f2dbccd80f8a546a58c53c",
@@ -2293,6 +2293,22 @@
       "headSha": "970c1c897c48194c75f63d64c8638914a262973d",
       "mergedAt": "2026-09-18T04:35:56Z",
       "mergeSha": "1238b251801a815155927d3f74a326b3195780c6",
+      "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/158",
+      "@type": "PullRequest",
+      "identifier": 158,
+      "name": "Fix red main: wait for the row in the database, not for the name in the DOM",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T04:46:00Z",
+      "headSha": "f4c2a0eabfebfa226edcee09cd946188ea9f1358",
+      "mergedAt": "2026-09-18T04:49:23Z",
+      "mergeSha": "221b30e91964a81e727ccc18bcfbbed571436ef8",
       "mergedIn": "run/0018"
     }
   ],
@@ -2936,6 +2952,22 @@
       "affects": [
         "item/ledger-mutation-nodes",
         "item/trash-view",
+        "item/upload-silent-discard"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0039",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T04:50:00Z",
+      "run": "run/0018",
+      "name": "The DOM is not evidence that a write landed, and a poll for the row is a wait rather than the retry #129 removed",
+      "rationale": "main went red at 9e2f7af, a merge whose entire diff was two .jsonld files, and the failure was an upload in checkReplaceAddsASecondVersion() reporting no files row. That is the third time this run a ledger-only merge has reddened main through the smoke's upload path, and this time the cause was not the one the previous two taught.\n\nNOT A DROPPED CLICK, AND THE TIMESTAMPS SETTLE IT. The gate in uploadAndProveStored() was getByText(name) with a 10 000ms timeout, followed by ONE read of the database. The probe shows the submit commit dispatched at 20.7111 and the check giving up at 21.2657 -- 555ms later. A getByText that had genuinely timed out would have failed at 30.7. Failing at 21.26 proves it matched almost immediately, because the chosen filename is on the page as soon as the form re-renders, and the single read then arrived before store() had finished writing. The DOM was never evidence of storage -- which is precisely why fileRowExists() exists -- and the defect was letting the DOM decide WHEN to ask.\n\nA RACE THAT HAD BEEN WINNING ON LUCK. This gate is old and has passed hundreds of times. Nothing in the preceding hour caused it; the upload-lifecycle wait added earlier lengthened the surrounding timing enough to lose a race that was always losable. Worth stating because the tempting reading -- \"the last change broke it\" -- would have sent the fix to the wrong place, which is the shape of decision/0030's mistake.\n\nWAIT VERSUS RETRY, AGAIN, AND THE DISTINCTION IS LOAD-BEARING. The fix polls the database to a deadline. It does not upload again and does not click again. That asymmetry is what keeps it honest: a retry re-attempts the upload and can convert a timing defect into a green run, which is how issue 106 survived three rounds and why PR 129 removed the retry. A poll cannot, because a click that was dropped writes no row however long anyone waits -- so the failure mode the no-retry rule exists to catch is still caught, and only the failure mode that was never real (the read outrunning the write) is removed.\n\nA COST OF MY OWN FIX, PAID BACK. clickOnceUploadSettles() waited up to 5 000ms to observe the button's disabled edge, tolerating its absence. Once setFileAndWaitForUpload() began waiting the upload-file POST out upstream, that edge was already gone by the time the loop ran, so \"not seen\" became the NORMAL case and the full budget was burned before every click in the run -- the 5.7 second gap visible in the trace above. Reduced to 750ms. The wait that matters moved upstream; what remains catches a button wedged shut by a stuck loading state, which shows up at once or not at all.\n\nWHAT A GREEN RUN AFTERWARDS DOES AND DOES NOT PROVE. main came back green on 221b30e across all ten jobs. That is not evidence the race is closed, because the old gate passed hundreds of times before it lost. What justifies the fix is structural: a passing run now means the row exists, where before it meant the filename had rendered. The claim recorded here is that the specific defect is closed by construction, not that the smoke is reliable.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/container-smoke-ci",
         "item/upload-silent-discard"
       ],
       "supersedes": null
