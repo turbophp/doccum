@@ -593,5 +593,12 @@
     "file": "app/Support/LedgerValidator.php",
     "remove": "                    $errors[] = \"order: order $order is used by both '{$orders[$order]}' and '$id'.\";\n",
     "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "directory-policy-update-refuses-trashed-directory",
+    "why": "item/directory-policy-trashed-update (issue #247): update() must refuse a directory trashed on its own, independently of whether a grant on a live ancestor above it would otherwise resolve Edit. DirectoryAccess::resolve() checks proper ancestors only, deliberately excluding the directory's own trashed state (issue #49), so without this guard a grant sitting on a live ancestor still resolves Edit for a directory trashed on its own, and PropertyPanel::save()'s authorize('update', $subject) lets a metadata edit through on something delete() already hid -- the same reveal FilePolicy::update() already refuses for a file.",
+    "file": "app/Policies/DirectoryPolicy.php",
+    "remove": "        if ($directory->trashed()) {\n            // A directory trashed on its own still resolves Edit from a\n            // grant sitting on a live ancestor above it: DirectoryAccess::\n            // resolve() checks proper ancestors only, deliberately excluding\n            // the directory's own trashed state, because restoring it is a\n            // manage check reachable only while it is trashed (issue #49).\n            // Editing metadata on something delete() already hid is the same\n            // reveal update() must not reopen. See FilePolicy::update()'s\n            // equivalent guard.\n            return false;\n        }\n\n",
+    "expectFailing": "refuses to update a trashed directory, even with access held through a grant above it"
   }
 ]

@@ -98,6 +98,28 @@ it('requires edit to rename a directory', function () {
     expect($this->user->fresh()->can('update', $this->dir))->toBeTrue();
 });
 
+// item/directory-policy-trashed-update (issue #247): DirectoryAccess::
+// resolve() checks proper ancestors only, deliberately excluding the
+// directory's own trashed state (issue #49) -- restoring it is a manage
+// check reachable only while it is trashed. update() used to have no
+// equivalent to FilePolicy::update()'s trashed guard, so a directory trashed
+// on its own still resolved Edit from a grant sitting on a live ancestor
+// above it, and metadata edits went through. The grant below is placed on
+// the PARENT, not on $child itself, so the assertion cannot pass merely
+// because access was refused for an unrelated reason -- it has to be the
+// trashed guard doing the refusing.
+it('refuses to update a trashed directory, even with access held through a grant above it', function () {
+    $parent = Directory::factory()->create();
+    $child = Directory::factory()->for($parent, 'parent')->create();
+    give($parent, $this->user, AccessLevel::Edit);
+
+    expect($this->user->fresh()->can('update', $child))->toBeTrue();
+
+    $child->delete();
+
+    expect($this->user->fresh()->can('update', $child->fresh()))->toBeFalse();
+});
+
 it('requires directories.manage to move a directory', function () {
     // Destination null (a move to the root) so only the permission and the
     // access level on the directory being moved are in play.

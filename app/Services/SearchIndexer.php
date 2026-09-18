@@ -128,7 +128,7 @@ class SearchIndexer
         ];
     }
 
-    private function directoryFor(Model $subject): ?Directory
+    private function directoryFor(?Model $subject): ?Directory
     {
         return match (true) {
             $subject instanceof Directory => $subject,
