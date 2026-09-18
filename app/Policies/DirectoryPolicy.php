@@ -64,6 +64,36 @@ class DirectoryPolicy
             return false;
         }
 
+        if ($directory->trashed()) {
+            // A directory trashed on its own still resolves Manage from a
+            // grant sitting on a live ancestor above it: DirectoryAccess::
+            // resolve() checks proper ancestors only, deliberately excluding
+            // the directory's own trashed state, because restoring it is a
+            // manage check reachable only while it is trashed (issue #49).
+            // update()'s equivalent guard covers the same gap for metadata
+            // edits; this one is worse to leave open, because MoveDirectory
+            // rewrites `path` and recomputes `depth` across the whole
+            // subtree, and hasTrashedProperAncestor() -- which decides who
+            // can see what beneath a trashed node -- is computed from
+            // exactly those two columns. Restore first, then move.
+            return false;
+        }
+
+        if ($newParent !== null && $newParent->trashed()) {
+            // Not the same reveal as above -- the destination isn't hidden
+            // from the mover, since DirectoryAccess resolves Edit on it the
+            // same self-trashed-excused way. It is refused because
+            // Directory::syncPath() looks up the new parent's path through
+            // the default (non-trashed) query scope: for a trashed
+            // $newParent that lookup finds nothing, so the moved subtree's
+            // `path` is rebuilt missing the parent's own segment and its
+            // leading '/' -- exactly the column ancestorIds() and
+            // hasTrashedProperAncestor() both trust. Moving out of a
+            // trashed directory is a visibility question; moving into one
+            // is a corruption bug, and this refuses it outright.
+            return false;
+        }
+
         if (! $this->access->can($user, $directory, AccessLevel::Manage)) {
             return false;
         }
