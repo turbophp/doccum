@@ -628,6 +628,17 @@ async function checkSearchFilterExcludesByPeriod(page, phase) {
   }
 
   console.log(`[${phase}] clearing the period filter restores ${FILE_NAME} -- OK`);
+
+  // Settle before returning. fill('') above fires a DEBOUNCED Livewire
+  // commit, and the row reappearing only proves one round trip landed, not
+  // that the component is idle -- so without this the check hands the next
+  // one a page with a request still in flight. decision/0033 records what
+  // that costs: a check that leaves the browser mid-navigation blames its
+  // successor, and the blame lands somewhere unrelated and expensive to
+  // trace. This run failed six checks later with a wire:loading that never
+  // cleared, which is what a wedged Livewire component looks like from the
+  // outside.
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 }
 
 // item/reverse-proxy-ready (issue #58): proves bootstrap/app.php's
