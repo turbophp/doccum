@@ -16,6 +16,20 @@ use Illuminate\Database\Eloquent\Model;
  *
  * The value itself lives on Property, one row per subject per definition.
  * See spec §4.
+ *
+ * The annotations state what casts() already does rather than working around
+ * it -- phpstan reads data_type and applies_to as the string columns they are
+ * in the database and cannot see the enum the cast produces, so a caller
+ * doing $definition->data_type->column() reads as "call column() on string".
+ * DirectoryGrant carries the same annotation for the same reason.
+ *
+ * @property string $key
+ * @property string $label
+ * @property PropertyDataType $data_type
+ * @property AppliesTo $applies_to
+ * @property array<int, string>|null $options
+ * @property bool $is_required
+ * @property int $sort_order
  */
 #[Fillable(['key', 'label', 'data_type', 'options', 'is_required', 'applies_to', 'sort_order'])]
 class PropertyDefinition extends Model

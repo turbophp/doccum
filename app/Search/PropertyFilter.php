@@ -41,7 +41,18 @@ final readonly class PropertyFilter
             return null;
         }
 
-        $definition = PropertyDefinition::find($filters['property_definition_id']);
+        // Validated rather than cast. The filter array is array<string, mixed>
+        // -- it comes off a query string -- so a plain (int) would turn "abc"
+        // into 0 and look up definition zero, and find() with a non-int reads
+        // to phpstan as possibly returning a Collection, because find() also
+        // accepts an array of keys.
+        $definitionId = filter_var($filters['property_definition_id'], FILTER_VALIDATE_INT);
+
+        if ($definitionId === false) {
+            return null;
+        }
+
+        $definition = PropertyDefinition::query()->whereKey($definitionId)->first();
 
         if ($definition === null) {
             return null;
@@ -54,7 +65,7 @@ final readonly class PropertyFilter
         }
 
         return new self(
-            definitionId: $definition->getKey(),
+            definitionId: $definitionId,
             column: $definition->data_type->column(),
             value: $value,
         );
