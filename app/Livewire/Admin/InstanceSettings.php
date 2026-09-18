@@ -104,7 +104,7 @@ class InstanceSettings extends Component
             return;
         }
 
-        app(Settings::class)->set('instance.name', $name, auth()->id());
+        app(Settings::class)->set('instance.name', $name, $this->actorId());
 
         $this->instanceName = $name;
     }
@@ -119,7 +119,7 @@ class InstanceSettings extends Component
         // Method-level, alongside mount()'s -- see the class docblock.
         $this->authorize('users.manage');
 
-        app(Settings::class)->set('auth.public_signup', $this->publicSignup, auth()->id());
+        app(Settings::class)->set('auth.public_signup', $this->publicSignup, $this->actorId());
     }
 
     /**
@@ -148,11 +148,36 @@ class InstanceSettings extends Component
             $years = (int) $this->retentionPurgeAfterYears;
         }
 
-        $userId = auth()->id();
+        $userId = $this->actorId();
         $settings = app(Settings::class);
 
         $settings->set('retention.purge_after_years', $years, $userId);
         $settings->set('retention.auto_purge', $this->autoPurge, $userId);
+    }
+
+    /**
+     * Who to attribute a settings write to, as `settings.updated_by` can
+     * actually hold it.
+     *
+     * auth()->id() is int|string|null: Laravel supports a string primary key,
+     * and phpstan will not let that reach Settings::set()'s ?int $userId.
+     * This app's users table is bigIncrements, so at runtime the value is an
+     * int -- but a (int) cast would assert something the framework does not
+     * promise, and would turn a hypothetical string key into 0, writing a
+     * foreign key pointing at a user that does not exist. Narrowing instead
+     * records the honest thing: attribute the write when the key is what the
+     * column can hold, and leave it unattributed when it is not. The column
+     * is nullable precisely so that is expressible.
+     *
+     * Same reasoning as App\Livewire\Admin\Roles::$permissionChoice's
+     * int|string key: widen or narrow to what the package promises, never
+     * cast to what is true only today.
+     */
+    private function actorId(): ?int
+    {
+        $id = auth()->id();
+
+        return is_int($id) ? $id : null;
     }
 
     public function render(): View
