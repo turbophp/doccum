@@ -1782,6 +1782,157 @@ async function checkBulkTrashLeavesUnselectedFilesAlone(page, phase) {
 }
 
 /**
+ * item/directory-access-ui (issue #14): granting and revoking a directory
+ * grant through its detail panel's Access section.
+ *
+ * The grantee is a throwaway account created via tinker, the same pattern
+ * checkResetPasswordCommandPrintsAWorkingLink() above uses and for the same
+ * reason: User::factory() needs fakerphp/faker, a require-dev dependency
+ * not autoloadable in this --no-dev image.
+ *
+ * Every assertion is checked against the DATABASE via tinker, not only the
+ * DOM -- decision/0012, the same reasoning fileRowExists() above states:
+ * the DOM can show an optimistic re-render of something that never reached
+ * storage. The DOM waits below exist only to know WHEN to check the
+ * database, never as the proof itself.
+ *
+ * THE LOAD-BEARING ASSERTION (predicted, not proven here -- the mutation is
+ * run separately; see the task report): the DirectoryGrant row count
+ * reading exactly 1 right after Grant and exactly 0 right after Revoke. A
+ * broken manageAccess() authorisation would 403 before either write; a
+ * flux:select whose value Flux failed to forward would submit an empty or
+ * wrong grantLevel and 422 instead of writing; a dynamic wire:click
+ * argument the built image dropped on the Revoke button would submit no
+ * id at all. Every one of those leaves the grant COUNT wrong, which is
+ * exactly what this checks, rather than an opaque locator timeout.
+ */
+async function checkGrantAndRevokeDirectoryAccess(page, phase) {
+  const digits = Date.now().toString().slice(-9);
+  const dirName = `DoccumSmokeAccessDir-${digits}`;
+  const granteeEmail = `smoke-grantee-${digits}@example.test`;
+  const granteeUsername = `smokegrantee${digits}`;
+
+  const createPhp = [
+    "$u = \\App\\Models\\User::create(['name' => 'Smoke Grantee',",
+    `'username' => '${granteeUsername}', 'email' => '${granteeEmail}',`,
+    "'password' => 'whatever-it-was-before']);",
+    "$u->assignRole('member');",
+    "echo 'CREATED:' . $u->email;",
+  ].join(' ');
+
+  const createOutput = tinker(createPhp);
+  if (!createOutput.includes(`CREATED:${granteeEmail}`)) {
+    dumpContainerState(`[${phase}] could not create the scratch grantee account for the access panel check -- raw output: ${createOutput}`);
+    throw Object.assign(new Error('scratch grantee account creation for the access panel check failed'), { dumped: true });
+  }
+
+  function grantCount() {
+    const php = [
+      `$d = \\App\\Models\\Directory::where('name', '${dirName}')->first();`,
+      `$g = \\App\\Models\\User::where('email', '${granteeEmail}')->first();`,
+      "echo 'COUNT:' . (($d && $g) ? \\App\\Models\\DirectoryGrant::where('directory_id', $d->id)->where('grantee_type', 'user')->where('grantee_id', $g->id)->where('level', 'view')->count() : 'NA');",
+    ].join(' ');
+    return tinker(php);
+  }
+
+  // A fresh directory, never reused: an earlier check may have left other
+  // directories with "Details" links in this same listing (issue #99's
+  // reach-root landing pane), and this is what lets the row-scoped
+  // locators below name THIS row unambiguously.
+  const list = page.locator('[data-test="directories-list"]');
+  await page.getByLabel('New folder', { exact: true }).fill(dirName);
+  await Promise.all([
+    list.getByText(dirName, { exact: true }).waitFor({ timeout: 10000 }),
+    page.getByRole('button', { name: 'Create', exact: true }).click(),
+  ]);
+
+  // The Access section only renders for a SELECTED directory
+  // (Browser::render()'s $selectedDirectory, not the one merely being
+  // browsed) -- "Details" is the same control selectDirectory() above
+  // opens the property panel through.
+  const row = page.locator('[data-test="directories-list"] > div').filter({ hasText: dirName });
+
+  // getByText, NOT getByRole('link'). The row renders two flux:links and only
+  // the first is a link in the accessibility tree: the directory name carries
+  // :href, while Details carries wire:click alone, and an <a> with no href has
+  // no link role. getByRole('link', { name: 'Details' }) therefore matches
+  // nothing and waits out its full timeout:
+  //
+  //   locator.click: Timeout 30000ms exceeded.
+  //     waiting for locator('[data-test="directories-list"] > div')
+  //       .filter({ hasText: '...' }).getByRole('link', { name: 'Details' })
+  //
+  // The name link one line above IS role=link, which is exactly what makes
+  // this easy to get wrong -- the two look identical in the template.
+  await row.getByText('Details', { exact: true }).click();
+  await page.locator('[data-test="grant-access-form"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  // Deliberately leaves the Level <flux:select> at its default ('view',
+  // Browser::$grantLevel's own initial value) rather than driving it with
+  // Playwright's selectOption(): nothing else in this whole script
+  // exercises a flux:select through a real browser (moveFileDestinationId/
+  // moveDirectoryDestinationId have no smoke check of their own either), so
+  // there is no precedent here for how Flux renders one under the hood --
+  // possibly not a native <select> at all -- and this check's job is
+  // grant/revoke, not settling that question too. grantCount() below
+  // filters on level = 'view' accordingly.
+  await page.getByLabel('Grant access to (email)', { exact: true }).fill(granteeEmail);
+
+  const grantRow = page.locator('[data-test="directory-grant-row"]').filter({ hasText: granteeEmail });
+  await Promise.all([
+    grantRow.waitFor({ state: 'visible', timeout: 10000 }),
+    page.locator('[data-test="grant-access-form"]').getByRole('button', { name: 'Grant', exact: true }).click(),
+  ]);
+
+  let output = grantCount();
+  const grantDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  while (Date.now() < grantDeadline && !/COUNT:1/.test(output)) {
+    await sleep(POLL_INTERVAL_MS);
+    output = grantCount();
+  }
+
+  if (!/COUNT:1/.test(output)) {
+    dumpContainerState(`[${phase}] granting access through the panel did not write a DirectoryGrant row -- raw output: ${output}`);
+    throw Object.assign(new Error('grantAccess() did not write a DirectoryGrant row'), { dumped: true });
+  }
+  console.log(`[${phase}] granting access through the panel wrote exactly one DirectoryGrant row -- OK`);
+
+  // Click, then ask the DATABASE, and only then look at the DOM.
+  //
+  // This used to Promise.all the click with a wait for the row to become
+  // detached -- which is the very thing revoking does, so the wait duplicated
+  // the assertion AND came first. On a broken revoke it threw
+  // "locator.waitFor: Timeout 10000ms exceeded ... 25 x locator resolved to
+  // visible <li data-test="directory-grant-row">" before the named check
+  // below could say "the grant row is still there". decision/0033's rule,
+  // written one item ago: never wait on the thing under test, or a defect in
+  // it surfaces as an opaque timeout instead of at the assertion.
+  //
+  // Database evidence first, DOM second, matching
+  // checkBulkTrashLeavesUnselectedFilesAlone()'s docblock. The DOM check
+  // still runs -- it is what proves the panel re-rendered rather than merely
+  // that the row went -- but it is no longer what fails first.
+  page.once('dialog', (dialog) => dialog.accept());
+  await grantRow.getByRole('button', { name: 'Revoke', exact: true }).click();
+
+  output = grantCount();
+  const revokeDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  while (Date.now() < revokeDeadline && !/COUNT:0/.test(output)) {
+    await sleep(POLL_INTERVAL_MS);
+    output = grantCount();
+  }
+
+  if (!/COUNT:0/.test(output)) {
+    dumpContainerState(`[${phase}] revoking access through the panel did not remove the DirectoryGrant row -- raw output: ${output}`);
+    throw Object.assign(new Error('revokeAccess() did not remove the DirectoryGrant row'), { dumped: true });
+  }
+  console.log(`[${phase}] revoking access through the panel removed the DirectoryGrant row -- OK`);
+
+  await grantRow.waitFor({ state: 'detached', timeout: 10000 });
+  console.log(`[${phase}] the panel stopped listing the revoked grant -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -2026,6 +2177,9 @@ async function runSetup() {
 
     console.log('[setup] bulk-trashing two of three uploaded files and confirming the third survives');
     await checkBulkTrashLeavesUnselectedFilesAlone(page, 'setup');
+
+    console.log('[setup] granting and revoking directory access through the detail panel (issue #14)');
+    await checkGrantAndRevokeDirectoryAccess(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();

@@ -59,9 +59,49 @@ class DirectoryPolicy
         return $newParent === null || $this->access->can($user, $newParent, AccessLevel::Edit);
     }
 
+    /**
+     * Gated on BOTH layers, like move(), delete() and restore() beside it,
+     * and unlike how this ability shipped.
+     *
+     * It previously asked only for Manage on the directory. That is the one
+     * sibling of "grant/revoke access, move or delete the directory itself"
+     * -- spec §5's own wording, one capability covering all three -- that
+     * skipped the permission gate, and it is the most dangerous of the three
+     * to leave open, because granting access is how every other restriction
+     * gets handed to someone else.
+     *
+     * The reach was not theoretical: MEMBER_PERMISSIONS carries no
+     * directories.manage, and spec §5 also says every user holds manage on
+     * their own home directory through an ordinary grant. So every ordinary
+     * member could hand anyone any level on their own subtree while being
+     * refused the move and delete that the same sentence of the spec groups
+     * with it. It was unreachable only because nothing in the UI called this
+     * ability; item/directory-access-ui is what would have made it live,
+     * which is why it is fixed here rather than filed.
+     *
+     * Nothing is taken away by this: with no UI, no one could grant anything
+     * through it. What it does decide is that sharing is an administrator's
+     * act in v1. Whether an ordinary member should be able to share their
+     * OWN home directory is a real product question and is filed separately
+     * -- it wants a permission of its own (members hold it, it gates only
+     * grant/revoke), not the removal of a layer.
+     */
     public function manageAccess(User $user, Directory $directory): bool
     {
-        return $this->access->can($user, $directory, AccessLevel::Manage);
+        return
+            // The permission clause carries this comment INSIDE the return
+            // expression, and both facts are deliberate. Unique, because the
+            // clause alone is textually identical to the ones in restore()
+            // and delete() and mutation-check.php matches by substring, so a
+            // bare anchor would hit three sites and prove nothing about any
+            // of them. Inside, because deleting comment-plus-clause must
+            // leave `return $this->access->can(...)` -- valid code with the
+            // permission layer gone. Anchoring above the `return` would
+            // instead leave a statement with no return at all, and the
+            // mutation would "fail" as a TypeError, which tests that PHP has
+            // types rather than that this test catches a missing layer.
+            $user->can('directories.manage')
+            && $this->access->can($user, $directory, AccessLevel::Manage);
     }
 
     /**

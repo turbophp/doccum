@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Livewire\Files;
 
 use App\Actions\Directories\CreateDirectory;
+use App\Actions\Directories\GrantDirectoryAccess;
 use App\Actions\Directories\MoveDirectory;
 use App\Actions\Directories\RenameDirectory;
+use App\Actions\Directories\RevokeDirectoryAccess;
 use App\Actions\Directories\TrashDirectory;
 use App\Actions\Files\MoveFile;
 use App\Actions\Files\RenameFile;
@@ -19,12 +21,15 @@ use App\Exceptions\DuplicateDirectoryName;
 use App\Exceptions\DuplicateFileName;
 use App\Exceptions\PeriodIsArchived;
 use App\Models\Directory;
+use App\Models\DirectoryGrant;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Models\User;
 use App\Services\DirectoryAccess;
+use App\Support\EmailKey;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithFileUploads;
@@ -87,6 +92,12 @@ class Browser extends Component
 
     /** '' means "the root" -- MoveDirectory accepts a null destination, and a <select> option cannot carry null directly. */
     public string $moveDirectoryDestinationId = '';
+
+    /** The Access panel's "grant to" field -- an email address, looked up through EmailKey::of() the same way login and grantAccess() itself compare it. */
+    public string $grantEmail = '';
+
+    /** One of AccessLevel's string values. Plain string, not the enum, for the same reason $sort/$direction are: Livewire hydrates a typed property against whatever wire:model posts, and a raw select value is a string. See grantAccess(). */
+    public string $grantLevel = 'view';
 
     /**
      * The column a header click sorts by, resolved through SORTABLE below --
@@ -403,6 +414,109 @@ class Browser extends Component
     }
 
     /**
+     * Grants (or raises/lowers) a user's access on the selected directory.
+     * Gated on manageAccess() alone -- per spec §5, "manage" on the
+     * directory already IS the capability to grant/revoke access, and
+     * DirectoryPolicy::manageAccess() requires nothing beyond that Manage
+     * level (unlike move()/delete(), which additionally require
+     * directories.manage -- see this method's own report for why the two
+     * are deliberately different).
+     */
+    public function grantAccess(GrantDirectoryAccess $action): void
+    {
+        abort_if($this->selectedDirectory === null, 404);
+
+        // The one ability check standing between "may view/edit this
+        // directory" and "may hand ANY OTHER USER access to it" -- without
+        // it, GrantDirectoryAccess itself checks nothing (CLAUDE.md: actions
+        // never authorise).
+        $this->authorize('manageAccess', $this->selectedDirectory);
+
+        $this->validate([
+            'grantEmail' => ['required', 'email'],
+            'grantLevel' => ['required', Rule::in(array_map(
+                static fn (AccessLevel $level): string => $level->value,
+                AccessLevel::cases(),
+            ))],
+        ]);
+
+        $grantee = User::query()->where('email', EmailKey::of($this->grantEmail))->first();
+
+        if ($grantee === null) {
+            $this->addError('grantEmail', __('No user with that email exists.'));
+
+            return;
+        }
+
+        $action->handle($this->selectedDirectory, $grantee, AccessLevel::from($this->grantLevel));
+
+        $this->grantEmail = '';
+        $this->grantLevel = AccessLevel::View->value;
+    }
+
+    /**
+     * Revokes one grant on the selected directory.
+     *
+     * $grantId is resolved through directoryGrantsQuery() below, never
+     * looked up bare -- a grant id is an ordinary auto-increment integer a
+     * caller can simply guess or enumerate, wired straight off a wire:click
+     * parameter, and without that scope a manager of THIS directory could
+     * revoke a grant belonging to some OTHER directory they hold no access
+     * to at all, merely by naming its id. The same shape as
+     * FileVersionDownloadController's cross-file 404 guard.
+     */
+    public function revokeAccess(int $grantId, RevokeDirectoryAccess $action): void
+    {
+        abort_if($this->selectedDirectory === null, 404);
+
+        // Same ability as grantAccess() above, checked again here rather
+        // than assumed from having reached this method: RevokeDirectoryAccess
+        // itself checks nothing (CLAUDE.md: actions never authorise), so
+        // without this call revoking is wide open to anyone who can select
+        // the directory at all.
+        $this->authorize('manageAccess', $this->selectedDirectory);
+
+        // find() + abort_if, not findOrFail(): the scoping is identical either
+        // way, but the REFUSAL is not. findOrFail() raises
+        // ModelNotFoundException, which a real HTTP request renders as a 404
+        // and a Livewire component test does not -- it propagates, so
+        // assertNotFound() never sees a response and the test dies on the raw
+        // exception instead. That is what it did:
+        //
+        //   FAILED ... refuses to revoke a grant belonging to a different
+        //   directory -- ModelNotFoundException
+        //
+        // abort_if() is what this component already uses two lines above, and
+        // everywhere else it refuses; this was the outlier.
+        $grant = $this->directoryGrantsQuery($this->selectedDirectory)->find($grantId);
+
+        abort_if($grant === null, 404);
+
+        $action->handle($grant);
+    }
+
+    /**
+     * Every user-type DirectoryGrant recorded directly against $directory --
+     * never a caller-supplied, unscoped id resolved bare. Shared by
+     * revokeAccess() above (so a grant id cannot cross directories) and
+     * render()'s own grants listing below, which is what keeps the two from
+     * ever disagreeing about which grants belong to which directory.
+     *
+     * User-type grants only: this v1 panel does not offer granting a ROLE
+     * (DirectoryGrant supports it; GrantDirectoryAccess/this component do
+     * not expose it), so there is nothing role-typed for either caller to
+     * want here.
+     *
+     * @return Builder<DirectoryGrant>
+     */
+    private function directoryGrantsQuery(Directory $directory): Builder
+    {
+        return DirectoryGrant::query()
+            ->where('directory_id', $directory->getKey())
+            ->where('grantee_type', 'user');
+    }
+
+    /**
      * A header cell click. A second click on the SAME column flips
      * direction (the common "click again to reverse" convention); a click
      * on a DIFFERENT column switches to it, always starting ascending --
@@ -627,6 +741,16 @@ class Browser extends Component
                     ->with('uploader')
                     ->orderByDesc('version_number')
                     ->get(),
+            // Queried only when the viewer can manageAccess() -- not merely
+            // hidden by the view's @can below -- so a non-manager's response
+            // never carries another directory's grantees at all, in case a
+            // future edit prints this list somewhere @can does not guard.
+            // directoryGrantsQuery() is the SAME scoped query revokeAccess()
+            // resolves a grant id through, so the list shown here and the
+            // set of ids revokeAccess() will accept can never disagree.
+            'directoryGrants' => $this->selectedDirectory !== null && $user->can('manageAccess', $this->selectedDirectory)
+                ? $this->directoryGrantsQuery($this->selectedDirectory)->with('grantee')->get()
+                : new Collection,
         ]);
     }
 
