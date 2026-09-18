@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T18:35:00Z",
+  "dateModified": "2026-09-18T18:45:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1081,22 +1081,41 @@
       ]
     },
     {
-      "@id": "item/release-v0-1-0",
+      "@id": "item/release-gate",
       "@type": "Action",
       "order": 51,
-      "name": "Tag v0.1.0 to prove the release pipeline",
+      "name": "release.yml must not be able to publish from a red tree",
       "url": "https://github.com/turbophp/doccum/issues/32",
       "isBasedOn": [
         "spec:13-infrastructure"
       ],
       "size": "S",
       "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "release.yml has NO `needs:` on any test job and fires on workflow_dispatch as well as a tag push, so a dispatch against a red main builds and pushes `latest` to ghcr. That is a live violation of 'CI is the gate' sitting in the repository today, independent of any item. SPLIT OUT OF item/release-v0-1-0 and placed BEFORE it deliberately: the failure mode is publishing from a broken tree, and a fix for that must not be validated BY publishing from one. Landing the gate first also means the pre-release tag item/release-v0-1-0 cuts is the first thing the gate ever guards, rather than the first thing to discover the gate is wrong. Done when tests.yml gains an `on: workflow_call:` trigger -- it has none today, so this is real work and not a one-line `needs:` -- release.yml runs it as a `verify` job with the image job `needs: verify`, and the tagged commit is asserted to be an ancestor of main (`git merge-base --is-ancestor`). workflow_dispatch stays; the gate now covers it too. Re-running the reusable workflow is preferred over reading main's last run through the Actions API: that lookup inherits every pitfall decision/0016 documents -- cancelled concurrency runs, checks from other refs, pooled conclusions -- and a release should verify THE EXACT TREE IT PUBLISHES, not one that resembles it. The extra minutes per tag are the cheapest insurance in the project. MUTATION per decision/0067: tag a branch commit carrying a deliberately failing test; the release run must stop at `verify` and publish nothing. Record that run's URL. A gate nobody has watched refuse is not a gate -- and note this is the FIRST time release.yml will have run at all (decision/0075). While in this file: release.yml still pins actions/checkout@v7, docker/setup-qemu-action@v3, docker/setup-buildx-action@v3 and docker/login-action@v4 by TAG, where tests.yml pins by commit SHA. Bring them to the SHA convention, and resolve each with `git ls-remote --tags <repo> | grep '\\^{}'` -- decision/0082 records why the first line ls-remote prints is not always the commit.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/release-v0-1-0",
+      "@type": "Action",
+      "order": 52,
+      "name": "Tag v0.1.0 to prove the release pipeline",
+      "url": "https://github.com/turbophp/doccum/issues/32",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
       "dependsOn": [
         "item/changelog-release-notes",
         "item/compose-secret",
-        "item/version-from-tag"
+        "item/version-from-tag",
+        "item/release-gate"
       ],
-      "doneWhen": "docker pull of the 0.1.0 image works on amd64 and arm64 and boots to the installer.",
+      "doneWhen": "Its original clause -- 'docker pull of the 0.1.0 image works on amd64 and arm64 and boots to the installer' -- is CIRCULAR as written: pulling the published image requires the release to have already run, which is the thing being verified. The route out is a throwaway PRE-RELEASE tag (v0.1.0-rc1 or similar): cut it, let the pipeline run end to end, verify against what it actually published, then delete the tag and its release. RESTATED ALSO BECAUSE THE ITEM WAS CARRYING DEBTS ITS OWN CLAUSE NEVER NAMED. decisions 0080 and 0081 assign three proofs here that the text did not mention, which is exactly the drift between a decision and an item that leaves a requirement unowned. Named explicitly now: (1) ARM64, ACTUALLY BOOTED. release.yml publishes linux/amd64,linux/arm64 and tests.yml's image job builds and boots amd64 ONLY -- no arm64 binary has ever been executed in this project (decision/0076). Pull and boot the published image on both: amd64 on ubuntu-latest, arm64 NATIVELY on ubuntu-24.04-arm, which is free here because the repository is public. QEMU is rejected: a failure under emulation is ambiguous between emulation bug and image bug and so reads in neither direction. If the native runner turns out unavailable, DROP linux/arm64 from release.yml and strike the claim from here and item/tag-v1-0-0 rather than shipping a manifest nobody has booted. (2) THE TAG REACHES THE IMAGE. item/version-from-tag wired ARG DOCCUM_VERSION through to an org.opencontainers.image.version label, but the label and config('doccum.version') both derive from that one ARG, so the smoke's three-way check agrees with itself at a false value if the build arg is wrong (decision/0080). The only independent witness is the git ref the release ran from. Assert here that the published image's label equals the tag that triggered the run. (3) THE RELEASE CARRIES THE CHANGELOG. item/changelog-release-notes built the extractor and wired release.yml to create a Release, and nothing has ever created one (decision/0081). Assert the pre-release tag produced a Release whose body is that version's section. Sized M, not S, because that is three independent proofs plus a first-ever pipeline run; see decision/0083. The gate is NOT here -- it is item/release-gate, which lands first.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -1105,7 +1124,7 @@
     {
       "@id": "item/spec-reconcile",
       "@type": "Action",
-      "order": 52,
+      "order": 53,
       "name": "Reconcile the spec with what actually shipped, before the audit reads it",
       "url": "https://github.com/turbophp/doccum/issues/219",
       "isBasedOn": [
@@ -1123,7 +1142,7 @@
     {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
-      "order": 53,
+      "order": 54,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -1143,7 +1162,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 54,
+      "order": 55,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -1166,7 +1185,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 55,
+      "order": 56,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -1186,7 +1205,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 56,
+      "order": 57,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -1206,7 +1225,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 57,
+      "order": 58,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -1227,7 +1246,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 58,
+      "order": 59,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -1247,7 +1266,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 59,
+      "order": 60,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -1265,7 +1284,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 60,
+      "order": 61,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -1287,7 +1306,7 @@
     {
       "@id": "item/smoke-installer-names-the-bounce",
       "@type": "Action",
-      "order": 61,
+      "order": 62,
       "name": "The smoke installer step names a verification bounce, and the unprovable check goes",
       "url": "https://github.com/turbophp/doccum/issues/197",
       "isBasedOn": [
@@ -1307,7 +1326,7 @@
     {
       "@id": "item/directory-force-delete-orphans",
       "@type": "Action",
-      "order": 62,
+      "order": 63,
       "name": "Force-deleting a directory must not orphan the objects beneath it",
       "url": "https://github.com/turbophp/doccum/issues/86",
       "isBasedOn": [
@@ -1325,7 +1344,7 @@
     {
       "@id": "item/upgrade-preserves-access",
       "@type": "Action",
-      "order": 63,
+      "order": 64,
       "name": "Upgrading an existing instance must not lock out every user",
       "url": "https://github.com/turbophp/doccum/issues/210",
       "isBasedOn": [
@@ -1345,7 +1364,7 @@
     {
       "@id": "item/role-permissions-survive-restart",
       "@type": "Action",
-      "order": 64,
+      "order": 65,
       "name": "A role permission an operator edits must survive a container restart",
       "url": "https://github.com/turbophp/doccum/issues/214",
       "isBasedOn": [
@@ -1365,7 +1384,7 @@
     {
       "@id": "item/upgrade-smoke",
       "@type": "Action",
-      "order": 65,
+      "order": 66,
       "name": "CI must exercise an upgrade, not only a restart",
       "url": "https://github.com/turbophp/doccum/issues/210",
       "isBasedOn": [
@@ -1385,7 +1404,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 66,
+      "order": 67,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -1416,7 +1435,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 67,
+      "order": 68,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -4520,6 +4539,24 @@
         "item/changelog-release-notes",
         "item/release-v0-1-0",
         "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0083",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T18:45:00Z",
+      "run": "run/0020",
+      "name": "A decision that assigns work to an item does not put it in the item's doneWhen",
+      "rationale": "decisions 0075, 0080 and 0081 each booked a proof against item/release-v0-1-0. Its doneWhen said, in full: 'docker pull of the 0.1.0 image works on amd64 and arm64 and boots to the installer.' Three of the four things it was said to owe appear nowhere in that sentence.\n\nI had been describing the item as 'carrying four proofs' on the strength of the decisions. A worker handed that item's doneWhen -- which is what LOOP.md step 5 actually gives them -- would have shipped an arm64 boot check and nothing else, correctly, and the other three would have been owed by nobody. THE RULE: a decision can DECIDE that work belongs to an item; only the item's doneWhen can REQUIRE it. When a decision assigns, the assignment is not done until the item's own text says it, and that edit is part of making the decision rather than a follow-up.\n\nThis is the same defect as decision/0074's finding about the worker brief, one level up: there, decisions never reached the worker; here, a decision never reached the ITEM. Both are the graph failing to carry an obligation to the place the obligation is read from.\n\nReading item/release-v0-1-0 also showed the clause was CIRCULAR: 'docker pull of the 0.1.0 image' presupposes the release that publishes it. A pre-release tag breaks the circle -- cut it, run the pipeline, verify what it published, delete the tag afterwards. Worth noticing that this went unseen through three decisions that all referred to the item confidently; none of us had read its one sentence closely.\n\nTHE SPLIT: item/release-gate is now order 51, before item/release-v0-1-0 at 52. release.yml has no needs on any test job and fires on workflow_dispatch, so a dispatch on a red main publishes latest -- a live defect independent of any item. It goes first because the failure mode is publishing from a broken tree, and a fix for that must not be validated BY publishing from one. Landing it first also means the pre-release tag is the first thing the gate guards rather than the first thing to discover the gate is wrong.\n\nitem/release-v0-1-0 is resized S to M. Three independent proofs plus the first-ever run of a pipeline is not an S, and saying so before starting beats discovering it mid-flight.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/release-v0-1-0",
+        "item/release-gate",
+        "item/version-from-tag",
+        "item/changelog-release-notes"
       ],
       "supersedes": null
     }
