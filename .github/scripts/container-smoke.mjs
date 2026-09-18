@@ -204,6 +204,56 @@ function fileRowExists(name) {
 }
 
 /**
+ * Sets a file on an upload input and does not return until that file's bytes
+ * have actually landed in the component -- the upload-file POST answered AND
+ * the _finishUpload commit behind it settled.
+ *
+ * clickOnceUploadSettles() below used to be the whole of this: watch the
+ * submit button go disabled, wait for it to come back, click. That reads the
+ * upload's progress off an ATTRIBUTE, and the attribute is not a clean
+ * single edge. #148's run caught the gap on the first check that uploads two
+ * files into one page -- the second upload's probe reads, in order:
+ *
+ *   POST .../update        req 53.4297  resp 53.4644   (_startUpload)
+ *   POST .../upload-file   req 53.4671                 (the bytes)
+ *   POST .../update        req 53.5004  resp 53.5601   <-- the racing click
+ *                          resp 53.5684                (upload-file answers)
+ *   POST .../update        req 53.5741  resp 53.6044   (_finishUpload, 30ms)
+ *
+ * The click's commit went out 67ms BEFORE the bytes were acknowledged, so
+ * store() ran against an empty property exactly as issue #106 describes, and
+ * the run died at "no files row for DoccumSmokeTrashViewPurge.txt". The
+ * disabled-edge watcher had already seen an edge and an enable by then --
+ * whether that was the tail of the PREVIOUS upload or a gap between
+ * _startUpload's response and the upload POST does not matter, because
+ * either way a poll that latches onto the first enable it sees cannot tell
+ * "this upload has finished" from "some upload has finished".
+ *
+ * So wait on the upload's own request lifecycle instead, which is the only
+ * thing here that is true at the destination and nowhere else. The listener
+ * is armed BEFORE setInputFiles(): a file input posts on change, and a
+ * listener registered afterwards can miss the response outright.
+ *
+ * Nothing is asserted here -- an upload too fast to observe, or a Livewire
+ * that renames the endpoint, must not turn into a failure in a helper whose
+ * job is to get out of the way. The guard itself is proved, against a
+ * deliberately stalled endpoint, by
+ * checkUploadButtonIsDisabledWhileTheFileIsStillUploading().
+ */
+async function setFileAndWaitForUpload(page, input, filePath) {
+  const posted = page
+    .waitForResponse((response) => response.url().includes('/upload-file'), { timeout: 20000 })
+    .catch(() => null);
+
+  await input.setInputFiles(filePath);
+  await posted;
+
+  // The bytes are acknowledged; _finishUpload is the commit that puts them on
+  // the component's property, and it is still in flight at this point.
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+}
+
+/**
  * Clicks a submit button that Livewire disables for the duration of a file
  * upload, WITHOUT racing that disabled window.
  *
@@ -237,6 +287,14 @@ function fileRowExists(name) {
  * fast to observe it -- absence of the edge is not evidence of anything),
  * then wait for it to clear, and only then click. After the upload has
  * landed nothing disables the button again, so the click cannot be dropped.
+ *
+ * This is now the LAST-MILE guard, not the whole of it. Every caller reaches
+ * here through setFileAndWaitForUpload() above, which has already waited the
+ * upload-file POST out, so in a healthy run this loop sees no disabled edge
+ * at all and falls straight through to the click -- which is the point. It
+ * stays because it costs one poll and it is the thing that still catches a
+ * button left disabled by a stuck loading state, a case the request wait
+ * cannot see.
  */
 async function clickOnceUploadSettles(page, button, phase, label) {
   let sawDisabled = false;
@@ -311,7 +369,15 @@ async function uploadAndProveStored(page, name, contents, phase) {
   const tmpFile = path.join(os.tmpdir(), name);
   fs.writeFileSync(tmpFile, contents);
 
-  await page.locator('[data-test="upload-form"] input[type="file"]').setInputFiles(tmpFile);
+  // Through setFileAndWaitForUpload(), never a bare setInputFiles(): this
+  // helper is called twice in a row by checkTrashViewRestoreAndPurge(), and
+  // the second call is where watching the button alone was caught clicking
+  // 67ms before the bytes were acknowledged.
+  await setFileAndWaitForUpload(
+    page,
+    page.locator('[data-test="upload-form"] input[type="file"]'),
+    tmpFile,
+  );
 
   // Through clickOnceUploadSettles(), never a bare click: the button is
   // deliberately disabled for the duration of the upload, and clicking into
@@ -1396,7 +1462,7 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   // separate concern from the discarded click.
   const replaceInput = page.locator('[data-test="replace-form"] input[type="file"]');
   await replaceInput.waitFor({ state: 'attached', timeout: 10000 });
-  await replaceInput.setInputFiles(replacementPath);
+  await setFileAndWaitForUpload(page, replaceInput, replacementPath);
 
   // Through clickOnceUploadSettles(), for the same reason the main upload
   // form goes through it: Replace carries the same in-flight guard, so it
