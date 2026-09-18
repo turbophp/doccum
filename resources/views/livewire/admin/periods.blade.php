@@ -2,7 +2,7 @@
     <flux:heading level="1">{{ __('Archive periods') }}</flux:heading>
     <flux:text>{{ __('Close finished periods to archive them, then purge one once it is old enough and holds nothing under legal hold.') }}</flux:text>
 
-    <form wire:submit="closePeriod" class="max-w-lg space-y-4" data-test="close-period-form">
+    <form class="max-w-lg space-y-4" data-test="close-period-form">
         <flux:heading level="2">{{ __('Close a period') }}</flux:heading>
 
         @error('closePeriod')
