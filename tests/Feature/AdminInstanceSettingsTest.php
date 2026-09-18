@@ -101,7 +101,7 @@ it('flips /register between 404 and 200 by toggling auth.public_signup through t
 // as the brief requires, never on the stored `settings` row -- a row that
 // changes while the blocker stays would be the same defect wearing a green
 // test.
-it("changes what PeriodPurger::plan() reports for a period by writing retention.purge_after_years through the page", function () {
+it('changes what PeriodPurger::plan() reports for a period by writing retention.purge_after_years through the page', function () {
     $period = ArchivePeriod::factory()->create([
         'year' => 2020,
         'month' => 3,
