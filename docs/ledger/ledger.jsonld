@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T17:05:00Z",
+  "dateModified": "2026-09-18T17:20:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1032,7 +1032,7 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [],
-      "doneWhen": "compose.yaml contains no occurrence of doccum-secret; the storage profile fails without MINIO_ROOT_PASSWORD; the default stack still boots under the smoke job.",
+      "doneWhen": "compose.yaml contains no occurrence of doccum-secret -- it appears three times today, at the x-app environment anchor (AWS_SECRET_ACCESS_KEY) and twice inside the storage profile (MINIO_ROOT_PASSWORD, and the mc alias line in minio-init) -- and the storage profile REFUSES TO RESOLVE without MINIO_ROOT_PASSWORD supplied, via compose's own ${VAR:?message} form rather than a default. The original third clause, 'the default stack still boots under the smoke job', is struck: no CI job boots compose at all -- tests.yml's image job drives a single `docker run` container -- so the clause named a check that does not exist and could never be met or failed. It was also ambiguous about which stack it meant: with no profiles selected the default stack has no minio at all, since minio and minio-init are both profiles: [storage], so 'the default stack' and 'the thing the removed secret belongs to' are not the same set of services. See decision/0078. Verified instead by `docker compose config`, which resolves variables and interpolation WITHOUT starting anything: with the storage profile selected and MINIO_ROOT_PASSWORD unset it must exit non-zero naming that variable, and with it set it must exit zero and its rendered output must contain no doccum-secret. That is a real check of exactly the property the item is about, it costs seconds, and it needs no running daemon beyond the compose CLI. MUTATION-CHECKED per decision/0067, and the mutation is the point rather than a formality: restoring a default -- ${MINIO_ROOT_PASSWORD:-doccum-secret} instead of :? -- must make the unset case exit ZERO, which is the precise failure mode a hand-written grep for 'doccum-secret' would pass while the stack silently kept a known password. Actually booting the compose stack in CI is separate work and is NOT in this item: see item/compose-boot-ci.",
       "actionStatus": "ActiveActionStatus",
       "startTime": "2026-09-18T17:05:00Z",
       "endTime": null,
@@ -1732,6 +1732,26 @@
         "item/directory-access-ui"
       ],
       "doneWhen": "A directories.share permission gates DirectoryPolicy::manageAccess() and nothing else, so a member may hand out access to a subtree they hold Manage on without also gaining move and delete over it -- which is what granting directories.manage wholesale would do, and why this needs its own permission rather than a reused one. Both layers still apply; no layer is removed from manageAccess(). See decision/0036, which decided that sharing is an administrator act for v1.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/compose-boot-ci",
+      "@type": "Action",
+      "order": 121,
+      "name": "CI boots the compose stack, not only the single container",
+      "url": "https://github.com/turbophp/doccum/issues/36",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [
+        "item/compose-secret"
+      ],
+      "doneWhen": "CLAUDE.md calls `docker compose up -d --build` 'the real stack', and nothing in CI has ever started it. tests.yml's image job drives a single `docker run` container, which is the right primary target -- the container IS the product -- but it means every compose-only concern is unverified: the profiles, the healthchecks, the service dependency order, and whether the app container can actually reach a minio in a sibling service rather than the one supervisor runs inside it. item/compose-secret verifies compose statically with `docker compose config`, which proves interpolation and required variables and proves nothing about whether the thing runs. This item is the other half. Done when CI brings up the storage profile, waits for health, and asserts the app answers on its port with object storage served by the SIBLING minio -- and when a mutation shows it failing: point the app at a wrong bucket or drop the minio dependency and the job must go red. Deliberately post-v1: the single-container smoke covers the product, this covers a convenience, and it is not worth delaying a tag for.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -4345,6 +4365,23 @@
       "affects": [
         "item/spec-reconcile",
         "item/v1-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0078",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T17:20:00Z",
+      "run": "run/0020",
+      "name": "A doneWhen that names a check which does not exist is struck, not reinterpreted",
+      "rationale": "item/compose-secret required that 'the default stack still boots under the smoke job'. No CI job boots compose. tests.yml's image job drives a single `docker run` container, and that is the only container CI has ever started. So the clause named a check that does not exist: it could not be met and, worse, could not be FAILED, which makes it the most dangerous kind of requirement -- one that any reviewer would read as satisfied because nothing contradicts it.\n\nIt was ambiguous as well as unsatisfiable, and the two faults hide each other. With no profiles selected the default stack has no minio: both minio and minio-init are profiles: [storage]. So 'the default stack' and 'the services the removed secret belongs to' are different sets, and the clause never said which it meant. Anyone restating it without opening compose.yaml would have guessed.\n\nTHE RULE: when a doneWhen names a check that does not exist, strike the clause and say so, in its own change, before the work -- do not quietly reinterpret it into whatever the nearest real check happens to be. Reinterpretation preserves the appearance of an unbroken requirement while changing what it demands, and decision/0068 is the reason that matters: afterwards nobody can tell a met requirement from an edited one.\n\nWhat replaces it is narrower and actually runs: `docker compose config` resolves variables and interpolation without starting anything, so the storage profile with MINIO_ROOT_PASSWORD unset must exit non-zero naming that variable, and with it set must render output containing no doccum-secret. Seconds, no daemon, and it tests exactly the property the item is about.\n\nThe mutation is what makes this more than a grep, and is worth stating because the weaker version is so tempting: restoring a DEFAULT -- ${MINIO_ROOT_PASSWORD:-doccum-secret} rather than :? -- must make the unset case exit zero. A hand-written grep for the string 'doccum-secret' passes that mutation happily while the stack keeps a known password for anyone who does not set the variable. The guard has to test the refusal, not the absence of a literal.\n\nBooting compose for real is genuine coverage and is filed as item/compose-boot-ci, post-v1. The single-container smoke covers the product; compose is a convenience; it is not worth delaying a tag for.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/compose-secret",
+        "item/compose-boot-ci",
+        "item/release-v0-1-0"
       ],
       "supersedes": null
     }
