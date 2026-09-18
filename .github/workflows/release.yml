@@ -6,27 +6,99 @@ on:
   workflow_dispatch:
 
 jobs:
+  # item/release-gate (issue #32): release.yml fired on workflow_dispatch and
+  # on a tag push with NO `needs:` on any test job, so a dispatch against a
+  # red main built and pushed `latest` to ghcr. This job is the first half of
+  # the fix: refuse to even start verifying/building a commit that was never
+  # merged to main. It has to run before `verify` (below), not just before
+  # `image`, so a stray commit fails in seconds rather than after the whole
+  # test suite has run against it.
+  #
+  # `fetch-depth: 0` rather than a shallow checkout plus a later fetch, and
+  # the distinction matters more than it looks. actions/checkout defaults to
+  # depth 1, which leaves a .git/shallow boundary; a subsequent
+  # `git fetch origin main` inside a shallow repository is negotiated against
+  # that boundary, and `git merge-base --is-ancestor` walking into a grafted
+  # parent can answer "not an ancestor" for a commit that plainly is one.
+  #
+  # That false negative is the ONE failure mode worse than the defect this
+  # job closes: it blocks a legitimate release, at the moment somebody is
+  # trying to ship, with an error that accuses the commit rather than the
+  # checkout. Fetching the full history costs seconds on a release path that
+  # runs at most a few times a year, and removes the question entirely
+  # instead of reasoning about git's shallow negotiation.
+  ancestry-check:
+    name: tagged commit is on main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main so ancestry can be checked
+        run: git fetch --no-tags origin main
+
+      - name: Refuse to build/publish a commit that is not on main
+        run: |
+          set -e
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA (ref ${{ github.ref }}) is not an ancestor of origin/main -- refusing to verify, build or publish. Only tag or dispatch a commit that has already been merged to main."
+            exit 1
+          fi
+          echo "$GITHUB_SHA is an ancestor of origin/main -- OK to proceed"
+
+  # Runs the exact same suite a push to main runs, against the exact commit
+  # this run is about to publish -- not main's last push run (decision/0016:
+  # that lookup has cancelled-concurrency-run, wrong-ref and pooled-
+  # conclusion pitfalls of its own, and would verify a tree that RESEMBLES
+  # what gets published, not the one that does).
+  #
+  # No `secrets:` passed: tests.yml's `workflow_call` trigger declares none,
+  # and every job in it only ever requests `contents: read` (checked, not
+  # assumed -- see the comment on that trigger in tests.yml). `permissions`
+  # here is the ceiling this call grants the reusable workflow's jobs; it
+  # matches that need exactly rather than inheriting whatever this workflow
+  # might otherwise have.
+  verify:
+    name: verify (tests.yml)
+    needs: ancestry-check
+    uses: ./.github/workflows/tests.yml
+    permissions:
+      contents: read
+
   image:
     runs-on: ubuntu-latest
+    needs: verify
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Both the base image and the pinned MinIO image publish amd64 and
       # arm64, and COPY --from resolves per platform, so the MinIO binary
       # always matches the target architecture.
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      #
+      # Pinned by commit SHA per this repo's convention (see tests.yml and
+      # decision/0082). Resolved with
+      # `git ls-remote --tags <repo> | grep '\^{}'`: none of docker/
+      # setup-qemu-action, docker/login-action or docker/metadata-action
+      # printed a `^{}` peeled line for their v3/v4/v6 tags (checked, not
+      # assumed), so each is a LIGHTWEIGHT tag and the single SHA
+      # `ls-remote` prints for it already IS the commit -- unlike
+      # softprops/action-gh-release@v3.0.3 below, which is annotated.
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
 
-      - uses: docker/login-action@v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/metadata-action@v6
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         id: meta
         with:
           images: ghcr.io/${{ github.repository }}
@@ -35,7 +107,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
