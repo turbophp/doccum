@@ -173,6 +173,13 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
     'database/migrations/2026_09_16_110000_create_search_index_table.php' => "Creates SQLite's FTS5 virtual table with a raw DB::statement(), guarded by ".
         "getDriverName() !== 'sqlite' returning early -- would fail the migration outright on ".
         'every other driver if it ran unconditionally.',
+    'app/Livewire/Shell/StatusBar.php' => "One selectRaw() aggregating a folder's item count, byte total and held ".
+        "count in a single query (never a query per row). count(*)/coalesce()/sum() are portable, but ".
+        "sum(legal_hold) directly is not: `legal_hold` is declared boolean (see the files table migration), ".
+        "which PostgreSQL will not sum -- its boolean type has no implicit numeric cast, so sum() on the ".
+        "bare column errors there, though SQLite and MySQL would both accept it as 0/1. Written as ".
+        "sum(case when legal_hold then 1 else 0 end) instead, the one spelling that runs unchanged on all ".
+        'three, the same reasoning as MoveDirectory.php\'s entry above.',
 ];
 
 /**

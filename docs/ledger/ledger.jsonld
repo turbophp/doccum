@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-17T17:40:00Z",
-  "latestRun": "run/0013",
+  "dateModified": "2026-09-17T18:30:00Z",
+  "latestRun": "run/0014",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -430,8 +430,8 @@
         "item/trash-directory"
       ],
       "doneWhen": "Selecting a file or directory row opens the detail panel -- the existing PropertyPanel plus Download, Rename, Move, Trash and set/clear legal hold -- with every control authorised in the Livewire method through a Policy, never in the action; a viewer holding view alone sees no Rename, Move or Trash control and is refused server-side when the method is called directly, with one mutations.json entry per authorize call, each shown failing; the Move destination list is filtered by DirectoryAccess::viewableDirectoryIds inside the query, not in the view; the container smoke trashes the uploaded file through the panel and asserts it leaves the listing and stops appearing in search, and that smoke assertion is shown failing against an image built with the trash method emptied, with the run recorded in the check docblock.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-17T14:10:00Z",
       "endTime": null,
       "result": []
     },
@@ -470,8 +470,8 @@
         "item/files-actions-ui"
       ],
       "doneWhen": "The listing is a table with name, owner, modified and size; sort is a whitelisted orderBy in the query and an unknown column falls back to name, tested; multi-select supports shift-range and ctrl-toggle; bulk trash re-authorises every selected id through FilePolicy::delete and trashes nothing if any one is refused, tested and mutation-checked; the container smoke uploads three files, selects two, bulk-trashes and asserts the third is still listed -- shown failing against an image whose bulk method ignores the selection, because \"bulk trash of exactly the selected files\" also describes an implementation that trashed all of them.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-17T14:10:00Z",
       "endTime": null,
       "result": []
     },
@@ -490,8 +490,8 @@
         "item/files-actions-ui"
       ],
       "doneWhen": "The sidebar renders Home first, then the viewer reach roots -- viewable directories whose parent is not viewable -- and their viewable descendants, asserted against the query: a grant on a nested directory alone makes that directory reachable from /files, written as a test that fails on main before the fix; the breadcrumb lists every ancestor the viewer may view and no others; collapse state is per-browser; the container smoke navigates two levels through the tree and asserts three breadcrumb items. FileBrowserTest keeps its unreachable-directory guarantees throughout.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-17T14:10:00Z",
       "endTime": null,
       "result": []
     },
@@ -945,6 +945,42 @@
         "item/v1-audit"
       ],
       "doneWhen": "docker run of the 1.0.0 image boots to the installer on amd64 and arm64; the GitHub Release exists; the ledger's about.version reads 1.0.0.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/shell-upload-coverage",
+      "@type": "Action",
+      "order": 46,
+      "name": "Move Browser's upload guarantees into the shell, then retire Browser",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/files-actions-ui"
+      ],
+      "doneWhen": "/files no longer routes to Livewire\\Files\\Browser -- it routes to Shell\\Files -- but FileBrowserTest is still the only place proving that an upload is refused when the viewer holds manage on the directory without the files.upload permission, which CLAUDE.md names as a test to keep, and the only place proving a duplicate directory name surfaces as a validation error rather than a database exception. So a component nothing can reach is carrying live coverage. Done when the shell proves both without Browser, mutation-checked, and app/Livewire/Files/Browser.php, its view and FileBrowserTest are deleted in the same commit as the replacement lands -- not before, so the guarantee never lapses in between.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/email-verification-decide",
+      "@type": "Action",
+      "order": 47,
+      "name": "Decide email verification: the guard is inert and four passing tests do not say so",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "config/fortify.php enables Features::emailVerification(), the dashboard route carries the verified middleware, and EmailVerificationTest proves the flow end to end -- yet no user is ever required to verify anything. User extends Illuminate\\Foundation\\Auth\\User, which supplies the MustVerifyEmail *trait*, so hasVerifiedEmail() and markEmailAsVerified() work and those tests pass honestly; but User implements only PasskeyUser, and EnsureEmailIsVerified gates on `$request->user() instanceof MustVerifyEmail`, the *contract*, which sits commented out at the top of the model. Every unverified user passes the one route that guards on it. This is the third guard in this codebase to be green and inert at the same time, after the search index and motion.js. It is an item rather than a patch because the fix is not obviously safe: implementing the contract would redirect a newly registered user to a verification notice they can never satisfy on a container with no mailer, the installer's first administrator included -- locked out of their own instance on first boot. Done when either the contract is implemented with a stated answer for the no-mailer case and verified is applied consistently, or the feature and the middleware are both removed; and either way an unverified user's treatment is asserted by a test a mutation can break.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -1867,6 +1903,72 @@
       "affects": [
         "item/extract-text-flake",
         "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0018",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:20:00Z",
+      "run": "run/0014",
+      "name": "Red means legal hold, never danger",
+      "rationale": "Almost every application spends red on deletion. In a document system deletion is the reversible act -- it moves a file to trash, and trash restores -- while legal hold is the one state that puts a file beyond everyone, including whoever uploaded it, until somebody with authority lifts it. Spending the loudest colour on the recoverable act leaves nothing to mark the unrecoverable one, and a person scanning a list has the least important thing shouted at them. So hold (#C42B1F light, #FF7A70 dark) is reserved: the lock glyph in the list, the band in the detail panel, the reason on a disabled menu item, and nowhere else. Destructive actions carry no colour at all -- they are ordinary menu items, and the confirmation step carries the weight instead.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/files-actions-ui",
+        "item/trash-view",
+        "item/legal-hold"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0019",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:24:00Z",
+      "run": "run/0014",
+      "name": "Selection does not animate, and rows are exempt from the micro-interaction tier",
+      "rationale": "Selection is the most repeated interaction in a file manager: hundreds of times a session, often in fast runs with shift or ctrl held down. Any transition on it turns direct manipulation into something to be waited out, and a 120ms fade applied across a forty-row range selection is a visible smear travelling down the list. So motion #1 in the design plan is the absence of motion, and rows are carved out of the micro-interaction tier that governs every other control -- no hover transition, no selection transition. The brief that produced this shell asked for animation throughout, and this is the one place the answer is no; it is recorded rather than assumed because the next person to read the plan will see an obvious gap and want to fill it.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/files-list-sort-select",
+        "item/trash-view",
+        "item/search-filters"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0020",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:28:00Z",
+      "run": "run/0014",
+      "name": "A menu hides on capability and disables on state, and neither one is enforcement",
+      "rationale": "A context menu has two independent reasons to refuse and they are shown differently on purpose. A capability the viewer will never hold hides the item, because offering it teaches nothing and lengthens the menu. A refusal arising from this particular file's state shows the item disabled, with the reason, because 'Delete' silently vanishing from a held file teaches a person that the menu is unreliable, where 'Delete -- under legal hold' teaches them something true about the file. What neither signal does is enforce. @can('delete', $file) returns true for a file under hold -- verified, not assumed -- and it is TrashFile that throws. The menu predicts the server's answer; it is never the answer, and every action it offers is refused again on the far side of the wire.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/files-actions-ui",
+        "item/trash-view",
+        "item/directory-access-ui"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0021",
+      "@type": "Decision",
+      "dateCreated": "2026-09-17T17:45:00Z",
+      "run": "run/0014",
+      "name": "Parallel work claims its item before it starts, and its files in the plan",
+      "rationale": "Two agents in this session built RenameFile independently, from the same plan, within the same hour. Both implementations were correct; merging them was a genuine three-way conflict that cost more to resolve than either cost to write. The ledger already recorded that the work existed -- what it never recorded was that somebody had started it. ActiveActionStatus has sat in context.jsonld since run/0000 and had never once been used: every item went from Potential straight to Completed at merge time, which is exactly the window a collision lives in. This run is the first to use it, claiming items 20, 22 and 23 while the shell branch is in flight. The same gap bit again while this decision was being written: main split item/files-three-pane into four and recorded its own run/0013 at the same time as this session was numbering a run/0013 of its own, so the numbering had to be redone against main. Two rules from here. Work running in parallel sets its item Active, with a startTime, before any code is written; and a plan for a parallel wave assigns file ownership explicitly, task by task -- the shell plan did, and its six agents across two waves produced no file collisions at all. Neither rule is mechanically enforced, and the distinction matters: LedgerValidator already checks that a claim is well-formed and consistent -- it refused these very decisions for carrying a dateCreated outside their run's window -- but nothing requires an item to pass through Active at all. A run can still take an item from Potential straight to Completed, which is the collision window left open. Closing it in CI is deliberately deferred until there is evidence the convention alone does not hold.",
+      "isBasedOn": [],
+      "affects": [
+        "item/files-actions-ui",
+        "item/files-list-sort-select",
+        "item/files-three-pane"
       ],
       "supersedes": null
     }

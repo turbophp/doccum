@@ -109,6 +109,27 @@ than half-booting.
   release has no assets; the binary is copied from a pinned container image.
 - **`wire:model` is deferred.** Anything driving conditional markup needs
   `wire:model.live`, or the form silently never re-renders.
+- **Email verification is enabled, guarded, tested — and inert.**
+  `config/fortify.php` turns on `Features::emailVerification()`, the dashboard
+  route carries `verified`, and `EmailVerificationTest` passes. But `User`
+  implements only `PasskeyUser`; `MustVerifyEmail` is commented out at the top
+  of the model. The methods still exist because
+  `Illuminate\Foundation\Auth\User` supplies the *trait* — the middleware
+  gates on the *contract*, so every unverified user goes straight through.
+  Fixing it naively locks the first admin out of a container with no mailer.
+  Tracked as `item/email-verification-decide`.
+- **`move()` only covers the JavaScript half of motion.** It short-circuits
+  before `animate()` under `prefers-reduced-motion`, but a CSS `transition-*`
+  utility never reaches it — the tree's disclosure chevrons animate that way on
+  purpose. A `@media (prefers-reduced-motion: reduce)` block in `app.css`
+  catches the rest, with `!important`, or a Tailwind duration utility wins on
+  specificity and the guard does nothing.
+- **A Blade partial is addressed by path, not by owner.** The shell originally
+  `@includeIf`'d `layouts.app.topbar`; a later change filled that exact path
+  with a complete HTML document, so the shell silently nested a whole page
+  inside its own 44px header. `@includeIf` cannot warn about this — it either
+  finds a file or stays quiet. Shell partials now live under
+  `layouts/shell/`, namespaced away from the layout they are not part of.
 
 ---
 
