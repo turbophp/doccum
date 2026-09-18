@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Enums\ExtractionStatus;
+use App\Exceptions\ObjectMissingFromStorage;
 use App\Extraction\ExtractionResult;
 use App\Extraction\ExtractorChain;
 use App\Models\FileText;
@@ -77,7 +78,32 @@ class ExtractText implements ShouldQueue
             return;
         }
 
-        $path = $storage->downloadToTemp($this->version);
+        try {
+            $path = $storage->downloadToTemp($this->version);
+        } catch (ObjectMissingFromStorage $e) {
+            // Permanent, not transient: $tries/$backoff above exist for a
+            // read that might succeed on the next attempt, and bytes that
+            // are gone from storage are never coming back. Burning all
+            // three tries and 20 seconds of backoff against that delays the
+            // only useful outcome -- an operator seeing why -- and does it
+            // three times for nothing.
+            //
+            // $this->fail($e) is InteractsWithQueue's own escape hatch for
+            // exactly this: it marks the job failed and deletes it from the
+            // queue immediately, which happens INSIDE this call, bypassing
+            // $tries entirely rather than racing it. It also invokes
+            // failed() below with $e right here, so file_texts.error ends
+            // up with ObjectMissingFromStorage's own message -- "Object
+            // [...] was not found in storage." -- rather than whatever a
+            // caught-and-rethrown generic exception would have said.
+            // Returning afterwards, rather than letting $e propagate, is
+            // what keeps the exception from ALSO going through the normal
+            // release-and-retry handling a queue driver gives an uncaught
+            // one -- fail() already settled this permanently.
+            $this->fail($e);
+
+            return;
+        }
 
         try {
             $result = $chain->for($this->version->mime)->extract($path, $this->version->mime);

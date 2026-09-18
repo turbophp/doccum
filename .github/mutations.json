@@ -390,5 +390,12 @@
     "file": "app/Livewire/Settings/DeleteUserForm.php",
     "remove": "        if ($user instanceof MustVerifyEmail && ! $user->hasVerifiedEmail()) {\n            $this->addError('password', __('Verify your email address before deleting your account.'));\n\n            return;\n        }\n\n",
     "expectFailing": "test_an_unverified_user_cannot_delete_their_account"
+  },
+  {
+    "id": "extract-text-missing-object-terminal",
+    "why": "issue #153, half two: a missing object is permanent, so ExtractText::handle() must stop immediately rather than spend $tries/$backoff retrying bytes that are never coming back. $this->fail($e) is what makes that terminal AND visible -- it marks the job failed and deletes it from the queue from inside handle(), then invokes failed() with the SAME exception so file_texts.error names the missing object rather than whatever failure happens to hit next. Remove it (with the return that stops execution alongside it) and the catch swallows ObjectMissingFromStorage silently: $path is left unassigned, and the job falls through into extracting from an undefined path -- PlainTextExtractor::extract(string $path, ...) is declare(strict_types=1), so that throws a TypeError instead, which escapes handle() uncaught and propagates out of dispatchSync() rather than being caught and settled the way a missing object must be.",
+    "file": "app/Jobs/ExtractText.php",
+    "remove": "            $this->fail($e);\n\n            return;\n",
+    "expectFailing": "treats a missing object as terminal instead of spending its retry budget on it"
   }
 ]
