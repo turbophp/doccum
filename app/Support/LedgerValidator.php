@@ -622,7 +622,7 @@ final class LedgerValidator
     private static function checkIdSetShape(array &$errors, string $label, string $key, mixed $value): void
     {
         if (! is_array($value)) {
-            $errors[] = "shape: $label.$key = ".self::describe($value)." is not an array, but context.jsonld declares it @container: @set/@list.";
+            $errors[] = "shape: $label.$key = ".self::describe($value).' is not an array, but context.jsonld declares it @container: @set/@list.';
 
             return;
         }
