@@ -195,92 +195,64 @@ function fileRowExists(name) {
 
 /**
  * Uploads a file through the browser and does not return until a files row
- * exists for it, retrying the interaction rather than the assertion.
+ * exists for it. ONE attempt: no retry, no second chance.
  *
- * The retry is the point, and it is a diagnosis as much as a fix. Setting a
- * file on the input shortly after navigating into a directory sometimes
- * stores NOTHING -- no request, no error, no console output, and a listing
- * that still shows the name because the file input draws it. Reproduced in
- * two independent places: issue #98's first upload, and the trash target in
- * issue #108, both reported FILE:no. What separates them from the upload that
- * works is only how much happens between the navigation and setInputFiles.
+ * This helper used to retry three times, because setting a file on the input
+ * and clicking Upload silently stored nothing often enough to break unrelated
+ * checks (issue #106). The retry described that as "no request, no error",
+ * and was wrong on the first half -- a claim never actually observed, only
+ * inferred, and it sent three rounds of work looking in the wrong place.
  *
- * Waiting on window.Livewire was tried and proves nothing -- it is set when
- * the script first loads, so after a wire:navigate DOM swap it is already
- * true. Reproducing main's page sequence was tried too, and did not help.
- * Neither the cause nor a sound wait condition is known, so this retries the
- * whole interaction and SAYS which attempt worked: if attempt 2 routinely
- * succeeds the window is transient, and if no attempt ever does it is
- * structural. Either answer is worth more than another guess. Issue #106.
+ * PR #129 instrumented every non-asset request and caught the discard three
+ * times in one run. There IS a request, it answers 200, and the split is
+ * latency:
  *
- * Not a quarantine and not a skip: the assertion still has to pass, and the
- * run still fails loudly if no attempt stores the file.
+ *   discarded   POST .../upload-file           request at t+0
+ *               POST .../update  (store)       request at t+14ms  <-- races
+ *               no files row                   at t+565ms
+ *               200 .../upload-file            at t+570ms
+ *
+ *   stored      POST .../upload-file           request at t+0
+ *               200 .../upload-file            at t+18ms
+ *               POST .../update  (store)       request at t+24ms  <-- after
+ *
+ * A file input posts its bytes the moment it changes, and the component's
+ * property is not populated until that POST answers. Clicking Upload inside
+ * that window dispatches store() against an empty property; it fails
+ * `required|file`, and the _finishUpload commit that lands a moment later
+ * re-renders over the error. Nothing stored, nothing said -- and a retry
+ * "works" only because by then the upload has landed, which is why three
+ * attempts always hid it.
+ *
+ * The fix is in resources/views/livewire/files/browser.blade.php: the submit
+ * button is disabled for the whole upload, so the racing click cannot be
+ * made. Retrying here would hide a regression of exactly that, so this no
+ * longer retries -- if the guard is removed or Flux stops forwarding it, some
+ * upload in this run stores nothing and the run says so.
  */
 async function uploadAndProveStored(page, name, contents, phase) {
   const tmpFile = path.join(os.tmpdir(), name);
   fs.writeFileSync(tmpFile, contents);
 
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    // Every attempt after the first reloads, for the same reason
-    // checkReplaceAddsASecondVersion() does: when issue #106 swallows an
-    // upload, the component is left believing one is still in flight and
-    // Livewire keeps the submit button disabled, so retrying IN PLACE clicks
-    // a button that exists, is visible, and will never accept it.
-    //
-    // This helper had retried in place since it was written and got away
-    // with it, because a second attempt usually landed before the component
-    // wedged. The bulk-trash check uploads three files rather than one, and
-    // that was enough exposure to find it: "locator.click: Timeout 30000ms
-    // exceeded ... getByRole('button', { name: 'Upload', exact: true })",
-    // immediately after "attempt 1 left no files row".
-    //
-    // Callers all upload into the administrator's home directory and reach
-    // it exactly this way, so re-entering it here is a return to the state
-    // the caller set up, not a change of scene. A caller uploading anywhere
-    // else would need this generalised.
-    if (attempt > 1) {
-      await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-      await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
-      await page
-        .locator('[data-test="upload-form"] input[type="file"]')
-        .waitFor({ state: 'attached', timeout: 10000 });
-    }
+  await page.locator('[data-test="upload-form"] input[type="file"]').setInputFiles(tmpFile);
 
-    await page.locator('[data-test="upload-form"] input[type="file"]').setInputFiles(tmpFile);
-    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  // Bounded rather than Playwright's default 30s. The button is deliberately
+  // disabled while the upload is in flight, so waiting IS the guard working;
+  // ten seconds is far past any plausible upload of these few-hundred-byte
+  // fixtures, and a button still disabled by then means something else.
+  await page.getByRole('button', { name: 'Upload', exact: true }).click({ timeout: 10000 });
 
-    // Bounded rather than Playwright's default 30s: a button still disabled
-    // after ten seconds means the component is wedged, and the next
-    // attempt's reload is the cure, so there is nothing to learn from
-    // waiting out the rest.
-    const clicked = await page
-      .getByRole('button', { name: 'Upload', exact: true })
-      .click({ timeout: 10000 })
-      .then(() => true)
-      .catch(() => false);
+  await page
+    .getByText(name, { exact: true })
+    .waitFor({ timeout: 10000 })
+    .catch(() => {});
 
-    if (! clicked) {
-      console.log(`[${phase}] attempt ${attempt}: the Upload button never became clickable for ${name} -- reloading and retrying`);
-      await sleep(2000);
-      continue;
-    }
-
-    await page
-      .getByText(name, { exact: true })
-      .waitFor({ timeout: 10000 })
-      .catch(() => {});
-
-    if (fileRowExists(name)) {
-      console.log(`[${phase}] ${name} stored, confirmed by a files row (attempt ${attempt})`);
-      return;
-    }
-
-    console.log(`[${phase}] attempt ${attempt} left no files row for ${name}`);
-    await sleep(2000);
+  if (! fileRowExists(name)) {
+    dumpContainerState(`${name} was uploaded and left no files row -- issue #106 has regressed`);
+    throw Object.assign(new Error(`no files row for ${name}`), { dumped: true });
   }
 
-  dumpContainerState(`${name} was uploaded three times and never produced a files row`);
-  throw Object.assign(new Error(`no files row for ${name} after three upload attempts`), { dumped: true });
+  console.log(`[${phase}] ${name} stored, confirmed by a files row`);
 }
 
 /**
@@ -850,6 +822,117 @@ function checkEmbeddedSqlitePragmas() {
  * job on its own would not have shown that: the run could have died earlier,
  * at the upload race in issue 106, with this assertion never executing.
  */
+/**
+ * Issue #106's guard, asserted directly rather than hoped for.
+ *
+ * The bug was a race: a file input posts its bytes the moment it changes, and
+ * clicking Upload before that POST answers dispatches store() against a
+ * property Livewire has not populated yet, which fails validation and is then
+ * re-rendered over by the _finishUpload commit. The fix disables the submit
+ * button for the whole upload, so the racing click cannot be made.
+ *
+ * Proving that needs the window held open, because in this container it is
+ * about eighteen milliseconds wide -- far too narrow to observe by timing.
+ * So the upload endpoint is stalled deliberately and the button inspected
+ * while it hangs.
+ *
+ * The load-bearing assertion is the DISABLED one: with the wire:loading
+ * attributes removed from browser.blade.php the button stays enabled through
+ * the stall and this fails. The enabled-before and re-enabled-after
+ * assertions are NOT evidence of the guard on their own -- a button that is
+ * simply always enabled passes the first, and CLAUDE.md is explicit that a
+ * resting state proves nothing. They are here as controls: the first shows
+ * the button is not disabled for some unrelated reason, and the last shows
+ * the guard releases, since a guard that wedges the button shut forever would
+ * also satisfy the disabled assertion while breaking every upload.
+ *
+ * No file is created: the page is reloaded rather than the upload completed,
+ * because checkBulkTrashLeavesUnselectedFilesAlone() later asserts the
+ * listing holds only its survivor and an extra row here would break it.
+ */
+async function checkUploadButtonIsDisabledWhileTheFileIsStillUploading(page, phase) {
+  const name = 'DoccumSmokeUploadRaceProbe.txt';
+  const tmpFile = path.join(os.tmpdir(), name);
+  fs.writeFileSync(tmpFile, 'Never submitted. This file exists only to open an upload window.\n');
+
+  const button = page.getByRole('button', { name: 'Upload', exact: true });
+
+  if (await button.isDisabled()) {
+    throw new Error('the Upload button was already disabled before any file was chosen');
+  }
+  console.log(`[${phase}] the Upload button starts enabled (control, not evidence)`);
+
+  let release = () => {};
+  const held = new Promise((resolve) => { release = resolve; });
+  let stalled = false;
+
+  // Matched by SUFFIX, never by a guessed prefix. Livewire's endpoints carry
+  // a per-install hash -- this run's were under /livewire-a49e10a7/ -- and
+  // hardcoding "/livewire/upload-file" is the exact mistake run/0014 records,
+  // where a wait for an endpoint that never existed became the failure it was
+  // written to observe.
+  await page.route('**/upload-file*', async (route) => {
+    stalled = true;
+    await held;
+    await route.continue();
+  });
+
+  try {
+    await page.locator('[data-test="upload-form"] input[type="file"]').setInputFiles(tmpFile);
+
+    // The stall only starts once the browser actually reaches the upload
+    // endpoint, so wait for the interception before judging the button --
+    // otherwise a fast enough machine could sample it before the upload
+    // begins and read "enabled" as a failure of the guard.
+    for (let waited = 0; ! stalled && waited < 10000; waited += 100) {
+      await sleep(100);
+    }
+
+    if (! stalled) {
+      throw new Error('no upload request reached the upload endpoint within 10s -- the file input never uploaded');
+    }
+
+    let disabled = false;
+    for (let waited = 0; ! disabled && waited < 10000; waited += 100) {
+      disabled = await button.isDisabled();
+      if (! disabled) {
+        await sleep(100);
+      }
+    }
+
+    if (! disabled) {
+      throw new Error(
+        'the Upload button stayed ENABLED while the upload endpoint was stalled -- '
+        + 'issue #106 is reachable again: either wire:loading.attr="disabled" '
+        + 'wire:target="upload" is gone from browser.blade.php, or Flux is no longer '
+        + 'forwarding those attributes to the real <button>',
+      );
+    }
+    console.log(`[${phase}] the Upload button is disabled while the upload is in flight -- issue #106's race cannot be clicked`);
+  } finally {
+    release();
+    await page.unroute('**/upload-file*');
+  }
+
+  let reEnabled = false;
+  for (let waited = 0; ! reEnabled && waited < 10000; waited += 100) {
+    reEnabled = await button.isEnabled();
+    if (! reEnabled) {
+      await sleep(100);
+    }
+  }
+
+  if (! reEnabled) {
+    throw new Error('the Upload button never re-enabled after the upload finished -- the guard wedges it shut');
+  }
+  console.log(`[${phase}] the Upload button re-enables once the upload lands (control, not evidence)`);
+
+  // Discards the temporary upload without storing anything.
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+}
+
 async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
@@ -955,9 +1038,11 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
  *      names the create-path mutation's symptom directly, rather than
  *      inferring it from the other two.
  *
- * max(version_number) is asserted with >= 2, not === 2: issue #106's upload
- * race means a retried interaction can legitimately land a third version if
- * an earlier attempt silently landed one after all. The DOM count of
+ * max(version_number) is asserted at exactly 2. It was >= 2 while this check
+ * retried the interaction, because a retry could legitimately land a third
+ * version when an earlier attempt had silently succeeded after all; issue
+ * #106 is fixed and the retry is gone, so a third version now means Replace
+ * ran twice. The DOM count of
  * [data-test="file-version-row"] IS asserted at exactly 2, but subordinate
  * to the tinker checks above -- it is the only thing here proving the
  * version list actually renders in the shipped image (asset build, Flux
@@ -1066,86 +1151,47 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   // reports "a File row named DoccumSmokeReplacement.txt exists" rather than
   // a selector timeout -- the symptom named, not merely detected.
   //
-  // THE INTERACTION IS RETRIED, not just polled, and that distinction is the
-  // whole point. uploadAndProveStored() retries its upload three times
-  // because of issue #106 -- an upload issued soon after navigation is
-  // silently discarded, with no request and no error, roughly one attempt in
-  // two. Replace posts through the same Livewire upload path and is subject
-  // to the same bug, but the first version of this check set the file and
-  // clicked exactly ONCE and then polled. Polling cannot rescue a click
-  // whose upload was discarded: there is nothing in flight to wait for, so
-  // it spent the whole window waiting for something that was never coming
-  // and then reported "replace did not update the document's own current
-  // version checksum" -- which reads like a product failure and was not one.
+  // Polled, not retried, and that distinction moved with issue #106's cause.
   //
-  // That is not hypothetical. It went red exactly this way on a LEDGER-ONLY
-  // pull request, whose diff was two .jsonld files and could not have
-  // touched the container at all. A check that fails on a diff it cannot
-  // possibly be affected by is a check that will be believed when it should
-  // not be, and disbelieved when it should be.
-  let output = '';
-  let landed = false;
+  // This check used to retry the whole interaction three times, because
+  // Replace posts through the same Livewire upload path that silently
+  // discarded uploads, and polling cannot rescue a click whose upload was
+  // discarded: there is nothing in flight to wait for, so it spent the whole
+  // window waiting for something that was never coming and then reported
+  // "replace did not update the document's own current version checksum" --
+  // which reads like a product failure and was not one. It went red exactly
+  // that way on a LEDGER-ONLY pull request whose diff was two .jsonld files.
+  //
+  // PR #129 found the cause: the submit click raced the file input's own
+  // upload POST, and store()/replaceFile() ran against a property Livewire
+  // had not populated yet. browser.blade.php now disables both submit buttons
+  // for the whole upload, so the racing click cannot be made, and
+  // checkUploadButtonIsDisabledWhileTheFileIsStillUploading() asserts that
+  // guard against a deliberately stalled upload endpoint.
+  //
+  // With the race closed, a retry here would only hide its return, so there
+  // is one attempt. The POLL below stays: a replacement that lands still
+  // takes a moment to become visible to the database, and that was always a
+  // separate concern from the discarded click.
+  const replaceInput = page.locator('[data-test="replace-form"] input[type="file"]');
+  await replaceInput.waitFor({ state: 'attached', timeout: 10000 });
+  await replaceInput.setInputFiles(replacementPath);
 
-  for (let attempt = 1; attempt <= 3 && ! landed; attempt += 1) {
-    // Every attempt after the first starts from a FRESH PAGE, and that is
-    // the whole reason a second attempt can work at all.
-    //
-    // Retrying in place does not: when issue #106 swallows the upload, the
-    // component is left believing an upload is still in flight, so Livewire
-    // keeps the submit button disabled and the next click waits out its
-    // full actionability timeout against a button that exists, is visible,
-    // and will never accept the click. That is exactly how this went red on
-    // main -- "locator.click: Timeout 30000ms exceeded ... locator resolved
-    // to <button type=submit data-test=replace-file-button ...>" -- one
-    // merge after the retry was added. A retry that reuses wedged state is
-    // not a retry.
-    //
-    // Reloading costs a few seconds per attempt and buys a component whose
-    // state is known. Every other check in this file re-navigates before
-    // interacting for related reasons; this one now does too.
-    if (attempt > 1) {
-      await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-      await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
-      await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-      await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).click();
-    }
+  // Bounded rather than the default 30s. The button is deliberately disabled
+  // while the upload is in flight, so a short wait here IS the guard working;
+  // ten seconds is far past any plausible upload of this fixture.
+  await page.locator('[data-test="replace-file-button"]').click({ timeout: 10000 });
 
-    const replaceInput = page.locator('[data-test="replace-form"] input[type="file"]');
-    await replaceInput.waitFor({ state: 'attached', timeout: 10000 });
-    await replaceInput.setInputFiles(replacementPath);
-    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  const replaceDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  let output = tinker(php);
 
-    // Bounded rather than the default 30s: a disabled button means the
-    // component is wedged, and the next attempt's reload is the cure, so
-    // there is nothing to gain by waiting half a minute to find that out.
-    const replaceButton = page.locator('[data-test="replace-file-button"]');
-    const clicked = await replaceButton
-      .click({ timeout: 10000 })
-      .then(() => true)
-      .catch(() => false);
-
-    if (! clicked) {
-      console.log(`[${phase}] attempt ${attempt}: the Replace button never became clickable -- reloading and retrying`);
-      await sleep(2000);
-      continue;
-    }
-
-    const replaceDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  while (Date.now() < replaceDeadline && Number(/MAX_VERSION:(\d+)/.exec(output)?.[1] ?? '0') < 2) {
+    await sleep(POLL_INTERVAL_MS);
     output = tinker(php);
+  }
 
-    while (Date.now() < replaceDeadline && Number(/MAX_VERSION:(\d+)/.exec(output)?.[1] ?? '0') < 2) {
-      await sleep(POLL_INTERVAL_MS);
-      output = tinker(php);
-    }
-
-    landed = Number(/MAX_VERSION:(\d+)/.exec(output)?.[1] ?? '0') >= 2;
-
-    if (landed) {
-      console.log(`[${phase}] the replacement landed a second version (attempt ${attempt})`);
-    } else {
-      console.log(`[${phase}] attempt ${attempt} left ${VERSIONS_CHECK_FILE_NAME} on one version -- retrying, see issue #106`);
-      await sleep(2000);
-    }
+  if (Number(/MAX_VERSION:(\d+)/.exec(output)?.[1] ?? '0') >= 2) {
+    console.log(`[${phase}] the replacement landed a second version`);
   }
 
   if (/FILE:no/.test(output)) {
@@ -1186,11 +1232,15 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   }
   console.log(`[${phase}] no File row is named "${replacementFileName}" -- Replace did not create a second file`);
 
-  if (maxVersion < 2) {
-    dumpContainerState(`[${phase}] ${VERSIONS_CHECK_FILE_NAME}'s max version_number is ${maxVersion}, expected at least 2`);
-    throw Object.assign(new Error(`max version_number is ${maxVersion}, expected at least 2`), { dumped: true });
+  // Exactly 2, not ">= 2". The looser form was there because the retry above
+  // could legitimately land a third version when an earlier attempt had
+  // silently succeeded after all; with one attempt, a third version means
+  // Replace ran twice and that is worth failing on.
+  if (maxVersion !== 2) {
+    dumpContainerState(`[${phase}] ${VERSIONS_CHECK_FILE_NAME}'s max version_number is ${maxVersion}, expected exactly 2`);
+    throw Object.assign(new Error(`max version_number is ${maxVersion}, expected exactly 2`), { dumped: true });
   }
-  console.log(`[${phase}] ${VERSIONS_CHECK_FILE_NAME} has max(version_number) = ${maxVersion} (>= 2, per issue #106's retry note) -- OK`);
+  console.log(`[${phase}] ${VERSIONS_CHECK_FILE_NAME} has max(version_number) = ${maxVersion} -- OK`);
 
   // Only now the DOM, and only as its own distinct claim: the database says
   // two versions exist, so the panel must actually render them. This is what
@@ -1578,17 +1628,31 @@ async function searchUntilFoundByName(page, name) {
  * made and answered with its state lost. decision/0027 records the
  * correction.
  *
- * So this attaches listeners and says nothing about what they will show.
- * Three different bugs have been treated as one, and one instrumented run
- * should separate them:
+ * So this attached listeners and said nothing about what they would show.
+ * Three different bugs had been treated as one, and one instrumented run was
+ * to separate them:
  *
- *   never sent      -- no /livewire/ request appears at all
+ *   never sent      -- no upload request appears at all
  *   sent and failed -- a request appears and fails, or answers 4xx/5xx
  *   state lost      -- a request appears, answers 2xx, and no row exists
  *
+ * THE ANSWER, from run 35290482556, which caught the discard three times:
+ * "state lost", and the mechanism is a race with the upload itself. Every
+ * discarded upload had its POST to the upload endpoint answer in ~550ms and
+ * the store() commit issued ~14ms after it, while the upload was still in
+ * flight. Every stored one had the upload answer in ~18ms and the commit
+ * issued after it. The submit click was racing the file input's own upload,
+ * so store() ran against a property Livewire had not populated, failed
+ * `required|file`, and the _finishUpload commit re-rendered over the error.
+ * Neither "never sent" nor "sent and failed" was the bug, and the retries
+ * that hid it worked only because the second attempt ran after the upload
+ * had landed. Fixed in resources/views/livewire/files/browser.blade.php by
+ * disabling the submit button for the duration of the upload, and asserted
+ * by checkUploadButtonIsDisabledWhileTheFileIsStillUploading().
+ *
  * Output is prefixed [upload-probe] so it can be grepped out of a job log
  * without reading the whole thing, and is deliberately noisy rather than
- * summarised: the summary is the thing that has been wrong.
+ * summarised: the summary is the thing that had been wrong.
  */
 function instrumentUploadPath(page) {
   // Everything that is not a static asset, NOT a guessed endpoint prefix.
@@ -1638,8 +1702,12 @@ async function runSetup() {
   try {
     const page = await browser.newPage();
 
-    // Attached before anything is driven, because the upload this is meant to
-    // observe happens early and intermittently -- roughly one attempt in two.
+    // Kept after issue #106 was fixed, and deliberately so. Its first round
+    // filtered requests to a GUESSED "/livewire/" prefix and printed nothing
+    // while the bug struck three times; the second round filtered nothing but
+    // assets and the timestamps alone named the cause in one run, after three
+    // rounds of reasoning had not. It costs a few hundred log lines that only
+    // matter when something is wrong, which is exactly when they are wanted.
     instrumentUploadPath(page);
 
     console.log(`[setup] opening ${BASE_URL}/setup`);
@@ -1688,6 +1756,9 @@ async function runSetup() {
     // true -- see config/doccum.php), so it is the one link on this page.
     await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
     await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+
+    console.log('[setup] stalling the upload endpoint to check the Upload button is disabled in flight (issue #106)');
+    await checkUploadButtonIsDisabledWhileTheFileIsStillUploading(page, 'setup');
 
     console.log(`[setup] uploading ${FILE_NAME}`);
     await uploadAndProveStored(
