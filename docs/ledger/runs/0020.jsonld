@@ -389,7 +389,7 @@
       "pullRequest": "https://github.com/turbophp/doccum/pull/233",
       "mergedAt": "2026-09-18T19:11:06Z",
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35384502906",
-      "testsConclusion": null,
+      "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35384503115",
       "ledgerConclusion": "success"
     }
