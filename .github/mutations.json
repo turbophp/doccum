@@ -397,5 +397,33 @@
     "file": "app/Jobs/ExtractText.php",
     "remove": "            $this->fail($e);\n\n            return;\n",
     "expectFailing": "treats a missing object as terminal instead of spending its retry budget on it"
+  },
+  {
+    "id": "mutation-check-filter-regex-escaped",
+    "why": "issue #180: mutation-check.php's --filter is matched as a REGULAR EXPRESSION, but only escapeshellarg() -- a shell-layer escape -- was ever applied to it. An expectFailing containing a metacharacter ('()' on #179's `changes what can() answers in the same request once the permission cache is forgotten`) silently became a different pattern and matched the wrong test or none at all. buildFilterPattern() is written as a reassignment rather than a bare `return preg_quote(...)` precisely so this mutation leaves a function that still returns a string -- the unescaped one -- and the failure lands on the assertion about escaping instead of on a TypeError that would kill every test in the file regardless of what it asserts.",
+    "file": ".github/scripts/mutation-check.php",
+    "remove": "    $pattern = preg_quote($pattern);\n",
+    "expectFailing": "escapes a name containing regex metacharacters so it matches only the literal test it names"
+  },
+  {
+    "id": "mutation-check-classifies-no-match-distinctly",
+    "why": "issue #180: a --filter that matches no test at all must be reported distinctly from one that matches a test which fails -- before this, both surfaced as the same \"does not pass with the guard in place\" message, which is what made #179's zero-match failure take a round to identify. Remove the zero-testcase branch from classifyMutationRun() and a run that matched nothing is classified the same as a run that matched a genuinely failing test, collapsing the two defects back into one.",
+    "file": ".github/scripts/mutation-check.php",
+    "remove": "    if ($testCaseCount === 0) {\n        return MUTATION_RUN_NO_TEST_MATCHED;\n    }\n\n",
+    "expectFailing": "classifies a run that matched no test differently from one that matched a failing test"
+  },
+  {
+    "id": "mutation-check-no-junit-log-is-not-a-name-error",
+    "why": "issue #180: the whole point of counting <testcase> elements is to tell \"--filter matched nothing\" from \"a test ran and failed\". But a log that never arrived is neither -- it is no evidence at all. Remove the null branch and a missing or unparseable JUnit log is reported as \"matched no test\", which would blame every entry in the manifest for names each one spells correctly the moment --log-junit stopped working: the same misdiagnosis this issue exists to end, in a new costume.",
+    "file": ".github/scripts/mutation-check.php",
+    "remove": "    if ($testCaseCount === null) {\n        return MUTATION_RUN_UNCLASSIFIABLE;\n    }\n\n",
+    "expectFailing": "reports a run that produced no JUnit log as unclassifiable, not as a name error"
+  },
+  {
+    "id": "mutation-check-no-match-is-not-proof",
+    "why": "Only a real test that ran and failed proves a guard load-bearing. Before this, the script accepted ANY non-pass from the deleted-guard run, so a 'remove' string whose deletion broke the file's syntax scored as proof: nothing was collected, the run was red, and the entry read as verified while the guard had never been exercised. Remove this branch and a deleted-guard run that matched no test is treated as proof again -- the exact 'looks like coverage and is not' failure this script was written to prevent, inside the script that prevents it.",
+    "file": ".github/scripts/mutation-check.php",
+    "remove": "    if ($afterClassification === MUTATION_RUN_NO_TEST_MATCHED) {\n        return \"{$id}: with the guard deleted, \\\"{$filter}\\\" matched no test at all. The deletion stopped the file loading (a parse error, most likely) rather than failing an assertion, so this red proves nothing about the guard. Narrow the 'remove' text to something whose absence leaves loadable code.\";\n    }\n\n",
+    "expectFailing": "refuses a deleted-guard run that matched no test as proof that the guard is load-bearing"
   }
 ]
