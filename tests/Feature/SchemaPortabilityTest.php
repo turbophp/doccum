@@ -146,6 +146,12 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
     'app/Services/DirectoryAccess.php' => "resolveViewable()'s 'like'/'not like' prefix matches against `path`, expanding a granted ".
         'subtree and excluding a trashed one (issue #49). Same "path is ids only" reasoning as '.
         'Directory and RestoreDirectory -- named explicitly in this item\'s brief as a known site.',
+    'app/Services/DocumentStorage.php' => 'strtolower() in servesPresignedUrls(), folding a URL HOST before comparing it '.
+        "against the loopback names -- hostnames are case-insensitive by RFC, and '127.0.0.1' has ".
+        'no case at all. Nothing here touches a database: the value comes from '.
+        'filesystems.disks.*.endpoint and is compared in PHP. Registered for the same reason '.
+        'SearchIndex.php is, one entry below -- the grep cannot tell a folding rule about a '.
+        'hostname from one about a column. See issue #74.',
     'app/Support/NameKey.php' => 'mb_strtolower() here is not a driver dependency -- it is the fix for one. It states the '.
         "folding rule (NFC-normalise, then lowercase) in PHP so no driver's own collation gets to ".
         "decide what \"the same name\" means; see issue #46 and this file's own docblock. See the ".
