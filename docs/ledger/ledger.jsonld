@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T18:55:00Z",
+  "dateModified": "2026-09-18T19:22:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1092,9 +1092,9 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [],
-      "doneWhen": "release.yml has NO `needs:` on any test job and fires on workflow_dispatch as well as a tag push, so a dispatch against a red main builds and pushes `latest` to ghcr. That is a live violation of 'CI is the gate' sitting in the repository today, independent of any item. SPLIT OUT OF item/release-v0-1-0 and placed BEFORE it deliberately: the failure mode is publishing from a broken tree, and a fix for that must not be validated BY publishing from one. Landing the gate first also means the pre-release tag item/release-v0-1-0 cuts is the first thing the gate ever guards, rather than the first thing to discover the gate is wrong. Done when tests.yml gains an `on: workflow_call:` trigger -- it has none today, so this is real work and not a one-line `needs:` -- release.yml runs it as a `verify` job with the image job `needs: verify`, and the tagged commit is asserted to be an ancestor of main (`git merge-base --is-ancestor`). workflow_dispatch stays; the gate now covers it too. Re-running the reusable workflow is preferred over reading main's last run through the Actions API: that lookup inherits every pitfall decision/0016 documents -- cancelled concurrency runs, checks from other refs, pooled conclusions -- and a release should verify THE EXACT TREE IT PUBLISHES, not one that resembles it. The extra minutes per tag are the cheapest insurance in the project. MUTATION per decision/0067: tag a branch commit carrying a deliberately failing test; the release run must stop at `verify` and publish nothing. Record that run's URL. A gate nobody has watched refuse is not a gate -- and note this is the FIRST time release.yml will have run at all (decision/0075). While in this file: release.yml still pins actions/checkout@v7, docker/setup-qemu-action@v3, docker/setup-buildx-action@v3 and docker/login-action@v4 by TAG, where tests.yml pins by commit SHA. Bring them to the SHA convention, and resolve each with `git ls-remote --tags <repo> | grep '\\^{}'` -- decision/0082 records why the first line ls-remote prints is not always the commit.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "doneWhen": "release.yml has NO `needs:` on any test job and fires on workflow_dispatch as well as a tag push, so a dispatch against a red main builds and pushes `latest` to ghcr. That is a live violation of 'CI is the gate' sitting in the repository today, independent of any item. SPLIT OUT OF item/release-v0-1-0 and placed BEFORE it deliberately: the failure mode is publishing from a broken tree, and a fix for that must not be validated BY publishing from one. Landing the gate first also means the pre-release tag item/release-v0-1-0 cuts is the first thing the gate ever guards, rather than the first thing to discover the gate is wrong. Done when tests.yml gains an `on: workflow_call:` trigger -- it has none today, so this is real work and not a one-line `needs:` -- release.yml runs it as a `verify` job with the image job `needs: verify`, and the tagged commit is asserted to be an ancestor of main (`git merge-base --is-ancestor`). workflow_dispatch stays; the gate now covers it too. Re-running the reusable workflow is preferred over reading main's last run through the Actions API: that lookup inherits every pitfall decision/0016 documents -- cancelled concurrency runs, checks from other refs, pooled conclusions -- and a release should verify THE EXACT TREE IT PUBLISHES, not one that resembles it. The extra minutes per tag are the cheapest insurance in the project. MUTATION per decision/0067: tag a branch commit carrying a deliberately failing test; the release run must stop at `verify` and publish nothing. Record that run's URL. A gate nobody has watched refuse is not a gate -- and note this is the FIRST time release.yml will have run at all (decision/0075). While in this file: release.yml still pins actions/checkout@v7, docker/setup-qemu-action@v3, docker/setup-buildx-action@v3 and docker/login-action@v4 by TAG, where tests.yml pins by commit SHA. Bring them to the SHA convention, and resolve each with `git ls-remote --tags <repo> | grep '\\^{}'` -- decision/0082 records why the first line ls-remote prints is not always the commit. STATUS: the code is merged (PR #231, merge 8fdfb50) and green, and this item is NOT Completed, deliberately. Its mutation has not been run and CANNOT be run from the automation environment: pushing a tag returns HTTP 403. Probed rather than assumed -- creating and updating a branch works, deleting a ref is 403, creating a tag is 403, and the agent proxy reports healthy with no relay failures, so this is a policy refusal and not a network fault. By this project's own standard a gate whose refusal nobody has watched is not proven (decision/0012, decision/0067), and marking it Completed while citing a mutation that never ran is precisely decision/0080's defect. It stays Active until the mutation runs. THE MUTATION IS READY AND ISOLATED: tag 9e2f7af, a real historical commit that IS an ancestor of main and whose image check was red (both verified) -- ancestry-check passes, verify fails, image is skipped, nothing publishes. A second tag on any non-main commit isolates ancestry-check. See decision/0085 for why this blocks the loop's own stopping condition.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-18T18:44:00Z",
       "endTime": null,
       "result": []
     },
@@ -1134,6 +1134,28 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "The spec is both the standard item/v1-audit measures against and the text workers are briefed with (LOOP.md step 5 hands a worker 'the relevant spec section'), and it has drifted from the product in three verified places: line 1025 names base image 8.4 where the Dockerfile is 8.5; the section 2 decision table still says search ships on Laravel Scout's database driver, which is not installed -- search goes through the SearchIndex seam, and line 426 of the SAME document already says so, so the spec contradicts itself and section 2 is the half read first; line 1135 lists SQLite FTS5 as a post-v1 optimisation though Fts5SearchIndex has shipped and line 438 describes it. .github/workflows/ledger.yml pinning php-version 8.4 is the same staleness one file over. Done when each is corrected or explicitly marked superseded with a pointer to the section that now governs, the section 2 / section 8 contradiction is resolved in one direction, a dated revisions note at the top says what was reconciled, ledger.yml runs 8.5, and validate-ledger.php still passes -- which is what proves no heading moved. TWO CONSTRAINTS. Spec headings are load-bearing: LedgerValidator's spec-anchor rule derives valid isBasedOn anchors from them, so a renamed or removed heading reddens ledger.yml; edit content only. And section 2 is a decision table cited by decisions 0001 through 0004, so a superseded row is MARKED superseded rather than deleted -- the spec is a design record, and a row that silently changes loses why the original choice was made. This is deliberately NOT folded into item/v1-audit: see decision/0077.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T19:00:00Z",
+      "endTime": "2026-09-18T19:11:06Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/233"
+      ]
+    },
+    {
+      "@id": "item/spec-section8-reconcile",
+      "@type": "Action",
+      "order": 54,
+      "name": "Section 8 is the authority the rest of the spec now points to, and it still describes Scout",
+      "url": "https://github.com/turbophp/doccum/issues/234",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/spec-reconcile"
+      ],
+      "doneWhen": "item/spec-reconcile made section 8 the section section 2, section 13, section 14 and section 16 all defer to -- and section 8 itself still describes a system that was never built. Each verified against the repository, not inferred: its projection table uses searchable_type/searchable_id where searchable_type appears in ZERO migrations and subject_type appears in TWO; it describes a Scout Searchable trait, toSearchableArray(), #[SearchUsingFullText] and a Scout query() callback where NO Scout Searchable trait exists anywhere in app/ and filtering happens in Services\\Search and SearchIndex::search(); and its seam table lists TsvectorSearchIndex for PostgreSQL where app/Search/ contains only Fts5SearchIndex and LikeSearchIndex. Found while reconciling and deliberately left out of that diff, because decision/0077's standard is that a spec edit stays small, reviewable and doc-only, and widening the branch would be the auditor-edits-its-own-standard problem in miniature. THIS IS A DEPENDENCY OF item/v1-audit, not a nicety: decision/0084 made the audit depend on item/spec-reconcile specifically so it measures against a corrected spec. If section 8 is still partly false when the audit runs, the reconciliation manufactures the false confidence it was meant to remove -- the audit would check the product against implementation detail for a library this project does not use. Done when every section 8 claim is either true of the shipped code or explicitly marked superseded with a pointer, on item/spec-reconcile's terms: column names match the migration and the model; the Scout mechanics are replaced by what Services\\Search and SearchIndex actually do; the TsvectorSearchIndex row is marked unbuilt with a pointer to item/tsvector-index rather than presented as shipped; a revisions-note entry records the pass; the heading set stays BYTE-IDENTICAL (grep '^#' then diff, since LedgerValidator's spec-anchor rule slugs heading text); and the validator passes. There is no test for prose, and the validator proves only that no anchor broke -- not that the text is true. The check on the text is that it stays a small, reviewable, doc-only diff.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -1142,7 +1164,7 @@
     {
       "@id": "item/api-sanctum-tokens",
       "@type": "Action",
-      "order": 54,
+      "order": 55,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -1162,7 +1184,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 55,
+      "order": 56,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -1185,7 +1207,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 56,
+      "order": 57,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -1205,7 +1227,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 57,
+      "order": 58,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -1225,7 +1247,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 58,
+      "order": 59,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -1246,7 +1268,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 59,
+      "order": 60,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -1266,7 +1288,7 @@
     {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 60,
+      "order": 61,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -1284,7 +1306,7 @@
     {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 61,
+      "order": 62,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -1306,7 +1328,7 @@
     {
       "@id": "item/smoke-installer-names-the-bounce",
       "@type": "Action",
-      "order": 62,
+      "order": 63,
       "name": "The smoke installer step names a verification bounce, and the unprovable check goes",
       "url": "https://github.com/turbophp/doccum/issues/197",
       "isBasedOn": [
@@ -1326,7 +1348,7 @@
     {
       "@id": "item/directory-force-delete-orphans",
       "@type": "Action",
-      "order": 63,
+      "order": 64,
       "name": "Force-deleting a directory must not orphan the objects beneath it",
       "url": "https://github.com/turbophp/doccum/issues/86",
       "isBasedOn": [
@@ -1344,7 +1366,7 @@
     {
       "@id": "item/upgrade-preserves-access",
       "@type": "Action",
-      "order": 64,
+      "order": 65,
       "name": "Upgrading an existing instance must not lock out every user",
       "url": "https://github.com/turbophp/doccum/issues/210",
       "isBasedOn": [
@@ -1364,7 +1386,7 @@
     {
       "@id": "item/role-permissions-survive-restart",
       "@type": "Action",
-      "order": 65,
+      "order": 66,
       "name": "A role permission an operator edits must survive a container restart",
       "url": "https://github.com/turbophp/doccum/issues/214",
       "isBasedOn": [
@@ -1384,7 +1406,7 @@
     {
       "@id": "item/upgrade-smoke",
       "@type": "Action",
-      "order": 66,
+      "order": 67,
       "name": "CI must exercise an upgrade, not only a restart",
       "url": "https://github.com/turbophp/doccum/issues/210",
       "isBasedOn": [
@@ -1404,7 +1426,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 67,
+      "order": 68,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -1427,6 +1449,7 @@
         "item/readme-owner",
         "item/smoke-installer-names-the-bounce",
         "item/spec-reconcile",
+        "item/spec-section8-reconcile",
         "item/trash-view",
         "item/upgrade-smoke"
       ],
@@ -1439,7 +1462,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 68,
+      "order": 69,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -3187,6 +3210,38 @@
       "mergedAt": "2026-09-18T18:29:39Z",
       "mergeSha": "3db1faa17cb43e4b41024a3cbefbad09ed444d9d",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/231",
+      "@type": "PullRequest",
+      "identifier": 231,
+      "name": "release.yml must not be able to publish from a red tree",
+      "implements": [
+        "item/release-gate"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T18:54:10Z",
+      "headSha": "fa2fd45dc7555abb60254090168a4c9001337052",
+      "mergedAt": "2026-09-18T18:56:51Z",
+      "mergeSha": "8fdfb5006efea8f27cc5d7f397357e2c5b99e535",
+      "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/233",
+      "@type": "PullRequest",
+      "identifier": 233,
+      "name": "Reconcile the spec with what shipped",
+      "implements": [
+        "item/spec-reconcile"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T19:07:13Z",
+      "headSha": "48b7d625472679f79a49a7ba2c04c254b7fe6f44",
+      "mergedAt": "2026-09-18T19:11:06Z",
+      "mergeSha": "0ca8a436a14eccc94a6d5e99a9953a44a6d91d58",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4581,6 +4636,23 @@
         "item/release-gate"
       ],
       "supersedes": "decision/0074"
+    },
+    {
+      "@id": "decision/0085",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T19:22:00Z",
+      "run": "run/0020",
+      "name": "The loop cannot reach its own stopping condition: tag pushes are refused",
+      "rationale": "LOOP.md's stopping rule is that the loop ends when v1.0.0 is tagged and the image is published. THE AUTOMATION CANNOT CREATE TAGS. `git push origin refs/tags/...` returns 'RPC failed; HTTP 403'.\n\nProbed rather than assumed, because 'it failed' and 'it is not permitted' call for different responses:\n  create or update a branch -> works (a probe branch was created)\n  delete a ref              -> 403\n  create a tag              -> 403\nThe agent proxy reports healthy with no relay failures, so this is a policy refusal and not a network fault, and the environment's own guidance is to report a 403 rather than route around it. There is also no tag-creation tool in the available GitHub API surface -- get_tag and list_tags are read-only.\n\nWHAT IT BLOCKS, in order of how far it reaches:\n  1. item/release-gate's mutation. The gate is merged and green; its refusal has never been observed. The mutation is ready and isolated -- tag 9e2f7af, a real historical commit that IS an ancestor of main and whose image check was red, so ancestry-check passes, verify fails, image is skipped and nothing publishes. It needs one tag push.\n  2. item/release-v0-1-0, which turns on cutting a v0.1.0-rc1 pre-release tag.\n  3. item/tag-v1-0-0, and with it the stopping condition itself.\n\nSo the loop can complete every remaining product item and STILL NOT FINISH. That is worth recording as a property of this environment rather than discovering it at item 68 -- it is the same class as decision/0081's 'a requirement stated in terms of machinery nobody has run', one level up: a plan whose final step the planner cannot perform.\n\nitem/release-gate therefore stays ActiveActionStatus with its code merged. Marking it Completed and citing a mutation that never ran is exactly decision/0080's defect, committed knowingly, which would be worse than committing it by accident.\n\nUNBLOCKING is one of: a human pushes the three tags at the right moments; the automation's credentials gain tag-create, and ideally ref-delete so throwaway tags can be cleaned up rather than accumulating in the repository forever; or a workflow_dispatch path is added to exercise the gate without a tag -- which is WEAKER EVIDENCE and must be recorded as such, because release.yml behaves differently on a dispatch than on a tag push and would not prove the tag path.\n\nRecorded also: the capability probe left tmp/push-capability-probe on the remote and ref deletion is 403, so the loop cannot clear its own litter. Small, but it is the same permission boundary and somebody who can delete refs has to do it.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/release-gate",
+        "item/release-v0-1-0",
+        "item/tag-v1-0-0"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
