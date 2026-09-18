@@ -30,6 +30,18 @@ class DirectoryPolicy
 
     public function update(User $user, Directory $directory): bool
     {
+        if ($directory->trashed()) {
+            // A directory trashed on its own still resolves Edit from a
+            // grant sitting on a live ancestor above it: DirectoryAccess::
+            // resolve() checks proper ancestors only, deliberately excluding
+            // the directory's own trashed state, because restoring it is a
+            // manage check reachable only while it is trashed (issue #49).
+            // Editing metadata on something delete() already hid is the same
+            // reveal update() must not reopen. See FilePolicy::update()'s
+            // equivalent guard.
+            return false;
+        }
+
         return $this->access->can($user, $directory, AccessLevel::Edit);
     }
 
