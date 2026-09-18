@@ -417,6 +417,12 @@ jobs:
           push: false
           load: true
           tags: doccum:ci
+          # MUTATION -- DO NOT MERGE. Build the image labelled 9.9.9 while the
+          # container below is started with DOCCUM_VERSION=1.2.3, so
+          # config('doccum.version') and org.opencontainers.image.version
+          # disagree. checkTopbar must fail naming all three values.
+          build-args: |
+            DOCCUM_VERSION=9.9.9
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -430,7 +436,7 @@ jobs:
       - name: Smoke test the image
         run: |
           set -e
-          docker run -d --name doccum-smoke -v doccum-ci:/data -p 8080:8080 doccum:ci
+          docker run -d --name doccum-smoke -e DOCCUM_VERSION=1.2.3 -v doccum-ci:/data -p 8080:8080 doccum:ci
 
           ok=false
           for i in $(seq 1 30); do
@@ -595,7 +601,7 @@ jobs:
         run: |
           set -e
           docker rm -f doccum-smoke
-          docker run -d --name doccum-smoke -v doccum-ci:/data -p 8080:8080 doccum:ci
+          docker run -d --name doccum-smoke -e DOCCUM_VERSION=1.2.3 -v doccum-ci:/data -p 8080:8080 doccum:ci
 
           ok=false
           for i in $(seq 1 30); do
