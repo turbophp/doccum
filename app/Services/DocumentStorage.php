@@ -118,9 +118,8 @@ class DocumentStorage
      * fall out of whichever layer notices first. See issue #134 and the
      * comment in the body, which is where the two signalling paths are.
      *
-     * Deliberately NOT applied to downloadToTemp() below, which has the same
-     * shape and feeds text extraction rather than a download route: that is
-     * issue #153, filed rather than folded in here.
+     * downloadToTemp() below has the identical shape, for the same reason:
+     * see its own docblock (issue #153).
      *
      * @return resource
      */
@@ -158,13 +157,37 @@ class DocumentStorage
      * Copies a version's bytes to a local temporary file and returns its
      * path, for extraction tools that need a real path on disk rather than
      * a stream. The caller owns the returned file and must remove it.
+     *
+     * Throws the typed ObjectMissingFromStorage for a missing object, exactly
+     * as readStream() does and for the identical reason: BOTH signals are
+     * handled, because which one you get depends on the disk's config
+     * rather than on anything the caller controls. Before this, the
+     * `$stream === null` check below was the only handling here, which is
+     * dead code in the shipped product -- config/filesystems.php sets
+     * 'throw' => true on the documents disk, so a missing object always
+     * came out of readStream() as Flysystem's UnableToReadFile, escaping as
+     * a bare RuntimeException from the line below rather than the typed
+     * exception a caller could act on. See issue #153: this is the path
+     * ExtractText uses, so that RuntimeException was indistinguishable from
+     * "temp file could not be created" a few lines down, and a caller had no
+     * way to tell "the row exists but the bytes are gone" from any other
+     * storage failure.
+     *
+     * Every OTHER failure in this method stays a plain RuntimeException on
+     * purpose: a temp file that cannot be created or opened is a local
+     * filesystem problem, not a missing object, and collapsing the two would
+     * destroy the distinction this exists to make.
      */
     public function downloadToTemp(FileVersion $version): string
     {
-        $stream = $this->disk()->readStream($version->object_key);
+        try {
+            $stream = $this->disk()->readStream($version->object_key);
+        } catch (UnableToReadFile) {
+            throw ObjectMissingFromStorage::forKey($version->object_key);
+        }
 
         if ($stream === null) {
-            throw new RuntimeException("Unable to read object [{$version->object_key}] from storage.");
+            throw ObjectMissingFromStorage::forKey($version->object_key);
         }
 
         $tempPath = tempnam(sys_get_temp_dir(), 'doccum-extract-');
