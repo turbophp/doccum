@@ -16,17 +16,21 @@ use App\Actions\Files\SetLegalHold;
 use App\Actions\Files\StoreFileVersion;
 use App\Actions\Files\TrashFile;
 use App\Enums\AccessLevel;
+use App\Enums\ArchiveStatus;
 use App\Exceptions\CannotMoveDirectoryIntoItself;
 use App\Exceptions\DuplicateDirectoryName;
 use App\Exceptions\DuplicateFileName;
 use App\Exceptions\PeriodIsArchived;
+use App\Jobs\ZipDirectory;
 use App\Models\Directory;
+use App\Models\DirectoryArchive;
 use App\Models\DirectoryGrant;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Models\User;
 use App\Services\DirectoryAccess;
 use App\Support\EmailKey;
+use Flux\Flux;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\Rule;
@@ -50,7 +54,7 @@ use Livewire\WithFileUploads;
  * component's: every method below authorises with a single `$this
  * ->authorize(...)` call and trusts the Policy for the rest.
  */
-#[Layout('layouts::app')]
+#[Layout('layouts::app', ['fullBleed' => true])]
 class Browser extends Component
 {
     use WithFileUploads;
@@ -126,6 +130,27 @@ class Browser extends Component
      * selectRow()'s docblock for why.
      */
     public ?int $lastClickedId = null;
+
+    /**
+     * Folder rows the viewer has ticked.
+     *
+     * Kept apart from $selectedIds rather than mixed into it with a prefix: a
+     * directory id and a file id are both integers, and one list holding both
+     * is one typo away from trashing the wrong kind of thing.
+     *
+     * @var list<int>
+     */
+    public array $selectedDirectoryIds = [];
+
+    /**
+     * The archive currently being built, if any, so the view can poll it.
+     */
+    public ?int $archiveId = null;
+
+    /**
+     * The file being previewed, if any.
+     */
+    public ?int $previewFileId = null;
 
     /**
      * Maps a sort key the view can pass to sortBy()/wire:click to the
@@ -247,6 +272,12 @@ class Browser extends Component
         }
 
         $this->newDirectoryName = '';
+
+        // Dispatched on success ONLY, and the dialog closes on this rather
+        // than on submit: createDirectory() answers a duplicate name by adding
+        // an error and returning, so a dialog that closed when the form was
+        // submitted would take the explanation with it.
+        $this->dispatch('folder-created');
     }
 
     public function store(StoreFileVersion $action): void
@@ -265,6 +296,10 @@ class Browser extends Component
         );
 
         $this->upload = null;
+
+        // Success only, same reasoning as folder-created above: a rejected
+        // upload must leave its dialog open with the message still on screen.
+        $this->dispatch('file-uploaded');
     }
 
     /**
@@ -327,6 +362,146 @@ class Browser extends Component
         } catch (DuplicateFileName $e) {
             $this->addError('renameValue', $e->getMessage());
         }
+    }
+
+    /**
+     * Move a dragged row into a directory.
+     *
+     * The same two actions and the same two policies the Move selects use --
+     * dragging is a gesture, not a second set of rules. What it does NOT trust
+     * is the request: the subject and the destination are both re-resolved and
+     * re-authorised here, because a drop is three client-supplied integers and
+     * the DOM it came from proves nothing.
+     *
+     * A duplicate name or a directory dropped into itself comes back as a
+     * refusal the status line can show, not an exception: dragging a folder
+     * onto its own child is an ordinary slip, and a stack trace is the wrong
+     * answer to it.
+     */
+    /**
+     * Trash one row from the listing, without selecting it first.
+     *
+     * Separate methods per kind rather than one with a type string: the two
+     * take different actions and answer to different policies, and the row
+     * already knows which it is. Both re-resolve and re-authorise, and the
+     * directory one is scoped to children of the directory being browsed --
+     * the same scoping bulkTrash() uses, for the same reason: this listing
+     * renders nothing else.
+     */
+    public function trashFileRow(int $fileId, TrashFile $action): void
+    {
+        $file = File::query()->findOrFail($fileId);
+
+        $this->authorize('delete', $file);
+
+        $action->handle($file);
+
+        if ($this->selectedFile?->getKey() === $file->getKey()) {
+            $this->selectedFile = null;
+        }
+
+        if ($this->previewFileId === $file->getKey()) {
+            $this->previewFileId = null;
+        }
+    }
+
+    public function trashDirectoryRow(int $directoryId, TrashDirectory $action): void
+    {
+        abort_if($this->directory === null, 404);
+
+        $subject = Directory::query()
+            ->where('parent_id', $this->directory->getKey())
+            ->find($directoryId);
+
+        abort_if($subject === null, 404);
+
+        $this->authorize('delete', $subject);
+
+        $action->handle($subject);
+
+        if ($this->selectedDirectory?->getKey() === $subject->getKey()) {
+            $this->selectedDirectory = null;
+        }
+    }
+
+    /**
+     * Open a file in the preview dialog.
+     *
+     * Authorised with `view`, the same ability the detail panel and the
+     * listing already require -- a preview shows the bytes the person could
+     * download anyway, in a frame instead of a save dialog. The id is
+     * re-resolved against the viewer's reach rather than trusted, because it
+     * arrives from the client like any other.
+     */
+    public function preview(int $fileId): void
+    {
+        $file = File::query()->findOrFail($fileId);
+
+        $this->authorize('view', $file);
+
+        $this->previewFileId = $file->getKey();
+    }
+
+    public function closePreview(): void
+    {
+        $this->previewFileId = null;
+    }
+
+    /**
+     * The file the preview dialog is showing, re-authorised on every render.
+     *
+     * Not cached on the component: access can be revoked between opening the
+     * dialog and the next round trip, and a preview left hanging open is
+     * exactly where that would go unnoticed.
+     */
+    public function previewFile(): ?File
+    {
+        if ($this->previewFileId === null) {
+            return null;
+        }
+
+        $file = File::query()->find($this->previewFileId);
+
+        if ($file === null || auth()->user()?->cannot('view', $file)) {
+            return null;
+        }
+
+        return $file;
+    }
+
+    public function dropMove(string $subjectType, int $subjectId, int $targetDirectoryId, MoveFile $moveFile, MoveDirectory $moveDirectory): void
+    {
+        $destination = Directory::query()->findOrFail($targetDirectoryId);
+
+        if ($subjectType === 'file') {
+            $file = File::query()->findOrFail($subjectId);
+
+            $this->authorize('move', [$file, $destination]);
+
+            try {
+                $moveFile->handle($file, $destination);
+            } catch (DuplicateFileName|PeriodIsArchived $e) {
+                $this->dispatch('drop-refused', reason: $e->getMessage());
+            }
+
+            return;
+        }
+
+        if ($subjectType === 'directory') {
+            $subject = Directory::query()->findOrFail($subjectId);
+
+            $this->authorize('move', [$subject, $destination]);
+
+            try {
+                $moveDirectory->handle($subject, $destination);
+            } catch (DuplicateDirectoryName|CannotMoveDirectoryIntoItself $e) {
+                $this->dispatch('drop-refused', reason: $e->getMessage());
+            }
+
+            return;
+        }
+
+        abort(404);
     }
 
     public function moveFile(MoveFile $action): void
@@ -615,7 +790,77 @@ class Browser extends Component
      * narrower query here quietly excluding it beforehand and making the
      * authorize() call look load-bearing when it was never reached.
      */
-    public function bulkTrash(TrashFile $action): void
+    /**
+     * Tick or untick a folder row.
+     *
+     * Plain toggling only -- no shift-range. Ranges are meaningful down a
+     * single ordered list; folders and files are two sequences in one table,
+     * and "everything between this folder and that file" is not a selection
+     * anyone means.
+     */
+    public function selectDirectoryRow(int $id): void
+    {
+        $this->selectedDirectoryIds = in_array($id, $this->selectedDirectoryIds, true)
+            ? array_values(array_diff($this->selectedDirectoryIds, [$id]))
+            : [...$this->selectedDirectoryIds, $id];
+    }
+
+    /**
+     * Build a zip of one folder, off the request thread.
+     *
+     * Authorising with `view` is the right ability rather than a new one: the
+     * archive contains exactly what this viewer can already open one file at a
+     * time, so a zip grants nothing extra. What it must not do is let the
+     * REQUEST decide the contents -- BuildDirectoryArchive resolves those from
+     * the requester's own reach, so a folder holding a subtree they cannot
+     * enter still produces an archive without it.
+     */
+    public function downloadDirectoryZip(int $directoryId): void
+    {
+        $directory = Directory::query()
+            ->whereIn('id', app(DirectoryAccess::class)->viewableDirectoryIds(auth()->user()))
+            ->find($directoryId);
+
+        abort_if($directory === null, 404);
+
+        $this->authorize('view', $directory);
+
+        $archive = DirectoryArchive::create([
+            'directory_id' => $directory->getKey(),
+            'requested_by' => auth()->id(),
+            'status' => ArchiveStatus::Pending,
+        ]);
+
+        $this->archiveId = $archive->getKey();
+
+        ZipDirectory::dispatch($archive);
+
+        Flux::toast(text: __('Preparing :name.zip…', ['name' => $directory->name]));
+    }
+
+    /**
+     * Polled by the view while an archive is building.
+     *
+     * Stops polling the moment the row reaches a terminal state, which is why
+     * ArchiveStatus has one: a poller with no terminal state polls for ever.
+     */
+    public function archiveProgress(): ?DirectoryArchive
+    {
+        if ($this->archiveId === null) {
+            return null;
+        }
+
+        return DirectoryArchive::query()
+            ->where('requested_by', auth()->id())
+            ->find($this->archiveId);
+    }
+
+    public function dismissArchive(): void
+    {
+        $this->archiveId = null;
+    }
+
+    public function bulkTrash(TrashFile $action, TrashDirectory $directoryAction): void
     {
         abort_if($this->directory === null, 404);
 
@@ -661,11 +906,36 @@ class Browser extends Component
             $this->authorize('delete', $file);
         }
 
+        // Folders selected alongside the files, resolved and authorised under
+        // the same all-or-nothing rule and scoped the same way: children of
+        // the directory being browsed, because that is the only thing this
+        // listing renders. TrashDirectory cascades to everything beneath, so
+        // the bar for refusing is the same `delete` the single-folder control
+        // already asks for.
+        $directories = Directory::query()
+            ->where('parent_id', $this->directory->getKey())
+            ->whereIn('id', $this->selectedDirectoryIds)
+            ->get();
+
+        abort_if($directories->count() !== count(array_unique($this->selectedDirectoryIds)), 404);
+
+        foreach ($directories as $selectedDirectory) {
+            $this->authorize('delete', $selectedDirectory);
+        }
+
+        // Nothing is trashed until every file AND every folder has been
+        // authorised -- a refusal on the last folder must not leave the first
+        // file in the trash.
         foreach ($files as $file) {
             $action->handle($file);
         }
 
+        foreach ($directories as $selectedDirectory) {
+            $directoryAction->handle($selectedDirectory);
+        }
+
         $this->selectedIds = [];
+        $this->selectedDirectoryIds = [];
     }
 
     public function render()

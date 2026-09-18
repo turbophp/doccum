@@ -46,6 +46,23 @@ class DocumentStorage
     }
 
     /**
+     * Store a built directory archive and return its object key.
+     *
+     * Goes through the same put() as everything else so archives land on the
+     * configured disk rather than the local filesystem -- a zip written
+     * outside this seam would be invisible to a container that keeps its
+     * objects in MinIO or S3, and would vanish on the next deploy.
+     */
+    public function putArchive(string $archiveUuid, string $sourcePath, string $filename): string
+    {
+        $key = ObjectKey::archive($archiveUuid, $filename);
+
+        $this->put($key, $sourcePath);
+
+        return $key;
+    }
+
+    /**
      * A short-lived signed URL, so file bytes never stream through PHP.
      * The caller must already have authorised the download.
      */

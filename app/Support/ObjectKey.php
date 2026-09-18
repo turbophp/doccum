@@ -43,6 +43,19 @@ final class ObjectKey
         return sprintf('uploads/%s/%s', $uploadUuid, self::sanitise($filename));
     }
 
+    /**
+     * A built directory archive, ready to be downloaded once.
+     *
+     * Outside the files/ prefix for exactly the reason staging is: an archive
+     * is derived bytes, not a document, and a period's recorded counts must
+     * not include it. That also means purge never has to tell one from the
+     * other.
+     */
+    public static function archive(string $archiveUuid, string $filename): string
+    {
+        return sprintf('archives/%s/%s', $archiveUuid, self::sanitise($filename));
+    }
+
     public static function periodPrefix(int $year, ?int $month = null): string
     {
         return $month === null
