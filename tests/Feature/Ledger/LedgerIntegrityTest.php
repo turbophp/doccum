@@ -82,7 +82,7 @@ it('every dependsOn, implements, affects, touched, supersedes, run, mergedIn, la
     expect(ledgerErrorsTagged('ref:'))->toBe([]);
 });
 
-it('enumerated fields -- size, release, actionStatus, state, outcome, shas, tests and assertions -- only carry allowed values', function () {
+it('enumerated fields -- size, release, actionStatus, state, outcome, shas -- only carry allowed values', function () {
     expect(ledgerErrorsTagged('enum:'))->toBe([]);
 });
 

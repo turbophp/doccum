@@ -118,8 +118,6 @@ function makeSmallMergesFixture(array $run1Merges, string $run1Commit, string $i
         'outcome' => 'completed',
         'touched' => [],
         'commit' => str_repeat('a', 40),
-        'tests' => 1,
-        'assertions' => 1,
         'description' => 'Fixture baseline run.',
         'merges' => [],
     ];
@@ -134,8 +132,6 @@ function makeSmallMergesFixture(array $run1Merges, string $run1Commit, string $i
         'outcome' => 'completed',
         'touched' => [$itemId],
         'commit' => $run1Commit,
-        'tests' => 1,
-        'assertions' => 1,
         'description' => 'Fixture run that completes the item under test.',
         'merges' => $run1Merges,
     ];
@@ -319,8 +315,6 @@ function makeThresholdMergesFixture(?string $testsConclusion, ?string $ledgerCon
             'outcome' => $outcome,
             'touched' => $touched,
             'commit' => str_repeat(dechex($n % 16), 40),
-            'tests' => 1,
-            'assertions' => 1,
             'description' => sprintf('Fixture filler run %d.', $n),
             'merges' => [],
         ];

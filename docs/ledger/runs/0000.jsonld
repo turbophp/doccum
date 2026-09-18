@@ -9,8 +9,6 @@
   "outcome": "completed",
   "touched": [],
   "commit": "2ef04dd5dcdded140d36f1807a7f1e0bc4337248",
-  "tests": 386,
-  "assertions": 818,
   "description": "Baseline at handover. Seeded the backlog to v1.0.0 from the Fable consultation, recorded the four scope decisions that cut semantic search, vision OCR, a ranked PostgreSQL index and directory-level legal hold to post-v1. No code changed in this run.",
   "merges": [
     {

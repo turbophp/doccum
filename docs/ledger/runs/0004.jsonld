@@ -12,8 +12,6 @@
     "item/container-smoke-ci"
   ],
   "commit": "6b293b40109827e69858d7804792b161554de0af",
-  "tests": 426,
-  "assertions": 889,
   "description": "PHP 8.5 passes on all three databases, so the base-image bump merged on evidence rather than on a green that only proved the container boots. The container smoke test went green after its first run failed at search -- not on a wrong selector, but because ExtractText flips file_texts.status to done and only then dispatches the reindex as a separate queued job, so extraction finishing precedes the document being findable by up to the queue worker's three-second idle poll; the test now waits for the index instead of assuming the two are the same moment. ci-db-matrix is recorded complete without new work: the matrix is green on all three drivers, the FTS5 migration is explicitly guarded off SQLite, and the LikeSearchIndex path is covered -- it is what caught the PostgreSQL case-sensitivity bug. The hourly loop was also re-armed as a durable Routine after the session-only cron died with a session restart.",
   "merges": [
     {

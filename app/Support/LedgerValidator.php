@@ -181,11 +181,51 @@ final class LedgerValidator
             'order', 'name', 'url', 'description', 'isBasedOn', 'size', 'release', 'dependsOn',
             'doneWhen', 'actionStatus', 'startTime', 'endTime', 'result',
         ],
+        // `tests`/`assertions` used to live here. item/ledger-field-audit
+        // (issue #173) removed them: they were copied forward rather than
+        // measured -- run/0016 and run/0017 both reported 649/1340 across a
+        // run that merged five commits between them, and run/0019 and
+        // run/0020 carried -1/-1 outright -- and the validator only ever
+        // checked `int >= -1`, which every one of those values satisfies.
+        // LedgerValidator is file-only and framework-free and runs in CI
+        // BEFORE `composer install`, with no network, so it cannot itself
+        // verify a real count; the Actions API exposes no structured test
+        // count either, only a job log Pest's output would have to be
+        // scraped from. So the only way to fill these was to hand-copy a
+        // number from somewhere else -- which is indistinguishable from not
+        // measuring at all, and worse than absent, because it reads as a
+        // measurement. item/ledger-main-push-record (issue #172) already
+        // gives anyone who wants the real count a way to get one: each
+        // merge's `testsRun` URL on Run.merges points at the workflow run
+        // that ran the suite.
         'Run' => [
             'identifier', 'agent', 'startTime', 'endTime', 'outcome', 'touched',
-            'commit', 'tests', 'assertions', 'description', 'merges',
+            'commit', 'description', 'merges',
         ],
-        'Decision' => ['dateCreated', 'run', 'name', 'description', 'rationale', 'isBasedOn', 'affects', 'supersedes', 'evidence'],
+        // `evidence` used to live here, as a Decision -> Mutation set link.
+        // item/ledger-field-audit (issue #173) removed it: populated on 0 of
+        // 66 decisions, so its referenceErrors() branch had never run
+        // against real data. The relationship it names is real -- several
+        // decisions (0038, 0040, 0062) rest their argument on a specific
+        // Mutation's verdict and name it in `rationale` -- but there is no
+        // rule connecting a Decision to a Mutation that does not also catch
+        // decisions that merely SHARE a run and an affected item with an
+        // unrelated one: computed over the backfill, "affects an item that a
+        // Mutation in the same run also implements" matches 32 of 66
+        // decisions, e.g. decision/0048 (a page nothing links to) and
+        // decision/0052 (a dot in a wire:model path) alongside mutation/0015
+        // purely because both touch item/admin-roles in run/0020, with no
+        // evidentiary relationship at all. Even literal citation in prose is
+        // not safe: decision/0047 names mutation/0014 only to date a sha, not
+        // to rest an argument on its verdict. Enforcing either shape would
+        // force a Decision to cite a Mutation it does not actually rely on --
+        // exactly the "reads as evidence, proves nothing" defect this item
+        // exists to remove, one level up. The one invariant actually worth
+        // machine-checking here -- a Completed spec:10 item needs a negative
+        // Mutation implementing it -- is already enforced directly against
+        // Action/Mutation in actionStatusErrors(), without going through
+        // Decision at all.
+        'Decision' => ['dateCreated', 'run', 'name', 'description', 'rationale', 'isBasedOn', 'affects', 'supersedes'],
         // mainRunUrl/mainConclusion used to live here, describing main's
         // push run after a merge. item/ledger-main-push-record (issue #172)
         // moved that fact onto Run.merges instead: runErrors()'s own
@@ -231,7 +271,7 @@ final class LedgerValidator
         // key is always present so a run that merged nothing is
         // distinguishable from one nobody ever recorded, the same mirror-
         // the-default convention as Mutation.check below.
-        'Run' => ['identifier', 'agent', 'startTime', 'endTime', 'outcome', 'touched', 'commit', 'tests', 'assertions', 'description', 'merges'],
+        'Run' => ['identifier', 'agent', 'startTime', 'endTime', 'outcome', 'touched', 'commit', 'description', 'merges'],
         'Decision' => ['dateCreated', 'run', 'name', 'rationale', 'isBasedOn', 'affects', 'supersedes'],
         'PullRequest' => ['identifier', 'name', 'dateCreated', 'state', 'run', 'implements'],
         'Mutation' => ['implements', 'pullRequest', 'run', 'headSha', 'mutant', 'check', 'verdict', 'supersedes'],
@@ -667,7 +707,6 @@ final class LedgerValidator
             if (isset($decision['supersedes']) && is_string($decision['supersedes'])) {
                 $resolve($decision['supersedes'], 'Decision', "Decision '$id'.supersedes");
             }
-            $resolveEach($decision['evidence'] ?? [], 'Mutation', "Decision '$id'.evidence");
         }
 
         foreach (($ledger['mutations'] ?? []) as $mutation) {
@@ -848,13 +887,6 @@ final class LedgerValidator
         if (isset($node['commit']) && ! preg_match(self::SHA_PATTERN, (string) $node['commit'])) {
             $errors[] = "enum: Run '$id'.commit = ".self::describe($node['commit']).' is not a 40-character hex sha.';
         }
-        foreach (['tests', 'assertions'] as $field) {
-            $value = $node[$field] ?? null;
-            if ($value !== null && (! is_int($value) || $value < -1)) {
-                $errors[] = "enum: Run '$id'.$field = ".self::describe($value).' is not an integer >= -1.';
-            }
-        }
-
         self::checkRunMerges($id, $node, $errors);
     }
 
