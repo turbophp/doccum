@@ -8,6 +8,7 @@ namespace App\Models;
 use App\Exceptions\LastAdministratorMustRemain;
 use App\Exceptions\UsernameWouldBeAmbiguous;
 use App\Support\EmailKey;
+use App\Support\LastAdministrator;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -19,7 +20,6 @@ use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
-use Spatie\Permission\Exceptions\PermissionDoesNotExist;
 use Spatie\Permission\Traits\HasRoles;
 
 /**
@@ -69,11 +69,10 @@ class User extends Authenticatable implements PasskeyUser
         // the email fold and the username guard in booted() below already
         // argue for on this model.
         //
-        // The early return when $user does not currently hold the
-        // permission is load-bearing, not an optimisation: without it, an
-        // instance where NOBODY holds `users.manage` (the permission was
-        // renamed, or never seeded) would refuse to delete ANY user at all,
-        // because "no other holder exists" would be true of every deletion.
+        // The rule itself lives in App\Support\LastAdministrator, because
+        // DeleteUserForm has to ask the same question BEFORE it logs the
+        // operator out and so cannot rely on this hook. One implementation,
+        // two callers, no drift.
         //
         // Registered in booting(), NOT beside the deleting hook's sibling
         // saving hooks in booted() below, and this placement is load-bearing
@@ -99,21 +98,9 @@ class User extends Authenticatable implements PasskeyUser
         // than no guard at all. Registering here, before boot() registers
         // those two listeners, is what makes this one run first instead.
         static::deleting(static function (User $user): void {
-            try {
-                $holder = User::query()->permission('users.manage')->whereKey($user->getKey())->exists();
-            } catch (PermissionDoesNotExist) {
-                return; // nothing holds a permission that does not exist
+            if (LastAdministrator::wouldBeLostByDeleting($user)) {
+                throw LastAdministratorMustRemain::forUser($user);
             }
-
-            if (! $holder) {
-                return; // deleting a non-holder cannot reduce the holder count
-            }
-
-            if (User::query()->permission('users.manage')->whereKeyNot($user->getKey())->exists()) {
-                return;
-            }
-
-            throw LastAdministratorMustRemain::forUser($user);
         });
     }
 

@@ -316,9 +316,9 @@
   },
   {
     "id": "user-model-refuses-to-delete-last-administrator",
-    "why": "item/admin-users (issue #18): a shipped doccum instance is single-admin by construction, and App\\Livewire\\Settings\\DeleteUserForm lets the authenticated user delete their OWN account with no guard of its own -- the model hook in User::booting() is the one place nothing can bypass that. Remove the throw and the sole holder of `users.manage` can delete themselves (or be deleted through any future path) with the row simply gone: no admin left, and nothing in the running instance able to create one, assign a role, or reach Settings at all.",
+    "why": "item/admin-users (issue #18): App\\Models\\User::booting() registers a `deleting` listener that refuses to delete the last holder of `users.manage`. A shipped doccum instance is single-admin by construction -- public signup is off by default, there is no user-create console command, and before this item there was no admin UI -- so the sole administrator could brick the instance from Settings -> Profile, where DeleteUserForm has always deleted the authenticated user with no guard at all. Removing this throw leaves the surrounding `if` intact and valid, so the guard simply stops refusing and the sole administrator is deleted: the test fails on the account being gone, not on a parse error. Registration is in booting() rather than booted() deliberately -- Spatie's HasRoles registers its own `deleting` listener during boot() and unconditionally detaches the role pivot rows (User has no SoftDeletes, so its isForceDeleting() guard clause is false), and listeners fire in registration order, so a listener added in booted() would read a user whose roles were already gone and never refuse anything.",
     "file": "app/Models/User.php",
-    "remove": "            throw LastAdministratorMustRemain::forUser($user);\n",
+    "remove": "                throw LastAdministratorMustRemain::forUser($user);\n",
     "expectFailing": "refuses to delete the sole holder of users.manage"
   },
   {
