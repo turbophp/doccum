@@ -379,12 +379,14 @@ async function clickOnceUploadSettles(page, button, phase, label) {
  * the helper above. One check proves the guard; this one proves an upload
  * stores. Neither pretends to do the other's job.
  *
- * Whether that one assertion can actually fail is being established by
- * mutation as this lands (issue #106's guard removed from the button, and
- * nothing else). decision/0030 already called it load-bearing, but on
- * reasoning rather than a run -- the distinction CLAUDE.md draws, and the
- * reason the claim is worth re-earning now that nothing else is sensitive to
- * the guard.
+ * That one assertion is mutation-proven, which it had not been: PR #149
+ * removed wire:loading.attr="disabled" wire:target="upload" from the Upload
+ * button and nothing else, and the check failed with its own message --
+ * after printing its "starts enabled (control, not evidence)" line, so it
+ * reached its subject rather than dying on the way. decision/0030 had called
+ * it load-bearing on reasoning rather than on a run, which was tolerable
+ * while this helper was also sensitive to the guard and stopped being so the
+ * moment it wasn't.
  */
 async function uploadAndProveStored(page, name, contents, phase) {
   const tmpFile = path.join(os.tmpdir(), name);
