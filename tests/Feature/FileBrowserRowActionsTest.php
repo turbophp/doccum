@@ -195,3 +195,37 @@ it('refuses to step into a file the viewer cannot reach', function () {
         ->call('preview', $theirs->id)
         ->assertForbidden();
 });
+
+// --- a preview is a place, not a dialog -------------------------------------
+
+it('opens the file its link names, in that file\'s own directory', function () {
+    // The point of putting the preview in the URL is that the link can be
+    // sent to someone. A recipient has the file, not the folder, so the page
+    // has to find the folder itself -- otherwise a shared link lands in the
+    // root with a dialog over the wrong listing.
+    $elsewhere = Directory::factory()->create(['name' => 'Filed']);
+    grant($elsewhere, $this->member, AccessLevel::Manage);
+    $file = File::factory()->for($elsewhere, 'directory')->create(['name' => 'shared.txt']);
+
+    $component = Livewire::actingAs($this->member)
+        ->withQueryParams(['file' => $file->id])
+        ->test(Browser::class);
+
+    $component->assertSet('previewFileId', $file->id);
+
+    expect($component->instance()->previewFile()?->getKey())->toBe($file->getKey());
+});
+
+it('drops a file parameter the viewer may not see, rather than refusing the page', function () {
+    // The link is simply a link to the file browser for someone without the
+    // grant. Refusing the whole page would tell them a file exists at that id,
+    // which is more than they are entitled to know.
+    $elsewhere = Directory::factory()->create(['name' => 'Theirs']);
+    $file = File::factory()->for($elsewhere, 'directory')->create(['name' => 'secret.txt']);
+
+    Livewire::actingAs($this->member)
+        ->withQueryParams(['file' => $file->id])
+        ->test(Browser::class)
+        ->assertOk()
+        ->assertSet('previewFileId', null);
+});

@@ -116,7 +116,22 @@
                     </div>
 
                     @if ($hit->snippet !== '')
-                        <flux:text class="text-sm">{{ Str::limit($hit->snippet, 220) }}</flux:text>
+                        {{-- Escaped FIRST, then the two private-use markers the
+                             index wrapped each match in become <mark>. Doing it
+                             in this order is what makes document text safe to
+                             show: nothing inside a file can become markup,
+                             because by the time the tags are introduced every
+                             angle bracket in the document is already an
+                             entity. --}}
+                        @php
+                            $snippet = str_replace(
+                                [e(\App\Search\Fts5SearchIndex::MARK_OPEN), e(\App\Search\Fts5SearchIndex::MARK_CLOSE)],
+                                ['<mark class="rounded-sm bg-attention/20 px-0.5 text-ink">', '</mark>'],
+                                e(Str::limit($hit->snippet, 260)),
+                            );
+                        @endphp
+
+                        <p class="text-sm text-ink-2">{!! $snippet !!}</p>
                     @endif
                 </div>
             @endforeach

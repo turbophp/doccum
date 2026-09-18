@@ -22,6 +22,23 @@ class Fts5SearchIndex implements SearchIndex
 
     private const BODY_WEIGHT = 1.0;
 
+    /**
+     * Private-use codepoints wrapping each matched term in a snippet.
+     *
+     * Not '<mark>': the snippet is document text, and handing HTML to a view
+     * that must escape it leaves the escaping and the markup fighting over the
+     * same string. The view escapes the whole snippet and then swaps these two
+     * characters for the tags, so nothing inside a document can ever become
+     * markup. They are in the Unicode private use area, so no real document
+     * contains them.
+     */
+    public const MARK_OPEN = "\u{E000}";
+
+    public const MARK_CLOSE = "\u{E001}";
+
+    /** Tokens of context either side of the match. */
+    private const SNIPPET_TOKENS = 12;
+
     public function put(SearchDocument $document): void
     {
         DB::statement(
@@ -102,14 +119,24 @@ class Fts5SearchIndex implements SearchIndex
 
         // bm25() is negative in SQLite, and more negative is a better match,
         // so ascending order puts the best first.
+        // snippet() returns the passage that actually matched, rather than the
+        // opening of the document. Without it every result showed its own
+        // first 200 characters, so a search told you WHAT matched and never
+        // WHY -- which for a body of scanned correspondence is the difference
+        // between a result list and a filing cabinet.
+        //
+        // Column 1 is the body; -1 would let SQLite choose, which picks the
+        // title often enough to be useless when the title is the filename.
         $rows = DB::select(
-            'SELECT d.id, bm25(search_index, '.self::TITLE_WEIGHT.', '.self::BODY_WEIGHT.') AS score
+            'SELECT d.id,
+                    bm25(search_index, '.self::TITLE_WEIGHT.', '.self::BODY_WEIGHT.') AS score,
+                    snippet(search_index, 1, ?, ?, ?, '.self::SNIPPET_TOKENS.') AS snippet
              FROM search_index
              JOIN search_documents d ON d.id = search_index.rowid
              WHERE search_index MATCH ?'.$permission.$where.'
              ORDER BY score ASC
              LIMIT ?',
-            $bindings,
+            [self::MARK_OPEN, self::MARK_CLOSE, '…', ...$bindings],
         );
 
         $documents = SearchDocument::query()
@@ -121,7 +148,9 @@ class Fts5SearchIndex implements SearchIndex
             ->map(function (object $row) use ($documents): ?SearchHit {
                 $document = $documents->get((int) $row->id);
 
-                return $document === null ? null : SearchHit::fromDocument($document, (float) $row->score);
+                return $document === null
+                    ? null
+                    : SearchHit::fromDocument($document, (float) $row->score, (string) ($row->snippet ?? ''));
             })
             ->filter()
             ->values();

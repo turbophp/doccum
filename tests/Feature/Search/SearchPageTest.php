@@ -61,12 +61,19 @@ it('shows nothing to a user without access, not a permission error', function ()
         ->assertSee('No results');
 });
 
-it('shows the snippet that matched', function () {
+it('shows the passage that matched, with the term marked inside it', function () {
     grantView($this->dir, $this->user);
 
+    // The words either side of the match are what make a result readable --
+    // before snippet() the page showed each document's first 200 characters,
+    // so it said WHAT matched and never WHY. The term itself comes back
+    // wrapped, so the phrase is no longer contiguous in the HTML: that is the
+    // point, and asserting the surrounding words plus the marked term says so
+    // more precisely than asserting the raw phrase ever did.
     Livewire::actingAs($this->user)->test(Results::class)
         ->set('query', 'tenant')
-        ->assertSee('tenant shall maintain');
+        ->assertSee('shall maintain')
+        ->assertSee('<mark class="rounded-sm bg-attention/20 px-0.5 text-ink">tenant</mark>', false);
 });
 
 it('requires a signed-in user', function () {

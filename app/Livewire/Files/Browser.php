@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -149,7 +150,19 @@ class Browser extends Component
 
     /**
      * The file being previewed, if any.
+     *
+     * In the URL, because a preview with no address cannot be sent to anyone.
+     * Opening a document and then pasting the link is what people do with a
+     * viewer, and a dialog that lives only in component state answers that
+     * with the directory listing.
+     *
+     * Query string rather than a fragment: a fragment never reaches the
+     * server, so the page would arrive closed and pop open afterwards, and a
+     * link shared with someone who cannot see the file would look like it
+     * worked until it did not. `?file=` is resolved and authorised during the
+     * request that renders the page.
      */
+    #[Url(as: 'file', except: null)]
     public ?int $previewFileId = null;
 
     /**
@@ -178,6 +191,34 @@ class Browser extends Component
         }
 
         $this->directory = $directory;
+
+        // A link to a file carries the file, not the folder it happens to sit
+        // in. Someone sharing a preview should not have to know -- or send --
+        // the directory as well, and a recipient who pasted /files?file=123
+        // would otherwise land in the root with a dialog open over the wrong
+        // listing, or over nothing at all.
+        //
+        // So the file decides where the page opens. It is authorised first,
+        // and a file the viewer may not see clears the parameter rather than
+        // refusing the page: the link is then simply a link to the file
+        // browser, which is what it is to them.
+        if ($this->previewFileId !== null) {
+            $file = File::query()->find($this->previewFileId);
+
+            if ($file === null || auth()->user()?->cannot('view', $file)) {
+                $this->previewFileId = null;
+
+                return;
+            }
+
+            if ($this->directory?->getKey() !== $file->directory_id) {
+                $destination = $file->directory;
+
+                if ($destination !== null && auth()->user()?->can('view', $destination)) {
+                    $this->directory = $destination;
+                }
+            }
+        }
     }
 
     /** Opens the detail area's property panel on one file in the current directory. */
