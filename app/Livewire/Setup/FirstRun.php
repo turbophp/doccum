@@ -402,7 +402,12 @@ class FirstRun extends Component
         // #[Fillable(...)] list, so it is set via forceFill(), the same
         // pattern App\Actions\Fortify\ResetUserPassword already uses for a
         // guarded column.
-        $user->forceFill(['email_verified_at' => now()])->save();
+        // MUTATION -- DO NOT MERGE. The first administrator is left
+        // UNVERIFIED, so FirstRun's own redirect to files.browse (which
+        // carries the `verified` middleware, routes/web.php:44) bounces to
+        // the verification notice. The installer's waitForURL must now fail
+        // with describeLanding()'s named message, not a bare timeout.
+        // $user->forceFill(['email_verified_at' => now()])->save();
 
         $user->assignRole('admin');
 
