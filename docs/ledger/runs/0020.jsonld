@@ -11,6 +11,7 @@
     "item/admin-instance-settings",
     "item/admin-periods",
     "item/admin-roles",
+    "item/email-verification-decided",
     "item/ledger-id-uniqueness",
     "item/smoke-livewire-settle"
   ],
