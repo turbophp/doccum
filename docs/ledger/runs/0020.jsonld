@@ -1,0 +1,15 @@
+{
+  "@context": "../context.jsonld",
+  "@id": "run/0020",
+  "@type": "Run",
+  "identifier": 20,
+  "agent": "https://claude.ai/code/session_01ADCn2xmXjiP4pnatPFyF5r",
+  "startTime": "2026-09-18T08:36:30Z",
+  "endTime": null,
+  "outcome": "active",
+  "touched": [],
+  "commit": "c47ad90d203fd697e364c5d15e9c7ffd1560d714",
+  "tests": -1,
+  "assertions": -1,
+  "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally."
+}

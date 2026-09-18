@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T07:38:11Z",
-  "latestRun": "run/0019",
+  "dateModified": "2026-09-18T08:36:30Z",
+  "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -760,10 +760,12 @@
         "item/topbar-shell"
       ],
       "doneWhen": "A user created through the UI has a home directory and a manage grant; without users.manage the page is 403; the last admin cannot lose users.manage.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T07:58:00Z",
+      "endTime": "2026-09-18T08:29:28Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/175"
+      ]
     },
     {
       "@id": "item/admin-roles",
@@ -2534,6 +2536,40 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/175",
+      "@type": "PullRequest",
+      "identifier": 175,
+      "name": "item/admin-users: admin user creation, role assignment, and a guard that keeps an instance from losing its last administrator",
+      "implements": [
+        "item/admin-users"
+      ],
+      "run": "run/0019",
+      "state": "merged",
+      "dateCreated": "2026-09-18T08:14:48Z",
+      "headSha": "93351cae5ff596fc519a17bee38c761cb918c174",
+      "mergedAt": "2026-09-18T08:29:28Z",
+      "mergeSha": "c47ad90d203fd697e364c5d15e9c7ffd1560d714",
+      "mergedIn": "run/0019",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35324634547",
+      "mainConclusion": "success"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/177",
+      "@type": "PullRequest",
+      "identifier": 177,
+      "name": "MUTATION -- DO NOT MERGE: SetUserRoles stops refusing the last administrator",
+      "implements": [
+        "item/admin-users"
+      ],
+      "run": "run/0019",
+      "state": "closed",
+      "dateCreated": "2026-09-18T08:30:47Z",
+      "headSha": "214a48bebf296688bbbbbb56e4af5d0b76cf5e8c",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -3283,6 +3319,54 @@
         "item/ledger-mutation-nodes"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0045",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T08:20:00Z",
+      "run": "run/0019",
+      "name": "A model hook registered in the wrong boot phase is a guard that reads as protection and enforces nothing",
+      "rationale": "I briefed the worker to register item/admin-users's `deleting` guard in User::booted(), beside the two saving hooks already there. It came back in booting() instead, with the reasoning written out, and the reasoning was right.\n\nWHY booted() WOULD HAVE BEEN A SILENT NO-OP. Spatie's HasRoles::bootHasRoles() registers its own `deleting` listener, and its guard clause is `method_exists($model, 'isForceDeleting') && ! $model->isForceDeleting()`. User has no SoftDeletes, so isForceDeleting() does not exist on it, the clause is false, and the listener UNCONDITIONALLY runs $model->roles()->detach(). Model::bootIfNotBooted() runs booting() then boot(), and boot() IS bootTraits() -- which is where Spatie registers. Illuminate's Dispatcher fires listeners for one event in registration order. So a listener added in booted() runs after the pivot rows it needs to read are already gone: the holder query comes back false for the actual sole administrator, and the guard never refuses anything. Every test that does not mutation-check it passes. CLAUDE.md's line is exact -- that is worse than no guard, because it looks protected.\n\nVERIFIED, NOT ACCEPTED. The worker could not run any of this (no vendor/ in this environment) and said so. I fetched both sources at the versions composer.lock pins -- spatie/laravel-permission 8.3.0 and laravel/framework v13.31.0 -- and read bootHasRoles() and bootIfNotBooted() directly before agreeing. A subagent's reasoning about framework internals it cannot execute is a hypothesis; the pinned source is the primary source.\n\nTHE GENERAL RULE. Where a model hook and a package trait both listen for the same Eloquent event, the ORDER is part of the design and has to be stated where the hook is registered. This one now carries that explanation in full, including what breaks if someone later 'tidies' it into booted() beside its siblings -- which is exactly what a reader would do, because that is where every other hook on this model lives.",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "affects": [
+        "item/admin-users",
+        "item/email-folding",
+        "item/login-by-username"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0046",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T08:25:00Z",
+      "run": "run/0019",
+      "name": "Deleting a user before logging them out resurrects the row, and CI found it on a test this branch never touched",
+      "rationale": "item/admin-users's first shape reordered DeleteUserForm to delete the account BEFORE calling $logout(), for a good reason: the sole administrator should not be logged out on the way to being told the deletion is refused. CI failed two tests on all six engines, and one of them -- test_user_can_delete_their_account in ProfileUpdateTest -- predates this work entirely and was not touched by the branch. Both said the same thing: no errors, the redirect happened, and the account was still there.\n\nTHE MECHANISM. Model::delete() ends in performDeleteOnModel(), which sets $exists = false. SessionGuard::logout() then calls cycleRememberToken() for any user whose remember_token is non-empty, and that reaches EloquentUserProvider::updateRememberToken(), which calls $user->save(). save() on a model with $exists = false is an INSERT. So deleting first and logging out second re-creates the row that was just deleted, silently. Laravel's own UserFactory sets remember_token, so every factory-made user hits it. Read from laravel/framework v13.31.0, the pinned version, rather than inferred.\n\nTHE FIX KEEPS BOTH PROPERTIES. The delete goes back after the logout, where it was. The refusal is decided before it, by asking App\\Support\\LastAdministrator directly rather than catching what delete() throws. That predicate is now the single implementation of the rule: User::booting()'s hook is still the guarantee nothing bypasses -- a console command, tinker, a future API -- and the form is the readable refusal in front of it. Two callers, one rule, rather than two rules that drift.\n\nIT ALSO REMOVED TWO PHPSTAN FINDINGS STRUCTURALLY, WHICH IS THE PART WORTH KEEPING. My first response to those findings was a line-level @phpstan-ignore for a dead catch, with a careful comment explaining why phpstan was wrong. The comment was accurate and the fix was still second-best: once the guard is a predicate rather than an exception to catch, there is no catch to call dead. The other finding was a real bug -- $logout($user) passed an argument to a zero-parameter __invoke, which the previous tap(Auth::user(), $logout(...)) had hidden because phpstan does not check arity through tap(). A suppression would have left that one standing next to it.\n\nWHAT THIS SAYS ABOUT THE SUITE. A pre-existing test caught a regression introduced by a change to a different concern in the same method. That is the suite doing its job, and it is also the answer to why the reordering looked safe: nothing about delete() and logout() suggests an ordering dependency until you read what logout() does to the model it was handed.",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "affects": [
+        "item/admin-users"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0047",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T08:33:00Z",
+      "run": "run/0019",
+      "name": "Two sessions write to main now, and a conflict resolved by taking one side can silently drop the other's work",
+      "rationale": "PR #163 -- a design system and a rebuilt file browser, from another session -- merged onto main while item/admin-users was in CI. The first symptom was not a conflict marker but an ABSENCE: the tests workflow never ran on the branch's head, because GitHub cannot build a merge commit for an un-mergeable PR and so never triggers the pull_request event. A PR that looks like it is waiting for CI may be waiting for a conflict nobody has noticed.\n\nTHE DANGEROUS CONFLICT WAS THE ONE THAT DID NOT LOOK DANGEROUS. Three files conflicted. routes/web.php and mutations.json were additive on both sides -- keep both, union the entries. topbar.blade.php was not: #163 REMOVED the Settings entry from the navbar and put it in the account dropdown, still gated on properties.manage alone. Taking main's side wholesale is the obvious resolution, it produces a file that reads correctly, CI passes -- and item/admin-users's own doneWhen work is gone, because the widening that lets a users.manage-only admin reach Settings was in the region that was deleted. The fix had to be re-applied in Settings's new home. A conflict resolution that drops a clause is indistinguishable, afterwards, from an item that never implemented it.\n\nSO THE RULE: when a conflict region on one side contains this item's OWN change, the resolution is not 'ours' or 'theirs' but 're-apply', and it is checked against the doneWhen rather than against whether the file parses. All 50 mutations.json entries were re-verified against the merged tree for the same reason -- a union is only correct if every remove string still matches its file exactly once, and half of them now point at code #163 wrote.\n\nALSO OBSERVED, AND NOT A PROBLEM: the format workflow's bot pushed `style: apply pint` onto the mutation branch, dropping the import the removed throw had used. It changed no behaviour -- the guard was already gone -- and the image job had already run on the pre-formatter sha, which is the sha mutation/0014 records. Worth knowing that an automated formatter will touch a deliberately-broken branch.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/admin-users",
+        "item/ledger-main-push-record"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -3465,6 +3549,20 @@
       "headSha": "4ce07d0951a29ac6bcad8dca6c5a4eda3624b40f",
       "mutant": "AuthenticateUser pins $column to 'email', reverting the dispatch; the folding, the User::booted guard and the blade's type=\"text\" field are all left in place, so the page still invites a username and only the server cannot authenticate one",
       "check": "container-smoke.mjs runVerify() -- logging back in with ADMIN_USERNAME and leaving /login; every setup-phase login is by email and all of them still passed, so the failure isolates username resolution rather than login at large",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0014",
+      "@type": "Mutation",
+      "implements": [
+        "item/admin-users"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/177",
+      "run": "run/0019",
+      "headSha": "d7f57e52f480d1a112602bba3ee6f2865c2fc06e",
+      "mutant": "Removed only the `throw LastAdministratorMustRemain::forUser($user);` from App\\Actions\\Users\\SetUserRoles, leaving the surrounding if intact so the file stayed valid PHP and the check would fail on behaviour rather than on a parse error.",
+      "check": "container-smoke.mjs checkAdminUsersPage() stage four -- the image job failed at the named assertion \"smokeadmin353247520941 lost users.manage through a change the guard was supposed to refuse\", not on a locator timeout. The container access log immediately before it shows the stage-three 403 for the scratch member and then a 200 on the Livewire POST to /admin/users, which is the refused change going through: the check reached the assertion and the assertion is what failed.",
       "verdict": "negative",
       "supersedes": null
     }
