@@ -107,3 +107,24 @@ it('leaves the pragmas overridable, so a network filesystem can turn WAL off', f
 
     expect(pragmaValue($connection, 'journal_mode'))->toBe('delete');
 });
+
+it('begins write transactions IMMEDIATE so busy_timeout has something to wait on', function () {
+    // Asserted from config rather than from the database, because
+    // transaction_mode is not a SQLite pragma: it is a Laravel connector
+    // setting deciding whether a transaction opens BEGIN or BEGIN IMMEDIATE.
+    // There is no `pragma transaction_mode` to read back.
+    //
+    // The BEHAVIOUR this buys cannot be reached from here either. It only
+    // shows up when two connections race a read-then-write, and the suite's
+    // queue is synchronous (decision/0020) with one connection. The container
+    // smoke asserts the same value against the real /data database, and the
+    // honest position is that this test pins the stated value while the lock
+    // it prevents is only observable in the container. See issue #121.
+    expect(strtoupper((string) config('database.connections.sqlite.transaction_mode')))
+        ->toBe('IMMEDIATE');
+});
+
+it('leaves the transaction mode overridable for anyone who needs DEFERRED back', function () {
+    expect(config('database.connections.sqlite.transaction_mode'))
+        ->toBe(env('DB_TRANSACTION_MODE', 'IMMEDIATE'));
+});
