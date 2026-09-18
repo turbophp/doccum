@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T19:32:00Z",
+  "dateModified": "2026-09-18T19:52:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1299,7 +1299,7 @@
       "size": "M",
       "release": "v1.0.0",
       "dependsOn": [],
-      "doneWhen": "The release job prints compressed and uncompressed size, the README states them, and the image is at or below its stated budget or a Decision records why not.",
+      "doneWhen": "The release job prints the image's compressed and uncompressed size, and the README states both. RESTATED under decision/0087: the clause used to end 'and the image is at or below its stated budget', which names a budget that does not exist -- no number is stated anywhere in this repository, so the clause was unfalsifiable and could be called met by measuring anything at all. Inventing a number now would be a guess dressed as a requirement, which is the failure decision/0068 was written against. The budget is therefore DEFINED AS the size this item measures on its own first run, recorded in the README and in the Completed item's record as two numbers with the commit they were measured at. After that it is a ratchet: any later change that pushes either number above the recorded figure must carry a Decision saying why, or be cut. Done when both numbers are printed by the release job, both are in the README with the commit they came from, and the ratchet is enforced by something CI runs rather than by the README asking politely -- a check that reads the built image's size and fails above the recorded figure. A README sentence alone is documentation of an intention, not a gate, and this item has no other guard.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -1342,10 +1342,12 @@
         "item/email-verification-decided"
       ],
       "doneWhen": "Both smoke sites that report a destination -- the installer helper's waitForURL and checkAdminUsersPage()'s status check -- report where the browser actually LANDED, through one shared helper, naming a verification bounce explicitly when the landing place is the notice; checkFirstAdminIsVerified() is removed as unprovable; and the new message is itself shown by mutation rather than asserted.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T19:38:00Z",
+      "endTime": "2026-09-18T19:49:28Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/239"
+      ]
     },
     {
       "@id": "item/directory-force-delete-orphans",
@@ -3260,6 +3262,38 @@
       "mergedAt": "2026-09-18T19:28:24Z",
       "mergeSha": "54d7210a795104d584bdf0258c436f4f7a700096",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/238",
+      "@type": "PullRequest",
+      "identifier": 238,
+      "name": "MUTATION -- DO NOT MERGE: leave the first administrator unverified",
+      "implements": [
+        "item/smoke-installer-names-the-bounce"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T19:41:12Z",
+      "headSha": "4420606cd0dae26fb987e100504ee5abb5dce36b",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/239",
+      "@type": "PullRequest",
+      "identifier": 239,
+      "name": "The smoke says where the browser landed, and names a verification bounce",
+      "implements": [
+        "item/smoke-installer-names-the-bounce"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T19:44:51Z",
+      "headSha": "5b8fee260fdc400bea01434c7e48dbcf870e330a",
+      "mergedAt": "2026-09-18T19:49:28Z",
+      "mergeSha": "936ae10e9177655acb1c34d15268c35de41c9d50",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4690,6 +4724,21 @@
         "item/v1-audit"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0087",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T19:52:00Z",
+      "run": "run/0020",
+      "name": "item/image-size's budget is the first measurement, and the ratchet has to be a check",
+      "rationale": "item/image-size's doneWhen required the image to be 'at or below its stated budget'. No budget is stated -- not in the README, not in the spec, not in the item. The clause could not be failed, so it could not be met either: any measurement at all satisfies a comparison against nothing, and the item would have been marked Completed on the strength of printing two numbers. decision/0068 is the standing rule that an unsatisfiable or unstated doneWhen is restated BEFORE delegation, not discovered by the implementer; this is that, applied one item ahead of its turn rather than at the moment it comes up, because noticing it now and delegating it later is how it gets forgotten.\n\nTwo ways to fix it, and the rejected one matters. Picking a number now -- 400MB, 600MB, whatever sounds right -- would read as a requirement and be a guess. Nobody has measured this image; a guess low enough to bite would send a worker off optimising against an invented target, and one high enough not to bite is decoration. So the budget is DEFINED as the first honest measurement: whatever the image weighs when this item runs, compressed and uncompressed, recorded with the commit it was measured at. That number is not a target, it is a ratchet -- the point is not that the image is small, it is that it does not silently grow.\n\nThe restatement also adds something the original never asked for, and this is a change of substance rather than of wording. The original made the README the home of the budget, and a README sentence is not a gate: nothing in CI reads it, so the ratchet would be enforced by reviewers remembering. This repository has the same shape of lesson recorded twice already -- item/release-gate, where release.yml could publish from a red tree because the gate was an intention rather than a `needs`, and every UI item whose Blade assertion was green while the feature was unusable. A number in prose that CI does not read is documentation of an intention. So the restated clause requires a check that reads the built image's size and fails above the recorded figure. That makes the item slightly larger; it is still S-to-M, and an item whose only guard is a sentence is not worth shipping.\n\nRecorded here rather than folded silently into the item text because the doneWhen now requires something the issue does not: anyone reading issue #30 and the ledger side by side should find the discrepancy explained rather than have to guess which is authoritative.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/image-size"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -5012,6 +5061,20 @@
       "headSha": "d76710119f75731716a9e3f6c34466d094b602dd",
       "mutant": "Made changelog-section.sh return empty and exit 0 on both failure paths -- no matching heading, and a heading whose body is blank -- instead of exiting non-zero. That is the silent defect the item was written against: release.yml would publish a GitHub Release with blank notes, successfully.",
       "check": "The changelog-section job in tests.yml. Run locally against the real script rather than in CI, because the extractor is a script and not an image, and re-run independently during review rather than taken from the implementing pass's report. MUTATED: the missing-version assertion got exit 0 with empty output where it requires non-zero, so the check fails. THE RESULT WORTH KEEPING is which half bit: under the same mutation the HAPPY-PATH assertion still passed. Only the missing-version case catches it. An extractor tested solely on the section that exists proves nothing about the case that will actually happen -- somebody tagging a version whose notes they forgot to write. Restored byte-identical afterwards, confirmed with cmp, and the restored script exits 1 on the missing version again.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0024",
+      "@type": "Mutation",
+      "implements": [
+        "item/smoke-installer-names-the-bounce"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/238",
+      "run": "run/0020",
+      "headSha": "4420606cd0dae26fb987e100504ee5abb5dce36b",
+      "mutant": "Commented out app/Livewire/Setup/FirstRun.php:405's $user->forceFill(['email_verified_at' => now()])->save(); so the first administrator the installer creates is left unverified. That is exactly the regression item/email-verification-decided shipped against: with verification enforced and no mailer configured, an unverified first administrator is bounced to /email/verify and can never leave it, because the only way off that page is a mail the instance cannot send.",
+      "check": "The image job's container smoke, run/35387325216. MUTATED: the installer step failed with the message this item added, quoted from the job log rather than inferred from the job's red status -- '[setup] the installer never reached /files after submitting the administrator form -- bounced to the email verification notice (/email/verify) instead of the page this was asked for. A bounce to the verification notice here means the first administrator was not verified at creation (item/email-verification-decided, issue #161); a bounce anywhere else (e.g. back to \\'/\\', Laravel\\'s starter welcome page) is issue #97\\'s original failure mode instead.' The distinguishing half is what was on trial and the distinguishing half is what fired: the smoke named the verification bounce specifically, not a generic failure to arrive. WHAT THIS MUTATION DOES NOT PROVE, recorded because it weakens it: the same mutant also turned all six test jobs red, so this is not a case where the smoke was the only thing standing between the defect and a green tree. The evidence here is the message text read out of the image job's own log, not the redness of the run -- a red run would have been consistent with the old bare-boolean message too, and that is the thing this item replaced. Closed unmerged; main never carried the mutant.",
       "verdict": "negative",
       "supersedes": null
     }
