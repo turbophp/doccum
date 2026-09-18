@@ -2582,10 +2582,32 @@ async function runVerify() {
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
     await page.getByLabel('Username or email', { exact: true }).fill(ADMIN_USERNAME);
     await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD);
-    await Promise.all([
-      page.waitForURL((u) => u.pathname !== '/login', { timeout: 15000 }),
-      page.getByRole('button', { name: 'Log in' }).click(),
-    ]);
+    try {
+      await Promise.all([
+        page.waitForURL((u) => u.pathname !== '/login', { timeout: 15000 }),
+        page.getByRole('button', { name: 'Log in' }).click(),
+      ]);
+    } catch {
+      // Named, not a bare waitForURL timeout. The mutation for this item
+      // (AuthenticateUser pinned back to email-only) failed here with
+      // nothing but "page.waitForURL: Timeout 15000ms exceeded", readable
+      // only because the console line above happens to say USERNAME. Rule 3
+      // of the Mutation vocabulary says a failure that names no assertion is
+      // not evidence, and this one is worth naming precisely: every login in
+      // the setup phase is by EMAIL and they all still passed under that
+      // mutation, so being stranded HERE is what distinguishes "username
+      // resolution is broken" from "login is broken".
+      dumpContainerState(
+        `[verify] ${ADMIN_USERNAME} could not log in by username -- still on /login.`
+        + ' Every email login earlier in this run succeeded, so this is the'
+        + ' username branch of AuthenticateUser specifically, not login at large',
+      );
+      throw Object.assign(
+        new Error(`login by username (${ADMIN_USERNAME}) never left /login`),
+        { dumped: true },
+      );
+    }
+
     console.log('[verify] logged in by username -- the admin account persisted');
 
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
