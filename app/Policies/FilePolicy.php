@@ -57,9 +57,9 @@ use App\Services\DirectoryAccess;
  *     different fact than #62 ever addressed.
  *   - delete(), restore() and purge() deliberately do NOT check
  *     $file->trashed(): they are how a file gets INTO the trash, OUT of it,
- *     or destroyed for good, so refusing on trashed() would make trashing a
- *     file made it permanently untouchable by the very operations meant to
- *     act on that state.
+ *     or destroyed for good, so refusing on trashed() would make a trashed
+ *     file permanently untouchable by the very operations meant to act on
+ *     that state.
  *
  * See issue #116.
  */

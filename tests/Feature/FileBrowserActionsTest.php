@@ -124,60 +124,86 @@ it('refuses to rename a file without edit access', function () {
 });
 
 /**
- * item/file-policy-trashed-file-guards (issue #116): this settles a question
- * FilePolicy::replace()'s own trashed-file guard already rested on without
- * anyone checking it -- does Livewire's own restoration of a public Model
- * property re-query through the model's DEFAULT (SoftDeletingScope-applying)
- * query on each request, the same as an implicit route-model binding would,
- * or does it hand back whatever it last held regardless of scope?
+ * item/file-policy-trashed-file-guards (issue #116), the GUARANTEE half.
+ *
+ * Whatever Livewire does with a public Model property across a request, a
+ * file trashed on its own must not be renameable through the browser. That
+ * holds under both of the two possible mechanisms below, so this test is
+ * true in both worlds and stays green whichever one CI reports -- it is the
+ * security property the item actually owes, and it is deliberately asserted
+ * WITHOUT reference to which guard produced it.
  *
  * The file is trashed ALONE, out of band, between two calls on the SAME
  * component instance -- never through the component, and never by trashing
- * $this->mine, which would let a live cascade-trashed-directory refusal
- * answer instead of the fact this test exists to isolate. selectFile()
- * above resolves and authorises the file while it is still live, so by the
- * time renameFile() runs, $selectedFile has to survive a full
- * dehydrate/hydrate round trip -- exactly the round trip an ordinary
- * Livewire request makes between one AJAX call and the next -- with the row
- * now soft-deleted underneath it.
+ * $this->mine, which would let a cascade-trashed-directory refusal answer
+ * instead (that is #62's guard, not this one, and it is exactly the trap
+ * that made an earlier replace() test pass with its guard deleted).
  *
- * The two possible outcomes are NOT interchangeable, and asserting "some
- * error" would settle nothing (CLAUDE.md: over-determination is worse than
- * no guard at all, because it looks like proof):
- *
- *   - 404 would mean Livewire's restoration re-queries $selectedFile through
- *     the model's default scope, the trashed row is never found,
- *     $selectedFile comes back null, and renameFile()'s OWN
- *     abort_if($this->selectedFile === null, 404) is what answers -- in
- *     which case FilePolicy::update()'s new trashed() guard is never
- *     reached through this particular surface at all, though it still
- *     answers every direct User::can('update', ...) call, including the
- *     ones FilePolicyTest asserts directly.
- *   - 403 would mean Livewire hands $selectedFile back as the trashed model
- *     regardless of scope, execution reaches
- *     $this->authorize('update', $this->selectedFile), and the trashed()
- *     guard just added to FilePolicy::update() is exactly what refuses.
- *
- * This assertion is a considered bet, not a known fact -- there is no
- * vendor/ here to read Livewire's model-hydration source, and the comment
- * says so rather than pretending otherwise. If CI disagrees, the fix is to
- * flip this single assertion to assertNotFound(), not to reason around the
- * failure.
+ * Read with File::withTrashed() rather than $file->fresh(), because whether
+ * fresh() returns the row or null depends on the very scope question under
+ * test -- a null there would fail this test for a reason that has nothing to
+ * do with renaming.
  */
-it('settles whether renameFile is refused by the policy or 404s from a scoped restoration query, for a file trashed on its own while its directory stays live', function () {
+it('does not rename a file trashed on its own while its directory stays live', function () {
     $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
 
     $component = Livewire::actingAs($this->user)
         ->test(Browser::class, ['directory' => $this->mine])
         ->call('selectFile', $file->id);
 
-    $file->fresh()->delete();
+    $file->delete();
+
+    $component->set('renameValue', 'b.txt')->call('renameFile');
+
+    expect(File::withTrashed()->find($file->id)->name)->toBe('a.txt');
+});
+
+/**
+ * item/file-policy-trashed-file-guards (issue #116), the DISCRIMINANT half.
+ *
+ * Same interaction as the guarantee above, asserting the one thing that
+ * differs between the two worlds -- because "some error" would settle
+ * nothing, and CLAUDE.md is explicit that a proof which holds either way is
+ * worse than none, since it looks like proof.
+ *
+ * The open question is one FilePolicy::replace()'s own trashed-file guard
+ * already rested on without anyone checking it: does Livewire's restoration
+ * of a public Model property re-query through the model's DEFAULT
+ * (SoftDeletingScope-applying) query on each request, the way an implicit
+ * route-model binding would, or does it hand back what it last held?
+ *
+ *   403 means Livewire hands $selectedFile back as the trashed model,
+ *       execution reaches $this->authorize('update', ...), and the
+ *       trashed() guard added to FilePolicy::update() is what refuses.
+ *
+ *   404 means the restoration re-queries through the default scope, the
+ *       trashed row is not found, $selectedFile comes back null, and
+ *       renameFile()'s own abort_if(... === null, 404) answers first -- so
+ *       update()'s new guard is unreachable through THIS surface, though it
+ *       still answers every direct User::can('update', ...) call, which
+ *       FilePolicyTest asserts independently and which is what the
+ *       mutations.json entries key off.
+ *
+ * THE ASSERTION BELOW IS A BET, NOT A FACT. There is no vendor/ in the
+ * agent environment, so Livewire's model-hydration source could not be
+ * read, and this item exists precisely because that fact was assumed once
+ * already. A red here reading "expected 403, got 404" is this test doing
+ * its job and IS the answer: flip it to assertNotFound(), record the result,
+ * and do not reason around it. Neither outcome changes the guarantee above,
+ * and neither changes whether the policy guards are correct.
+ */
+it('settles whether Livewire restoration applies the SoftDeletingScope to a selected file', function () {
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
+
+    $component = Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectFile', $file->id);
+
+    $file->delete();
 
     $component->set('renameValue', 'b.txt')
         ->call('renameFile')
         ->assertForbidden();
-
-    expect($file->fresh()->name)->toBe('a.txt');
 });
 
 it('moves a file through the browser', function () {
