@@ -16,22 +16,36 @@ use Livewire\Livewire;
  * access through the Files browser's detail panel.
  *
  * DirectoryPolicy::manageAccess() gates BOTH grantAccess() and
- * revokeAccess() below, and it requires ONLY Manage-level directory_access
- * -- no additional Spatie permission. That is deliberately different from
- * move()/delete(), which also require directories.manage, and it is not
- * this item's invention: manageAccess() and DirectoryPolicyTest's 'requires
- * manage to grant access' both predate this item (see git history) and
- * that existing test's second assertion is exactly "a plain member role
- * with nothing but a Manage grant passes manageAccess()". Requiring a
- * Spatie permission here as well, the way move()/delete() do, would break
- * that already-passing test -- flagged in the task report rather than
- * resolved by weakening it.
+ * revokeAccess() below, and it requires BOTH layers: the directories.manage
+ * permission AND Manage-level directory_access, the same shape as
+ * move()/delete()/restore().
+ *
+ * It did not when this item was written. The ability asked only for the
+ * access level, which made it the one sibling of spec §5's single capability
+ * -- "grant/revoke access, move or delete the directory itself" -- skipping
+ * layer 1, and the most dangerous one to leave open, since granting access
+ * is how every other restriction gets handed to someone else. It was latent
+ * only because nothing called the ability from the UI, and THIS item is what
+ * makes it live, so the gap is closed here rather than filed.
+ *
+ * $this->manager therefore holds directories.manage explicitly. It used to
+ * be a plain member with a Manage grant alone, which is what the old policy
+ * accepted; under the rule CLAUDE.md actually states, that user is refused.
+ * Whether an ordinary member should be able to share their own home
+ * directory is a real product question and wants a permission of its own --
+ * see issue #144, not a layer removed from here.
  */
 beforeEach(function () {
     $this->seed(RolesAndPermissionsSeeder::class);
 
     $this->manager = User::factory()->create();
     $this->manager->assignRole('member');
+    // Layer 1. Granted directly rather than via the admin role on purpose:
+    // an admin holds directories.view-all, which DirectoryAccess::resolve()
+    // short-circuits to Manage on every directory, so an admin fixture would
+    // pass the level check by bypass and these tests would stop proving that
+    // the grant below is what carries it.
+    $this->manager->givePermissionTo('directories.manage');
 
     $this->dir = Directory::factory()->create(['name' => 'Managed']);
 
