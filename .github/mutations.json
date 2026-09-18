@@ -376,5 +376,12 @@
     "file": "app/Support/LedgerValidator.php",
     "remove": "            if (isset($nodes[$id])) {\n                // $nodes is keyed by @id, so a second node sharing it would\n                // silently overwrite the first here and this duplicate would\n                // never be visible again -- catch it now, one step before\n                // that happens. This is why idErrors() used to carry a\n                // \"duplicate @id\" check that could never fire: by the time\n                // it ran, $nodes already had unique keys by construction.\n                // JSON-LD merges nodes that share an @id, so two entries for\n                // one id are not two items to any consumer -- they are one\n                // item whose fields came from whichever copy parsed last.\n                $errors[] = \"id: '$id' is defined by more than one node -- JSON-LD merges nodes sharing an @id, so this is not two items to any consumer, it is one item whose fields came from whichever copy parsed last.\";\n            }\n\n",
     "expectFailing": "flags a node that redefines an id already used by an earlier node"
+  },
+  {
+    "id": "user-implements-must-verify-email",
+    "why": "issue #161: EnsureEmailIsVerified gates on the MustVerifyEmail CONTRACT, not the trait User already gets from Authenticatable -- `$request->user() instanceof MustVerifyEmail` was false for every user because the contract was commented out of the model, so the `verified` middleware let every unverified user straight through every route it guards, including four tests in EmailVerificationTest.php that passed while it gated nothing. Remove the contract from the implements clause and the gate goes back to enforcing nothing, exactly as it shipped.",
+    "file": "app/Models/User.php",
+    "remove": "MustVerifyEmail, ",
+    "expectFailing": "test_an_unverified_user_is_redirected_away_from_a_verified_route"
   }
 ]

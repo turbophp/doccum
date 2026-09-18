@@ -394,6 +394,16 @@ class FirstRun extends Component
             'password' => $validated['password'],
         ]);
 
+        // item/email-verification-decided (issue #161): the first
+        // administrator proved control of the instance by installing it --
+        // requiring them to fish a verification link out of the container
+        // log (the mailer defaults to 'log') would brick a fresh container
+        // before it was ever usable. email_verified_at is not in User's
+        // #[Fillable(...)] list, so it is set via forceFill(), the same
+        // pattern App\Actions\Fortify\ResetUserPassword already uses for a
+        // guarded column.
+        $user->forceFill(['email_verified_at' => now()])->save();
+
         $user->assignRole('admin');
 
         $settings = app(Settings::class);

@@ -39,6 +39,31 @@ class ProfileUpdateTest extends TestCase
         $this->assertNull($user->email_verified_at);
     }
 
+    // item/email-verification-decided (issue #161): this is the case that
+    // makes App\Console\Commands\UserVerify necessary rather than a nicety.
+    // Changing your own email already nulled email_verified_at before this
+    // item (that assertion is above); what changes is that the `verified`
+    // middleware now actually enforces what that null means -- an operator
+    // who does this locks themselves out of every `verified` route, on a
+    // container whose mailer defaults to 'log', with no recovery besides
+    // that command.
+    public function test_changing_your_own_email_demotes_you_from_a_verified_route(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+
+        Livewire::test(Profile::class)
+            ->set('name', $user->name)
+            ->set('email', 'new-address@example.com')
+            ->call('updateProfileInformation')
+            ->assertHasNoErrors();
+
+        $response = $this->get(route('dashboard'));
+
+        $response->assertRedirect(route('verification.notice', absolute: false));
+    }
+
     public function test_email_verification_status_is_unchanged_when_email_address_is_unchanged(): void
     {
         $user = User::factory()->create();

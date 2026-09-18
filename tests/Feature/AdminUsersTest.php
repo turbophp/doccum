@@ -69,6 +69,30 @@ it('gives a user created through the admin page a home directory and a manage gr
         ->and($grant->level)->toBe(AccessLevel::Manage);
 });
 
+// item/email-verification-decided (issue #161): an operator holding
+// users.manage vouched for this address by creating the account, so it must
+// not be born behind the `verified` middleware with no way to prove itself
+// -- the new user has never received any mail. Asserts REACHABILITY of a
+// verified route, not merely the column.
+it('verifies a user created through the admin page and lets them reach a verified route', function () {
+    Livewire::actingAs($this->admin)
+        ->test(Users::class)
+        ->set('name', 'Grace Hopper')
+        ->set('username', 'grace')
+        ->set('email', 'grace@example.com')
+        ->set('password', 'password')
+        ->set('password_confirmation', 'password')
+        ->set('role', 'member')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    $user = User::where('email', 'grace@example.com')->firstOrFail();
+
+    expect($user->hasVerifiedEmail())->toBeTrue();
+
+    $this->actingAs($user)->get(route('dashboard'))->assertOk();
+});
+
 it('rejects a duplicate username through the admin page as a validation error, not an exception', function () {
     User::factory()->create(['username' => 'taken']);
 

@@ -27,6 +27,22 @@ use Spatie\Permission\Models\Role;
  * This action does NOT authorise -- CLAUDE.md: actions never authorise,
  * callers do, through a Policy. UserPolicy::create() is that check, made by
  * every caller before this runs.
+ *
+ * item/email-verification-decided (issue #161): this action is ALSO the one
+ * Fortify's own CreateNewUser delegates to for self-registration, so
+ * "verified" cannot be decided in here unconditionally -- doing so would
+ * verify a self-registered account too, which is exactly the case the
+ * decision requires to prove itself. $verified is therefore an explicit
+ * parameter the CALLER supplies, the same "actions never decide, callers
+ * do" shape CLAUDE.md already requires for authorisation: App\Livewire\
+ * Admin\Users::save() passes true because reaching it at all already
+ * required the users.manage permission -- an operator vouching for the
+ * address -- while App\Actions\Fortify\CreateNewUser leaves it at the
+ * default, so a self-registered user is created exactly as unverified as
+ * before. email_verified_at is deliberately not mass-assigned above:
+ * it is not in User's #[Fillable(...)] list, so it is set via forceFill()
+ * after create(), the same pattern App\Actions\Fortify\ResetUserPassword
+ * already uses for a guarded column.
  */
 class CreateUser
 {
@@ -35,7 +51,7 @@ class CreateUser
     /**
      * @param  array<string, string>  $input
      */
-    public function handle(array $input, ?string $role): User
+    public function handle(array $input, ?string $role, bool $verified = false): User
     {
         // Fold before validating, not merely on save: emailRules()'s
         // Rule::unique() compares whatever is in $input against the `email`
@@ -60,6 +76,10 @@ class CreateUser
             'email' => $input['email'],
             'password' => $input['password'],
         ]);
+
+        if ($verified) {
+            $user->forceFill(['email_verified_at' => now()])->save();
+        }
 
         // Preserved from CreateNewUser precisely: a caller-chosen role that
         // does not name a role that exists is silently skipped rather than
