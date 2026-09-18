@@ -24,6 +24,62 @@
         </flux:select>
     </div>
 
+    <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <flux:input
+            wire:model.live.debounce.300ms="mime"
+            :label="__('Mime type')"
+            :placeholder="__('e.g. application/pdf')"
+            class="sm:w-56"
+        />
+
+        <flux:input
+            wire:model.live.debounce.300ms="periodYear"
+            :label="__('Year')"
+            type="number"
+            :placeholder="__('e.g. 2026')"
+            class="sm:w-32"
+        />
+
+        <flux:input
+            wire:model.live.debounce.300ms="periodMonth"
+            :label="__('Month')"
+            type="number"
+            min="1"
+            max="12"
+            class="sm:w-24"
+        />
+
+        <flux:select wire:model.live="propertyDefinitionId" :label="__('Property')" class="sm:w-48">
+            <flux:select.option value="">{{ __('Any property') }}</flux:select.option>
+            @foreach ($definitions as $definition)
+                <flux:select.option :value="(string) $definition->id">{{ $definition->label }}</flux:select.option>
+            @endforeach
+        </flux:select>
+
+        @if ($selectedDefinition)
+            @if ($selectedDefinition->data_type === \App\Enums\PropertyDataType::Boolean)
+                <flux:select wire:model.live="propertyValue" :label="__('Value')" class="sm:w-32">
+                    <flux:select.option value="">{{ __('Any') }}</flux:select.option>
+                    <flux:select.option value="true">{{ __('Yes') }}</flux:select.option>
+                    <flux:select.option value="false">{{ __('No') }}</flux:select.option>
+                </flux:select>
+            @elseif ($selectedDefinition->data_type === \App\Enums\PropertyDataType::Select)
+                <flux:select wire:model.live="propertyValue" :label="__('Value')" class="sm:w-48">
+                    <flux:select.option value="">{{ __('Any') }}</flux:select.option>
+                    @foreach ($selectedDefinition->options ?? [] as $option)
+                        <flux:select.option :value="$option">{{ $option }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @elseif ($selectedDefinition->data_type === \App\Enums\PropertyDataType::Date)
+                <flux:input wire:model.live.debounce.300ms="propertyValue" :label="__('Value')" type="date" class="sm:w-40" />
+            @elseif ($selectedDefinition->data_type === \App\Enums\PropertyDataType::Number)
+                <flux:input wire:model.live.debounce.300ms="propertyValue" :label="__('Value')" type="number" step="any" class="sm:w-32" />
+            @else
+                <flux:input wire:model.live.debounce.300ms="propertyValue" :label="__('Value')" class="sm:w-48" />
+            @endif
+        @endif
+    </div>
+
     @if (trim($query) === '')
         <flux:text>{{ __('Type something to search.') }}</flux:text>
     @elseif ($hits->isEmpty())

@@ -57,6 +57,27 @@ class Fts5SearchIndex implements SearchIndex
             }
         }
 
+        // The property filter cannot be a plain `d.{column} = ?` -- the value
+        // lives on `properties`, keyed by the SAME subject the projection row
+        // was built for, not on `search_documents` itself. An EXISTS keeps it
+        // inside this one query, ANDed onto the directory_id/permission
+        // predicate above rather than replacing it: SQLite only, so no
+        // md5() predicate is needed (that is PostgreSQL's index only; see
+        // PropertyFilter and the properties migration's comment).
+        $property = PropertyFilter::fromFilters($filters);
+
+        if ($property !== null) {
+            $where .= ' AND EXISTS (
+                SELECT 1 FROM properties p
+                WHERE p.subject_type = d.subject_type
+                  AND p.subject_id = d.subject_id
+                  AND p.property_definition_id = ?
+                  AND p.'.$property->column.' = ?
+            )';
+            $bindings[] = $property->definitionId;
+            $bindings[] = is_bool($property->value) ? (int) $property->value : $property->value;
+        }
+
         $bindings[] = $limit;
 
         // bm25() is negative in SQLite, and more negative is a better match,

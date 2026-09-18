@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Enums\PropertyDataType;
 use App\Models\Directory;
 use App\Models\File;
+use App\Models\Property;
+use App\Models\PropertyDefinition;
 use App\Models\SearchDocument;
 use App\Search\SearchIndex;
 use App\Services\SearchIndexer;
@@ -13,9 +16,21 @@ beforeEach(function () {
     $this->visible = [$this->dir->id];
 });
 
-function indexFile(string $name, string $body = '', ?Directory $in = null): File
+function indexFile(string $name, string $body = '', ?Directory $in = null, array $attributes = []): File
+{
+    $file = File::factory()->for($in ?? test()->dir, 'directory')->create(['name' => $name, ...$attributes]);
+    $doc = app(SearchIndexer::class)->index($file->fresh());
+    $doc->update(['body' => $body]);
+    app(SearchIndex::class)->put($doc->fresh());
+
+    return $file;
+}
+
+/** A file carrying one property value, reindexed so the projection and the properties row agree. */
+function indexFileWithProperty(string $name, string $body, PropertyDefinition $definition, mixed $value, ?Directory $in = null): File
 {
     $file = File::factory()->for($in ?? test()->dir, 'directory')->create(['name' => $name]);
+    Property::for($file, $definition)->setValue($value);
     $doc = app(SearchIndexer::class)->index($file->fresh());
     $doc->update(['body' => $body]);
     app(SearchIndex::class)->put($doc->fresh());
@@ -129,4 +144,48 @@ it('treats an empty query as no search rather than everything', function () {
     expect(app(SearchIndex::class)->search('', $this->visible))->toBeEmpty()
         ->and(app(SearchIndex::class)->search('   ', $this->visible))->toBeEmpty()
         ->and(app(SearchIndex::class)->search('!!!', $this->visible))->toBeEmpty();
+});
+
+it('filters by mime type, inside the query', function () {
+    indexFile('Lease.pdf', 'tenant obligations', attributes: ['mime' => 'application/pdf']);
+    indexFile('Lease.txt', 'tenant obligations', attributes: ['mime' => 'text/plain']);
+
+    expect(app(SearchIndex::class)->search('tenant', $this->visible, ['mime' => 'application/pdf']))
+        ->toHaveCount(1)
+        ->and(app(SearchIndex::class)->search('tenant', $this->visible, ['mime' => 'application/pdf'])->first()->title)
+        ->toBe('Lease.pdf');
+});
+
+it('filters by a property value on its typed column, not a string comparison', function () {
+    $definition = PropertyDefinition::factory()->create([
+        'key' => 'amount', 'label' => 'Amount', 'data_type' => PropertyDataType::Number,
+    ]);
+    indexFileWithProperty('A.pdf', 'tenant obligations', $definition, 100);
+    indexFileWithProperty('B.pdf', 'tenant obligations', $definition, 250);
+
+    $hits = app(SearchIndex::class)->search('tenant', $this->visible, [
+        'property_definition_id' => $definition->id,
+        'property_value' => 250,
+    ]);
+
+    expect($hits)->toHaveCount(1)
+        ->and($hits->first()->title)->toBe('B.pdf');
+});
+
+it('never returns a property-filtered match outside the viewer reach, on FTS5', function () {
+    $definition = PropertyDefinition::factory()->create([
+        'key' => 'supplier', 'label' => 'Supplier', 'data_type' => PropertyDataType::String_,
+    ]);
+    $other = Directory::factory()->create();
+
+    indexFileWithProperty('Secret.pdf', 'tenant obligations', $definition, 'Acme', $other);
+    indexFileWithProperty('Mine.pdf', 'tenant obligations', $definition, 'Acme');
+
+    $hits = app(SearchIndex::class)->search('tenant', $this->visible, [
+        'property_definition_id' => $definition->id,
+        'property_value' => 'Acme',
+    ]);
+
+    expect($hits)->toHaveCount(1)
+        ->and($hits->first()->title)->toBe('Mine.pdf');
 });

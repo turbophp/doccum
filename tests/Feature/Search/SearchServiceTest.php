@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use App\Enums\AccessLevel;
+use App\Enums\PropertyDataType;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
+use App\Models\Property;
+use App\Models\PropertyDefinition;
 use App\Models\User;
 use App\Search\SearchIndex;
 use App\Services\Search;
@@ -15,6 +18,18 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 function publish(Directory $dir, string $name, string $body = 'quarterly revenue analysis'): File
 {
     $file = File::factory()->for($dir, 'directory')->create(['name' => $name]);
+    $doc = app(SearchIndexer::class)->index($file->fresh());
+    $doc->update(['body' => $body]);
+    app(SearchIndex::class)->put($doc->fresh());
+
+    return $file;
+}
+
+/** As publish(), but with a property value set before the file is indexed. */
+function publishWithProperty(Directory $dir, string $name, PropertyDefinition $definition, mixed $value, string $body = 'quarterly revenue analysis'): File
+{
+    $file = File::factory()->for($dir, 'directory')->create(['name' => $name]);
+    Property::for($file, $definition)->setValue($value);
     $doc = app(SearchIndexer::class)->index($file->fresh());
     $doc->update(['body' => $body]);
     app(SearchIndex::class)->put($doc->fresh());
@@ -90,4 +105,27 @@ it('stops showing a document once access is revoked', function () {
     // Access is resolved per search, not cached into the index, so a
     // revocation takes effect on the next query rather than the next reindex.
     expect(app(Search::class)->for($this->user, 'quarterly'))->toBeEmpty();
+});
+
+it('applies a property filter through the seam without leaking an unreachable directory', function () {
+    // The security clause of item/search-filters' doneWhen, exercised through
+    // Search::for() itself rather than one SearchIndex implementation: a
+    // filter must be ANDed onto the permission filter Search::for() resolves,
+    // never bypass it by building a fresh query. this->theirs carries a
+    // matching property value and no grant, so it must stay invisible.
+    $definition = PropertyDefinition::factory()->create([
+        'key' => 'supplier', 'label' => 'Supplier', 'data_type' => PropertyDataType::String_,
+    ]);
+    publishWithProperty($this->mine, 'MineWithSupplier.pdf', $definition, 'Acme Industries');
+    publishWithProperty($this->theirs, 'TheirsWithSupplier.pdf', $definition, 'Acme Industries');
+
+    letSee($this->mine, $this->user);
+
+    $hits = app(Search::class)->for($this->user, 'quarterly', [
+        'property_definition_id' => $definition->id,
+        'property_value' => 'Acme Industries',
+    ]);
+
+    expect($hits)->toHaveCount(1)
+        ->and($hits->first()->title)->toBe('MineWithSupplier.pdf');
 });
