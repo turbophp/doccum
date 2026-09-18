@@ -1891,6 +1891,16 @@ async function runVerify() {
     const persistedBody = `This is a doccum container smoke test document containing the marker word ${FILE_MARKER}.\n`;
     const persistedSha = crypto.createHash('sha256').update(persistedBody).digest('hex');
 
+    // Back to the listing first. downloadAndCompareBytes() reads the row's
+    // own Download href rather than constructing a URL from an id, so it has
+    // to be ON a listing that shows the row -- and the search assertion above
+    // leaves the browser at /search, which has no file rows at all. Ordering
+    // this check last is what made the navigation necessary, and the first
+    // attempt at that reorder dropped it: "locator.waitFor: Timeout 10000ms
+    // exceeded ... tr[data-test="file-row"] filter hasText smoke-...txt".
+    await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+
     await downloadAndCompareBytes(page, FILE_NAME, persistedSha, 'verify');
     console.log('[verify] the bytes came back from the replacement container -- OBJECT STORAGE persisted');
 
