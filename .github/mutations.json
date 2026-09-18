@@ -355,5 +355,19 @@
     "file": "app/Actions/Roles/SetRolePermissions.php",
     "remove": "            throw LastAdministratorMustRemain::forRole($role);\n",
     "expectFailing": "refuses to strip users.manage from a role that is its sole holder"
+  },
+  {
+    "id": "periods-purge-refuses-when-not-purgeable",
+    "why": "item/admin-periods (issue #20): the purge control being disabled in the Blade view is a courtesy to the operator, not a guard -- a Livewire method call reaches /livewire/update directly with whatever payload the client sends, disabled attribute or not. Periods::purgePeriod() re-runs PeriodPurger::plan() itself and must refuse on that FRESH answer. Remove this check and purgePeriod() purges any period whose confirmation text matches its label, even one PeriodPurger::plan() says is not purgeable -- an open period, one still inside its retention window, or one with a file under legal hold.",
+    "file": "app/Livewire/Admin/Periods.php",
+    "remove": "        if (! $plan->purgeable) {\n            $this->addError('purge.'.$periodId, __('This period cannot be purged: :blockers', [\n                'blockers' => implode(' ', $plan->blockers),\n            ]));\n\n            return;\n        }\n\n",
+    "expectFailing": "refuses to purge a period when purgeable is false even though the request asks for it"
+  },
+  {
+    "id": "periods-purge-refuses-confirmation-mismatch",
+    "why": "item/admin-periods (issue #20): the confirmation text field is the only thing standing between a purgeable period and an irreversible delete, so it must be compared to the fresh plan's exact label with a strict comparison. Remove this check and purgePeriod() purges a purgeable period with no confirmation at all -- an empty string, or any other text, purges it just as well as the correct label typed exactly.",
+    "file": "app/Livewire/Admin/Periods.php",
+    "remove": "        if ($typed !== $plan->label()) {\n            $this->addError('purge.'.$periodId, __('Type the exact period label, :label, to confirm.', [\n                'label' => $plan->label(),\n            ]));\n\n            return;\n        }\n\n",
+    "expectFailing": "refuses to purge a period when the confirmation text does not exactly equal the label"
   }
 ]
