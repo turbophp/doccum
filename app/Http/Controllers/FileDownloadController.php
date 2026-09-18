@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Models\File;
 use App\Services\DocumentStorage;
 use Illuminate\Http\RedirectResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileDownloadController extends Controller
 {
@@ -18,12 +19,37 @@ class FileDownloadController extends Controller
      * The bytes never pass through PHP, so a large document does not occupy a
      * worker or run into a memory limit. See spec §6.
      */
-    public function __invoke(File $file): RedirectResponse
+    public function __invoke(File $file): RedirectResponse|StreamedResponse
     {
         $this->authorize('download', $file);
 
         abort_if($file->currentVersion === null, 404);
 
-        return redirect()->away($this->storage->temporaryUrl($file->currentVersion));
+        $version = $file->currentVersion;
+
+        if ($this->storage->servesPresignedUrls()) {
+            return redirect()->away($this->storage->temporaryUrl($version));
+        }
+
+        // Spec 6 asks for a presigned redirect so the bytes never pass through
+        // PHP, and that is still what happens whenever the endpoint names a
+        // host the browser can reach. For embedded storage it does not -- the
+        // default endpoint is loopback and the container publishes one port --
+        // so the alternative to streaming here is a redirect to nowhere, which
+        // is what issue #74 was. A Download link that works is worth more than
+        // the invariant, and the invariant is kept everywhere it can be.
+        //
+        // streamDownload() rather than reading into memory: a document archive
+        // has no useful size limit, and this path is the one spec 6 exists to
+        // avoid, so it should at least not hold a whole file in a worker.
+        return response()->streamDownload(
+            function () use ($version): void {
+                $stream = $this->storage->readStream($version);
+                fpassthru($stream);
+                fclose($stream);
+            },
+            $file->name,
+            ['Content-Type' => $version->mime ?? 'application/octet-stream'],
+        );
     }
 }

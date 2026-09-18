@@ -53,6 +53,58 @@ class DocumentStorage
     }
 
     /**
+     * Whether a presigned URL issued for this disk is something a BROWSER can
+     * actually fetch.
+     *
+     * Spec 6 says file bytes never stream through PHP, and a presigned
+     * redirect is how that is honoured. It only works when the endpoint names
+     * a host the browser can reach, and for embedded storage it does not: the
+     * default is http://127.0.0.1:9000 (config/doccum.php), which from the
+     * browser is the BROWSER's own machine, and the single container publishes
+     * 8080 alone. Issue #74, demonstrated rather than argued -- the container
+     * smoke followed a Download link and got
+     * "connect ECONNREFUSED 127.0.0.1:9000".
+     *
+     * The test is the endpoint's host rather than the provider's name on
+     * purpose. What breaks a download is unreachability, not which preset was
+     * chosen, so a custom provider misconfigured onto loopback is caught by
+     * the same rule that catches the embedded default -- and a genuinely
+     * remote provider keeps the presigned path spec 6 asks for.
+     */
+    public function servesPresignedUrls(): bool
+    {
+        $endpoint = config('filesystems.disks.'.config('doccum.storage.disk').'.endpoint');
+
+        if (! is_string($endpoint) || $endpoint === '') {
+            // No endpoint at all is plain AWS S3, which is as public as it gets.
+            return true;
+        }
+
+        $host = parse_url($endpoint, PHP_URL_HOST);
+
+        return is_string($host)
+            && ! in_array(strtolower($host), ['127.0.0.1', 'localhost', '::1', '0.0.0.0'], true);
+    }
+
+    /**
+     * A read stream for a version's bytes, for the one case where PHP has to
+     * serve them itself because a presigned URL would name a host the browser
+     * cannot reach. See servesPresignedUrls().
+     *
+     * @return resource
+     */
+    public function readStream(FileVersion $version)
+    {
+        $stream = $this->disk()->readStream($version->object_key);
+
+        if ($stream === null) {
+            throw new RuntimeException("Unable to read object [{$version->object_key}] from storage.");
+        }
+
+        return $stream;
+    }
+
+    /**
      * Copies a version's bytes to a local temporary file and returns its
      * path, for extraction tools that need a real path on disk rather than
      * a stream. The caller owns the returned file and must remove it.

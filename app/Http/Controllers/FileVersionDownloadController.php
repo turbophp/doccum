@@ -8,6 +8,7 @@ use App\Models\File;
 use App\Models\FileVersion;
 use App\Services\DocumentStorage;
 use Illuminate\Http\RedirectResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileVersionDownloadController extends Controller
 {
@@ -34,7 +35,7 @@ class FileVersionDownloadController extends Controller
      * shape of the response leak whether the id exists. This is the same
      * class of bug as open issue #109; do not reintroduce it here.
      */
-    public function __invoke(File $file, int $version): RedirectResponse
+    public function __invoke(File $file, int $version): RedirectResponse|StreamedResponse
     {
         $this->authorize('download', $file);
 
@@ -53,6 +54,29 @@ class FileVersionDownloadController extends Controller
         // belt and braces on purpose, not redundancy.
         abort_if((int) $fileVersion->file_id !== (int) $file->getKey(), 404);
 
-        return redirect()->away($this->storage->temporaryUrl($fileVersion));
+        if ($this->storage->servesPresignedUrls()) {
+            return redirect()->away($this->storage->temporaryUrl($fileVersion));
+        }
+
+        // Spec 6 asks for a presigned redirect so the bytes never pass through
+        // PHP, and that is still what happens whenever the endpoint names a
+        // host the browser can reach. For embedded storage it does not -- the
+        // default endpoint is loopback and the container publishes one port --
+        // so the alternative to streaming here is a redirect to nowhere, which
+        // is what issue #74 was. A Download link that works is worth more than
+        // the invariant, and the invariant is kept everywhere it can be.
+        //
+        // streamDownload() rather than reading into memory: a document archive
+        // has no useful size limit, and this path is the one spec 6 exists to
+        // avoid, so it should at least not hold a whole file in a worker.
+        return response()->streamDownload(
+            function () use ($fileVersion): void {
+                $stream = $this->storage->readStream($fileVersion);
+                fpassthru($stream);
+                fclose($stream);
+            },
+            $file->name,
+            ['Content-Type' => $fileVersion->mime ?? 'application/octet-stream'],
+        );
     }
 }
