@@ -50,13 +50,24 @@ class DeleteUserForm extends Component
         // manners layer in front of it.
         try {
             $user->delete();
+            // Laravel's Model::delete() declares `@throws \LogicException`,
+            // and phpstan honours a declared @throws exactly -- so it
+            // concludes nothing else can come out of the call and reads the
+            // catch below as dead. It is not dead: the guard is a `deleting`
+            // event listener registered in User::booting(), and no static
+            // analyser can see a throw raised from inside a model event.
+            // Ignored at the line rather than added to phpstan-baseline.neon,
+            // which CLAUDE.md says not to grow, and rather than restructuring
+            // live code to fit the analyser's incomplete model of it. The
+            // mutation entry proves the catch is reached.
+            // @phpstan-ignore-next-line
         } catch (LastAdministratorMustRemain $e) {
             $this->addError('password', $e->getMessage());
 
             return;
         }
 
-        $logout($user);
+        $logout();
 
         $this->redirect('/', navigate: true);
     }
