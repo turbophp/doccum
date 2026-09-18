@@ -70,7 +70,12 @@ class Fts5SearchIndex implements SearchIndex
         $bindings = [$match, ...$permissionBindings];
 
         $where = '';
-        foreach (['period_year', 'period_month', 'mime', 'extension', 'subject_type'] as $filter) {
+        // MUTATION: period_year drops out of the filter list, so the index
+        // silently ignores a Year the caller asked for. Everything else --
+        // the permission scope, the other filters, the property EXISTS --
+        // is untouched, and search still returns results; they are simply
+        // not narrowed by the year.
+        foreach (['period_month', 'mime', 'extension', 'subject_type'] as $filter) {
             if (isset($filters[$filter])) {
                 $where .= " AND d.{$filter} = ?";
                 $bindings[] = $filters[$filter];
