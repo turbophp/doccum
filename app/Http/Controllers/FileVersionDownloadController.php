@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ObjectMissingFromStorage;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Services\DocumentStorage;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FileVersionDownloadController extends Controller
@@ -35,7 +38,7 @@ class FileVersionDownloadController extends Controller
      * shape of the response leak whether the id exists. This is the same
      * class of bug as open issue #109; do not reintroduce it here.
      */
-    public function __invoke(File $file, int $version): RedirectResponse|StreamedResponse
+    public function __invoke(File $file, int $version): RedirectResponse|Response|StreamedResponse
     {
         $this->authorize('download', $file);
 
@@ -66,12 +69,39 @@ class FileVersionDownloadController extends Controller
         // is what issue #74 was. A Download link that works is worth more than
         // the invariant, and the invariant is kept everywhere it can be.
         //
+        // The stream is opened HERE, before the response is built, not inside
+        // the streamDownload() callback. Symfony runs that callback during
+        // sendContent(), after the status line has already gone out, so a
+        // missing object discovered in there cannot choose a status -- it can
+        // only crash whatever response headers were already decided. Opening
+        // it first turns "what status does a missing object get" back into a
+        // decision instead of a race against the header flush (issue #134).
+        try {
+            $stream = $this->storage->readStream($fileVersion);
+        } catch (ObjectMissingFromStorage) {
+            Log::error(
+                'Download failed: object missing from storage.',
+                ['file_id' => $file->id, 'file_version_id' => $fileVersion->id, 'object_key' => $fileVersion->object_key],
+            );
+
+            // 502: object storage is genuinely upstream of PHP for the
+            // MinIO/S3 case doccum ships with, so "the upstream returned
+            // nothing" is honest there. For the embedded local disk it is a
+            // stretch -- there is no real network hop -- but a stated stretch
+            // beats an unhandled 500, and the alternative (404) would say
+            // "this version doesn't exist," which is false: the row is
+            // intact and every other version may be too.
+            return response(
+                "The stored object for this file could not be found in object storage (key: {$fileVersion->object_key}).",
+                502,
+            );
+        }
+
         // streamDownload() rather than reading into memory: a document archive
         // has no useful size limit, and this path is the one spec 6 exists to
         // avoid, so it should at least not hold a whole file in a worker.
         return response()->streamDownload(
-            function () use ($fileVersion): void {
-                $stream = $this->storage->readStream($fileVersion);
+            function () use ($stream): void {
                 fpassthru($stream);
                 fclose($stream);
             },

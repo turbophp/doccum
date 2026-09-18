@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Exceptions\ObjectMissingFromStorage;
 use App\Models\File;
 use App\Models\FileVersion;
 use App\Support\ObjectKey;
 use Aws\S3\Exception\S3Exception;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Filesystem\FilesystemManager;
+use League\Flysystem\UnableToReadFile;
 use RuntimeException;
 
 /**
@@ -91,14 +93,45 @@ class DocumentStorage
      * serve them itself because a presigned URL would name a host the browser
      * cannot reach. See servesPresignedUrls().
      *
+     * Throws the typed ObjectMissingFromStorage for a missing object, however
+     * the underlying disk chooses to report one, so a caller can distinguish
+     * "the row exists but the bytes are gone" -- the likeliest self-hosting
+     * mistake, restoring `/data` without `objects/` -- from any other storage
+     * failure, and answer a deliberate status for it instead of letting a 500
+     * fall out of whichever layer notices first. See issue #134 and the
+     * comment in the body, which is where the two signalling paths are.
+     *
+     * Deliberately NOT applied to downloadToTemp() below, which has the same
+     * shape and feeds text extraction rather than a download route: that is
+     * issue #153, filed rather than folded in here.
+     *
      * @return resource
      */
     public function readStream(FileVersion $version)
     {
-        $stream = $this->disk()->readStream($version->object_key);
+        // BOTH ways a missing object can be signalled, because which one you
+        // get depends on the disk's config rather than on anything the caller
+        // controls. Laravel's FilesystemAdapter::readStream() rethrows
+        // Flysystem's UnableToReadFile when the disk sets 'throw' => true and
+        // returns null when it does not -- and config/filesystems.php sets
+        // 'throw' => true on the documents disk, so in the SHIPPED product it
+        // is the exception, never the null.
+        //
+        // That is worth stating plainly: the `$stream === null` check this
+        // replaces was dead code in production for as long as that flag has
+        // been set. A missing object came out of here as UnableToReadFile,
+        // from inside a streamDownload() callback, which is the 500 issue #134
+        // reported -- so converting only the null branch would have left the
+        // product answering exactly as before while the tests went green
+        // against a code path no real install takes.
+        try {
+            $stream = $this->disk()->readStream($version->object_key);
+        } catch (UnableToReadFile) {
+            throw ObjectMissingFromStorage::forKey($version->object_key);
+        }
 
         if ($stream === null) {
-            throw new RuntimeException("Unable to read object [{$version->object_key}] from storage.");
+            throw ObjectMissingFromStorage::forKey($version->object_key);
         }
 
         return $stream;

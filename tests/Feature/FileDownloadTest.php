@@ -9,6 +9,7 @@ use App\Models\File;
 use App\Models\FileVersion;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -108,6 +109,56 @@ it('redirects when no endpoint is configured at all, which is plain AWS S3', fun
     $this->actingAs($user)
         ->get(route('files.download', $this->file))
         ->assertRedirectContains('https://minio.test/'.$this->version->object_key);
+});
+
+/**
+ * item/download-missing-object (issue #134). The row and its current
+ * version both exist; only the object behind them is gone, e.g. `/data` was
+ * restored without `objects/`. Before this fix, readStream() threw a bare
+ * RuntimeException from inside the streamDownload() callback -- run by
+ * Symfony during sendContent(), after the status line had already gone out
+ * -- so the resulting status was an accident of the server rather than a
+ * decision. The fix opens the stream before the response is built, so the
+ * missing object is caught and answered before any header commits.
+ */
+it('answers 502 with a logged object key when the current version\'s object is missing from storage', function () {
+    config(['filesystems.disks.documents.endpoint' => 'http://127.0.0.1:9000']);
+
+    // The object existed and is deleted out from under the still-live row --
+    // the operator-restore-without-objects scenario issue #134 describes --
+    // rather than simply never having been written, so the fake disk exactly
+    // mirrors what a partial `/data` restore leaves behind.
+    Storage::disk('documents')->put($this->version->object_key, 'the bytes themselves');
+    Storage::disk('documents')->delete($this->version->object_key);
+
+    // Log::spy(), not Log::shouldReceive(): a facade set up with
+    // shouldReceive() is a STRICT Mockery mock, so any OTHER Log:: call
+    // anywhere in this request -- a deprecation, a framework notice, a
+    // channel this test knows nothing about -- raises BadMethodCallException
+    // and reddens the test for a reason that has nothing to do with what it
+    // asserts. A spy permits every call and is asked afterwards about the one
+    // that matters, which is the only thing this test is claiming. There is
+    // no existing Log:: assertion in this suite to copy, so this is the
+    // convention rather than a departure from one.
+    Log::spy();
+
+    $version = $this->version;
+
+    $user = User::factory()->create();
+    allow($this->dir, $user, AccessLevel::View);
+
+    $response = $this->actingAs($user)->get(route('files.download', $this->file));
+
+    $response->assertStatus(502);
+    expect($response->getContent())->toContain($this->version->object_key);
+
+    Log::shouldHaveReceived('error')
+        ->once()
+        ->withArgs(function (string $message, array $context) use ($version): bool {
+            return $message === 'Download failed: object missing from storage.'
+                && $context['object_key'] === $version->object_key
+                && $context['file_version_id'] === $version->id;
+        });
 });
 
 it('treats localhost and 0.0.0.0 as unreachable too, not just 127.0.0.1', function () {
