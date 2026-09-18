@@ -6,6 +6,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Support\EmailKey;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Console\Command;
 
 /**
@@ -56,6 +57,17 @@ class UserVerify extends Command
         }
 
         $user->markEmailAsVerified();
+
+        // markEmailAsVerified() only writes the column -- Laravel's
+        // MustVerifyEmail trait is a forceFill()->save() and nothing more.
+        // The Verified event is dispatched by the HTTP flow, in Fortify's
+        // VerifyEmailController, AFTER calling it. Dispatching it here too
+        // is what makes an account verified from a console indistinguishable
+        // from one verified through a link: any listener on Verified runs
+        // for both, or for neither. Without this the branch above, which
+        // deliberately avoids re-firing the event for an already-verified
+        // account, would be guarding against something that never happened.
+        event(new Verified($user));
 
         $this->components->info(sprintf('%s is now verified.', $user->email));
 
