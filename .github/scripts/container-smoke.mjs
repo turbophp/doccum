@@ -298,7 +298,15 @@ async function setFileAndWaitForUpload(page, input, filePath) {
  */
 async function clickOnceUploadSettles(page, button, phase, label) {
   let sawDisabled = false;
-  for (let waited = 0; waited < 5000; waited += 50) {
+
+  // 750ms, not the 5000ms this used to wait. Since setFileAndWaitForUpload()
+  // started waiting the upload-file POST out before we get here, the disabled
+  // edge is already GONE in a healthy run -- so "not seen" became the normal
+  // case rather than the rare one, and the old budget was spent in full
+  // before every click in the run. The wait that matters moved upstream; what
+  // is left here is the narrow case of a button wedged disabled by a stuck
+  // loading state, which shows up immediately or not at all.
+  for (let waited = 0; waited < 750; waited += 50) {
     if (await button.isDisabled()) {
       sawDisabled = true;
       break;
@@ -330,7 +338,9 @@ async function clickOnceUploadSettles(page, button, phase, label) {
 
 /**
  * Uploads a file through the browser and does not return until a files row
- * exists for it. ONE attempt: no retry, no second chance.
+ * exists for it. ONE upload, ONE click: no retry, no second chance. The wait
+ * for the row to appear is a wait and not a retry -- see the poll at the
+ * bottom of this function for why that distinction is the whole point.
  *
  * This helper used to retry three times, because setting a file on the input
  * and clicking Upload silently stored nothing often enough to break unrelated
@@ -412,12 +422,32 @@ async function uploadAndProveStored(page, name, contents, phase) {
     'the Upload button',
   );
 
-  await page
-    .getByText(name, { exact: true })
-    .waitFor({ timeout: 10000 })
-    .catch(() => {});
+  // Poll the DATABASE, not the DOM. The previous gate here waited for
+  // getByText(name) and then read the row ONCE, which is a race it had been
+  // winning by luck: the chosen filename is on the page as soon as the form
+  // re-renders, well before store() has finished writing. main went red at
+  // 9e2f7af -- a LEDGER-ONLY merge -- with the probe showing the submit
+  // commit dispatched at 20.7111 and the check giving up at 21.2657, 555ms
+  // later. A getByText that had actually timed out would have failed at
+  // 30.7; failing at 21.26 proves it matched at once and the single read
+  // simply arrived before the write.
+  //
+  // This is a wait, not a retry, and the distinction is the one #129 turned
+  // on. Nothing is uploaded again and nothing is clicked again -- the commit
+  // has definitively been dispatched, and this waits for its write to land.
+  // A retry would re-attempt the upload and convert a timing defect into a
+  // green run, which is how issue #106 survived three rounds; a poll cannot,
+  // because a click that was dropped never writes a row no matter how long
+  // this waits.
+  const rowDeadline = Date.now() + 15000;
+  let stored = fileRowExists(name);
 
-  if (! fileRowExists(name)) {
+  while (! stored && Date.now() < rowDeadline) {
+    await sleep(POLL_INTERVAL_MS);
+    stored = fileRowExists(name);
+  }
+
+  if (! stored) {
     dumpContainerState(`${name} was uploaded and left no files row -- issue #106 has regressed`);
     throw Object.assign(new Error(`no files row for ${name}`), { dumped: true });
   }
