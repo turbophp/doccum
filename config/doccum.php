@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 return [
-    'version' => env('DOCCUM_VERSION', '0.1.0'),
+    'version' => env('DOCCUM_VERSION', '0.1.0-dev'),
 
     // Whether the operator set APP_URL at all, as opposed to the framework
     // falling back to config/app.php's 'http://localhost'. Recorded here, in
