@@ -29,7 +29,12 @@
     <div class="space-y-2" data-test="home-recent-files">
         <flux:heading level="2">{{ __('Recent files') }}</flux:heading>
 
-        @forelse ($recentFiles as $item)
+        {{-- MUTATION: the component still resolves $recentFiles exactly as
+             before -- the query, the DirectoryAccess filter and the
+             SoftDeletes scope are all untouched -- and the view simply
+             stops rendering them. Home keeps returning 200 and keeps
+             showing its heading, its quick search and its empty state. --}}
+        @forelse ([] as $item)
             <div class="flex items-center gap-4" data-test="home-recent-file-row" wire:key="home-recent-file-{{ $item->id }}">
                 <flux:link :href="route('files.browse', $item->directory)" wire:navigate class="font-medium">
                     {{ $item->name }}
