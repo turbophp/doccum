@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Actions\Users;
 
-use App\Exceptions\LastAdministratorMustRemain;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
