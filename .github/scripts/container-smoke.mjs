@@ -1011,6 +1011,32 @@ async function checkTopbar(page, phase) {
     .waitFor({ state: 'visible', timeout: 10000 });
   console.log(`[${phase}] Settings is in the account menu for the administrator`);
 
+  // item/admin-roles (issue #19): the administrator this smoke runs as holds
+  // EVERY permission, which is the case the product was broken in. While the
+  // Settings entries were mutually exclusive, properties.manage won and this
+  // account -- the only administrator a shipped instance has -- had no link to
+  // Users or Roles at all. The pages were reachable only by typing the URL,
+  // which is exactly what every feature test and every other check in this
+  // script does, so nothing caught it.
+  //
+  // Asserting the OTHER sections here is therefore not redundant with the
+  // check above: nav-settings alone was visible throughout the defect.
+  for (const [section, testId] of [['Users', 'nav-settings-users'], ['Roles', 'nav-settings-roles']]) {
+    try {
+      await page.locator(`[data-test="${testId}"]`).waitFor({ state: 'visible', timeout: 10000 });
+    } catch {
+      dumpContainerState(
+        `[${phase}] the ${section} section is missing from the account menu for an administrator holding every`
+        + ` permission -- [data-test="${testId}"] never became visible, so that page is unreachable in the product`,
+      );
+      throw Object.assign(
+        new Error(`${section} is not reachable from the account menu for a full administrator`),
+        { dumped: true },
+      );
+    }
+  }
+  console.log(`[${phase}] Users and Roles are reachable from the account menu too -- OK`);
+
   return logout;
 }
 
