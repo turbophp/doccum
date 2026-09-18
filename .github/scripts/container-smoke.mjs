@@ -698,6 +698,87 @@ async function checkTopbar(page, phase) {
 }
 
 /**
+ * item/files-three-pane (issue #104/#99): creates two nested subdirectories
+ * inside the directory the page is currently showing, navigates into both,
+ * and counts the breadcrumb. tests/Feature/FileBrowserTest.php already
+ * proves Browser::breadcrumbTrail() resolves the right ANCESTOR IDS against
+ * the test renderer -- what only a real browser against the built image can
+ * see is whether flux:breadcrumbs actually renders every one of them, and
+ * whether the sidebar's own reach-root links (resources/views/livewire/files/
+ * partials/directory-tree.blade.php) are real, clickable <a> elements once
+ * Flux and Livewire's wire:navigate have booted in the image.
+ *
+ * Two levels deep from the starting directory is exactly THREE breadcrumb
+ * items -- the starting directory, the first subdirectory, and the second,
+ * root first (Browser::breadcrumbTrail() puts the current directory last) --
+ * so counting [data-test="breadcrumb-item"] is the assertion, not merely
+ * seeing the current directory's own name the way the breadcrumb used to
+ * show before this item.
+ *
+ * No retry here, matching the rest of this file: each step is a single
+ * Livewire round trip with its own bounded wait, not a loop that would mask
+ * a genuine failure the way issue #106 was masked before its retry was
+ * removed.
+ */
+async function checkBreadcrumbNavigatesTwoLevels(page, phase) {
+  const level1 = `DoccumSmokeTreeLevel1-${Date.now()}`;
+  const level2 = `DoccumSmokeTreeLevel2-${Date.now()}`;
+
+  // Scoped to '[data-test="directories-list"]' (the centre pane), never a
+  // bare locator: the sidebar renders the SAME directory, nested under the
+  // one being browsed, the moment it exists (issue #99's whole point), so
+  // an unscoped getByText()/getByRole() here matches twice and Playwright's
+  // strict mode refuses to guess which one this means.
+  const list = page.locator('[data-test="directories-list"]');
+
+  await page.getByLabel('New folder', { exact: true }).fill(level1);
+  await Promise.all([
+    list.getByText(level1, { exact: true }).waitFor({ timeout: 10000 }),
+    page.getByRole('button', { name: 'Create', exact: true }).click(),
+  ]);
+
+  // The directory link has no href of its own worth trusting yet -- it is
+  // Flux's <a>, but wire:navigate is what has to actually carry the click,
+  // so this waits on the NEXT page's own content rather than assuming the
+  // click landed.
+  await list.getByRole('link', { name: level1, exact: true }).click();
+  await page.getByLabel('New folder', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+
+  await page.getByLabel('New folder', { exact: true }).fill(level2);
+  await Promise.all([
+    list.getByText(level2, { exact: true }).waitFor({ timeout: 10000 }),
+    page.getByRole('button', { name: 'Create', exact: true }).click(),
+  ]);
+
+  await list.getByRole('link', { name: level2, exact: true }).click();
+
+  // Waits for THIS crumb specifically, not merely "a last breadcrumb item is
+  // visible" -- the previous page (level1's) already had one of those
+  // before this click, so that alone would prove nothing about whether the
+  // navigation actually landed. hasText scopes to the one breadcrumb item
+  // reading level2's own name (there is exactly one: the sidebar's own
+  // link for it, expanded by default, carries no data-test="breadcrumb-item").
+  const crumbs = page.locator('[data-test="breadcrumb-item"]');
+  await page.locator('[data-test="breadcrumb-item"]', { hasText: level2 }).waitFor({ state: 'visible', timeout: 10000 });
+  const count = await crumbs.count();
+
+  if (count !== 3) {
+    throw new Error(
+      `expected 3 breadcrumb items two levels into the tree (root, ${level1}, ${level2}), got ${count}`,
+    );
+  }
+
+  console.log(`[${phase}] breadcrumb shows all 3 ancestors two levels into the tree`);
+
+  // Back to the starting directory via the sidebar's own reach-root link --
+  // not a page.goto(), because reaching it that way is the point: this
+  // proves the sidebar's tree link is a real, clickable one, not only that
+  // the breadcrumb rendered.
+  await page.locator('[data-test="directory-tree"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.getByLabel('New folder', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+}
+
+/**
  * The embedded SQLite database's pragmas, read out of the RUNNING container.
  *
  * Four processes write to that one file -- FrankenPHP, two queue workers and
@@ -949,13 +1030,13 @@ async function checkUploadButtonIsDisabledWhileTheFileIsStillUploading(page, pha
 
   // Discards the temporary upload without storing anything.
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 }
 
 async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
   // Through uploadAndProveStored(), not by hand. This check originally
@@ -975,7 +1056,7 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
   console.log(`[${phase}] search finds ${TRASH_CHECK_FILE_NAME} before it is trashed`);
 
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
   await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).click();
 
@@ -1098,7 +1179,7 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   const replacementFileName = 'DoccumSmokeReplacement.txt';
 
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
   await uploadAndProveStored(page, VERSIONS_CHECK_FILE_NAME, originalBody, phase);
@@ -1120,7 +1201,7 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   // recorded this same input-draws-the-filename behaviour fooling an
   // upload assertion; it fools a selection the same way.
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
   await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).click();
 
@@ -1364,7 +1445,7 @@ async function checkDownloadReturnsTheUploadedBytes(page, phase) {
   const expected = crypto.createHash('sha256').update(body).digest('hex');
 
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
   await uploadAndProveStored(page, name, body, phase);
@@ -1373,7 +1454,7 @@ async function checkDownloadReturnsTheUploadedBytes(page, phase) {
   // checkReplaceAddsASecondVersion(): straight after an upload the form's
   // file input still displays the chosen name, so the page carries it twice.
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
 
   await downloadAndCompareBytes(page, name, expected, phase);
 }
@@ -1500,7 +1581,7 @@ async function checkBulkTrashLeavesUnselectedFilesAlone(page, phase) {
   const victimTwoName = 'DoccumSmokeBulkVictimTwo.txt';
 
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
 
   await uploadAndProveStored(page, survivorName, 'Must still be listed after the bulk trash below.\n', phase);
@@ -1514,7 +1595,7 @@ async function checkBulkTrashLeavesUnselectedFilesAlone(page, phase) {
   // twice and clickFileRow()'s hasText filter does not reliably land on
   // the table row alone.
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.locator('tr[data-test="file-row"]').filter({ hasText: survivorName }).waitFor({ timeout: 10000 });
 
   // Select victimOne and victimTwo, NOT survivor. Both clicks land on the
@@ -1578,7 +1659,7 @@ async function checkBulkTrashLeavesUnselectedFilesAlone(page, phase) {
   // Only now the DOM: the listing Browser::render() re-queries on every
   // update must show the survivor and must NOT show either trashed file.
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+  await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.getByText(survivorName, { exact: true }).waitFor({ timeout: 10000 });
   await page.getByText(victimOneName, { exact: true }).waitFor({ state: 'detached', timeout: 10000 });
   await page.getByText(victimTwoName, { exact: true }).waitFor({ state: 'detached', timeout: 10000 });
@@ -1787,9 +1868,17 @@ async function runSetup() {
 
     // CreateHomeDirectory names the admin's own directory after their
     // username (config('doccum.settings.directories.auto_home') defaults to
-    // true -- see config/doccum.php), so it is the one link on this page.
-    await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+    // true -- see config/doccum.php). item/files-three-pane (issue #104/#99)
+    // put the SAME reach roots in the sidebar and in this landing-pane
+    // listing, so the directory's name is no longer a unique link on this
+    // page on its own -- '[data-test="directories-list"]' below (see
+    // resources/views/livewire/files/browser.blade.php) says which of the
+    // two this means, everywhere else in this file that clicks it too.
+    await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
     await page.locator('[data-test="upload-form"] input[type="file"]').waitFor({ state: 'attached', timeout: 10000 });
+
+    console.log('[setup] checking the sidebar/breadcrumb tree navigation two levels deep (issue #104/#99)');
+    await checkBreadcrumbNavigatesTwoLevels(page, 'setup');
 
     console.log('[setup] stalling the upload endpoint to check the Upload button is disabled in flight (issue #106)');
     await checkUploadButtonIsDisabledWhileTheFileIsStillUploading(page, 'setup');
@@ -1856,7 +1945,7 @@ async function runVerify() {
     console.log('[verify] logged in -- the admin account persisted');
 
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+    await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
     await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
     console.log('[verify] the uploaded file is still listed -- the DATABASE persisted');
 
@@ -1899,7 +1988,7 @@ async function runVerify() {
     // attempt at that reorder dropped it: "locator.waitFor: Timeout 10000ms
     // exceeded ... tr[data-test="file-row"] filter hasText smoke-...txt".
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
+    await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
 
     await downloadAndCompareBytes(page, FILE_NAME, persistedSha, 'verify');
     console.log('[verify] the bytes came back from the replacement container -- OBJECT STORAGE persisted');

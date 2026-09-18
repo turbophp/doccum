@@ -9,6 +9,7 @@ use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * The single source of truth for per-directory access. See spec §5.
@@ -63,6 +64,87 @@ class DirectoryAccess
     public function viewableDirectoryIds(User $user): array
     {
         return $this->viewable[$user->getKey()] ??= $this->resolveViewable($user);
+    }
+
+    /**
+     * The tops of what a viewer may reach from /files: every viewable
+     * directory whose parent is NOT viewable, including one whose parent
+     * is null. A grant made directly on a nested directory, with no grant
+     * anywhere on its ancestors, makes THAT directory a reach root -- it
+     * is otherwise reachable only by typing its URL. See spec §10 and
+     * issue #99.
+     *
+     * Resolved from viewableDirectoryIds() above, never a fresh
+     * per-directory can() loop: one query for the candidate set's own
+     * parent_id column, checked in memory against the same viewable set
+     * everything else here is built from.
+     *
+     * @return array<int, int>
+     */
+    public function reachRootIds(User $user): array
+    {
+        $viewable = $this->viewableDirectoryIds($user);
+
+        if ($viewable === []) {
+            return [];
+        }
+
+        $viewableSet = array_fill_keys($viewable, true);
+
+        return Directory::query()
+            ->whereIn('id', $viewable)
+            ->get(['id', 'parent_id'])
+            ->filter(static fn (Directory $directory): bool => $directory->parent_id === null
+                || ! isset($viewableSet[$directory->parent_id]))
+            ->pluck('id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
+    }
+
+    /**
+     * The Files sidebar's whole tree: every reach root (reachRootIds()
+     * above) with its own viewable descendants nested under it via the
+     * `children` relation, alphabetical at every level. This is the
+     * single place that decides what the sidebar tree contains -- Browser
+     * and the view consume the result and filter nothing further
+     * (CLAUDE.md: filter in the query, never in the view).
+     *
+     * Every non-root viewable directory's parent is, by definition of
+     * "not a root" here, ALSO viewable -- so it is guaranteed to already
+     * be a key in $byId, and the lookup below cannot miss.
+     *
+     * @return Collection<int, Directory>
+     */
+    public function reachTree(User $user): Collection
+    {
+        $viewable = $this->viewableDirectoryIds($user);
+
+        if ($viewable === []) {
+            return new Collection;
+        }
+
+        $roots = array_fill_keys($this->reachRootIds($user), true);
+
+        $byId = Directory::query()
+            ->whereIn('id', $viewable)
+            ->orderBy('name')
+            ->get()
+            ->each(static function (Directory $directory): void {
+                $directory->setRelation('children', new Collection);
+            })
+            ->keyBy('id');
+
+        $tree = new Collection;
+
+        foreach ($byId as $directory) {
+            if (isset($roots[$directory->getKey()])) {
+                $tree->push($directory);
+            } else {
+                $byId->get($directory->parent_id)->children->push($directory);
+            }
+        }
+
+        return $tree;
     }
 
     private function resolve(User $user, Directory $directory): ?AccessLevel

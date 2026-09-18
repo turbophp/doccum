@@ -38,6 +38,43 @@ it('lists only directories the viewer may see', function () {
         ->assertDontSee('Theirs');
 });
 
+/**
+ * item/files-three-pane (issue #104), closing issue #99 specifically.
+ *
+ * Written to fail against current main: Browser::render() there resolves
+ * the landing pane's 'directories' key as
+ * where('parent_id', $this->directory?->getKey())->whereIn('id', $viewable),
+ * which at the root of the browser ($this->directory === null) is
+ * where('parent_id', IS NULL). A directory granted directly, with no
+ * grant anywhere on its own ancestors, is viewable and IS a reach root
+ * by DirectoryAccess's own definition (a viewable directory whose parent
+ * is not viewable) -- but its parent_id is the ungranted parent's id, not
+ * null, so main's where() clause excludes the row before whereIn($viewable)
+ * is ever consulted. NestedReachRoot then appears nowhere in the response
+ * at all (the only other place a directory name could render, the
+ * breadcrumb, is empty here since no directory is selected), so
+ * ->assertSee('NestedReachRoot') fails on main. After the fix, the landing
+ * pane lists DirectoryAccess::reachTree()'s roots instead, and this passes.
+ */
+it('reaches a directory granted directly on a nested node from the landing pane, not only by its own URL', function () {
+    $ungrantedParent = Directory::factory()->create(['name' => 'UngrantedParent']);
+    $nested = Directory::factory()->for($ungrantedParent, 'parent')->create(['name' => 'NestedReachRoot']);
+
+    DirectoryGrant::create([
+        'directory_id' => $nested->id,
+        'grantee_type' => 'user',
+        'grantee_id' => $this->user->id,
+        'level' => AccessLevel::View,
+    ]);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class)
+        ->assertSee('NestedReachRoot')
+        // The ungranted ancestor holds no grant of its own -- it must not
+        // leak into the listing just because its child is now reachable.
+        ->assertDontSee('UngrantedParent');
+});
+
 it('lists files in the current directory', function () {
     File::factory()->for($this->mine, 'directory')->create(['name' => 'Visible.pdf']);
     File::factory()->for($this->theirs, 'directory')->create(['name' => 'Hidden.pdf']);

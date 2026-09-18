@@ -21,6 +21,7 @@ use App\Exceptions\PeriodIsArchived;
 use App\Models\Directory;
 use App\Models\File;
 use App\Models\FileVersion;
+use App\Models\User;
 use App\Services\DirectoryAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -29,9 +30,11 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 
 /**
- * A deliberately minimal permission-filtered browser: list, create a
- * subdirectory, upload, select a row and act on it. The full three-pane
- * Dropbox shell is a later plan.
+ * A permission-filtered browser: list, create a subdirectory, upload,
+ * select a row and act on it, inside the three-pane shell spec §10
+ * describes -- a reach-root sidebar and a real ancestor breadcrumb
+ * (item/files-three-pane, issue #104/#99) alongside the centre listing
+ * and detail panel.
  *
  * What must hold here is that it never lists or opens a directory or file the
  * viewer cannot reach -- filtering happens in the query, never in the view --
@@ -154,10 +157,24 @@ class Browser extends Component
         $this->moveFileDestinationId = null;
     }
 
-    /** Opens the detail area's property panel on one subdirectory of the current directory. */
-    public function selectDirectory(int $directoryId): void
+    /**
+     * Opens the detail area's property panel on one subdirectory of the
+     * current directory.
+     *
+     * At the root of the browser ($this->directory === null) the row
+     * being opened is one of the LANDING PANE's reach roots, not
+     * necessarily a directory with parent_id IS NULL -- a directory
+     * granted directly on a nested node, with no grant on anything above
+     * it, is a reach root there too (see render()'s 'directories' key and
+     * DirectoryAccess::reachRootIds()). Resolving against
+     * where('parent_id', null) here, as before this item, would 404 on
+     * exactly the row the landing pane now shows for that case.
+     */
+    public function selectDirectory(int $directoryId, DirectoryAccess $access): void
     {
-        $subdirectory = Directory::query()->where('parent_id', $this->directory?->getKey())->findOrFail($directoryId);
+        $subdirectory = $this->directory === null
+            ? Directory::query()->whereIn('id', $access->reachRootIds(auth()->user()))->findOrFail($directoryId)
+            : Directory::query()->where('parent_id', $this->directory->getKey())->findOrFail($directoryId);
 
         // Deliberately NOT in .github/mutations.json, and the reason is worth
         // stating rather than leaving as an omission someone later "fixes".
@@ -515,17 +532,43 @@ class Browser extends Component
 
     public function render()
     {
+        $user = auth()->user();
         $access = app(DirectoryAccess::class);
-        $viewable = $access->viewableDirectoryIds(auth()->user());
+        $viewable = $access->viewableDirectoryIds($user);
+
+        // Computed once and reused for both the sidebar AND the landing
+        // pane below: DirectoryAccess::reachTree() is the ONLY place reach
+        // roots are resolved (CLAUDE.md's DirectoryAccess seam), so there
+        // is exactly one query, and one definition of "reach root", behind
+        // both surfaces.
+        $sidebarTree = $access->reachTree($user);
 
         return view('livewire.files.browser', [
             // Filtered by the resolver, never by the view: a listing that
             // forgets this leaks the existence of directories.
-            'directories' => Directory::query()
-                ->where('parent_id', $this->directory?->getKey())
-                ->whereIn('id', $viewable)
-                ->orderBy('name')
-                ->get(),
+            //
+            // At the root of the browser ($this->directory === null) this
+            // is NOT where('parent_id', null) -- that would miss a
+            // directory granted directly on a nested node whose own
+            // parent is not viewable, which is reachable from nowhere but
+            // its own URL (issue #99). It is instead the SAME reach-root
+            // set the sidebar renders, so the landing pane and the
+            // sidebar can never disagree about what a viewer's reach is.
+            'directories' => $this->directory === null
+                ? $sidebarTree
+                : Directory::query()
+                    ->where('parent_id', $this->directory->getKey())
+                    ->whereIn('id', $viewable)
+                    ->orderBy('name')
+                    ->get(),
+            'sidebarTree' => $sidebarTree,
+            'homeDirectory' => $this->pinnedHomeDirectory($user, $access),
+            // Root first, current directory last, every entry in between
+            // narrowed to $viewable -- an ancestor the viewer holds no
+            // grant anywhere on (a grant made directly on a NESTED
+            // directory, per DirectoryAccess) is excluded rather than
+            // shown as a dead link. See breadcrumbTrail() below.
+            'breadcrumbs' => $this->breadcrumbTrail($viewable),
             // filesQuery() carries the join + whitelisted orderBy this
             // listing sorts by; ->with('creator') alongside it eager-loads
             // the owner column so the view never queries per row -- the
@@ -561,6 +604,50 @@ class Browser extends Component
                     ->orderByDesc('version_number')
                     ->get(),
         ]);
+    }
+
+    /**
+     * The viewer's own home directory, pinned above the shared tree per
+     * spec §10a -- or null when auto_home is off, the row is gone, or
+     * (defensively) the viewer's own grant on it is somehow gone too.
+     * Resolved through DirectoryAccess::can(), the same seam as
+     * everything else here, rather than assumed from the row's mere
+     * existence: a "Home" link this Policy would refuse to open is worse
+     * than none.
+     */
+    private function pinnedHomeDirectory(User $user, DirectoryAccess $access): ?Directory
+    {
+        $home = Directory::query()->where('home_user_id', $user->getKey())->first();
+
+        if ($home === null || ! $access->can($user, $home, AccessLevel::View)) {
+            return null;
+        }
+
+        return $home;
+    }
+
+    /**
+     * The current directory's ancestor chain, root first, narrowed to
+     * $viewable -- the SAME array render() resolved through
+     * DirectoryAccess::viewableDirectoryIds(), never a fresh per-ancestor
+     * check here. Directory::ancestorIds() includes the directory's own
+     * id last, so the current directory is the final, non-linked
+     * breadcrumb item.
+     *
+     * @param  array<int, int>  $viewable
+     * @return Collection<int, Directory>
+     */
+    private function breadcrumbTrail(array $viewable): Collection
+    {
+        if ($this->directory === null) {
+            return new Collection;
+        }
+
+        return Directory::query()
+            ->whereIn('id', $this->directory->ancestorIds())
+            ->whereIn('id', $viewable)
+            ->orderBy('depth')
+            ->get();
     }
 
     /**
