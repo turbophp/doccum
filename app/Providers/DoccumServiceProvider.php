@@ -17,6 +17,7 @@ use App\Observers\SearchProjectionObserver;
 use App\Policies\DirectoryPolicy;
 use App\Policies\FilePolicy;
 use App\Policies\PropertyDefinitionPolicy;
+use App\Policies\UserPolicy;
 use App\Search\Fts5SearchIndex;
 use App\Search\LikeSearchIndex;
 use App\Search\SearchIndex;
@@ -110,6 +111,7 @@ class DoccumServiceProvider extends ServiceProvider
         Gate::policy(Directory::class, DirectoryPolicy::class);
         Gate::policy(File::class, FilePolicy::class);
         Gate::policy(PropertyDefinition::class, PropertyDefinitionPolicy::class);
+        Gate::policy(User::class, UserPolicy::class);
 
         Directory::observe(SearchProjectionObserver::class);
         File::observe(SearchProjectionObserver::class);

@@ -40,6 +40,26 @@ it('shows settings in the primary nav to a user with the properties.manage permi
     $response->assertOk()->assertSee(__('Settings'));
 });
 
+// item/admin-users (issue #18): spec §10 gates each Settings SECTION by its
+// own permission, so a viewer holding ONLY users.manage (no admin role,
+// which would hold properties.manage too and mask this) must still see a
+// way into Settings -- pointed at the one section they can actually reach.
+// A direct permission grant, not a role, is deliberate: RolesAndPermissionsSeeder's
+// only two roles are 'member' (neither permission) and 'admin' (both), so
+// nothing already isolates "users.manage but not properties.manage" without
+// one.
+it('shows settings in the primary nav, pointed at the users page, for a viewer holding only users.manage', function () {
+    $usersAdmin = User::factory()->create();
+    $usersAdmin->givePermissionTo('users.manage');
+
+    $response = $this->actingAs($usersAdmin)->get(route('files.browse'));
+
+    $response->assertOk()
+        ->assertSee(__('Settings'))
+        ->assertSeeHtml('data-test="nav-settings-users"')
+        ->assertSeeHtml(route('admin.users'));
+});
+
 // Hiding the nav item is an affordance, not access control: strip the route's
 // permission middleware and the assertion above still passes, because the link
 // simply is not rendered. The guarantee only holds if the destination refuses.

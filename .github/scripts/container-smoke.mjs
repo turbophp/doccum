@@ -2396,6 +2396,170 @@ async function checkTrashViewRestoreAndPurge(page, phase) {
 }
 
 /**
+ * item/admin-users (issue #18): drives the new /admin/users page against
+ * the real image. tests/Feature/AdminUsersTest.php, tests/Feature/
+ * SetUserRolesTest.php and tests/Feature/LastAdministratorGuardTest.php
+ * already prove all of this against the test renderer -- what only a real
+ * browser against the built image can see is whether the create form's
+ * wire:submit and the role control's wire:click actually reach
+ * Users::save()/changeRole() at all, the same class of gap every other
+ * admin surface in this file exists to catch (a broken asset build or an
+ * unresolved Flux component leaves every Blade assertion green and the
+ * control unusable).
+ *
+ * Covers three of the item's doneWhen clauses in one pass, in this order:
+ *   1. a user created through the real form gets a home directory AND a
+ *      manage grant on it (proven through tinker, polled, not read once --
+ *      CreateUser's home-directory call is asynchronous with respect to
+ *      nothing here, but this still follows the same polling shape as
+ *      checkGrantAndRevokeDirectoryAccess() rather than assuming the
+ *      request that answered the click already means the write landed);
+ *   2. that new, roleless account is refused /admin/users with a real 403,
+ *      not merely hidden from the nav;
+ *   3. the sole admin cannot use the SAME page to strip their own
+ *      users.manage, and sees why instead of a 500.
+ *
+ * The new user is deliberately left with NO role through the create form
+ * (the role <flux:select> is never touched) -- not an oversight, but what
+ * makes ADMIN_USERNAME provably the SOLE holder of users.manage going into
+ * step 3 below, without a second tinker call to strip a role the form
+ * might otherwise have granted.
+ */
+async function checkAdminUsersPage(page, phase) {
+  const digits = Date.now().toString().slice(-9);
+  const memberUsername = `smokemember${digits}`;
+  const memberEmail = `smoke-member-${digits}@example.test`;
+  const memberPassword = `Doccum-Smoke-Member-${digits}!Aa`;
+
+  console.log(`[${phase}] opening /admin/users as the administrator`);
+  await page.goto(`${BASE_URL}/admin/users`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="create-user-form"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  await page.getByLabel('Name', { exact: true }).fill('Smoke Member');
+  await page.getByLabel('Username', { exact: true }).fill(memberUsername);
+  await page.getByLabel('Email address', { exact: true }).fill(memberEmail);
+  await page.getByLabel('Password', { exact: true }).fill(memberPassword);
+  await page.getByLabel('Confirm password', { exact: true }).fill(memberPassword);
+
+  const memberRow = page.locator('[data-test="user-row"]').filter({ hasText: memberUsername });
+  await Promise.all([
+    memberRow.waitFor({ timeout: 10000 }),
+    page.locator('[data-test="create-user-form"]').getByRole('button', { name: 'Create user', exact: true }).click(),
+  ]);
+  console.log(`[${phase}] the admin users page lists ${memberUsername}, just created through the real form -- OK`);
+
+  function homeAndGrant() {
+    const php = [
+      `$u = \\App\\Models\\User::where('username', '${memberUsername}')->first();`,
+      "$d = $u ? \\App\\Models\\Directory::where('home_user_id', $u->id)->first() : null;",
+      "$g = ($u && $d) ? \\App\\Models\\DirectoryGrant::where('directory_id', $d->id)"
+        + "->where('grantee_type', 'user')->where('grantee_id', $u->id)->where('level', 'manage')->exists() : false;",
+      "echo 'HOME:' . ($d ? 'yes' : 'no') . ' GRANT:' . ($g ? 'yes' : 'no');",
+    ].join(' ');
+    return tinker(php);
+  }
+
+  let output = homeAndGrant();
+  const homeDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  while (Date.now() < homeDeadline && !(/HOME:yes/.test(output) && /GRANT:yes/.test(output))) {
+    await sleep(POLL_INTERVAL_MS);
+    output = homeAndGrant();
+  }
+
+  if (!/HOME:yes/.test(output)) {
+    dumpContainerState(
+      `[${phase}] ${memberUsername}, created through /admin/users, got no home directory -- raw output: ${output}`,
+    );
+    throw Object.assign(new Error(`${memberUsername} has no home directory after admin creation`), { dumped: true });
+  }
+  if (!/GRANT:yes/.test(output)) {
+    dumpContainerState(
+      `[${phase}] ${memberUsername} has a home directory but no manage grant on it -- raw output: ${output}`,
+    );
+    throw Object.assign(new Error(`${memberUsername} has no manage grant on their own home directory`), { dumped: true });
+  }
+  console.log(`[${phase}] ${memberUsername} got a home directory and a manage grant on it, through the admin page -- OK`);
+
+  console.log(`[${phase}] logging in as ${memberUsername} and checking /admin/users answers 403 for them`);
+  const memberContext = await page.context().browser().newContext();
+  try {
+    const memberPage = await memberContext.newPage();
+    await memberPage.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+    await memberPage.getByLabel('Username or email', { exact: true }).fill(memberUsername);
+    await memberPage.getByLabel('Password', { exact: true }).fill(memberPassword);
+    await Promise.all([
+      memberPage.waitForURL((u) => u.pathname !== '/login', { timeout: 15000 }),
+      memberPage.getByRole('button', { name: 'Log in' }).click(),
+    ]);
+
+    const response = await memberPage.goto(`${BASE_URL}/admin/users`, { waitUntil: 'domcontentloaded' });
+    const status = response ? response.status() : null;
+
+    if (status !== 403) {
+      dumpContainerState(`[${phase}] /admin/users answered HTTP ${status} for ${memberUsername}, who holds no users.manage -- expected 403`);
+      throw Object.assign(new Error(`/admin/users did not 403 for ${memberUsername}, answered ${status}`), { dumped: true });
+    }
+    console.log(`[${phase}] /admin/users answered 403 for ${memberUsername} -- OK`);
+  } finally {
+    await memberContext.close();
+  }
+
+  console.log(`[${phase}] attempting, through the UI, to change the sole admin's own role away from admin`);
+  const adminRow = page.locator('[data-test="user-row"]').filter({ hasText: ADMIN_USERNAME });
+
+  try {
+    await adminRow.locator('[data-test="role-select"]').selectOption('member');
+  } catch (error) {
+    dumpContainerState(
+      `[${phase}] could not select 'member' on the role <flux:select> for ${ADMIN_USERNAME}'s row -- ${error.message}`,
+    );
+    throw Object.assign(new Error(`role <flux:select> did not accept selectOption('member') for ${ADMIN_USERNAME}`), { dumped: true });
+  }
+
+  const lastAdminError = page.locator('[data-test="last-admin-error"]');
+  if (await lastAdminError.isVisible()) {
+    dumpContainerState(`[${phase}] the last-admin refusal was already visible before Update role was clicked for ${ADMIN_USERNAME}`);
+    throw Object.assign(new Error('last-admin-error was visible before the refusing click, so it proves nothing about the click'), { dumped: true });
+  }
+
+  await adminRow.locator('[data-test="change-role-button"]').click();
+
+  function adminStillHoldsUsersManage() {
+    const php = [
+      `$u = \\App\\Models\\User::where('username', '${ADMIN_USERNAME}')->first();`,
+      "echo 'HOLDS:' . ($u && $u->can('users.manage') ? 'yes' : 'no');",
+    ].join(' ');
+    return tinker(php);
+  }
+
+  let holdsOutput = adminStillHoldsUsersManage();
+  const holdsDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  while (Date.now() < holdsDeadline && !/HOLDS:yes/.test(holdsOutput)) {
+    await sleep(POLL_INTERVAL_MS);
+    holdsOutput = adminStillHoldsUsersManage();
+  }
+
+  if (!/HOLDS:yes/.test(holdsOutput)) {
+    dumpContainerState(
+      `[${phase}] ${ADMIN_USERNAME} no longer holds users.manage after the refused role change -- raw output: ${holdsOutput}`,
+    );
+    throw Object.assign(new Error(`${ADMIN_USERNAME} lost users.manage through a change the guard was supposed to refuse`), { dumped: true });
+  }
+  console.log(`[${phase}] ${ADMIN_USERNAME} still holds users.manage after the attempted change -- the write was refused -- OK`);
+
+  try {
+    await lastAdminError.waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] the database confirms the last-admin change was refused, but [data-test="last-admin-error"] never became visible`
+      + ' -- the guard held, but the operator would have seen nothing explaining why the click did nothing',
+    );
+    throw Object.assign(new Error('last-admin-error never became visible after a refused role change'), { dumped: true });
+  }
+  console.log(`[${phase}] the last-administrator refusal is visible on the page -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -2655,6 +2819,9 @@ async function runSetup() {
 
     console.log('[setup] restoring and purging trashed files through the new /trash page (issue #15)');
     await checkTrashViewRestoreAndPurge(page, 'setup');
+
+    console.log('[setup] creating a user through /admin/users and checking its home directory, its 403 for a non-admin, and the last-administrator guard (issue #18)');
+    await checkAdminUsersPage(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();

@@ -4,20 +4,23 @@ declare(strict_types=1);
 
 namespace App\Actions\Fortify;
 
-use App\Actions\Users\CreateHomeDirectory;
-use App\Concerns\PasswordValidationRules;
-use App\Concerns\ProfileValidationRules;
+use App\Actions\Users\CreateUser;
 use App\Models\User;
 use App\Services\Settings;
-use App\Support\EmailKey;
-use Illuminate\Support\Facades\Validator;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
-use Spatie\Permission\Models\Role;
 
+/**
+ * Fortify's registration entry point.
+ *
+ * item/admin-users (issue #18): the validate-create-assignRole-home-directory
+ * logic that used to live here moved to App\Actions\Users\CreateUser, which
+ * admin user creation also calls -- so there is exactly one code path that
+ * gives a new user a home directory, and this is now a thin adapter over it
+ * that supplies the one thing only self-registration has: the instance's
+ * configured default role rather than an operator's choice.
+ */
 class CreateNewUser implements CreatesNewUsers
 {
-    use PasswordValidationRules, ProfileValidationRules;
-
     /**
      * Validate and create a newly registered user.
      *
@@ -25,36 +28,8 @@ class CreateNewUser implements CreatesNewUsers
      */
     public function create(array $input): User
     {
-        // Fold before validating, not merely on save: emailRules()'s
-        // Rule::unique() compares whatever is in $input against the `email`
-        // column verbatim, so uniqueness only means the same thing on every
-        // driver if the value it compares is already folded. See issue #59
-        // and App\Support\EmailKey.
-        if (isset($input['email'])) {
-            $input['email'] = EmailKey::of($input['email']);
-        }
-
-        Validator::make($input, [
-            ...$this->profileRules(),
-            'username' => $this->usernameRules(),
-            'password' => $this->passwordRules(),
-        ])->validate();
-
-        $user = User::create([
-            'name' => $input['name'],
-            'username' => $input['username'],
-            'email' => $input['email'],
-            'password' => $input['password'],
-        ]);
-
         $role = app(Settings::class)->get('auth.default_role');
 
-        if (is_string($role) && Role::where('name', $role)->exists()) {
-            $user->assignRole($role);
-        }
-
-        app(CreateHomeDirectory::class)->handle($user);
-
-        return $user;
+        return app(CreateUser::class)->handle($input, is_string($role) ? $role : null);
     }
 }

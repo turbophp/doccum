@@ -336,6 +336,20 @@
     "expectFailing": "refuses a drop into a directory the viewer cannot reach"
   },
   {
+    "id": "user-model-refuses-to-delete-last-administrator",
+    "why": "item/admin-users (issue #18): App\\Models\\User::booting() registers a `deleting` listener that refuses to delete the last holder of `users.manage`. A shipped doccum instance is single-admin by construction -- public signup is off by default, there is no user-create console command, and before this item there was no admin UI -- so the sole administrator could brick the instance from Settings -> Profile, where DeleteUserForm has always deleted the authenticated user with no guard at all. Removing this throw leaves the surrounding `if` intact and valid, so the guard simply stops refusing and the sole administrator is deleted: the test fails on the account being gone, not on a parse error. Registration is in booting() rather than booted() deliberately -- Spatie's HasRoles registers its own `deleting` listener during boot() and unconditionally detaches the role pivot rows (User has no SoftDeletes, so its isForceDeleting() guard clause is false), and listeners fire in registration order, so a listener added in booted() would read a user whose roles were already gone and never refuse anything.",
+    "file": "app/Models/User.php",
+    "remove": "                throw LastAdministratorMustRemain::forUser($user);\n",
+    "expectFailing": "refuses to delete the sole holder of users.manage"
+  },
+  {
+    "id": "set-user-roles-refuses-to-strip-last-administrator",
+    "why": "item/admin-users (issue #18): the admin Users page changes a user's role set through App\\Actions\\Users\\SetUserRoles, and Spatie's syncRoles() writes the pivot table directly -- it fires no Eloquent model event, so User::booting()'s deleting hook (which catches the DELETE case) cannot see a role change at all. This throw is the entire protection for that path: remove it and an operator can leave the sole holder of `users.manage` with a role that does not carry it, through the ordinary admin UI, with no error and no way back in to fix it.",
+    "file": "app/Actions/Users/SetUserRoles.php",
+    "remove": "                throw LastAdministratorMustRemain::forUser($user);\n",
+    "expectFailing": "refuses to strip the sole holder of users.manage down to a role with no permission"
+  },
+  {
     "id": "previewed-html-is-served-as-text-not-html",
     "why": "The preview endpoint serves bytes INLINE and is same-origin with the application, which the download endpoint never was. HTML rendered there would run its own scripts with the viewer's session, so anyone able to upload a file could read or act as anyone who previews it -- and the file browser's whole point is that people upload files to each other. Remove the line that rewrites text/html to text/plain and the response comes back as text/html, which the browser executes. Showing markup as text loses nothing: a preview is for seeing what a file contains.",
     "file": "app/Http/Controllers/FilePreviewController.php",
