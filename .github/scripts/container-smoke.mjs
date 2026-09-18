@@ -1562,10 +1562,70 @@ async function searchUntilFoundByName(page, name) {
   throw Object.assign(new Error(`search timed out for ${name}; container says: ${state}`), { dumped: true });
 }
 
+/**
+ * item/upload-silent-discard (issue #106): the instrumentation that should
+ * have existed before anything was concluded about that bug.
+ *
+ * #106 has been described from the beginning -- in the issue, in several
+ * comments, in decision/0026 and in this file's own comments -- as an upload
+ * discarded with "no request, no error". Neither half was ever observed.
+ * This script carried no page.on() listeners of any kind, so it has never
+ * captured a request or a console message; what was actually seen is that no
+ * files row appeared and that the form's submit button was left disabled.
+ * "No request" is a GUESS ABOUT THE CAUSE that has been steering every
+ * workaround for three runs, and it points diagnosis at "the request never
+ * left the browser" when the evidence fits equally well a request that was
+ * made and answered with its state lost. decision/0027 records the
+ * correction.
+ *
+ * So this attaches listeners and says nothing about what they will show.
+ * Three different bugs have been treated as one, and one instrumented run
+ * should separate them:
+ *
+ *   never sent      -- no /livewire/ request appears at all
+ *   sent and failed -- a request appears and fails, or answers 4xx/5xx
+ *   state lost      -- a request appears, answers 2xx, and no row exists
+ *
+ * Output is prefixed [upload-probe] so it can be grepped out of a job log
+ * without reading the whole thing, and is deliberately noisy rather than
+ * summarised: the summary is the thing that has been wrong.
+ */
+function instrumentUploadPath(page) {
+  page.on('request', (r) => {
+    if (r.url().includes('/livewire/')) {
+      console.log(`[upload-probe] request ${r.method()} ${r.url()}`);
+    }
+  });
+
+  page.on('requestfailed', (r) => {
+    console.log(`[upload-probe] REQUEST FAILED ${r.method()} ${r.url()} -- ${r.failure()?.errorText ?? 'no reason given'}`);
+  });
+
+  page.on('response', (r) => {
+    if (r.url().includes('/livewire/')) {
+      console.log(`[upload-probe] response ${r.status()} ${r.url()}`);
+    }
+  });
+
+  page.on('console', (m) => {
+    if (m.type() === 'error' || m.type() === 'warning') {
+      console.log(`[upload-probe] console.${m.type()}: ${m.text().slice(0, 300)}`);
+    }
+  });
+
+  page.on('pageerror', (e) => {
+    console.log(`[upload-probe] pageerror: ${String(e.message).split('\n')[0].slice(0, 300)}`);
+  });
+}
+
 async function runSetup() {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
+
+    // Attached before anything is driven, because the upload this is meant to
+    // observe happens early and intermittently -- roughly one attempt in two.
+    instrumentUploadPath(page);
 
     console.log(`[setup] opening ${BASE_URL}/setup`);
     await page.goto(`${BASE_URL}/setup`, { waitUntil: 'domcontentloaded' });
