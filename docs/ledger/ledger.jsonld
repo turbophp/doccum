@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T11:25:00Z",
+  "dateModified": "2026-09-18T12:10:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -847,10 +847,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "An unverified user's treatment is DECIDED and enforced, and a test asserts it. Today config/fortify.php enables Features::emailVerification(), the dashboard route carries the `verified` middleware, and four EmailVerificationTest tests pass -- while nothing is gated, because User extends Illuminate\\Foundation\\Auth\\User (which supplies the MustVerifyEmail TRAIT) but declares only `implements PasskeyUser`, and EnsureEmailIsVerified gates on the CONTRACT. The instanceof is false, so every unverified user passes straight through the one route that guards on it. Either route is acceptable: implement the contract and apply `verified` consistently, or remove Features::emailVerification() and the middleware so nothing claims a guarantee the system does not make. What is NOT acceptable is leaving the present shape, where the guard reads as protection and enforces nothing. The test asserting an unverified user's treatment is mutation-checked. The existing four pass with the guard doing nothing, which is exactly what a mutation would have caught and is why this went unnoticed. If verification stays, the no-mailer case is answered rather than assumed: a fresh container configures no mailer, so implementing the contract would redirect a newly registered user -- including the installer's first administrator -- to a notice they can never satisfy, locking them out of their own instance on first boot. The container smoke proves the first admin still reaches the app. The route inconsistency is settled in the same pass: files.browse, files.download, search and admin.* carry `auth` alone where dashboard carries `auth` + `verified`.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T11:25:00Z",
+      "endTime": "2026-09-18T12:01:36Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/195"
+      ]
     },
     {
       "@id": "item/extraction-missing-object",
@@ -1247,9 +1249,29 @@
       "result": []
     },
     {
-      "@id": "item/v1-audit",
+      "@id": "item/smoke-installer-names-the-bounce",
       "@type": "Action",
       "order": 60,
+      "name": "The smoke installer step names a verification bounce, and the unprovable check goes",
+      "url": "https://github.com/turbophp/doccum/issues/197",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/email-verification-decided"
+      ],
+      "doneWhen": "Both smoke sites that report a destination -- the installer helper's waitForURL and checkAdminUsersPage()'s status check -- report where the browser actually LANDED, through one shared helper, naming a verification bounce explicitly when the landing place is the notice; checkFirstAdminIsVerified() is removed as unprovable; and the new message is itself shown by mutation rather than asserted.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/v1-audit",
+      "@type": "Action",
+      "order": 61,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -1280,7 +1302,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 61,
+      "order": 62,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -1300,7 +1322,7 @@
     {
       "@id": "item/vector-index-seam",
       "@type": "Action",
-      "order": 104,
+      "order": 105,
       "name": "A vector index seam alongside the keyword index",
       "isBasedOn": [
         "spec:8a-semantic-search"
@@ -1318,7 +1340,7 @@
     {
       "@id": "item/embedding-provider",
       "@type": "Action",
-      "order": 105,
+      "order": 106,
       "name": "An embedding provider seam with an embedded default",
       "isBasedOn": [
         "spec:8a-semantic-search"
@@ -1338,7 +1360,7 @@
     {
       "@id": "item/embedding-sweep",
       "@type": "Action",
-      "order": 106,
+      "order": 107,
       "name": "Backfill embeddings for existing documents",
       "isBasedOn": [
         "spec:8a-semantic-search"
@@ -1358,7 +1380,7 @@
     {
       "@id": "item/hybrid-ranking",
       "@type": "Action",
-      "order": 107,
+      "order": 108,
       "name": "Blend keyword and vector ranking",
       "isBasedOn": [
         "spec:8a-semantic-search"
@@ -1378,7 +1400,7 @@
     {
       "@id": "item/ocr-provider-seam",
       "@type": "Action",
-      "order": 108,
+      "order": 109,
       "name": "An OCR provider seam beyond Tesseract",
       "isBasedOn": [
         "spec:7a-ocr-providers"
@@ -1396,7 +1418,7 @@
     {
       "@id": "item/llama-runtime-bundle",
       "@type": "Action",
-      "order": 109,
+      "order": 110,
       "name": "Bundle a llama.cpp runtime in the image",
       "isBasedOn": [
         "spec:7a-ocr-providers"
@@ -1416,7 +1438,7 @@
     {
       "@id": "item/hardware-profile-picker",
       "@type": "Action",
-      "order": 110,
+      "order": 111,
       "name": "Pick a model by the container's hardware budget",
       "isBasedOn": [
         "spec:7a-ocr-providers"
@@ -1436,7 +1458,7 @@
     {
       "@id": "item/remote-ocr-providers",
       "@type": "Action",
-      "order": 111,
+      "order": 112,
       "name": "Azure DI, Textract and Document AI as OCR providers",
       "isBasedOn": [
         "spec:7a-ocr-providers"
@@ -1456,7 +1478,7 @@
     {
       "@id": "item/tsvector-index",
       "@type": "Action",
-      "order": 112,
+      "order": 113,
       "name": "A ranked tsvector index for PostgreSQL",
       "isBasedOn": [
         "spec:8-search"
@@ -1474,7 +1496,7 @@
     {
       "@id": "item/external-search-engine",
       "@type": "Action",
-      "order": 113,
+      "order": 114,
       "name": "Typesense or Meilisearch as a search provider",
       "isBasedOn": [
         "spec:8-search"
@@ -1492,7 +1514,7 @@
     {
       "@id": "item/directory-legal-hold",
       "@type": "Action",
-      "order": 114,
+      "order": 115,
       "name": "Legal hold on a directory subtree",
       "isBasedOn": [
         "spec:9-archive-and-purge"
@@ -1512,7 +1534,7 @@
     {
       "@id": "item/trash-retention-schedule",
       "@type": "Action",
-      "order": 115,
+      "order": 116,
       "name": "Scheduled expiry of trashed items",
       "isBasedOn": [
         "spec:9-archive-and-purge"
@@ -1532,7 +1554,7 @@
     {
       "@id": "item/sidebar-width-per-user",
       "@type": "Action",
-      "order": 116,
+      "order": 117,
       "name": "Remember each viewer's sidebar width",
       "isBasedOn": [
         "spec:10-user-facing-surface"
@@ -1552,7 +1574,7 @@
     {
       "@id": "item/alpine-image",
       "@type": "Action",
-      "order": 117,
+      "order": 118,
       "name": "An Alpine-based image",
       "isBasedOn": [
         "spec:13-infrastructure"
@@ -1572,7 +1594,7 @@
     {
       "@id": "item/doc-xls-libreoffice",
       "@type": "Action",
-      "order": 118,
+      "order": 119,
       "name": "Legacy .doc and .xls extraction via LibreOffice",
       "isBasedOn": [
         "spec:7-text-extraction"
@@ -1590,7 +1612,7 @@
     {
       "@id": "item/directory-share-permission",
       "@type": "Action",
-      "order": 119,
+      "order": 120,
       "name": "A permission of its own for sharing a directory",
       "url": "https://github.com/turbophp/doccum/issues/36",
       "isBasedOn": [
@@ -2770,6 +2792,56 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/195",
+      "@type": "PullRequest",
+      "identifier": 195,
+      "name": "Email verification is decided and enforced: an operator vouches, or you prove your own address",
+      "implements": [
+        "item/email-verification-decided"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T11:53:00Z",
+      "headSha": "57f90a3971f8bae201f5dbc32bb573975b43bbc6",
+      "mergedAt": "2026-09-18T12:01:36Z",
+      "mergeSha": "27c211df57cbe81fb36a3767641f4ffb184ac57c",
+      "mergedIn": "run/0020",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35342525359",
+      "mainConclusion": "success"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/196",
+      "@type": "PullRequest",
+      "identifier": 196,
+      "name": "MUTATION -- DO NOT MERGE: item 39's smoke assertion, shown to fail",
+      "implements": [
+        "item/email-verification-decided"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T12:02:10Z",
+      "headSha": "c4ea8ddfc45eca5db3a71f795b5cc44dc4073f41",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/198",
+      "@type": "PullRequest",
+      "identifier": 198,
+      "name": "MUTATION -- DO NOT MERGE: item 39, second attempt after a void result",
+      "implements": [
+        "item/email-verification-decided"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T12:07:50Z",
+      "headSha": "034d907a276996c9f6ccd5ac131381642a1f8baf",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -3759,6 +3831,53 @@
         "item/ledger-main-push-record"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0060",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T12:10:00Z",
+      "run": "run/0020",
+      "name": "An operator vouches, or you prove your own address",
+      "rationale": "EnsureEmailIsVerified had gated nothing since the project started. app/Models/User.php carried `// use Illuminate\\Contracts\\Auth\\MustVerifyEmail;` -- commented out -- and declared `implements PasskeyUser` alone. Authenticatable supplies the TRAIT; the middleware gates on the CONTRACT. The instanceof was false for every user who has ever existed, while config/fortify.php enabled the feature, two route groups carried `verified`, and four tests passed.\\n\\nissue #161 allowed either route: implement it or remove it. Implemented, because item/admin-instance-settings had just made public signup a real toggle, which is precisely the case verification exists for. But it could not be a one-line uncomment: NOTHING set email_verified_at outside UserFactory, and MAIL_MAILER defaults to 'log', so turning on the contract alone strands the installer's first administrator behind `verified` with the only link in the container log. A fresh container would brick on first boot.\\n\\nHence the rule: an account an operator VOUCHED for is verified at creation (the installer, because they proved control by installing it; a user created through the admin page, because a holder of users.manage vouched for the address), and a SELF-REGISTERED account proves its own. Plus doccum:user:verify, without which an operator who changes their own email -- Profile correctly nulls the column -- is locked out with no recovery but grepping a log.\\n\\nTWO BRIEFS OF MINE WERE WRONG AND THE WORKER CAUGHT BOTH, which is the part worth recording. First, I said to set email_verified_at in CreateUser::handle() 'the same as FirstRun': that action is what Fortify's CreateNewUser DELEGATES to, so taken literally it would have verified every self-registered user and destroyed the item. It takes an explicit $verified parameter instead. Second, I asserted that RegistrationTest's 'redirects to files.browse' assertions would have to change once that route was gated: they do not. RegisterResponse computes redirect()->intended() from config('fortify.home'), url.intended is only set when a request first bounces off a gated route, and assertRedirect does not follow -- middleware on a destination does not alter the Location header of a redirect to it. Rewriting those assertions would have been damage to tests that were already true. A brief is a hypothesis about code the worker is about to read more closely than I did; decision/0056 said this once already and it held twice more in one item.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/email-verification-decided",
+        "item/admin-instance-settings"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0061",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T12:10:00Z",
+      "run": "run/0020",
+      "name": "markEmailAsVerified() writes the column and nothing else -- the Verified event is the caller's job",
+      "rationale": "CI failed one test of 832 on the first push: doccum:user:verify did not dispatch Illuminate\\Auth\\Events\\Verified. Laravel's MustVerifyEmail trait is a forceFill()->save() and no more; the event is dispatched by the HTTP flow, in Fortify's VerifyEmailController, AFTER calling it.\\n\\nSo an account verified from a console was silently DIFFERENT from one verified through a link: any listener on Verified would run for the second and not the first. The tell was already in the command -- its 'already verified' branch deliberately avoids RE-firing the event, guarding against something that never happened.\\n\\nThe test asserting the event was right and the command was wrong, so the command changed. Recorded because the opposite move -- deleting the assertion to make the suite green -- would have been available, cheap, and exactly the failure mode this whole item exists to correct.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/email-verification-decided"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0062",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T12:10:00Z",
+      "run": "run/0020",
+      "name": "An assertion that cannot fail before an earlier step does is not evidence",
+      "rationale": "mutation/0018 came back VOID. checkFirstAdminIsVerified() was added to the smoke to give the installer's verification write a named assertion. Removing that write turned the image job red -- but in the installer helper, with `page.waitForURL: Timeout 15000ms exceeded`, before the named check ever ran. FirstRun::submit() redirects to /files, which THIS SAME ITEM put behind `verified`; unverified, the redirect bounces and the helper times out.\\n\\nNo better mutant exists. Any change leaving the administrator unverified breaks that redirect FIRST, by construction. The check cannot fail before the installer step does, so it is unprovable as written, and CLAUDE.md's rule -- never cite an unmutated assertion as evidence -- means it counts for nothing today.\\n\\nTHE GENERAL FORM, which is the reason this is a decision and not just a note: an assertion placed downstream of a step that fails for the same cause can never be the thing that reports that cause. It is the same family as a guard that cannot fire (#185) and a control that only hides a button (decision/0051, decision/0057) -- something that looks like coverage and is not. When adding a check, ask what ELSE breaks when its subject breaks, and whether that something breaks EARLIER.\\n\\nThe fix inverts the design rather than moving the check: the smoke should report where the browser actually LANDED, so the cause is in the error text instead of inferred -- and then the separate check is genuinely redundant and goes. Filed as issue #197 / item/smoke-installer-names-the-bounce.\n\nTHE SECOND MUTATION WIDENED THAT. mutation/0019 removed `verified: true` from the admin creation path instead, and landed on checkAdminUsersPage()'s named 403 assertion -- negative, which is what finally let this item be recorded Completed. But its message was \"/admin/users answered HTTP 200 for <member>, who holds no users.manage\", which reads exactly like an authorisation bypass. It is not one: page.goto() follows redirects, so 200 is the verification notice rendering after a 302, verified by reading the check rather than assumed. A smoke message that would make a reader announce a security hole they do not have is worse than a vague one, so #197 now covers both sites through one shared helper that reports status AND landing URL.\\n\\nAlso recorded: BOTH predictions written into the mutation PR before the run were wrong -- the failure location, and 'every other job stays green' (FirstRunSetupTest caught it too). The prediction was written down first precisely so being wrong would be visible rather than quietly reinterpreted afterwards.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/email-verification-decided",
+        "item/smoke-installer-names-the-bounce"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -3999,6 +4118,34 @@
       "check": "container-smoke.mjs checkAdminInstanceSettingsPage() -- the image job failed at the doneWhen itself: \"enabling auth.public_signup through /admin/settings never made /register answer 200 for a guest -- got HTTP 404\". WHICH HALF FAILED IS THE POINT. The check asks an anonymous, cookie-less browser context for /register before and after the toggle; the 404-before control PASSED and the 200-after evidence FAILED, which is the right way round. CLAUDE.md records a case where the resting-state half of a smoke pair was argued to be load-bearing and mutation proved the reverse; here the half that requires the feature to DO something is the half that broke. The check also got past checkAdminPeriodsPage, including the purge control's disabled state and its retention blocker, so it reached its own assertion rather than falling over on the way. Every other check on the run passed. Run https://github.com/turbophp/doccum/actions/runs/35338752846.",
       "verdict": "negative",
       "supersedes": null
+    },
+    {
+      "@id": "mutation/0018",
+      "@type": "Mutation",
+      "implements": [
+        "item/email-verification-decided"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/196",
+      "run": "run/0020",
+      "headSha": "c4ea8ddfc45eca5db3a71f795b5cc44dc4073f41",
+      "mutant": "Removed the single line `$user->forceFill(['email_verified_at' => now()])->save();` from App\\Livewire\\Setup\\FirstRun::submit(), so the installer no longer vouches for the administrator it creates. Intended to show checkFirstAdminIsVerified() load-bearing.",
+      "check": "VOID, and the reason is the finding. The image job went red but NOT at the named check -- it failed one step earlier, in the smoke's installer helper, with the whole output being: [setup] opening /setup / [setup] submitting the administrator form / page.waitForURL: Timeout 15000ms exceeded. FirstRun::submit() logs the new administrator in and redirects to /files, which THIS ITEM put behind `verified`; unverified, that redirect bounces to the verification notice and waitForURL times out before any later check runs. decision/0035 is explicit that a red job alone proves nothing and the failure must land AT the named assertion, so this run does not show that check load-bearing. Nor can a better mutant: any change leaving the first administrator unverified breaks the installer's own redirect first, by construction, so checkFirstAdminIsVerified CANNOT fail before the installer does. Two predictions recorded in the PR before the run were both wrong -- that it would fail at the named check, and that every other job would stay green (tests/Feature/FirstRunSetupTest also failed, precisely and by name, 1 of 832). What the run DID establish: the write is covered twice, by that feature test and by the installer step, the latter with an opaque message. Filed as issue #197. Run https://github.com/turbophp/doccum/actions/runs/35342595999.",
+      "verdict": "void",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0019",
+      "@type": "Mutation",
+      "implements": [
+        "item/email-verification-decided"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/198",
+      "run": "run/0020",
+      "headSha": "034d907a276996c9f6ccd5ac131381642a1f8baf",
+      "mutant": "Removed `verified: true` from the CreateUser call in App\\Livewire\\Admin\\Users::save(), so the member the smoke creates through /admin/users is no longer vouched for. Chosen after mutation/0018 came back void: this half of the design has a named smoke assertion that can actually land, because the smoke logs in as that member and requires /admin/users to answer 403.",
+      "check": "container-smoke.mjs checkAdminUsersPage() -- the image job failed at the named assertion: \"/admin/users answered HTTP 200 for smokemember733429273, who holds no users.manage -- expected 403\". Reached, not collapsed on the way: the check got past the installer and the file, trash, search, roles and periods checks, created the member through the real form, confirmed its home directory and grant, logged in as it, and failed on the status. THE 200 IS NOT A BYPASS, and that was verified by reading the check rather than assumed: it uses memberPage.goto() and reads response.status(), and Playwright's goto() follows redirects, so the status is the FINAL response -- the unverified member was redirected to the verification notice and 200 is that notice rendering. The gate held. Recorded because the message reads exactly like a real authorisation bypass and is not one, which is folded into issue #197. Run https://github.com/turbophp/doccum/actions/runs/35343087954.",
+      "verdict": "negative",
+      "supersedes": "mutation/0018"
     }
   ]
 }
