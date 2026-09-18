@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T14:16:00Z",
+  "dateModified": "2026-09-18T14:40:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -913,10 +913,12 @@
         "item/ledger-main-push-record"
       ],
       "doneWhen": "Decision.evidence is populated on 0 of 43 decisions and its resolveEach branch has never run on real data -- the state decision/0043 just corrected one node type over. decision/0038 argued the absence would itself be a signal, but a signal absent in 100% of cases carries none, and decisions 0038/0040/0042 each rest on a specific mutation verdict without citing it. Either require it on a Decision whose `affects` names an item carrying a Mutation node in the same run, or delete the key. Run.tests and Run.assertions are copied forward rather than measured: run/0016 and run/0017 both report 649/1340 across a run that merged three items, and run/0019 carried run/0018's 701/1446 while merging three more. Either read them from the recorded main run, which item/ledger-main-push-record makes available, or remove them -- and either give -1 the stated meaning \"not measured\" or abolish it. Run.commit has no stated semantics beyond a sha shape and is inconsistent: every run's is its last substantive merge EXCEPT run/0017, whose dbf7ce7 is the #123 merge that closed run/0016 -- main at run/0017's start, equal to its startTime rather than to its work. Each resolution is mutation-checked: deleting the enforcement reddens a named test. A field that is DELETED needs no test, since its absence from ALLOWED_KEYS is the assertion and LedgerIntegrityTest already fails an unknown key.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T14:20:00Z",
+      "endTime": "2026-09-18T14:35:03Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/205"
+      ]
     },
     {
       "@id": "item/mutation-filter-regex",
@@ -2930,6 +2932,22 @@
       "mergedAt": "2026-09-18T14:06:39Z",
       "mergeSha": "a2e637d2612e9fb1239d578b1d86207d932a8622",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/205",
+      "@type": "PullRequest",
+      "identifier": 205,
+      "name": "Three ledger fields that read as evidence and record nothing: two deleted, one already settled",
+      "implements": [
+        "item/ledger-field-audit"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T14:31:40Z",
+      "headSha": "52b420bce3df361bbb5df82fc74cd5370d5f3344",
+      "mergedAt": "2026-09-18T14:35:03Z",
+      "mergeSha": "a30ba6778f74df78e675816aaf613988647737cf",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4025,6 +4043,21 @@
       ],
       "affects": [
         "item/ledger-main-push-record"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0067",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T14:40:00Z",
+      "run": "run/0020",
+      "name": "An assertion that the corpus is clean cannot witness the check that cleans it",
+      "rationale": "item/ledger-field-audit deletes Run.tests and Run.assertions, and its doneWhen justified adding no test for them: \"a field that is DELETED needs no test, since its absence from ALLOWED_KEYS is the assertion and LedgerIntegrityTest already fails an unknown key.\"\n\nThe first half is right. The second was not true of the check as written. LedgerIntegrityTest's vocabulary test is `expect(ledgerErrorsTagged('structural:'))->toBe([])` -- an assertion that the REAL ledger currently has no structural errors. It does catch a re-added key, because the real ledger would then carry one. But it passes just as happily if the structural check is deleted outright, because an empty error list is exactly what a deleted check returns. Two field deletions were resting on a guard with no witness.\n\nTHE GENERAL FORM, and the reason this is a decision rather than a note on that item: `expect(errors)->toBe([])` over real data is a REGRESSION CHECK ON THE DATA, not a witness for the checker. Both are worth having and they are not substitutes. The corpus assertion says \"nothing in the ledger is broken today\"; only a fixture that VIOLATES the rule can say \"and the thing that would notice still works\". A codebase that only ever asserts its real data is clean cannot distinguish a clean corpus from an absent check -- which is the same inability, in a new place, that #185 (a guard that could not fire) and decision/0062 (an assertion downstream of the failure) each recorded.\n\nA second lesson, cheaper to state and easy to get wrong: the branch that catches a given violation is not always the one the prose names. tests and assertions were removed from context.jsonld as well, so re-adding `tests` trips the UNDEFINED-TERM check and continues, never reaching the per-type ALLOWED_KEYS check the doneWhen cites. The first witness written here used `tests` against the ALLOWED_KEYS branch and returned an identical message mutated and unmutated -- it would have failed even unmutated, and its mutation would have proved nothing. Found by simulating, not by reading. There are now two witnesses, one per branch, because the branches fail independently.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-field-audit"
       ],
       "supersedes": null
     }

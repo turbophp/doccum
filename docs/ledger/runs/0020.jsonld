@@ -13,12 +13,13 @@
     "item/admin-roles",
     "item/email-verification-decided",
     "item/extraction-missing-object",
+    "item/ledger-field-audit",
     "item/ledger-id-uniqueness",
     "item/ledger-main-push-record",
     "item/mutation-filter-regex",
     "item/smoke-livewire-settle"
   ],
-  "commit": "a2e637d2612e9fb1239d578b1d86207d932a8622",
+  "commit": "a30ba6778f74df78e675816aaf613988647737cf",
   "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally.",
   "merges": [
     {
@@ -154,6 +155,24 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35354218662",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35354218617",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "7ef46b8d05da53a3388ab3decf4f8574594f3df5",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T14:15:29Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35355109809",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35355109795",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "a30ba6778f74df78e675816aaf613988647737cf",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/205",
+      "mergedAt": "2026-09-18T14:35:03Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35357139896",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35357140092",
       "ledgerConclusion": "success"
     }
   ]
