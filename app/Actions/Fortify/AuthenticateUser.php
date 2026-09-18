@@ -81,7 +81,12 @@ class AuthenticateUser
             return null;
         }
 
-        $column = str_contains($identifier, '@') ? 'email' : 'username';
+        // MUTATION: back to email-only, the behaviour before this item.
+        // A username submitted at login now resolves nothing, so the
+        // credentials are rejected and the browser stays on /login.
+        // Everything else -- the folding, the model guard, the field's
+        // type and label -- is untouched.
+        $column = 'email';
         $value = $column === 'email' ? EmailKey::of($identifier) : mb_strtolower(trim($identifier));
 
         $credentials = [$column => $value, 'password' => $request->input('password')];
