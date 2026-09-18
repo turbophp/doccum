@@ -2750,6 +2750,43 @@ async function checkAdminRolesPage(page, phase) {
 }
 
 /**
+ * issue #214: `AUTORUN_ENABLED=true` (Dockerfile:68) makes
+ * docker/entrypoint.d/51-doccum-roles.sh re-run `doccum:ensure-roles` on
+ * EVERY boot, including the one tests.yml performs between runSetup() and
+ * runVerify() to replace this container. checkAdminRolesPage(), called only
+ * from runSetup(), grants `periods.manage` to the `member` role through the
+ * real /admin/roles form; this function is the other half -- called from
+ * runVerify(), AFTER the replacement, to check that grant is still there.
+ *
+ * Before the fix, RolesAndPermissionsSeeder::run() ended in
+ * syncPermissions() for both roles on every single run of that command,
+ * which REPLACES a role's permission set with the seeder's own constants.
+ * runSetup()'s grant happened, the same container's next request still saw
+ * it (nothing re-ran the seeder in between), and the phase reported green --
+ * exactly why this defect needed a check that survives a replacement to be
+ * seen at all. Uses tinker rather than the UI: this is a database
+ * persistence question, not a rendering one, and re-driving the checkbox
+ * would only prove Livewire still works, not that boot left the row alone.
+ */
+function checkRolePermissionSurvivesContainerReplacement(phase) {
+  const php = [
+    "$r = \\Spatie\\Permission\\Models\\Role::findByName('member');",
+    "echo 'HOLDS:' . ($r && $r->hasPermissionTo('periods.manage') ? 'yes' : 'no');",
+  ].join(' ');
+  const output = tinker(php);
+
+  if (!/HOLDS:yes/.test(output)) {
+    dumpContainerState(
+      `[${phase}] the member role no longer holds periods.manage after the container was replaced -- raw output: ${output}`
+      + ' -- runSetup() granted it through the real /admin/roles form; something on this'
+      + ' boot reset the role\'s permissions back to RolesAndPermissionsSeeder\'s constants (issue #214)',
+    );
+    throw Object.assign(new Error('member role lost periods.manage across a container restart'), { dumped: true });
+  }
+  console.log(`[${phase}] the member role still holds periods.manage after the container replacement -- OK`);
+}
+
+/**
  * item/admin-periods (issue #20): closes a finished period through the real
  * /admin/periods form and proves, via tinker, that the resulting
  * ArchivePeriod row now exists and is archived -- CLAUDE.md's own rule,
@@ -3294,6 +3331,9 @@ async function runVerify() {
     }
 
     console.log('[verify] logged in by username -- the admin account persisted');
+
+    console.log('[verify] checking the member role still holds the periods.manage permission granted during setup, across the container replacement (issue #214)');
+    checkRolePermissionSurvivesContainerReplacement('verify');
 
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
     await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
