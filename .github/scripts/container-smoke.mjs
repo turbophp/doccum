@@ -803,7 +803,13 @@ async function checkResetPasswordCommandPrintsAWorkingLink(browser, phase) {
     // password the link just set is what proves the link genuinely changed
     // it, per CLAUDE.md: prefer an assertion that requires the feature to
     // DO something over one that only observes a resting state.
-    await page.getByLabel('Email address', { exact: true }).fill(email);
+    // Login here still uses EMAIL, not username -- this check is about the
+    // reset-password link, not item/login-by-username, so it keeps using
+    // the identifier it already had (the page's field label changed under
+    // it -- see login.blade.php -- so only the selector below needed to
+    // move; the value being an email still resolves through AuthenticateUser
+    // the same way it always did).
+    await page.getByLabel('Username or email', { exact: true }).fill(email);
     await page.getByLabel('Password', { exact: true }).fill(newPassword);
     await Promise.all([
       page.waitForURL((u) => u.pathname !== '/login', { timeout: 15000 }),
@@ -2565,15 +2571,22 @@ async function runVerify() {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    console.log('[verify] logging back in against the replacement container');
+    // item/login-by-username (issue #75): logs in with the USERNAME here,
+    // not ADMIN_EMAIL, so this is the one place the smoke actually drives
+    // AuthenticateUser's username lookup through a browser rather than only
+    // through a Pest test that renders the view with the test renderer --
+    // see CLAUDE.md on why a Blade assertion cannot see a broken field type,
+    // a stale autocomplete token, or a login.blade.php that still rejects a
+    // username at type="email" before the request is ever sent.
+    console.log('[verify] logging back in with the USERNAME against the replacement container');
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
-    await page.getByLabel('Email address', { exact: true }).fill(ADMIN_EMAIL);
+    await page.getByLabel('Username or email', { exact: true }).fill(ADMIN_USERNAME);
     await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD);
     await Promise.all([
       page.waitForURL((u) => u.pathname !== '/login', { timeout: 15000 }),
       page.getByRole('button', { name: 'Log in' }).click(),
     ]);
-    console.log('[verify] logged in -- the admin account persisted');
+    console.log('[verify] logged in by username -- the admin account persisted');
 
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
     await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
