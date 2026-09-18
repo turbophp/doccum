@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T16:12:00Z",
+  "dateModified": "2026-09-18T16:20:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1330,9 +1330,9 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [],
-      "doneWhen": "AUTORUN_ENABLED=true (Dockerfile:68) makes docker/entrypoint.d/51-doccum-roles.sh run doccum:ensure-roles on every boot, and RolesAndPermissionsSeeder::run() calls syncPermissions() on both roles -- which REPLACES the set. So every restart, the documented upgrade procedure, discards whatever item/admin-roles's UI let an operator configure. Not inference about the package: SetRolePermissions depends on that same replace behaviour to remove a permission when an operator unticks it. Done when an edit survives a restart, while the seeder still creates missing roles and permissions on a fresh install and still picks up a permission added by an upgrade -- those are what EnsureRoles exists for and must not regress. The decision about what 'ensure' means is stated rather than implied: creating what is absent is not the same operation as asserting what the set must be, and only the first is safe to run on every boot against a database an operator can edit. The container smoke asserts it ACROSS the replacement -- runVerify() re-checks the permission runSetup() granted, which is nearly free since the grant already happens -- and restoring the destructive sync must make that assertion fail.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "doneWhen": "AUTORUN_ENABLED=true (Dockerfile:68) makes docker/entrypoint.d/51-doccum-roles.sh run doccum:ensure-roles on every boot, and RolesAndPermissionsSeeder::run() calls syncPermissions() on both roles -- which REPLACES the set. So every restart, the documented upgrade procedure, discards whatever item/admin-roles's UI let an operator configure. Not inference about the package: SetRolePermissions depends on that same replace behaviour to remove a permission when an operator unticks it. Done when an edit survives a restart, while the seeder still creates missing roles and permissions on a fresh install and still makes a permission added by an upgrade EXIST as an assignable row -- those are what EnsureRoles exists for. That clause was ambiguous as first written and is settled here, before the work is judged against it: 'picks up' meant, in EnsureRoles's original docblock, that existing roles were GRANTED the new permission, because syncPermissions() granted it as a side effect of replacing the set. Only the weaker reading survives -- the Permission row is created on every boot, and existing roles are left untouched. The stronger one is given up deliberately, and is arguably not a loss: a new capability that grants ITSELF to every existing member on upgrade is a privilege-escalation path, not a convenience, and the operator granting it through Settings -> Roles is the same surface that lets them revoke one. Preserving all three properties at once -- operator grants, operator revocations, and automatic upgrade grants -- needs version-tracked deltas, which is real machinery for a problem with a one-click remedy. A release note naming any newly added permission is the cost of this choice and belongs with item/changelog-release-notes. The decision about what 'ensure' means is stated rather than implied: creating what is absent is not the same operation as asserting what the set must be, and only the first is safe to run on every boot against a database an operator can edit. The container smoke asserts it ACROSS the replacement -- runVerify() re-checks the permission runSetup() granted, which is nearly free since the grant already happens -- and restoring the destructive sync must make that assertion fail.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-18T16:20:00Z",
       "endTime": null,
       "result": []
     },
