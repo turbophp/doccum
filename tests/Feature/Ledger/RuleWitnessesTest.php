@@ -52,3 +52,23 @@ it('witnesses every code LedgerValidator declares, with the shrinking baseline c
 
     expect($result['failures'])->toBe([]);
 });
+
+it('keeps the unwitnessed baseline empty, so a code without a witness cannot be filed away quietly', function () {
+    // This is the guard the class docblock points at, and it lives here
+    // rather than in run() for a reason worth stating.
+    //
+    // run() used to compare count(UNWITNESSED_BASELINE) against a
+    // UNWITNESSED_BASELINE_MAX ceiling. phpstan rejected it outright:
+    // "Comparison operation > between 0 and 0 is always false". Both sides
+    // were compile-time constants, so at an empty baseline the ratchet could
+    // not fire -- a check that cannot fail, inside the class written to make
+    // checks that cannot fail visible. It was removed rather than papered
+    // over, because a decorative guard is worse than none.
+    //
+    // What replaces it is a tripwire on the SOURCE. The baseline starts
+    // empty and has nowhere to ratchet down to, so the only thing worth
+    // detecting is somebody adding an entry -- which means editing this
+    // assertion in the same diff, where a reviewer reads it, and which
+    // should arrive with the witness that makes the entry unnecessary.
+    expect(LedgerRuleWitnesses::UNWITNESSED_BASELINE)->toBe([]);
+});

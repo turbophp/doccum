@@ -61,22 +61,24 @@ use RuntimeException;
  *
  * self::UNWITNESSED_BASELINE lists codes with no witness below; run()
  * requires LedgerValidator::CODES to equal witnessed-codes UNION that list,
- * exactly (missing OR extra either fails). self::UNWITNESSED_BASELINE_MAX
- * is the ceiling run() enforces the list's own size against -- a baseline
- * that grows past it fails the run rather than passing quietly, the same
- * shape as phpstan-baseline.neon. It is not asserted to shrink by comparing
- * against some stored history (this class keeps no history; there is
- * nowhere else in this repo's file-only tooling to keep one), so "only ever
- * decreases" is enforced by what the ceiling is SET TO here, not by a
- * runtime check against the past: it starts at 0 because, before this item,
- * NO witness harness existed, so the baseline WAS all 16 codes -- going
- * from 16 to 0 in the same change that introduces the ceiling is already
- * the maximum possible shrink, and it leaves nothing further this
- * particular ceiling could still ratchet down from. A later item that adds
- * a 17th code without a witness must add it here AND raise the ceiling in
- * the same diff, which is a one-line change a reviewer reads plainly rather
- * than a silent default; see run()'s own check for what happens if only one
- * of those two edits is made.
+ * exactly (missing OR extra either fails). It is empty, because all 16
+ * declared codes turned out witnessable.
+ *
+ * There was a UNWITNESSED_BASELINE_MAX ceiling here, compared against the
+ * list's size on every run. phpstan deleted the illusion: "Comparison
+ * operation > between 0 and 0 is always false". With an empty baseline and
+ * a ceiling of zero, that guard could not fire -- a check that cannot fail,
+ * inside the very class written to make checks that cannot fail visible.
+ * Both constants were compile-time known, so the comparison was decorative.
+ *
+ * What actually holds the line is in the test, not here: a Pest assertion
+ * that UNWITNESSED_BASELINE is still empty. That is a tripwire on the
+ * SOURCE rather than on runtime state, and it is the honest shape for this
+ * invariant at its floor -- the baseline starts empty and has nowhere to
+ * ratchet down to, so the only thing worth detecting is someone adding an
+ * entry. Adding one then means editing the test in the same diff, which a
+ * reviewer reads plainly, and which should arrive alongside the witness
+ * that makes the entry unnecessary.
  */
 final class LedgerRuleWitnesses
 {
@@ -91,12 +93,6 @@ final class LedgerRuleWitnesses
      * @var list<string>
      */
     public const UNWITNESSED_BASELINE = [];
-
-    /**
-     * The ratchet ceiling for self::UNWITNESSED_BASELINE's own size. See
-     * this class's docblock for why 0, not some larger historical number.
-     */
-    public const UNWITNESSED_BASELINE_MAX = 0;
 
     /**
      * Copies $liveLedgerDir, asserts the copy validates clean (decision/0067:
@@ -148,14 +144,6 @@ final class LedgerRuleWitnesses
         if ($overlap !== []) {
             $failures[] = 'ratchet: '.implode(', ', $overlap).
                 ' appear(s) in both the witnessed set and UNWITNESSED_BASELINE -- a code that IS witnessed must not also sit in the baseline, or the baseline is recording coverage that already exists rather than its absence.';
-        }
-
-        if (count(self::UNWITNESSED_BASELINE) > self::UNWITNESSED_BASELINE_MAX) {
-            $failures[] = sprintf(
-                'ratchet: UNWITNESSED_BASELINE has %d entries, past its own ceiling of %d -- add a witness for the new entry, or raise UNWITNESSED_BASELINE_MAX deliberately in the same change, rather than letting the list grow past a ceiling nothing checked.',
-                count(self::UNWITNESSED_BASELINE),
-                self::UNWITNESSED_BASELINE_MAX,
-            );
         }
 
         $declared = LedgerValidator::CODES;
@@ -486,8 +474,8 @@ final class LedgerRuleWitnesses
                 'id' => 'history-unrecorded-interior-merge',
                 'code' => 'history',
                 'select' => "supplying a fabricated commit before the newest run's own last recorded mergeSha, as \$mainPushShas -- this rule's fact comes from the CALLER's argument (LedgerValidator stays blind to git itself, see its own validate() docblock), never from ledger.jsonld's content, so this is the one witness that varies validate()'s third parameter instead of editing a file",
-                /** @return list<string>|null */
-                'mutate' => static function (string $dir): ?array {
+                /** @return list<string> */
+                'mutate' => static function (string $dir): array {
                     $path = self::newestRunPath($dir);
                     $run = self::readJsonFile($path);
                     $merges = array_values(array_filter($run['merges'] ?? [], 'is_array'));
