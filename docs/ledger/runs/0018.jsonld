@@ -10,7 +10,8 @@
   "touched": [
     "item/container-smoke-ci",
     "item/file-policy-trashed-file-guards",
-    "item/login-by-username"
+    "item/login-by-username",
+    "item/files-three-pane"
   ],
   "commit": "35679215ac5feb5c4fc2328cdd3cd0615f28781e",
   "tests": 649,

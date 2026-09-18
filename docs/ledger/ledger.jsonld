@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T01:12:00Z",
+  "dateModified": "2026-09-18T01:55:00Z",
   "latestRun": "run/0018",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -581,10 +581,12 @@
         "item/files-actions-ui"
       ],
       "doneWhen": "The sidebar renders Home first, then the viewer reach roots -- viewable directories whose parent is not viewable -- and their viewable descendants, asserted against the query: a grant on a nested directory alone makes that directory reachable from /files, written as a test that fails on main before the fix; the breadcrumb lists every ancestor the viewer may view and no others; collapse state is per-browser; the container smoke navigates two levels through the tree and asserts three breadcrumb items. FileBrowserTest keeps its unreachable-directory guarantees throughout. The LANDING PANE at /files, with no directory selected, lists the same reach roots as the sidebar rather than the true filesystem roots it lists today: Browser::render() filters on where('parent_id', $this->directory?->getKey()), which resolves to parent_id IS NULL, so a directory granted to the viewer whose parent is not viewable has a non-null parent_id and never appears there at all -- reachable only by typing its URL. That is issue 99, and without this clause an implementation could satisfy every other clause here and leave /files itself still broken for a nested grant.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-18T01:12:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-18T01:52:45Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/139"
+      ]
     },
     {
       "@id": "item/directory-access-ui",
@@ -2017,6 +2019,70 @@
       "mergedAt": "2026-09-18T01:06:00Z",
       "mergeSha": "444a3541626affc449767ac46fb35f42553e152a",
       "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/137",
+      "@type": "PullRequest",
+      "identifier": 137,
+      "name": "ledger: item 27 active, with the landing pane added to its doneWhen",
+      "implements": [
+        "item/files-three-pane"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T01:12:30Z",
+      "headSha": "1f53ec712cc3f8b742f93425cdec2807ac526acc",
+      "mergedAt": "2026-09-18T01:17:10Z",
+      "mergeSha": "66632826b4ce3e6b7151af436ef6b2f071225a49",
+      "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/138",
+      "@type": "PullRequest",
+      "identifier": 138,
+      "name": "Wait for the upload to settle before clicking -- fixes red main",
+      "implements": [
+        "item/container-smoke-ci"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T01:22:00Z",
+      "headSha": "429793789f295616b440b77ca1380063f31a3565",
+      "mergedAt": "2026-09-18T01:25:45Z",
+      "mergeSha": "633a97602b13f9c477530aa7e85faf00c08f4dd8",
+      "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/139",
+      "@type": "PullRequest",
+      "identifier": 139,
+      "name": "item/files-three-pane: a tree rooted at the viewer's reach, and a real breadcrumb (#104, #99)",
+      "implements": [
+        "item/files-three-pane"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T01:37:00Z",
+      "headSha": "d86433b167c5532613521f96960bf7d89ff4172a",
+      "mergedAt": "2026-09-18T01:52:45Z",
+      "mergeSha": "91137dd9c6a3492819207646d8fd58e875b7d3f3",
+      "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/141",
+      "@type": "PullRequest",
+      "identifier": 141,
+      "name": "MUTATION -- DO NOT MERGE: breadcrumb shows only the current directory",
+      "implements": [
+        "item/files-three-pane"
+      ],
+      "run": "run/0018",
+      "state": "closed",
+      "dateCreated": "2026-09-18T01:38:00Z",
+      "headSha": "31e3b4c2746622df238ff58b771d58cb6ccdcdb0",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -2558,6 +2624,24 @@
         "item/file-policy-trashed-file-guards",
         "item/files-versions-replace",
         "item/file-policy-null-directory"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0033",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T01:55:00Z",
+      "run": "run/0018",
+      "name": "A smoke check that leaves the browser mid-navigation blames the next check",
+      "rationale": "item/files-three-pane's breadcrumb check took four CI rounds and only the fourth produced evidence. The three before it are the finding.\n\nROUNDS 1-2. The check failed IDENTICALLY on the correct build and the mutated one, deterministically, three runs, same locator. A mutation that reddens both directions distinguishes nothing, so nothing was recorded -- which is the rule working, since the tempting reading was \"mutated build fails, therefore the assertion is load-bearing\". Two diagnoses were wrong before measurement: a stale DirectoryAccess memoisation (disproved by reading the provider, where Directory::saved($flushAccess) is registered) and a flake (disproved by three identical failures; CLAUDE.md is explicit that flake is a diagnosis to be earned).\n\nThe cause was a wait that did not discriminate. After clicking into a subdirectory the check waited for the 'New folder' field to be visible -- and that field is on EVERY directory page, so the wait was satisfied by the page being left, before wire:navigate swapped the DOM. fill() then wrote into a field about to be destroyed and the subdirectory was never created. This is decision/0012's topbar lesson in different clothes: a signal already true before the action proves nothing about the action. The comment being replaced even claimed it waited on \"the NEXT page's own content\" -- the intent was right and the chosen signal did not discriminate, which is precisely why that lesson keeps needing to be relearned rather than remembered.\n\nROUND 3 IS THE PART WORTH CARRYING FORWARD. With the two navigations fixed the check passed, and then a DIFFERENT check failed: the upload guard, reporting \"issue #106 is reachable again\". That guard was present and correct at browser.blade.php:223-224 and nothing about it had changed. The breadcrumb check's FINAL wait was the same non-discriminating kind, so the function returned mid-navigation; the upload check then began on the outgoing page, its upload fired, and wire:navigate swapped in a fresh Upload button with no upload in flight, which reads enabled.\n\nSo a non-discriminating wait does not merely fail its own check. It hands a FALSE ACCUSATION to whatever runs next, naming a security guard that was never broken. A flake costs a round; this sends the next reader into the wrong file with a plausible story. It was caught only because the blade was read before the message was believed, which is the same discipline that caught decision/0032's over-determination and decision/0030's misattributed race.\n\nThe rule, stated so it need not be rediscovered: EVERY page transition in a smoke check waits on something true only at the destination, and a check may not return while a navigation it started is still in flight. Two corollaries. First, never wait on the thing under test -- the breadcrumb was both the subject and part of the navigation wait, which is why a breadcrumb defect surfaced as an opaque locator timeout instead of at the count assertion written to catch it; removing that dependency is what moved the mutated failure to a named \"got 1\". Second, when a wait of this shape is found, audit every transition in the function rather than the ones observed failing: two were fixed in one round and the third, untouched because it had not yet failed, produced round four.\n\nThe evidence that finally counted: correct build green with \"breadcrumb shows all 3 ancestors two levels into the tree\", mutated build red with \"expected 3 breadcrumb items ... got 1\". The count assertion is load-bearing, measured rather than predicted -- the implementing worker had named it as its best guess and explicitly declined to claim it proven, which was the right posture and is why the claim was checked instead of inherited.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface",
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/files-three-pane",
+        "item/container-smoke-ci",
+        "item/upload-silent-discard"
       ],
       "supersedes": null
     }
