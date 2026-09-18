@@ -150,8 +150,6 @@
                     <flux:button
                         type="submit"
                         variant="primary"
-                        wire:loading.attr="disabled"
-                        wire:target="upload"
                     >{{ __('Upload') }}</flux:button>
                 </form>
             @endif
