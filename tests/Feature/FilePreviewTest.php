@@ -50,12 +50,19 @@ it('serves a text file inline, so a frame shows it rather than downloading it', 
         ->and($response->headers->get('x-content-type-options'))->toBe('nosniff');
 });
 
-it('serves uploaded HTML as plain text, never as HTML', function () {
-    // The endpoint is same-origin with the application, so HTML rendered here
-    // would run its own scripts with the viewer's session -- anyone who can
-    // upload a file could act as anyone who previews it. The preview is for
-    // looking at what a file contains, and markup shown as text is exactly
-    // that.
+it('neutralises uploaded HTML with a sandbox policy rather than rendering it as the app', function () {
+    // This endpoint serves somebody's uploaded bytes, same-origin, for a
+    // browser to render. Left alone, an uploaded page would run its own
+    // scripts with the viewer's session -- in a system built around people
+    // filing documents for each other, that is one upload away from acting as
+    // whoever opens it.
+    //
+    // The earlier answer was to serve HTML as text/plain, which was safe and
+    // made the preview useless for the one type people most want to look at.
+    // `sandbox` with no allow-scripts is the stronger answer: the document
+    // still renders, in an opaque origin, with its scripts inert. The header
+    // holds however the response is loaded, including a direct navigation --
+    // which an iframe's own sandbox attribute does not cover.
     $file = uploadFor($this->dir, $this->user, 'page.html', '<script>alert(1)</script>', 'text/html');
     $file->currentVersion->update(['mime' => 'text/html']);
 
@@ -63,8 +70,25 @@ it('serves uploaded HTML as plain text, never as HTML', function () {
 
     $response->assertOk();
 
-    expect($response->headers->get('content-type'))->toStartWith('text/plain')
-        ->and($response->headers->get('content-type'))->not->toContain('text/html');
+    $policy = $response->headers->get('content-security-policy');
+
+    expect($policy)->toContain('sandbox')
+        ->and($policy)->not->toContain('allow-scripts')
+        ->and($response->headers->get('x-content-type-options'))->toBe('nosniff');
+});
+
+it('allows a Word document through, for the browser to convert', function () {
+    // Nothing renders a .docx natively; the preview fetches these bytes and
+    // converts them client-side. The endpoint's job is to let them through
+    // rather than answer 415, which it did before Word was supported.
+    $file = uploadFor($this->dir, $this->user, 'minutes.docx', 'PK stub', 'application/octet-stream');
+    $file->currentVersion->update([
+        'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ]);
+
+    $this->actingAs($this->user)
+        ->get(route('files.preview', $file->fresh()))
+        ->assertOk();
 });
 
 it('refuses to preview a file the viewer cannot reach', function () {

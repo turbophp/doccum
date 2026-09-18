@@ -21,6 +21,19 @@ class FilePreviewController extends Controller
      */
     private const INLINE_PREFIXES = ['image/', 'text/'];
 
+    /**
+     * Exact types allowed through beyond the prefixes above.
+     *
+     * The Word type is here so the preview can FETCH the bytes and convert
+     * them in the browser (mammoth); nothing renders a .docx natively, and
+     * converting server-side would mean LibreOffice in the image, which this
+     * project has deliberately deferred.
+     */
+    private const INLINE_TYPES = [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+
     public function __construct(private readonly DocumentStorage $storage) {}
 
     /**
@@ -49,20 +62,9 @@ class FilePreviewController extends Controller
 
         $mime = $version->mime ?? $file->mime ?? 'application/octet-stream';
 
-        // Uploaded HTML is served as plain text, never as HTML.
-        //
-        // This endpoint is same-origin with the application, so a document
-        // rendered as text/html here runs its own scripts with the viewer's
-        // session -- anyone able to upload a file could read or act as anyone
-        // who previews it. Showing the markup as text is the whole feature
-        // anyway: a preview is for looking at what a file contains.
-        if (str_starts_with($mime, 'text/html') || str_contains($mime, 'xml')) {
-            $mime = 'text/plain';
-        }
-
         abort_unless(
             array_filter(self::INLINE_PREFIXES, fn (string $p): bool => str_starts_with($mime, $p))
-                || $mime === 'application/pdf',
+                || in_array($mime, self::INLINE_TYPES, true),
             415,
         );
 
@@ -83,8 +85,22 @@ class FilePreviewController extends Controller
                 'Content-Disposition' => 'inline; filename="'.addslashes($file->name).'"',
                 // The type above is a decision, not a hint: without this a
                 // browser may sniff the bytes and render as HTML something
-                // deliberately served as text.
+                // served as something else.
                 'X-Content-Type-Options' => 'nosniff',
+
+                // Every response from here is somebody's uploaded bytes,
+                // served same-origin and rendered by a browser. `sandbox`
+                // with no allow-scripts puts the document in an opaque origin
+                // and stops its scripts executing -- so an uploaded HTML page
+                // previewed here cannot read or act as whoever opened it.
+                //
+                // This replaces rewriting text/html to text/plain, which
+                // achieved the same safety by making the preview useless for
+                // the one type people most want to look at. The header holds
+                // however the response is loaded, including a direct
+                // navigation to the URL, which an iframe's own sandbox
+                // attribute does not cover.
+                'Content-Security-Policy' => "sandbox; default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'",
                 'Cache-Control' => 'private, max-age=0, must-revalidate',
             ],
         );

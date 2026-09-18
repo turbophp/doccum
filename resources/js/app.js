@@ -8,6 +8,7 @@
 // the graph.
 import { startDragAndDrop } from './shell/dnd.js';
 import { move, springs, micro } from './shell/motion.js';
+import { registerPreview } from './shell/preview.js';
 
 // Exposed two ways, because the shell uses both.
 //
@@ -22,6 +23,11 @@ document.addEventListener('alpine:init', () => {
     window.Alpine.magic('move', () => move);
     window.Alpine.magic('springs', () => springs);
     window.Alpine.magic('micro', () => micro);
+
+    // The preview's tabs, syntax highlighting and Word conversion. The heavy
+    // libraries behind it are dynamic imports inside the component, so this
+    // registration costs nothing until a preview is opened.
+    registerPreview(window.Alpine);
 });
 
 // Delegated to the document, so it survives every Livewire DOM swap.

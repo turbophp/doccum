@@ -350,10 +350,10 @@
     "expectFailing": "refuses to strip the sole holder of users.manage down to a role with no permission"
   },
   {
-    "id": "previewed-html-is-served-as-text-not-html",
-    "why": "The preview endpoint serves bytes INLINE and is same-origin with the application, which the download endpoint never was. HTML rendered there would run its own scripts with the viewer's session, so anyone able to upload a file could read or act as anyone who previews it -- and the file browser's whole point is that people upload files to each other. Remove the line that rewrites text/html to text/plain and the response comes back as text/html, which the browser executes. Showing markup as text loses nothing: a preview is for seeing what a file contains.",
+    "id": "previewed-bytes-are-sandboxed-so-an-upload-cannot-run-as-the-app",
+    "why": "The preview endpoint serves somebody's uploaded bytes INLINE, same-origin, for a browser to render -- which the download endpoint never did. Without a sandbox policy an uploaded HTML page runs its own scripts with the viewer's session, so in a system built around people filing documents for each other, one upload acts as whoever opens it. The header carries `sandbox` with no allow-scripts: the document still renders, in an opaque origin, with scripts inert, and it holds however the response is loaded -- including a direct navigation, which an iframe's sandbox attribute does not cover. Remove the header and the response comes back with nothing stopping it executing.",
     "file": "app/Http/Controllers/FilePreviewController.php",
-    "remove": "            $mime = 'text/plain';\n",
-    "expectFailing": "serves uploaded HTML as plain text, never as HTML"
+    "remove": "                'Content-Security-Policy' => \"sandbox; default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'\",\n",
+    "expectFailing": "neutralises uploaded HTML with a sandbox policy"
   }
 ]

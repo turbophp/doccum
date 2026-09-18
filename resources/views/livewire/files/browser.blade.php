@@ -117,12 +117,12 @@
                         wire:navigate
                         aria-label="{{ __('Home directory') }}"
                         @class([
-                            'flex h-7 items-center gap-1.5 rounded-md pl-1.5 pr-1.5 text-sm text-ink',
-                            'bg-select/10 font-medium' => $directory?->getKey() === $homeDirectory->getKey(),
-                            'hover:bg-chrome' => $directory?->getKey() !== $homeDirectory->getKey(),
+                            'flex h-7 items-center gap-1.5 rounded px-1.5 text-sm no-underline',
+                            'bg-chrome font-medium text-ink' => $directory?->getKey() === $homeDirectory->getKey(),
+                            'text-ink-2 hover:bg-chrome/60 hover:text-ink' => $directory?->getKey() !== $homeDirectory->getKey(),
                         ])
                     >
-                        <flux:icon.home variant="micro" class="shrink-0 text-ink-2" aria-hidden="true" />
+                        <flux:icon.home variant="micro" class="size-4 shrink-0" aria-hidden="true" />
                         {{ __('Home') }}
                     </a>
                 </div>
@@ -822,12 +822,12 @@
                 @endphp
 
                 @if ($position)
-                    <span class="num text-xs text-ink-2" data-test="preview-position">
+                    <span class="num text-sm text-ink-2" data-test="preview-position">
                         {{ __(':position of :total', ['position' => $position[0], 'total' => $position[1]]) }}
                     </span>
 
                     <flux:button
-                        size="xs"
+                        size="sm"
                         variant="subtle"
                         icon="chevron-left"
                         :aria-label="__('Previous file')"
@@ -837,7 +837,7 @@
                     />
 
                     <flux:button
-                        size="xs"
+                        size="sm"
                         variant="subtle"
                         icon="chevron-right"
                         :aria-label="__('Next file')"
@@ -848,7 +848,7 @@
                 @endif
 
                 <flux:button
-                    size="xs"
+                    size="sm"
                     icon="arrow-down-tray"
                     :href="route('files.download', $previewing)"
                     data-test="preview-download"
@@ -893,7 +893,95 @@
                             class="max-h-full max-w-full object-contain"
                             data-test="preview-image"
                         />
-                    @elseif ($mime === 'application/pdf' || str_starts_with($mime, 'text/'))
+                    @elseif ($mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+                        {{-- Converted in the browser by mammoth: nothing renders
+                             a .docx natively, and converting server-side would
+                             mean LibreOffice in the image, which this project
+                             has deferred. The result is somebody's uploaded
+                             document, so it goes into a sandboxed frame rather
+                             than into this page's DOM. --}}
+                        <div
+                            class="h-full w-full"
+                            x-data="filePreview({ url: @js($source), mime: @js($mime), name: @js($previewing->name), kind: 'word' })"
+                            data-test="preview-word"
+                        >
+                            <template x-if="state === 'loading'">
+                                <div class="flex h-full items-center justify-center gap-2 text-sm text-ink-2">
+                                    <flux:icon.arrow-path variant="micro" class="animate-spin" />
+                                    {{ __('Converting document…') }}
+                                </div>
+                            </template>
+
+                            <template x-if="state === 'failed'">
+                                <div class="flex h-full flex-col items-center justify-center gap-2 text-center">
+                                    <flux:icon.exclamation-triangle variant="outline" class="size-8 text-attention" />
+                                    <p class="text-sm text-ink">{{ __('This document could not be converted.') }}</p>
+                                    <p class="text-xs text-ink-2" x-text="failure"></p>
+                                </div>
+                            </template>
+
+                            <iframe
+                                x-show="state === 'ready'"
+                                x-bind:srcdoc="documentFrame"
+                                sandbox=""
+                                title="{{ $previewing->name }}"
+                                class="h-full w-full rounded border border-rule bg-sheet"
+                                data-test="preview-word-frame"
+                            ></iframe>
+                        </div>
+                    @elseif (str_starts_with($mime, 'text/') || str_contains($mime, 'json') || str_contains($mime, 'xml'))
+                        {{-- Text gets its source, highlighted. Markup gets both:
+                             what it renders as, and what it says. A stored
+                             document is evidence, so the source is never
+                             reformatted -- prettifying it would show something
+                             other than what is filed. --}}
+                        @php($rendersAsPage = str_contains($mime, 'html'))
+
+                        <div
+                            class="flex h-full w-full flex-col"
+                            x-data="filePreview({ url: @js($source), mime: @js($mime), name: @js($previewing->name), kind: 'text', initialTab: @js($rendersAsPage ? 'preview' : 'code') })"
+                            data-test="preview-text"
+                        >
+                            @if ($rendersAsPage)
+                                <div class="mb-2 flex shrink-0 items-center gap-1 border-b border-rule">
+                                    @foreach ([['preview', __('Preview')], ['code', __('Code')]] as [$key, $label])
+                                        <button
+                                            type="button"
+                                            x-on:click="show(@js($key))"
+                                            x-bind:class="tab === @js($key) ? 'border-ink text-ink' : 'border-transparent text-ink-2 hover:text-ink'"
+                                            class="-mb-px border-b-2 px-3 py-2 text-sm"
+                                            data-test="preview-tab-{{ $key }}"
+                                        >{{ $label }}</button>
+                                    @endforeach
+                                </div>
+
+                                <iframe
+                                    x-show="tab === 'preview'"
+                                    src="{{ $source }}"
+                                    sandbox=""
+                                    title="{{ $previewing->name }}"
+                                    class="min-h-0 w-full flex-1 rounded border border-rule bg-sheet"
+                                    data-test="preview-frame"
+                                ></iframe>
+                            @endif
+
+                            <div
+                                @if ($rendersAsPage) x-show="tab === 'code'" @endif
+                                class="min-h-0 flex-1 overflow-auto rounded border border-rule bg-chrome"
+                                data-test="preview-code"
+                            >
+                                <template x-if="state === 'loading'">
+                                    <div class="p-4 text-sm text-ink-2">{{ __('Loading…') }}</div>
+                                </template>
+
+                                <template x-if="state === 'failed'">
+                                    <div class="p-4 text-sm text-attention" x-text="failure"></div>
+                                </template>
+
+                                <pre class="overflow-auto p-4 text-xs leading-relaxed"><code class="hljs" x-html="code"></code></pre>
+                            </div>
+                        </div>
+                    @elseif ($mime === 'application/pdf')
                         {{-- An iframe, so the browser's own PDF and text viewers
                              do the work. Bundling a JavaScript PDF renderer would
                              add megabytes to an image that already ships MinIO
