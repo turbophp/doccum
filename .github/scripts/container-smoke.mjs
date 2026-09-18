@@ -1231,13 +1231,28 @@ async function clickFileRow(page, name, { shift = false, ctrl = false } = {}) {
  * the product actually renders and asserts the bytes arrive and match what
  * was uploaded.
  *
- * THIS CHECK IS EXPECTED TO FAIL ON TODAY'S MAIN, and is pushed first for
- * that reason. Everything asserted about issue #74 so far -- including the
- * verification done when it was turned into a backlog item -- is a reading
- * of the code. Nobody has watched the download fail. A smoke assertion that
- * goes red before any fix exists is the first actual observation in the
- * episode, and it means the eventual fix lands against a proof that was
- * failing beforehand rather than one written afterwards to agree with it.
+ * THIS CHECK WAS PUSHED BEFORE THE FIX EXISTED, AND FAILED. That is the
+ * whole reason to trust it. Everything asserted about issue #74 until then
+ * -- the original issue, the review that promoted it to a backlog item, and
+ * a verification pass over the same files -- was a reading of the code, and
+ * nobody had watched the download fail.
+ *
+ * RECORD, both directions, same assertion, unchanged between them:
+ *
+ *   before the fix (PR #127, head a22a1de) -> image FAILS
+ *     [setup] following the Download link for DoccumSmokeDownloadTarget.txt:
+ *             http://127.0.0.1:8080/files/4/download
+ *     [setup] Download ... never produced a response: apiRequestContext.get:
+ *             connect ECONNREFUSED 127.0.0.1:9000
+ *     https://github.com/turbophp/doccum/actions/runs/35288804743/job/105426944343
+ *
+ *   with the fix (PR #127, head 683fa1d) -> image PASSES
+ *
+ * Note what the failing run showed that a reading could not have: the
+ * Download link itself was fine -- port 8080, the published one -- and the
+ * request reached the controller and was authorised. It is the REDIRECT
+ * TARGET that refused the connection. That is the defect located, not merely
+ * detected.
  *
  * What the reading says will happen: FileDownloadController redirects to a
  * presigned URL whose host comes from the documents disk's endpoint, which
