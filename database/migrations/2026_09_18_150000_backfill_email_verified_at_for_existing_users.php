@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\DB;
 
 /**
  * item/email-verification-decided (issue #161) made User implement
@@ -62,9 +61,14 @@ return new class extends Migration
         // by the migration written to stop anyone being locked out.
         // CURRENT_TIMESTAMP is standard in SQLite, MySQL and PostgreSQL
         // alike, so this stays portable across all three test legs.
-        DB::table('users')
-            ->whereNull('email_verified_at')
-            ->update(['email_verified_at' => DB::raw('COALESCE(created_at, CURRENT_TIMESTAMP)')]);
+        // MUTATION -- DO NOT MERGE: the backfill removed. The migration still
+        // exists and still records itself as run, so it is the fix that is
+        // gone, not the migration -- which is the shape the smoke has to
+        // catch.
+        //
+        // DB::table('users')
+        //     ->whereNull('email_verified_at')
+        //     ->update(['email_verified_at' => DB::raw('COALESCE(created_at, CURRENT_TIMESTAMP)')]);
     }
 
     /**
