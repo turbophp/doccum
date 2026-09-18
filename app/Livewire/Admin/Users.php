@@ -79,7 +79,7 @@ class Users extends Component
             'email' => $this->email,
             'password' => $this->password,
             'password_confirmation' => $this->password_confirmation,
-        ], $this->role !== '' ? $this->role : null, verified: true);
+        ], $this->role !== '' ? $this->role : null);
 
         $this->reset(['name', 'username', 'email', 'password', 'password_confirmation', 'role']);
     }
