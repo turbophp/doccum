@@ -1375,6 +1375,17 @@ async function checkDownloadReturnsTheUploadedBytes(page, phase) {
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
   await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
 
+  await downloadAndCompareBytes(page, name, expected, phase);
+}
+
+/**
+ * Follows a listed file's Download link and requires the response body to
+ * hash to `expectedSha`. Split out of checkDownloadReturnsTheUploadedBytes()
+ * so the VERIFY phase can reuse it; see runVerify() for why that matters.
+ *
+ * The caller is responsible for being on a listing that shows the row.
+ */
+async function downloadAndCompareBytes(page, name, expectedSha, phase) {
   const row = page.locator('tr[data-test="file-row"]').filter({ hasText: name });
   await row.waitFor({ state: 'visible', timeout: 10000 });
 
@@ -1400,21 +1411,24 @@ async function checkDownloadReturnsTheUploadedBytes(page, phase) {
   }
 
   if (! response.ok()) {
-    dumpContainerState(`[${phase}] Download for ${name} answered HTTP ${response.status()} (issue #74)`);
+    dumpContainerState(
+      `[${phase}] Download for ${name} answered HTTP ${response.status()}` +
+      ' -- the file row exists but its BYTES did not come back',
+    );
     throw Object.assign(new Error(`Download answered HTTP ${response.status()} for ${name}`), { dumped: true });
   }
 
   const got = crypto.createHash('sha256').update(await response.body()).digest('hex');
 
-  if (got !== expected) {
+  if (got !== expectedSha) {
     dumpContainerState(
       `[${phase}] Download for ${name} answered ${response.status()} but the bytes hash to ${got},` +
-      ` expected ${expected} -- something answered that is not the document`,
+      ` expected ${expectedSha} -- something answered that is not the document`,
     );
     throw Object.assign(new Error(`Download body mismatch for ${name}`), { dumped: true });
   }
 
-  console.log(`[${phase}] Download returned the uploaded bytes for ${name} -- OK`);
+  console.log(`[${phase}] Download returned the stored bytes for ${name} -- OK`);
 }
 
 /**
@@ -1844,7 +1858,32 @@ async function runVerify() {
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
     await page.getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
     await page.getByText(FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-    console.log('[verify] the uploaded file is still listed -- object storage persisted');
+    console.log('[verify] the uploaded file is still listed -- the DATABASE persisted');
+
+    // The listing above is a SQLite read, and for this phase's whole life it
+    // carried the log line "object storage persisted". It never touched an
+    // object. Nothing else in verify did either: the search below is SQLite
+    // too, and checkDownloadReturnsTheUploadedBytes() runs in setup only. So
+    // the one claim this phase exists to make -- that /data is the only
+    // persistent volume and everything on it survives the container being
+    // replaced -- was asserted from evidence that cannot see it. A container
+    // that came back with /data/objects emptied, or minio.env lost, or the
+    // bucket gone, passed this phase green while reporting the opposite of
+    // what it had measured. Dockerfile:85 records the MIRROR of that failure
+    // (database in the image layer, objects on the volume, "half-alive"),
+    // which this phase did catch, precisely because it reads the database.
+    //
+    // CLAUDE.md: a smoke assertion is worth only what a mutation says it is,
+    // and prefer an assertion that requires the feature to DO something. So
+    // this now fetches the bytes. The body is deterministic from the
+    // environment -- runSetup() uploads exactly this string -- so the
+    // checksum is computable here without carrying state between phases,
+    // which is the constraint this file is built around.
+    const persistedBody = `This is a doccum container smoke test document containing the marker word ${FILE_MARKER}.\n`;
+    const persistedSha = crypto.createHash('sha256').update(persistedBody).digest('hex');
+
+    await downloadAndCompareBytes(page, FILE_NAME, persistedSha, 'verify');
+    console.log('[verify] the bytes came back from the replacement container -- OBJECT STORAGE persisted');
 
     await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
     await searchUntilFound(page, 'verify');
