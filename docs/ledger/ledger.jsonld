@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T07:01:59Z",
+  "dateModified": "2026-09-18T07:38:11Z",
   "latestRun": "run/0019",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -737,11 +737,13 @@
       "dependsOn": [
         "item/email-folding"
       ],
-      "doneWhen": "Login resolves an identifier that is either a username or an email through AuthenticateUser, which today compares by email alone; the collision rule is decided and stated (a value that is a valid username AND some other account's email); login.blade.php stops using type=\"email\" on the identifier field, which rejects a username in the browser before any of this is reached; tests cover login by each, and the docblock claim in AuthenticateUser that this is 'tracked as its own item' becomes true.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": null
+      "doneWhen": "Login resolves an identifier that is either a username or an email through AuthenticateUser, which today compares by email alone; the collision rule is decided and stated -- and the decision, recorded at completion rather than by quietly dropping the clause, is that the case this parenthetical describes (a value that is a valid username AND some other account's email) is UNREACHABLE by construction: usernameRules() excludes @ and an email must contain one. No precedence rule was invented for it, because inventing one would assert an ambiguity that does not exist and the next reader would reason from it. What the clause was standing on was enforced instead -- see decision/0042 and User::booted(); login.blade.php stops using type=\"email\" on the identifier field, which rejects a username in the browser before any of this is reached; tests cover login by each, and the docblock claim in AuthenticateUser that this is 'tracked as its own item' becomes true.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T07:05:00Z",
+      "endTime": "2026-09-18T07:36:46Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/168"
+      ]
     },
     {
       "@id": "item/admin-users",
@@ -2378,6 +2380,38 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/168",
+      "@type": "PullRequest",
+      "identifier": 168,
+      "name": "item/login-by-username: accept a username at login, and enforce what makes that unambiguous (#75)",
+      "implements": [
+        "item/login-by-username"
+      ],
+      "run": "run/0019",
+      "state": "merged",
+      "dateCreated": "2026-09-18T07:20:00Z",
+      "headSha": "9ff8a305761b1f23536e78d80d3c45bafbe76e21",
+      "mergedAt": "2026-09-18T07:36:46Z",
+      "mergeSha": "30c759c83e6f50ff667803603713ee2b0be5b770",
+      "mergedIn": "run/0019"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/169",
+      "@type": "PullRequest",
+      "identifier": 169,
+      "name": "MUTATION -- DO NOT MERGE: login resolves by email only again",
+      "implements": [
+        "item/login-by-username"
+      ],
+      "run": "run/0019",
+      "state": "closed",
+      "dateCreated": "2026-09-18T07:28:00Z",
+      "headSha": "4ce07d0951a29ac6bcad8dca6c5a4eda3624b40f",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -3073,6 +3107,23 @@
         "item/ci-green-baseline"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0042",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T07:40:00Z",
+      "run": "run/0019",
+      "name": "A doneWhen clause that presupposes an impossible case is refused, and the invariant it rests on is enforced instead",
+      "rationale": "item/login-by-username asked for something that should not be built, and the right answer was to refuse that clause and fix what it was standing on.\n\nTHE CLAUSE, AND WHY IT WAS DECLINED AS WRITTEN. The doneWhen asked for \"the collision rule decided and stated\" for a value that is a valid username AND some other account's email. Checked before briefing the worker: usernameRules() constrains usernames to /^[a-z0-9._-]+$/, which excludes @, and an email must contain one. The character sets are disjoint and the collision is unreachable by construction. Inventing a precedence rule for it would have been worse than leaving the clause unsatisfied: it would assert an ambiguity that does not exist, and the next person to read it would believe the ambiguity was real and reason from it. The docblock states the disjointness instead, and names what keeps it true.\n\nWHAT THE CLAUSE WAS ACTUALLY STANDING ON. The disjointness was held by convention, not by anything. Every application write path validates because each one remembers to; UserFactory is already a path that does not, and there is no model-level enforcement on username at all -- unlike email, whose saving() hook describes itself as \"the one hook nothing can bypass\". The implementing worker enumerated every write path as asked and reported that gap plainly rather than glossing it, which is what made the decision available.\n\nWHY IT HAD TO BE CLOSED HERE RATHER THAN FILED. AuthenticateUser now dispatches on str_contains($identifier, '@'). Before this item nothing consulted that property of a username, so an unvalidated one was harmless. After it, a username equal to another account's email sends the typing user to THAT account's row -- an account-takeover shape, not a failed login. decision/0034 records the same pattern for DirectoryPolicy::manageAccess(): a gap latent only because no caller exercised it, closed by the item that made it live rather than filed for later. User::booted() now folds the username and raises UsernameWouldBeAmbiguous on an @, beside the email fold and for the same stated reason.\n\nTHE MUTATION ENTRY, SHAPED BY THE PREVIOUS ITEM'S LESSON. user-model-refuses-an-at-sign-in-a-username removes the guard but LEAVES the fold, so the mutated code is valid PHP that persists an @ username and the test fails on data rather than on an exception. item/search-filters had to learn that the hard way one item earlier, when its FTS5 guard removed a SQL fragment and left its bindings behind, so the mutation failed on a placeholder mismatch and would have proved that SQLite counts placeholders. Applied here before CI had to teach it twice; simulated locally rather than assumed.\n\nA GUARD THAT ASKED FOR A SENTENCE AND DESERVED IT. SchemaPortabilityTest, decision/0010's audit, failed on every engine: two files under app/ now match its driver-dependent scan and were unregistered. Both are mb_strtolower() -- the scanner's pattern includes lower\\( -- and neither is raw SQL. The diff was computed locally rather than guessed: exactly two, both from this item, no stale entries. The registration says why these sites are the OPPOSITE of a portability hazard: the fold happens in PHP before any lookup, so no comparison depends on a column collation, where PostgreSQL would compare case-sensitively and SQLite and MySQL would not. The test was not an obstacle to route around; it asked for a sentence about what this code depends on, and the sentence is worth having.\n\nTHE MUTATION'S VERDICT WAS SHARPER THAN THE PREDICTION. PR 169 pinned the dispatch back to email-only and left everything else -- the folding, the model guard, and the blade's type=\"text\" field with its \"Username or email\" label. So the page still invited a username and only the server could not authenticate one, which is the shape a half-finished version of this item would have. The whole setup phase passed, INCLUDING its email logins, and only the verify phase's username login was stranded. The verdict therefore isolates username resolution rather than login at large. Reverting the blade too would have made the mutation louder and proved less, because the browser would have rejected the input before the server was ever consulted.\n\nAND THE FAILURE NAMED NOTHING, AGAIN. It arrived as a bare page.waitForURL timeout, readable only because the console line above happened to say USERNAME. Rule 3 says a failure that names no assertion is not evidence, and item/home-dashboard fixed the same shape two items ago. Named here, and named with the distinction the mutation revealed rather than generically: every earlier email login passed, so being stranded at this one is what separates a broken username branch from a broken login.",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "affects": [
+        "item/login-by-username",
+        "item/email-folding",
+        "item/directory-access-ui"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -3241,6 +3292,20 @@
       "headSha": "e2f7664eaf5e91ad5cea5a14dc4b052e37a7b38b",
       "mutant": "period_year drops out of the filter list Fts5SearchIndex iterates, so the index ignores a Year the caller asked for; the permission scope and every other filter are untouched",
       "check": "container-smoke.mjs checkSearchFilterExcludesByPeriod() -- the detached wait proving the row LEAVES the page under a year it cannot carry",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0013",
+      "@type": "Mutation",
+      "implements": [
+        "item/login-by-username"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/169",
+      "run": "run/0019",
+      "headSha": "4ce07d0951a29ac6bcad8dca6c5a4eda3624b40f",
+      "mutant": "AuthenticateUser pins $column to 'email', reverting the dispatch; the folding, the User::booted guard and the blade's type=\"text\" field are all left in place, so the page still invites a username and only the server cannot authenticate one",
+      "check": "container-smoke.mjs runVerify() -- logging back in with ADMIN_USERNAME and leaving /login; every setup-phase login is by email and all of them still passed, so the failure isolates username resolution rather than login at large",
       "verdict": "negative",
       "supersedes": null
     }
