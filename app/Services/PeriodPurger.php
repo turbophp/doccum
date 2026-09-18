@@ -26,12 +26,20 @@ use Illuminate\Support\Facades\DB;
  * `plan()` answers "what would this destroy" without writing, so the
  * question can be asked safely; `purge()` is `plan()` plus the deletions.
  * See spec §9.
+ *
+ * The retention window is read through Settings::get('retention.
+ * purge_after_years'), never through config() directly -- item/admin-
+ * instance-settings (issue #21) moved that value under config('doccum.
+ * settings') so the operator's settings-page write actually changes what
+ * this class reports. Reading config() here would have kept honouring the
+ * code default forever, no matter what the operator saved.
  */
 class PeriodPurger
 {
     public function __construct(
         private readonly DocumentStorage $storage,
         private readonly SearchIndexer $indexer,
+        private readonly Settings $settings,
     ) {}
 
     public function plan(int $year, ?int $month = null): PurgePlan
@@ -161,7 +169,7 @@ class PeriodPurger
             $blockers[] = 'It has not been archived.';
         }
 
-        $years = config('doccum.retention.purge_after_years');
+        $years = $this->settings->get('retention.purge_after_years');
         $cutoff = $this->retentionCutoff();
 
         if ($years === null || $cutoff === null) {
@@ -194,7 +202,7 @@ class PeriodPurger
 
     private function retentionCutoff(): ?CarbonImmutable
     {
-        $years = config('doccum.retention.purge_after_years');
+        $years = $this->settings->get('retention.purge_after_years');
 
         return $years === null ? null : now()->subYears((int) $years);
     }

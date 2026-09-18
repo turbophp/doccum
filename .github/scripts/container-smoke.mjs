@@ -1072,7 +1072,12 @@ async function checkTopbar(page, phase) {
   // the note above. periods.manage is not held by users.manage or
   // properties.manage, so an @elsecan chained onto either of those would
   // have hidden this entry from the very administrator this smoke runs as.
-  for (const [section, testId] of [['Users', 'nav-settings-users'], ['Roles', 'nav-settings-roles'], ['Archive periods', 'nav-settings-periods']]) {
+  // item/admin-instance-settings (issue #21): same reasoning again --
+  // gated on users.manage, same as Users and Roles above, so it would
+  // already be reachable through that block alone, but its own independent
+  // @can block (never @elsecan) keeps that true even if a future change
+  // narrows one of these permissions on its own.
+  for (const [section, testId] of [['Users', 'nav-settings-users'], ['Roles', 'nav-settings-roles'], ['Archive periods', 'nav-settings-periods'], ['Instance settings', 'nav-settings-instance']]) {
     try {
       await page.locator(`[data-test="${testId}"]`).waitFor({ state: 'visible', timeout: 10000 });
     } catch {
@@ -1086,7 +1091,7 @@ async function checkTopbar(page, phase) {
       );
     }
   }
-  console.log(`[${phase}] Users, Roles and Archive periods are reachable from the account menu too -- OK`);
+  console.log(`[${phase}] Users, Roles, Archive periods and Instance settings are reachable from the account menu too -- OK`);
 
   return logout;
 }
@@ -1202,6 +1207,61 @@ async function checkHomeDashboardShowsRecentUpload(page, phase) {
   }
 
   console.log(`[${phase}] Home lists ${FILE_NAME} under "Recent files" -- real data, not a placeholder`);
+}
+
+/**
+ * item/email-verification-decided (issue #161): User now implements
+ * MustVerifyEmail for real, and `dashboard` carries the `verified`
+ * middleware -- so if the first administrator were not verified at
+ * creation, checkHomeDashboardShowsRecentUpload() below (and everything
+ * this smoke does afterwards, all of it as this same logged-in admin) would
+ * fail at the very first /dashboard visit. That is real coverage, but it is
+ * diffuse: it would show up as an unrelated-looking cascade of failures
+ * with no assertion naming the actual cause. This gives that fact a name of
+ * its own, right after the installer hands back control and before
+ * anything else has a chance to obscure it.
+ *
+ * Evidence through tinker() first (the column itself), then the DOM as
+ * confirmation (the middleware actually letting the request through) --
+ * the same order checkAdminInstanceSettingsPage() uses for its own
+ * round-trip check.
+ */
+async function checkFirstAdminIsVerified(page, phase) {
+  const output = tinker(
+    "$u = \\App\\Models\\User::first(); echo 'VERIFIED:' . ($u && $u->hasVerifiedEmail() ? 'yes' : 'no');",
+  );
+
+  if (!output.includes('VERIFIED:yes')) {
+    dumpContainerState(
+      `[${phase}] the first administrator's email_verified_at is not set right after setup -- raw tinker output: ${output.trim()}`,
+    );
+    throw Object.assign(
+      new Error('the first administrator was not verified at creation'),
+      { dumped: true },
+    );
+  }
+  console.log(`[${phase}] the first administrator's email_verified_at is set -- OK`);
+
+  await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
+
+  try {
+    // data-test="home-recent-files" (resources/views/livewire/home/index.
+    // blade.php) renders unconditionally, with or without any recent files
+    // -- exactly what makes it safe to check here, before this admin has
+    // uploaded anything at all. Its absence means the request never reached
+    // Home\Index, which is what a `verified` redirect to email verification
+    // would look like.
+    await page.locator('[data-test="home-recent-files"]').waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] /dashboard did not render Home for the first administrator -- current URL: ${page.url()}. Likely redirected to email verification instead of reaching a 'verified' route.`,
+    );
+    throw Object.assign(
+      new Error("the first administrator could not reach /dashboard, a 'verified' route"),
+      { dumped: true },
+    );
+  }
+  console.log(`[${phase}] the first administrator reaches /dashboard, a 'verified' route -- OK`);
 }
 
 /**
@@ -2872,6 +2932,103 @@ async function checkAdminPeriodsPage(page, phase) {
 }
 
 /**
+ * item/admin-instance-settings (issue #21). Follows checkAdminPeriodsPage()
+ * above exactly: failures dump container state naming what was being
+ * proved and throw with { dumped: true }; database/HTTP evidence is the
+ * assertion, DOM checks are confirmation afterwards.
+ *
+ * The load-bearing assertion is the doneWhen itself, verbatim: toggling
+ * auth.public_signup through the real form flips /register between 404 and
+ * 200. That is checked from a SEPARATE, cookie-less browser context --
+ * never from `page`, which is authenticated as the administrator for the
+ * whole of this script -- because /register is a guest-only route and the
+ * fact this proves is what an anonymous visitor sees, not what an
+ * authenticated admin sees. A Blade test can assert the same thing against
+ * the test renderer; it cannot see this route wired up, this exact
+ * middleware registered, and this exact page's Save button reaching it, all
+ * inside the built image.
+ *
+ * The instance-name round trip is a second, weaker confirmation -- read
+ * back through tinker, which is DOM-adjacent evidence, not the resting
+ * state of an input.
+ *
+ * Public signup is switched back off at the end, on the SAME guest-facing
+ * fact this check started from: later checks in this script share this
+ * container, and one that left signup on would change what every check
+ * after it is running against.
+ */
+async function checkAdminInstanceSettingsPage(page, phase) {
+  const guestContext = await page.context().browser().newContext();
+
+  try {
+    const guestPage = await guestContext.newPage();
+
+    function registerStatus() {
+      return guestPage.goto(`${BASE_URL}/register`, { waitUntil: 'domcontentloaded' });
+    }
+
+    console.log(`[${phase}] checking /register answers 404 for a guest before public sign-up is enabled`);
+    let response = await registerStatus();
+    let status = response ? response.status() : null;
+
+    if (status !== 404) {
+      dumpContainerState(`[${phase}] /register answered HTTP ${status} for a guest before this check touched auth.public_signup -- expected 404`);
+      throw Object.assign(new Error(`/register did not start this check at 404, answered ${status}`), { dumped: true });
+    }
+    console.log(`[${phase}] /register answers 404 for a guest -- OK`);
+
+    console.log(`[${phase}] opening /admin/settings as the administrator`);
+    await page.goto(`${BASE_URL}/admin/settings`, { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-test="instance-signup-form"]').waitFor({ state: 'visible', timeout: 10000 });
+
+    console.log(`[${phase}] enabling public sign-up through the real form`);
+    // getByLabel(), not a data-test locator: flux:checkbox renders a
+    // label/wrapper around the real <input>, the same reasoning the
+    // close-period form's own note in the Blade view gives for flux:input.
+    await page.locator('[data-test="instance-signup-form"]').getByLabel('Allow anyone to create an account', { exact: true }).check();
+    await clickAndWaitForLivewire(page, page.locator('[data-test="instance-signup-save-button"]'));
+
+    console.log(`[${phase}] checking /register now answers 200 for that same guest`);
+    response = await registerStatus();
+    status = response ? response.status() : null;
+
+    if (status !== 200) {
+      dumpContainerState(`[${phase}] enabling auth.public_signup through /admin/settings never made /register answer 200 for a guest -- got HTTP ${status}`);
+      throw Object.assign(new Error(`/register did not become reachable after enabling public sign-up through the page, answered ${status}`), { dumped: true });
+    }
+    console.log(`[${phase}] /register answers 200 for a guest after enabling public sign-up through the page -- OK (the doneWhen)`);
+
+    console.log(`[${phase}] round-tripping the instance name through the real form`);
+    const instanceNameField = page.locator('[data-test="instance-name-form"]').getByLabel('Instance name', { exact: true });
+    await instanceNameField.fill('Doccum Smoke Instance');
+    await clickAndWaitForLivewire(page, page.locator('[data-test="instance-name-save-button"]'));
+
+    const storedName = tinker("echo 'NAME:' . app(\\App\\Services\\Settings::class)->get('instance.name');").trim();
+    if (!storedName.includes('NAME:Doccum Smoke Instance')) {
+      dumpContainerState(`[${phase}] saving the instance name through /admin/settings did not reach the Settings service -- raw output: ${storedName}`);
+      throw Object.assign(new Error(`instance name was not persisted through Settings::set() -- raw output: ${storedName}`), { dumped: true });
+    }
+    console.log(`[${phase}] the instance name round-trips through the Settings service -- OK`);
+
+    console.log(`[${phase}] turning public sign-up back off, so later checks share the container in its original state`);
+    await page.goto(`${BASE_URL}/admin/settings`, { waitUntil: 'domcontentloaded' });
+    await page.locator('[data-test="instance-signup-form"]').getByLabel('Allow anyone to create an account', { exact: true }).uncheck();
+    await clickAndWaitForLivewire(page, page.locator('[data-test="instance-signup-save-button"]'));
+
+    response = await registerStatus();
+    status = response ? response.status() : null;
+
+    if (status !== 404) {
+      dumpContainerState(`[${phase}] disabling auth.public_signup through /admin/settings left /register answering HTTP ${status} for a guest -- expected 404`);
+      throw Object.assign(new Error(`/register did not go back to 404 after disabling public sign-up through the page, answered ${status}`), { dumped: true });
+    }
+    console.log(`[${phase}] /register answers 404 for a guest again -- signup left off for later checks -- OK`);
+  } finally {
+    await guestContext.close();
+  }
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -3062,6 +3219,9 @@ async function runSetup() {
 
     checkEmbeddedSqlitePragmas();
 
+    console.log('[setup] checking the first administrator is verified at creation and reaches a verified route (issue #161)');
+    await checkFirstAdminIsVerified(page, 'setup');
+
     console.log('[setup] opening the home directory');
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
 
@@ -3140,6 +3300,9 @@ async function runSetup() {
 
     console.log('[setup] closing a period through /admin/periods and checking the purge control is disabled and lists its blockers (issue #20)');
     await checkAdminPeriodsPage(page, 'setup');
+
+    console.log('[setup] toggling auth.public_signup through /admin/settings and checking /register flips between 404 and 200 for a guest (issue #21)');
+    await checkAdminInstanceSettingsPage(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();

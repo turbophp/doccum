@@ -15,7 +15,34 @@
     "item/trash-directory"
   ],
   "commit": "e4ae10ca8339a5d085388ab6c8dbbc9717559a7e",
-  "tests": 431,
-  "assertions": 899,
-  "description": "Landed the three PRs the previous run left queued -- the ledger runs, the PRIMARY_PHP correction and legal hold -- each green on all fourteen checks and each diff read before merging. The queue had backed up because the loop had been told to ask before landing anything, which contradicted the standing instruction to review and merge; the Routine now merges what it has reviewed and green, and refuses anything red, still running, or unread. The run's real work was the decision content-actions had been blocking on. Sibling names are compared case-insensitively, accent-sensitively, after NFC normalisation, on a persisted key -- the portable-looking SQL expression is wrong on two of three drivers, since LOWER() inherits MySQL's collation and SQLite's is ASCII-only without ICU. Splitting that out exposed a second, worse thing: the clause about a trashed directory's files vanishing described behaviour the codebase does not have. A live grandchild of a trashed directory still prefix-matches a grant held on a live ancestor, so its files stay searchable, while a file directly inside the trashed directory is hidden only by the SoftDeletes scope on the query that builds the reachable set -- incidental, unasserted, and inconsistent with what happens when the grant sits on the trashed directory instead. That became its own item with a test that must fail on main first. topbar-shell was started in parallel rather than waiting on any of this, being the item seven others depend on."
+  "description": "Landed the three PRs the previous run left queued -- the ledger runs, the PRIMARY_PHP correction and legal hold -- each green on all fourteen checks and each diff read before merging. The queue had backed up because the loop had been told to ask before landing anything, which contradicted the standing instruction to review and merge; the Routine now merges what it has reviewed and green, and refuses anything red, still running, or unread. The run's real work was the decision content-actions had been blocking on. Sibling names are compared case-insensitively, accent-sensitively, after NFC normalisation, on a persisted key -- the portable-looking SQL expression is wrong on two of three drivers, since LOWER() inherits MySQL's collation and SQLite's is ASCII-only without ICU. Splitting that out exposed a second, worse thing: the clause about a trashed directory's files vanishing described behaviour the codebase does not have. A live grandchild of a trashed directory still prefix-matches a grant held on a live ancestor, so its files stay searchable, while a file directly inside the trashed directory is hidden only by the SoftDeletes scope on the query that builds the reachable set -- incidental, unasserted, and inconsistent with what happens when the grant sits on the trashed directory instead. That became its own item with a test that must fail on main first. topbar-shell was started in parallel rather than waiting on any of this, being the item seven others depend on.",
+  "merges": [
+    {
+      "mergeSha": "4fc065cbee873be10dd52d3d6e0ae9c9e68391ab",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T07:51:15Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35196624213",
+      "testsConclusion": "cancelled",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35196624212",
+      "ledgerConclusion": "cancelled"
+    },
+    {
+      "mergeSha": "b3875a1866435240909c21ca65b0283b461b3898",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T07:51:21Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35196632040",
+      "testsConclusion": "cancelled",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35196631890",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "e4ae10ca8339a5d085388ab6c8dbbc9717559a7e",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/48",
+      "mergedAt": "2026-09-17T07:52:59Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35196767012",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35196767228",
+      "ledgerConclusion": "success"
+    }
+  ]
 }

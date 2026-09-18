@@ -11,7 +11,25 @@
     "item/container-smoke-ci"
   ],
   "commit": "e8b15f93428d592c9833ae6dc1fdfd747f17f47d",
-  "tests": 426,
-  "assertions": 889,
-  "description": "Merged the github-actions bumps after checking CI genuinely exercised the artifact upload and download round-trip across their major versions. Held the docker bump, which moved the shipped base image to PHP 8.5: ten checks were green but the image job only proves the container boots, and the matrix ran 8.4 alone, so no application code was executed on 8.5 anywhere -- the same gap that let composer.json advertise 8.3 support its own lock file made impossible. Opened a PR adding the 8.5 leg so that bump could be judged on evidence, and opened the container smoke test."
+  "description": "Merged the github-actions bumps after checking CI genuinely exercised the artifact upload and download round-trip across their major versions. Held the docker bump, which moved the shipped base image to PHP 8.5: ten checks were green but the image job only proves the container boots, and the matrix ran 8.4 alone, so no application code was executed on 8.5 anywhere -- the same gap that let composer.json advertise 8.3 support its own lock file made impossible. Opened a PR adding the 8.5 leg so that bump could be judged on evidence, and opened the container smoke test.",
+  "merges": [
+    {
+      "mergeSha": "1810e7a4cf5a741a6242c6507430f1739172e1e1",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T18:35:00Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35135307124",
+      "testsConclusion": "cancelled",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35135307470",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "e8b15f93428d592c9833ae6dc1fdfd747f17f47d",
+      "pullRequest": null,
+      "mergedAt": "2026-09-16T18:36:58Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35135516053",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35135516200",
+      "ledgerConclusion": "success"
+    }
+  ]
 }

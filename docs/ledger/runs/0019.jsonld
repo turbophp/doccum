@@ -14,7 +14,106 @@
     "item/admin-users"
   ],
   "commit": "c47ad90d203fd697e364c5d15e9c7ffd1560d714",
-  "tests": -1,
-  "assertions": -1,
-  "description": "Opened as its own run rather than continuing run/0018, deliberately and at a cost. item/ledger-mutation-nodes shipped last hour with MUTATION_RULES_EFFECTIVE_AFTER_RUN = 18, so rule 1 -- a Completed spec:10 item must be implements-referenced by a negative Mutation with a non-empty check -- binds from run/0019 onward and grandfathers everything at or below 18. item/home-dashboard is spec:10. Keeping it on run/0018 would have exempted it from the rule this loop shipped an hour earlier, which is gaming its own guard: the run boundary is not a place to buy an exemption. So this run starts here and the rule binds, and item/home-dashboard cannot be recorded Completed without a mutation node that names the assertion shown to fail. run/0018 closes green: main verified at 221b30e across all ten jobs from main's own push run, after decision/0039's fix to the smoke's upload gate. Its tests/assertions read -1, not 701/1446. The 701/1446 this file carried were run/0018's, copied forward when the run was opened and never re-measured -- while this run merged three items, each adding tests. A copied number reads as a measurement, so it is worse than no number. It cannot be re-measured here (there is no vendor/ in this environment, so the suite runs only in CI), and -1 is what the schema already permits for a value that was not taken. item/ledger-field-audit decides whether -1 gains that meaning formally or the two fields are removed; run/0016 and run/0017 carry the same defect, byte-identical at 649/1340 across a run that merged three items. Closed at c47ad90, verified green from main's own push runs (tests and ledger both success). Four items shipped: home-dashboard, search-filters, login-by-username, admin-users. The run also adopted mainConclusion as recorded evidence at merge time rather than at close, swept the orphan issues (with a correction to the sweep's own method), and filed four new items -- two from real orphans (#161, #153) and two from gaps a Fable consult found in the ledger itself (#172, #173). main moved under this run near the end: PR #163, another session's design-system work, landed on top of 78c5d6f and made item/admin-users's branch un-mergeable, which is why its tests never ran until the conflict was resolved."
+  "description": "Opened as its own run rather than continuing run/0018, deliberately and at a cost. item/ledger-mutation-nodes shipped last hour with MUTATION_RULES_EFFECTIVE_AFTER_RUN = 18, so rule 1 -- a Completed spec:10 item must be implements-referenced by a negative Mutation with a non-empty check -- binds from run/0019 onward and grandfathers everything at or below 18. item/home-dashboard is spec:10. Keeping it on run/0018 would have exempted it from the rule this loop shipped an hour earlier, which is gaming its own guard: the run boundary is not a place to buy an exemption. So this run starts here and the rule binds, and item/home-dashboard cannot be recorded Completed without a mutation node that names the assertion shown to fail. run/0018 closes green: main verified at 221b30e across all ten jobs from main's own push run, after decision/0039's fix to the smoke's upload gate. Its tests/assertions read -1, not 701/1446. The 701/1446 this file carried were run/0018's, copied forward when the run was opened and never re-measured -- while this run merged three items, each adding tests. A copied number reads as a measurement, so it is worse than no number. It cannot be re-measured here (there is no vendor/ in this environment, so the suite runs only in CI), and -1 is what the schema already permits for a value that was not taken. item/ledger-field-audit decides whether -1 gains that meaning formally or the two fields are removed; run/0016 and run/0017 carry the same defect, byte-identical at 649/1340 across a run that merged three items. Closed at c47ad90, verified green from main's own push runs (tests and ledger both success). Four items shipped: home-dashboard, search-filters, login-by-username, admin-users. The run also adopted mainConclusion as recorded evidence at merge time rather than at close, swept the orphan issues (with a correction to the sweep's own method), and filed four new items -- two from real orphans (#161, #153) and two from gaps a Fable consult found in the ledger itself (#172, #173). main moved under this run near the end: PR #163, another session's design-system work, landed on top of 78c5d6f and made item/admin-users's branch un-mergeable, which is why its tests never ran until the conflict was resolved.",
+  "merges": [
+    {
+      "mergeSha": "40195a0feb864287d79e5b01523b93a1a21b66d2",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T05:51:15Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35312445574",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35312445594",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "98d7a7ed26924346f05575ef8f2a32ccee2acd0b",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/160",
+      "mergedAt": "2026-09-18T06:12:33Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35313905166",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35313905139",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "e0bcab3e1629427563ee399ca0179f8e3b78e2a2",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T06:18:44Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35314336626",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35314336586",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "cea56539137af4f9d339d52d0d01f8775a60b6e5",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/165",
+      "mergedAt": "2026-09-18T07:00:52Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35317433273",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35317433238",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "6052e237f2b5eebd5eb008a447218b63b9c4eae9",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T07:05:41Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35317810224",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35317810257",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "30c759c83e6f50ff667803603713ee2b0be5b770",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/168",
+      "mergedAt": "2026-09-18T07:36:46Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35320262780",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35320262743",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "c5d88647fe6fa629d58cb53025017eac83d82e7a",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T07:41:38Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35320660895",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35320661280",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "a0e9db2cd22bb9b80df27848123c1895be5fbace",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T07:54:43Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35321724960",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35321724962",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "78c5d6f7e75cae041ca49f6659be3d1f42763c80",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T08:05:35Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35322623675",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35322623698",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "88924d474df182b51bb2e7b8ed77e2a30638edb4",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T08:17:37Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35323640622",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35323640629",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "c47ad90d203fd697e364c5d15e9c7ffd1560d714",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/175",
+      "mergedAt": "2026-09-18T08:29:28Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35324634547",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35324634567",
+      "ledgerConclusion": "success"
+    }
+  ]
 }

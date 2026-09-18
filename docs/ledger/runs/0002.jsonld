@@ -13,7 +13,16 @@
     "item/purge-service"
   ],
   "commit": "de51dc6790a0ee577a8fcce0a2aaef1931799337",
-  "tests": 426,
-  "assertions": 889,
-  "description": "Drove PR 2 to a green matrix and merged it. The multi-database legs found two bugs that affected anyone following doccum's README: the properties index exceeded InnoDB's key limit so the schema never built on MySQL and 395 of 426 tests failed from that single cause, and LikeSearchIndex used a plain LIKE so search returned nothing on PostgreSQL whenever case differed, with no error to explain it. Also fixed: RuntimeConfigProviderTest pinned database.default instead of restoring it, leaving transactions open and their row locks held, which MySQL surfaced as a lock-wait timeout and PostgreSQL waited on indefinitely; installer tests passing a schema name as a SQLite file path; a search test asserting FTS5 internals through an interface that promised nothing; and no job anywhere having a timeout. All eleven checks green including all three database legs, the first time the suite has passed on MySQL or PostgreSQL. Issue 39 records the PostgreSQL analogue of the MySQL index bug, filed rather than fixed because the right index strategy needs a failing test first."
+  "description": "Drove PR 2 to a green matrix and merged it. The multi-database legs found two bugs that affected anyone following doccum's README: the properties index exceeded InnoDB's key limit so the schema never built on MySQL and 395 of 426 tests failed from that single cause, and LikeSearchIndex used a plain LIKE so search returned nothing on PostgreSQL whenever case differed, with no error to explain it. Also fixed: RuntimeConfigProviderTest pinned database.default instead of restoring it, leaving transactions open and their row locks held, which MySQL surfaced as a lock-wait timeout and PostgreSQL waited on indefinitely; installer tests passing a schema name as a SQLite file path; a search test asserting FTS5 internals through an interface that promised nothing; and no job anywhere having a timeout. All eleven checks green including all three database legs, the first time the suite has passed on MySQL or PostgreSQL. Issue 39 records the PostgreSQL analogue of the MySQL index bug, filed rather than fixed because the right index strategy needs a failing test first.",
+  "merges": [
+    {
+      "mergeSha": "de51dc6790a0ee577a8fcce0a2aaef1931799337",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/2",
+      "mergedAt": "2026-09-16T18:27:00Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35134518523",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35134518432",
+      "ledgerConclusion": "success"
+    }
+  ]
 }

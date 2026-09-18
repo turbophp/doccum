@@ -39,6 +39,18 @@ return [
         'directories' => [
             'auto_home' => true,
         ],
+
+        // Moved in here from a former top-level 'retention' block
+        // (item/admin-instance-settings, issue #21): PeriodPurger and
+        // PurgeExpired both read this through Settings::get(), never through
+        // config() directly, so an operator's write via the settings page
+        // actually changes what a purge plan reports. A control that wrote a
+        // settings row while the reader kept using config() would govern
+        // nothing -- see this item's own risk note.
+        'retention' => [
+            'purge_after_years' => null,
+            'auto_purge' => false,
+        ],
     ],
 
     'storage' => [
@@ -58,10 +70,5 @@ return [
         'scanned_pdf_threshold' => 100,
         'ocr_page_limit' => 50,
         'timeout_seconds' => 600,
-    ],
-
-    'retention' => [
-        'purge_after_years' => null,
-        'auto_purge' => false,
     ],
 ];

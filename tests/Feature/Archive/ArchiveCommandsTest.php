@@ -21,7 +21,7 @@ it('closes finished periods on a schedule', function () {
 
 it('is a dry run unless told otherwise', function () {
     $this->travelTo('2026-06-01');
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     ArchivePeriod::factory()->create(['year' => 2020, 'month' => 3, 'archived_at' => now()->subYears(3)]);
     File::factory()->create(['period_year' => 2020, 'period_month' => 3, 'size' => 100]);
 
@@ -34,7 +34,7 @@ it('is a dry run unless told otherwise', function () {
 
 it('purges when explicitly told to', function () {
     $this->travelTo('2026-06-01');
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     ArchivePeriod::factory()->create(['year' => 2020, 'month' => 3, 'archived_at' => now()->subYears(3)]);
     File::factory()->create(['period_year' => 2020, 'period_month' => 3, 'size' => 100]);
 
@@ -45,7 +45,7 @@ it('purges when explicitly told to', function () {
 
 it('explains why it will not purge', function () {
     $this->travelTo('2026-06-01');
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     ArchivePeriod::factory()->create(['year' => 2020, 'month' => 3, 'archived_at' => now()->subYears(3)]);
     File::factory()->create([
         'period_year' => 2020, 'period_month' => 3, 'size' => 100, 'legal_hold' => true,
@@ -60,7 +60,7 @@ it('explains why it will not purge', function () {
 
 it('explains why it will not purge on a dry run too', function () {
     $this->travelTo('2026-06-01');
-    config()->set('doccum.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
     ArchivePeriod::factory()->create(['year' => 2020, 'month' => 3, 'archived_at' => now()->subYears(3)]);
     File::factory()->create([
         'period_year' => 2020, 'period_month' => 3, 'size' => 100, 'legal_hold' => true,
@@ -73,8 +73,8 @@ it('explains why it will not purge on a dry run too', function () {
 
 it('does nothing on a schedule unless automatic purging is switched on', function () {
     $this->travelTo('2026-06-01');
-    config()->set('doccum.retention.purge_after_years', 1);
-    config()->set('doccum.retention.auto_purge', false);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.auto_purge', false);
     ArchivePeriod::factory()->create(['year' => 2020, 'month' => 3, 'archived_at' => now()->subYears(3)]);
     File::factory()->create(['period_year' => 2020, 'period_month' => 3, 'size' => 100]);
 
@@ -87,8 +87,8 @@ it('does nothing on a schedule unless automatic purging is switched on', functio
 
 it('purges expired periods once switched on', function () {
     $this->travelTo('2026-06-01');
-    config()->set('doccum.retention.purge_after_years', 1);
-    config()->set('doccum.retention.auto_purge', true);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.auto_purge', true);
     ArchivePeriod::factory()->create(['year' => 2020, 'month' => 3, 'archived_at' => now()->subYears(3)]);
     File::factory()->create(['period_year' => 2020, 'period_month' => 3, 'size' => 100]);
 
@@ -99,8 +99,8 @@ it('purges expired periods once switched on', function () {
 
 it('leaves a held period alone even when automatic purging is on', function () {
     $this->travelTo('2026-06-01');
-    config()->set('doccum.retention.purge_after_years', 1);
-    config()->set('doccum.retention.auto_purge', true);
+    config()->set('doccum.settings.retention.purge_after_years', 1);
+    config()->set('doccum.settings.retention.auto_purge', true);
     ArchivePeriod::factory()->create(['year' => 2020, 'month' => 3, 'archived_at' => now()->subYears(3)]);
     File::factory()->create([
         'period_year' => 2020, 'period_month' => 3, 'size' => 100, 'legal_hold' => true,
@@ -113,8 +113,8 @@ it('leaves a held period alone even when automatic purging is on', function () {
 
 it('does nothing at all when no retention window is configured', function () {
     $this->travelTo('2026-06-01');
-    config()->set('doccum.retention.purge_after_years', null);
-    config()->set('doccum.retention.auto_purge', true);
+    config()->set('doccum.settings.retention.purge_after_years', null);
+    config()->set('doccum.settings.retention.auto_purge', true);
     ArchivePeriod::factory()->create(['year' => 2020, 'month' => 3, 'archived_at' => now()->subYears(3)]);
     File::factory()->create(['period_year' => 2020, 'period_month' => 3, 'size' => 100]);
 

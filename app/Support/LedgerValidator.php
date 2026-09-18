@@ -21,8 +21,8 @@ namespace App\Support;
  * Every method returns a list<string> of human-readable failures, each
  * prefixed with a category tag ("structural:", "id:", "ref:", "spec-anchor:",
  * "enum:", "order:", "canonical:", "graph:", "status:", "pr:", "decision:",
- * "run:", "mutation:", "fatal:") so a caller can group or filter by
- * invariant. An empty list means that invariant holds.
+ * "run:", "mutation:", "history:", "fatal:") so a caller can group or filter
+ * by invariant. An empty list means that invariant holds.
  *
  * Deliberately NOT checked here (needs git history or the network, which the
  * design consultation excluded from "the files alone"):
@@ -50,7 +50,14 @@ final class LedgerValidator
 
     private const PULL_REQUEST_ID_PATTERN = '#^https://github\.com/turbophp/doccum/pull/\d+$#';
 
-    private const MAIN_RUN_URL_PATTERN = '#^https://github\.com/turbophp/doccum/actions/runs/\d+$#';
+    /**
+     * Was MAIN_RUN_URL_PATTERN, back when a run URL lived on PullRequest as
+     * mainRunUrl. item/ledger-main-push-record (issue #172) moved that fact
+     * onto Run.merges as two named fields (testsRun, ledgerRun) instead --
+     * the pattern itself is unchanged, just no longer "main"-specific since
+     * there are now two named workflows rather than one undifferentiated one.
+     */
+    private const WORKFLOW_RUN_URL_PATTERN = '#^https://github\.com/turbophp/doccum/actions/runs/\d+$#';
 
     private const SHA_PATTERN = '/^[0-9a-f]{40}$/';
 
@@ -70,9 +77,17 @@ final class LedgerValidator
      * GitHub's own workflow-run conclusions, per the Actions API. Not every
      * value is reachable through this repo's config (e.g. no run here uses
      * `action_required`), but the field is copied from GitHub's answer
-     * rather than narrowed to what has been observed.
+     * rather than narrowed to what has been observed. `null` itself is not
+     * listed here -- it is handled as "no value", the same as every other
+     * nullable enum field in this class -- but it IS what a merge entry
+     * carries for a workflow run that was cancelled before it concluded, or
+     * that never existed for that push (see item/ledger-main-push-record,
+     * issue #172, and Run.merges below).
+     *
+     * Was MAIN_CONCLUSIONS, back when this described PullRequest.mainConclusion
+     * alone. Renamed for the same reason as WORKFLOW_RUN_URL_PATTERN.
      */
-    private const MAIN_CONCLUSIONS = [
+    private const WORKFLOW_CONCLUSIONS = [
         'success', 'failure', 'cancelled', 'skipped', 'timed_out', 'action_required', 'neutral', 'stale',
     ];
 
@@ -98,6 +113,41 @@ final class LedgerValidator
      * binds going forward, from the run after the one that introduced it.
      */
     private const MUTATION_RULES_EFFECTIVE_AFTER_RUN = 18;
+
+    /**
+     * item/ledger-main-push-record (issue #172) added Run.merges and a rule
+     * that a completed run's last merge must have closed both workflows
+     * (tests, ledger) green -- otherwise the run cannot claim `completed`.
+     *
+     * That rule cannot be applied to history unconditionally: main has
+     * actually gone red exactly twice, and in both cases the run that
+     * contained the red merge nonetheless *closed* completed, because a
+     * later merge in the same run's window fixed it before the run ended --
+     * except once, run/0000 itself, whose very last merge before the loop
+     * existed (2ef04dd5, "docs: track CLAUDE.md") landed on a red `tests`
+     * run, and run/0008's last merge (38b4ba56, PR #63, schema-query-audit)
+     * deliberately merged a red PostgreSQL leg -- see run/0009's own
+     * description, which explains why fixing it there was not possible
+     * without moving the fix to a dependent item. Both are documented,
+     * intentional, already-closed history; rewriting `outcome` to make them
+     * fit a rule invented after the fact is exactly the kind of fudging
+     * CLAUDE.md's mutation-check discipline exists to prevent.
+     *
+     * So, the same shape as MUTATION_RULES_EFFECTIVE_AFTER_RUN above: the
+     * rule binds only for a run numbered after this constant.
+     *
+     * The value is the LAST RUN THAT ACTUALLY VIOLATES IT (run/0008), not
+     * the newest run in existence. Those are very different numbers and the
+     * difference is the whole point: computed over the backfill, exactly two
+     * runs close on a red merge -- run/0000 and run/0008 -- so a threshold of
+     * 8 grandfathers precisely them and binds runs 9 onward, which is twelve
+     * runs of real closed history this rule is now checked against. Setting
+     * it to the newest run instead would exempt all twelve, and the rule
+     * would read as enforcing twenty runs of history while enforcing none of
+     * it: a guard that looks like protection, which is the thing this
+     * codebase keeps having to dig out (decision/0062).
+     */
+    private const MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN = 8;
 
     /**
      * 'active' is the run currently being worked, and it exists because the
@@ -131,14 +181,65 @@ final class LedgerValidator
             'order', 'name', 'url', 'description', 'isBasedOn', 'size', 'release', 'dependsOn',
             'doneWhen', 'actionStatus', 'startTime', 'endTime', 'result',
         ],
+        // `tests`/`assertions` used to live here. item/ledger-field-audit
+        // (issue #173) removed them: they were copied forward rather than
+        // measured -- run/0016 and run/0017 both reported 649/1340 across a
+        // run that merged five commits between them, and run/0019 and
+        // run/0020 carried -1/-1 outright -- and the validator only ever
+        // checked `int >= -1`, which every one of those values satisfies.
+        // LedgerValidator is file-only and framework-free and runs in CI
+        // BEFORE `composer install`, with no network, so it cannot itself
+        // verify a real count; the Actions API exposes no structured test
+        // count either, only a job log Pest's output would have to be
+        // scraped from. So the only way to fill these was to hand-copy a
+        // number from somewhere else -- which is indistinguishable from not
+        // measuring at all, and worse than absent, because it reads as a
+        // measurement. item/ledger-main-push-record (issue #172) already
+        // gives anyone who wants the real count a way to get one: each
+        // merge's `testsRun` URL on Run.merges points at the workflow run
+        // that ran the suite.
         'Run' => [
             'identifier', 'agent', 'startTime', 'endTime', 'outcome', 'touched',
-            'commit', 'tests', 'assertions', 'description',
+            'commit', 'description', 'merges',
         ],
-        'Decision' => ['dateCreated', 'run', 'name', 'description', 'rationale', 'isBasedOn', 'affects', 'supersedes', 'evidence'],
+        // `evidence` used to live here, as a Decision -> Mutation set link.
+        // item/ledger-field-audit (issue #173) removed it: populated on 0 of
+        // 66 decisions, so its referenceErrors() branch had never run
+        // against real data. The relationship it names is real -- several
+        // decisions (0038, 0040, 0062) rest their argument on a specific
+        // Mutation's verdict and name it in `rationale` -- but there is no
+        // rule connecting a Decision to a Mutation that does not also catch
+        // decisions that merely SHARE a run and an affected item with an
+        // unrelated one: computed over the backfill, "affects an item that a
+        // Mutation in the same run also implements" matches 32 of 66
+        // decisions, e.g. decision/0048 (a page nothing links to) and
+        // decision/0052 (a dot in a wire:model path) alongside mutation/0015
+        // purely because both touch item/admin-roles in run/0020, with no
+        // evidentiary relationship at all. Even literal citation in prose is
+        // not safe: decision/0047 names mutation/0014 only to date a sha, not
+        // to rest an argument on its verdict. Enforcing either shape would
+        // force a Decision to cite a Mutation it does not actually rely on --
+        // exactly the "reads as evidence, proves nothing" defect this item
+        // exists to remove, one level up. The one invariant actually worth
+        // machine-checking here -- a Completed spec:10 item needs a negative
+        // Mutation implementing it -- is already enforced directly against
+        // Action/Mutation in actionStatusErrors(), without going through
+        // Decision at all.
+        'Decision' => ['dateCreated', 'run', 'name', 'description', 'rationale', 'isBasedOn', 'affects', 'supersedes'],
+        // mainRunUrl/mainConclusion used to live here, describing main's
+        // push run after a merge. item/ledger-main-push-record (issue #172)
+        // moved that fact onto Run.merges instead: runErrors()'s own
+        // enumeration iterates `pullRequests`, so it only ever saw merges
+        // that carried a PullRequest node, and a ledger-only PR (no node at
+        // all, by consistent practice rather than any rule) was invisible
+        // to it -- both times main has actually gone red, it was exactly
+        // this uncovered class. Run.merges enumerates the run's pushes
+        // directly instead of walking PullRequest nodes, so it cannot
+        // under-report the same way. See LedgerIntegrityTest and
+        // MutationNodeRulesTest for the shipped and now-removed rule.
         'PullRequest' => [
             'identifier', 'name', 'description', 'dateCreated', 'state', 'headSha',
-            'mergeSha', 'mergedAt', 'run', 'mergedIn', 'implements', 'mainRunUrl', 'mainConclusion',
+            'mergeSha', 'mergedAt', 'run', 'mergedIn', 'implements',
         ],
         // Sibling to PullRequest and Decision: item/ledger-mutation-nodes
         // (issue #150). `mutant` names what was broken; `check` names the
@@ -164,24 +265,37 @@ final class LedgerValidator
             'order', 'name', 'isBasedOn', 'size', 'release', 'dependsOn',
             'doneWhen', 'actionStatus', 'startTime', 'endTime', 'result',
         ],
-        'Run' => ['identifier', 'agent', 'startTime', 'endTime', 'outcome', 'touched', 'commit', 'tests', 'assertions', 'description'],
+        // `merges` is required on every Run, including one with nothing
+        // merged in its window (an empty list, e.g. run/0001 -- "Nothing is
+        // merged, so no item is Completed", per its own description): the
+        // key is always present so a run that merged nothing is
+        // distinguishable from one nobody ever recorded, the same mirror-
+        // the-default convention as Mutation.check below.
+        'Run' => ['identifier', 'agent', 'startTime', 'endTime', 'outcome', 'touched', 'commit', 'description', 'merges'],
         'Decision' => ['dateCreated', 'run', 'name', 'rationale', 'isBasedOn', 'affects', 'supersedes'],
         'PullRequest' => ['identifier', 'name', 'dateCreated', 'state', 'run', 'implements'],
-        // mainRunUrl/mainConclusion are deliberately NOT required: they
-        // describe main's push run after a merge, which item/ledger-
-        // mutation-nodes's own doneWhen backfills going forward rather than
-        // retroactively (see MUTATION_RULES_EFFECTIVE_AFTER_RUN) -- forcing
-        // the key on every historical PullRequest would fail the entire
-        // pre-existing ledger the moment this validator shipped.
         'Mutation' => ['implements', 'pullRequest', 'run', 'headSha', 'mutant', 'check', 'verdict', 'supersedes'],
     ];
 
     /**
      * Run everything this class knows how to check.
      *
+     * $mainPushShas, when given, is the list of first-parent commit shas on
+     * main since the previous completed run's commit -- a git fact this
+     * class stays deliberately blind to (see its own docblock and
+     * item/ledger-main-push-record, issue #172): omission is detectable
+     * only against an EXTERNAL list, so the CLI wrapper
+     * (.github/scripts/validate-ledger.php) is the one caller that computes
+     * it, from `git log --first-parent`, and hands it in. The other caller,
+     * tests/Feature/Ledger/LedgerIntegrityTest.php, requires this file by
+     * path with no git available at all and passes nothing -- so null (the
+     * default) SKIPS this one check rather than failing it, and every other
+     * rule in this class runs exactly as before.
+     *
+     * @param  ?list<string>  $mainPushShas
      * @return list<string>
      */
-    public static function validate(string $ledgerDir, string $specPath): array
+    public static function validate(string $ledgerDir, string $specPath, ?array $mainPushShas = null): array
     {
         $errors = [];
 
@@ -241,6 +355,10 @@ final class LedgerValidator
         $errors = array_merge($errors, self::mutationErrors($ledger));
         $errors = array_merge($errors, self::runErrors($ledger, $runs));
         $errors = array_merge($errors, self::specAnchorErrors($ledger, $specPath));
+
+        if ($mainPushShas !== null) {
+            $errors = array_merge($errors, self::mainPushHistoryErrors($runs, $mainPushShas));
+        }
 
         return $errors;
     }
@@ -589,7 +707,6 @@ final class LedgerValidator
             if (isset($decision['supersedes']) && is_string($decision['supersedes'])) {
                 $resolve($decision['supersedes'], 'Decision', "Decision '$id'.supersedes");
             }
-            $resolveEach($decision['evidence'] ?? [], 'Mutation', "Decision '$id'.evidence");
         }
 
         foreach (($ledger['mutations'] ?? []) as $mutation) {
@@ -612,6 +729,12 @@ final class LedgerValidator
         foreach ($runs as $filename => $run) {
             $id = is_string($run['@id'] ?? null) ? $run['@id'] : $filename;
             $resolveEach($run['touched'] ?? [], 'Action', "Run '$id'.touched");
+
+            foreach (($run['merges'] ?? []) as $index => $entry) {
+                if (is_array($entry) && is_string($entry['pullRequest'] ?? null)) {
+                    $resolve($entry['pullRequest'], 'PullRequest', "Run '$id'.merges[$index].pullRequest");
+                }
+            }
         }
 
         if (isset($ledger['latestRun']) && is_string($ledger['latestRun'])) {
@@ -678,13 +801,62 @@ final class LedgerValidator
                 $errors[] = "enum: PullRequest '$id'.$shaField = ".self::describe($value).' is not a 40-character hex sha.';
             }
         }
-        $mainConclusion = $node['mainConclusion'] ?? null;
-        if ($mainConclusion !== null && ! in_array($mainConclusion, self::MAIN_CONCLUSIONS, true)) {
-            $errors[] = "enum: PullRequest '$id'.mainConclusion = ".self::describe($mainConclusion).' is not a known GitHub workflow-run conclusion.';
+        // mainConclusion/mainRunUrl used to be checked here; they moved to
+        // Run.merges (item/ledger-main-push-record, issue #172) -- see
+        // checkMergeEntry() and ALLOWED_KEYS['PullRequest']'s own comment.
+    }
+
+    /**
+     * @param  array<string, mixed>  $node
+     * @param  list<string>  $errors
+     */
+    private static function checkRunMerges(string $runId, array $node, array &$errors): void
+    {
+        $merges = $node['merges'] ?? null;
+        if (! is_array($merges)) {
+            $errors[] = "enum: Run '$runId'.merges is not a list.";
+
+            return;
         }
-        $mainRunUrl = $node['mainRunUrl'] ?? null;
-        if ($mainRunUrl !== null && ! preg_match(self::MAIN_RUN_URL_PATTERN, (string) $mainRunUrl)) {
-            $errors[] = "enum: PullRequest '$id'.mainRunUrl = ".self::describe($mainRunUrl).' is not a turbophp/doccum Actions run URL.';
+
+        foreach ($merges as $index => $entry) {
+            self::checkMergeEntry($runId, (string) $index, $entry, $errors);
+        }
+    }
+
+    /**
+     * @param  list<string>  $errors
+     */
+    private static function checkMergeEntry(string $runId, string $index, mixed $entry, array &$errors): void
+    {
+        if (! is_array($entry)) {
+            $errors[] = "enum: Run '$runId'.merges[$index] is not an object.";
+
+            return;
+        }
+
+        $mergeSha = $entry['mergeSha'] ?? null;
+        if (! is_string($mergeSha) || ! preg_match(self::SHA_PATTERN, $mergeSha)) {
+            $errors[] = "enum: Run '$runId'.merges[$index].mergeSha = ".self::describe($mergeSha).' is not a 40-character hex sha.';
+        }
+
+        $pullRequest = $entry['pullRequest'] ?? null;
+        if ($pullRequest !== null && ! is_string($pullRequest)) {
+            $errors[] = "enum: Run '$runId'.merges[$index].pullRequest = ".self::describe($pullRequest).' is neither a string nor null.';
+        }
+
+        foreach (['testsConclusion', 'ledgerConclusion'] as $field) {
+            $value = $entry[$field] ?? null;
+            if ($value !== null && ! in_array($value, self::WORKFLOW_CONCLUSIONS, true)) {
+                $errors[] = "enum: Run '$runId'.merges[$index].$field = ".self::describe($value).' is not a known GitHub workflow-run conclusion.';
+            }
+        }
+
+        foreach (['testsRun', 'ledgerRun'] as $field) {
+            $value = $entry[$field] ?? null;
+            if ($value !== null && ! preg_match(self::WORKFLOW_RUN_URL_PATTERN, (string) $value)) {
+                $errors[] = "enum: Run '$runId'.merges[$index].$field = ".self::describe($value).' is not a turbophp/doccum Actions run URL.';
+            }
         }
     }
 
@@ -715,12 +887,7 @@ final class LedgerValidator
         if (isset($node['commit']) && ! preg_match(self::SHA_PATTERN, (string) $node['commit'])) {
             $errors[] = "enum: Run '$id'.commit = ".self::describe($node['commit']).' is not a 40-character hex sha.';
         }
-        foreach (['tests', 'assertions'] as $field) {
-            $value = $node[$field] ?? null;
-            if ($value !== null && (! is_int($value) || $value < -1)) {
-                $errors[] = "enum: Run '$id'.$field = ".self::describe($value).' is not an integer >= -1.';
-            }
-        }
+        self::checkRunMerges($id, $node, $errors);
     }
 
     // -- Ordering ------------------------------------------------------
@@ -1093,10 +1260,19 @@ final class LedgerValidator
         $errors = [];
 
         $touchedByRun = [];
+        $mergeShasByRun = [];
         foreach ($runs as $run) {
             $runId = $run['@id'] ?? null;
             if (is_string($runId)) {
                 $touchedByRun[$runId] = array_filter($run['touched'] ?? [], 'is_string');
+
+                $shas = [];
+                foreach (($run['merges'] ?? []) as $entry) {
+                    if (is_array($entry) && is_string($entry['mergeSha'] ?? null)) {
+                        $shas[] = $entry['mergeSha'];
+                    }
+                }
+                $mergeShasByRun[$runId] = $shas;
             }
         }
 
@@ -1122,6 +1298,17 @@ final class LedgerValidator
                 }
             } elseif ($mergedAt !== null || $mergeSha !== null || $mergedIn !== null) {
                 $errors[] = "pr: '$id' is not merged but has mergedAt, mergeSha or mergedIn set.";
+            }
+
+            // item/ledger-main-push-record (issue #172), rule 1: a merged
+            // PR's mergeSha must appear in its own mergedIn run's merges --
+            // catches an item PR omitted from the list, something nothing
+            // checked before Run.merges existed.
+            if ($state === 'merged' && is_string($mergeSha) && is_string($mergedIn)) {
+                $mergedInShas = $mergeShasByRun[$mergedIn] ?? null;
+                if ($mergedInShas !== null && ! in_array($mergeSha, $mergedInShas, true)) {
+                    $errors[] = "pr: '$id' has mergeSha '$mergeSha' but it does not appear in its mergedIn run '$mergedIn''s merges.";
+                }
             }
 
             $implements = array_filter($pr['implements'] ?? [], 'is_string');
@@ -1247,17 +1434,6 @@ final class LedgerValidator
     {
         $errors = [];
 
-        $mainConclusionByMergedIn = [];
-        foreach (($ledger['pullRequests'] ?? []) as $pr) {
-            if (! is_array($pr) || ! is_string($pr['mergedIn'] ?? null)) {
-                continue;
-            }
-            $mainConclusionByMergedIn[$pr['mergedIn']][] = [
-                'id' => is_string($pr['@id'] ?? null) ? $pr['@id'] : '?',
-                'mainConclusion' => $pr['mainConclusion'] ?? null,
-            ];
-        }
-
         $numbered = [];
         foreach ($runs as $filename => $run) {
             $expectedId = 'run/'.pathinfo($filename, PATHINFO_FILENAME);
@@ -1280,13 +1456,37 @@ final class LedgerValidator
                 $errors[] = "run: '$expectedId' has outcome completed but an empty touched set.";
             }
 
+            // item/ledger-main-push-record (issue #172), rule 2: Run.commit
+            // is DEFINED as the last merges entry's mergeSha -- there is no
+            // other stated semantics for the field, and in practice it drifted
+            // (run/0017's old commit was main at that run's START, not its
+            // end). Vacuous when merges is empty (no last entry to compare --
+            // see run/0001, which merged nothing to main in its window).
+            $merges = array_values(array_filter($run['merges'] ?? [], 'is_array'));
+            if ($merges !== []) {
+                $lastEntry = $merges[count($merges) - 1];
+                $lastMergeSha = $lastEntry['mergeSha'] ?? null;
+                if (is_string($lastMergeSha) && ($run['commit'] ?? null) !== $lastMergeSha) {
+                    $errors[] = "run: '$expectedId'.commit = ".self::describe($run['commit'] ?? null)." but its last merges entry's mergeSha is '$lastMergeSha'.";
+                }
+            }
+
+            // Rule 3: a completed run's last merge must have closed both
+            // workflows green, past MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN
+            // (see that constant's docblock for why history before it is
+            // exempt rather than fixed to fit).
             if ($number !== null
-                && $number > self::MUTATION_RULES_EFFECTIVE_AFTER_RUN
-                && ($run['outcome'] ?? null) === 'completed') {
-                foreach ($mainConclusionByMergedIn[$expectedId] ?? [] as $merged) {
-                    if ($merged['mainConclusion'] === null) {
-                        $errors[] = "run: '$expectedId' has outcome completed but merged PullRequest '{$merged['id']}' lacks mainConclusion.";
-                    }
+                && $number > self::MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN
+                && ($run['outcome'] ?? null) === 'completed'
+                && $merges !== []) {
+                $last = $merges[count($merges) - 1];
+                $testsOk = ($last['testsConclusion'] ?? null) === 'success';
+                $ledgerOk = ($last['ledgerConclusion'] ?? null) === 'success';
+                if (! $testsOk || ! $ledgerOk) {
+                    $errors[] = "run: '$expectedId' has outcome completed but its last merge (".
+                        self::describe($last['mergeSha'] ?? null).
+                        ') did not close green (testsConclusion = '.self::describe($last['testsConclusion'] ?? null).
+                        ', ledgerConclusion = '.self::describe($last['ledgerConclusion'] ?? null).').';
                 }
             }
         }
@@ -1377,6 +1577,67 @@ final class LedgerValidator
         }
 
         return [];
+    }
+
+    // -- main push history (git facts, supplied by the CLI wrapper only) -
+
+    /**
+     * item/ledger-main-push-record (issue #172): the clause without which
+     * Run.merges is only bookkeeping. Every sha the caller supplies (first-
+     * parent commits on main since the previous completed run, per the CLI
+     * wrapper's docblock) must appear as some run's merges[].mergeSha --
+     * otherwise a merge to main was never recorded anywhere, which is
+     * exactly the gap runErrors() alone (walking `pullRequests`) could not
+     * see for a ledger-only PR.
+     *
+     * This is the one check in this file that needs a fact this class
+     * cannot derive from the ledger's own files -- see validate()'s
+     * docblock for why it is optional and who supplies it.
+     *
+     * @param  array<string, array<string, mixed>>  $runs
+     * @param  list<string>  $mainPushShas
+     * @return list<string>
+     */
+    private static function mainPushHistoryErrors(array $runs, array $mainPushShas): array
+    {
+        $known = [];
+        foreach ($runs as $run) {
+            foreach (($run['merges'] ?? []) as $entry) {
+                if (is_array($entry) && is_string($entry['mergeSha'] ?? null)) {
+                    $known[$entry['mergeSha']] = true;
+                }
+            }
+        }
+
+        // Only commits up to the NEWEST one the ledger records can be
+        // required to be recorded. A merge commit's own sha cannot appear in
+        // the ledger that merge commit contains -- it does not exist until
+        // the merge happens -- so demanding completeness all the way to the
+        // tip makes `validate ledger` red on main from the instant any PR
+        // merges, and red again after the very ledger pass that recorded the
+        // previous merges. That is not a strict rule, it is a deadlock.
+        //
+        // Contiguity instead: anything BEFORE the newest recorded merge and
+        // not itself recorded is a hole somebody left, which is exactly the
+        // failure this item exists to catch (both times main went red it was
+        // a ledger-only merge nobody wrote down). Anything AFTER it is simply
+        // not recorded yet, and becomes interior -- and so caught -- the
+        // moment a later merge is recorded.
+        $lastKnownIndex = -1;
+        foreach ($mainPushShas as $index => $sha) {
+            if (isset($known[$sha])) {
+                $lastKnownIndex = $index;
+            }
+        }
+
+        $errors = [];
+        foreach ($mainPushShas as $index => $sha) {
+            if ($index < $lastKnownIndex && ! isset($known[$sha])) {
+                $errors[] = "history: commit '$sha' is on main (per git log since the previous completed run) but does not appear in any run's merges, and a LATER commit does -- so this is a merge nobody wrote down, not one not yet recorded.";
+            }
+        }
+
+        return $errors;
     }
 
     // -- isBasedOn spec anchors -------------------------------------------

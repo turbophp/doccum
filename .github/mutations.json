@@ -383,5 +383,96 @@
     "file": "app/Support/LedgerValidator.php",
     "remove": "            if (isset($nodes[$id])) {\n                // $nodes is keyed by @id, so a second node sharing it would\n                // silently overwrite the first here and this duplicate would\n                // never be visible again -- catch it now, one step before\n                // that happens. This is why idErrors() used to carry a\n                // \"duplicate @id\" check that could never fire: by the time\n                // it ran, $nodes already had unique keys by construction.\n                // JSON-LD merges nodes that share an @id, so two entries for\n                // one id are not two items to any consumer -- they are one\n                // item whose fields came from whichever copy parsed last.\n                $errors[] = \"id: '$id' is defined by more than one node -- JSON-LD merges nodes sharing an @id, so this is not two items to any consumer, it is one item whose fields came from whichever copy parsed last.\";\n            }\n\n",
     "expectFailing": "flags a node that redefines an id already used by an earlier node"
+  },
+  {
+    "id": "user-implements-must-verify-email",
+    "why": "issue #161: EnsureEmailIsVerified gates on the MustVerifyEmail CONTRACT, not the trait User already gets from Authenticatable -- `$request->user() instanceof MustVerifyEmail` was false for every user because the contract was commented out of the model, so the `verified` middleware let every unverified user straight through every route it guards, including four tests in EmailVerificationTest.php that passed while it gated nothing. Remove the contract from the implements clause and the gate goes back to enforcing nothing, exactly as it shipped.",
+    "file": "app/Models/User.php",
+    "remove": "MustVerifyEmail, ",
+    "expectFailing": "test_an_unverified_user_is_redirected_away_from_a_verified_route"
+  },
+  {
+    "id": "delete-user-form-refuses-unverified",
+    "why": "issue #161: App\\Livewire\\Settings\\Profile::showDeleteUser() hides the delete-account button for an unverified user, but hiding a control is a courtesy, not a guard, when the action it hides is still reachable directly -- Livewire::test('settings.delete-user-form') reaches deleteUser() with no button in between. Without this check an unverified user (including one who just changed their own email, the exact case this item's design creates) could still delete their account.",
+    "file": "app/Livewire/Settings/DeleteUserForm.php",
+    "remove": "        if ($user instanceof MustVerifyEmail && ! $user->hasVerifiedEmail()) {\n            $this->addError('password', __('Verify your email address before deleting your account.'));\n\n            return;\n        }\n\n",
+    "expectFailing": "test_an_unverified_user_cannot_delete_their_account"
+  },
+  {
+    "id": "extract-text-missing-object-terminal",
+    "why": "issue #153, half two: a missing object is permanent, so ExtractText::handle() must stop immediately rather than spend $tries/$backoff retrying bytes that are never coming back. $this->fail($e) is what makes that terminal AND visible -- it marks the job failed and deletes it from the queue from inside handle(), then invokes failed() with the SAME exception so file_texts.error names the missing object rather than whatever failure happens to hit next. Remove it (with the return that stops execution alongside it) and the catch swallows ObjectMissingFromStorage silently: $path is left unassigned, and the job falls through into extracting from an undefined path -- PlainTextExtractor::extract(string $path, ...) is declare(strict_types=1), so that throws a TypeError instead, which escapes handle() uncaught and propagates out of dispatchSync() rather than being caught and settled the way a missing object must be.",
+    "file": "app/Jobs/ExtractText.php",
+    "remove": "            $this->fail($e);\n\n            return;\n",
+    "expectFailing": "treats a missing object as terminal instead of spending its retry budget on it"
+  },
+  {
+    "id": "mutation-check-filter-regex-escaped",
+    "why": "issue #180: mutation-check.php's --filter is matched as a REGULAR EXPRESSION, but only escapeshellarg() -- a shell-layer escape -- was ever applied to it. An expectFailing containing a metacharacter ('()' on #179's `changes what can() answers in the same request once the permission cache is forgotten`) silently became a different pattern and matched the wrong test or none at all. buildFilterPattern() is written as a reassignment rather than a bare `return preg_quote(...)` precisely so this mutation leaves a function that still returns a string -- the unescaped one -- and the failure lands on the assertion about escaping instead of on a TypeError that would kill every test in the file regardless of what it asserts.",
+    "file": ".github/scripts/mutation-check.php",
+    "remove": "    $pattern = preg_quote($pattern);\n",
+    "expectFailing": "escapes a name containing regex metacharacters so it matches only the literal test it names"
+  },
+  {
+    "id": "mutation-check-classifies-no-match-distinctly",
+    "why": "issue #180: a --filter that matches no test at all must be reported distinctly from one that matches a test which fails -- before this, both surfaced as the same \"does not pass with the guard in place\" message, which is what made #179's zero-match failure take a round to identify. Remove the zero-testcase branch from classifyMutationRun() and a run that matched nothing is classified the same as a run that matched a genuinely failing test, collapsing the two defects back into one.",
+    "file": ".github/scripts/mutation-check.php",
+    "remove": "    if ($testCaseCount === 0) {\n        return MUTATION_RUN_NO_TEST_MATCHED;\n    }\n\n",
+    "expectFailing": "classifies a run that matched no test differently from one that matched a failing test"
+  },
+  {
+    "id": "mutation-check-no-junit-log-is-not-a-name-error",
+    "why": "issue #180: the whole point of counting <testcase> elements is to tell \"--filter matched nothing\" from \"a test ran and failed\". But a log that never arrived is neither -- it is no evidence at all. Remove the null branch and a missing or unparseable JUnit log is reported as \"matched no test\", which would blame every entry in the manifest for names each one spells correctly the moment --log-junit stopped working: the same misdiagnosis this issue exists to end, in a new costume.",
+    "file": ".github/scripts/mutation-check.php",
+    "remove": "    if ($testCaseCount === null) {\n        return MUTATION_RUN_UNCLASSIFIABLE;\n    }\n\n",
+    "expectFailing": "reports a run that produced no JUnit log as unclassifiable, not as a name error"
+  },
+  {
+    "id": "mutation-check-no-match-is-not-proof",
+    "why": "Only a real test that ran and failed proves a guard load-bearing. Before this, the script accepted ANY non-pass from the deleted-guard run, so a 'remove' string whose deletion broke the file's syntax scored as proof: nothing was collected, the run was red, and the entry read as verified while the guard had never been exercised. Remove this branch and a deleted-guard run that matched no test is treated as proof again -- the exact 'looks like coverage and is not' failure this script was written to prevent, inside the script that prevents it.",
+    "file": ".github/scripts/mutation-check.php",
+    "remove": "    if ($afterClassification === MUTATION_RUN_NO_TEST_MATCHED) {\n        return \"{$id}: with the guard deleted, \\\"{$filter}\\\" matched no test at all. The deletion stopped the file loading (a parse error, most likely) rather than failing an assertion, so this red proves nothing about the guard. Narrow the 'remove' text to something whose absence leaves loadable code.\";\n    }\n\n",
+    "expectFailing": "refuses a deleted-guard run that matched no test as proof that the guard is load-bearing"
+  },
+  {
+    "id": "ledger-merges-pr-in-mergedin-run",
+    "why": "item/ledger-main-push-record (issue #172), rule 1: a merged PullRequest's mergeSha must appear in its mergedIn run's merges. Both times main has actually gone red it was a ledger-only PR with no PullRequest node at all -- runErrors() used to enumerate pullRequests, so it could only ever see a merge that carried one. Run.merges enumerates the run's own pushes directly instead, and this is the rule that catches an item PR silently omitted from that list, which nothing checked before.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if ($mergedInShas !== null && ! in_array($mergeSha, $mergedInShas, true)) {\n                    $errors[] = \"pr: '$id' has mergeSha '$mergeSha' but it does not appear in its mergedIn run '$mergedIn''s merges.\";\n                }\n",
+    "expectFailing": "requires a merged PullRequest's mergeSha to appear in its mergedIn run's merges"
+  },
+  {
+    "id": "ledger-run-commit-is-last-merge",
+    "why": "item/ledger-main-push-record (issue #172), rule 2: Run.commit is DEFINED as the last merges entry's mergeSha -- the field had no stated semantics before this and drifted in practice (run/0017's old commit was main at that run's START, not its end, per the item's own finding). Remove the guard and a run's commit can silently point anywhere while still validating clean, the same drift happening again with nothing to catch it.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (is_string($lastMergeSha) && ($run['commit'] ?? null) !== $lastMergeSha) {\n                    $errors[] = \"run: '$expectedId'.commit = \".self::describe($run['commit'] ?? null).\" but its last merges entry's mergeSha is '$lastMergeSha'.\";\n                }\n",
+    "expectFailing": "defines Run.commit as the last merges entry's mergeSha"
+  },
+  {
+    "id": "ledger-run-outcome-requires-green-close",
+    "why": "item/ledger-main-push-record (issue #172), rule 3: a run may not claim outcome completed unless its last merge closed both named workflows (tests, ledger) green, past MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN -- this is what makes \"run/0018 closes green\", previously prose in run/0019's own description, a checked claim. Remove the guard and a run that closed on a red merge -- exactly what happened twice in this repository's real history -- validates as completed with nothing to say otherwise.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (! $testsOk || ! $ledgerOk) {\n                    $errors[] = \"run: '$expectedId' has outcome completed but its last merge (\".\n                        self::describe($last['mergeSha'] ?? null).\n                        ') did not close green (testsConclusion = '.self::describe($last['testsConclusion'] ?? null).\n                        ', ledgerConclusion = '.self::describe($last['ledgerConclusion'] ?? null).').';\n                }\n",
+    "expectFailing": "requires a completed run past the effective threshold to have both conclusions success on its last merge"
+  },
+  {
+    "id": "ledger-history-reports-unrecorded-merge",
+    "why": "issue #172, the clause the item itself calls the difference between a rule and bookkeeping: omission is detectable only against an external list. Every other rule here iterates nodes that exist, so a merge nobody wrote down stays invisible to all of them -- and both times main has actually gone red it was exactly that class, a ledger-only merge with no PullRequest node. Remove this branch and mainPushHistoryErrors() walks the git log and reports nothing, so a hole in the record validates clean. Note what the paired test does NOT rely on: LedgerIntegrityTest's `expect(ledgerErrorsTagged('history:'))->toBe([])` asserts the check does not fire, which survives deleting the check outright -- it is this entry's test, which requires an error to BE reported, that carries the weight.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "            if ($index < $lastKnownIndex && ! isset($known[$sha])) {\n                $errors[] = \"history: commit '$sha' is on main (per git log since the previous completed run) but does not appear in any run's merges, and a LATER commit does -- so this is a merge nobody wrote down, not one not yet recorded.\";\n            }\n",
+    "expectFailing": "reports a commit on main that no run records, when a later commit is recorded"
+  },
+  {
+    "id": "ledger-vocabulary-rejects-a-key-misplaced-by-type",
+    "why": "item/ledger-field-audit (issue #173) removes Run.tests and Run.assertions, and its doneWhen says a DELETED field needs no test of its own because its absence from ALLOWED_KEYS is the assertion. That is only true while this branch exists, and LedgerIntegrityTest's own vocabulary test cannot establish it: it asserts the real ledger has no structural errors, which passes just as happily when the check is gone -- it cannot tell 'nothing breaks the vocabulary' from 'nothing is checking'. Every real node satisfies this branch, so only a node that violates it can prove it fires.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (! in_array($key, self::ALLOWED_KEYS[$type], true)) {\n                    $errors[] = \"structural: $context ($id) has key '$key', which is not allowed on a $type.\";\n                }\n",
+    "expectFailing": "rejects a key the vocabulary defines but does not allow on that type"
+  },
+  {
+    "id": "ledger-vocabulary-rejects-an-undefined-term",
+    "why": "The sibling of the entry above, and the branch that actually catches the fields this item deleted: Run.tests and Run.assertions were removed from context.jsonld as well, so re-adding `tests` to a run trips the undefined-term check and never reaches the per-type one. Remove this branch and that key is reported with the WRONG reason (as misplaced rather than as undefined), which is how a run file could carry a term no vocabulary defines while the message sends the reader looking at ALLOWED_KEYS instead.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (! in_array($key, $vocabTerms, true)) {\n                    $errors[] = \"structural: $context ($id) has key '$key', which context.jsonld does not define.\";\n\n                    continue;\n                }\n",
+    "expectFailing": "rejects a run key the vocabulary no longer defines"
   }
 ]

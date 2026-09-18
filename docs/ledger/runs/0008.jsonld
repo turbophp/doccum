@@ -18,7 +18,25 @@
     "item/user-reset-password-command"
   ],
   "commit": "38b4ba56199b4bad7f153584cf6270cb949f3ce9",
-  "tests": 533,
-  "assertions": 1089,
-  "description": "trash-directory landed, the first item fixing a defect rather than adding a feature, and its own first attempt contained the same defect class in a new place. RestoreDirectory told a cascade-trashed row from an independently trashed one by matching deleted_at, which stores at second precision, so a file trashed in the same second as its directory was indistinguishable from one trashed by it and the restore resurrected what it was meant to leave behind. Rows now carry a trashed_batch that means the relationship instead of inferring it from a collision. Four further pushes chased PHPStan through types that could not be checked locally: reading thirty-five log lines and acting on the first error three times running, where the full output named every consequence at once. Typing descendants() as Builder<static> resolved three baselined findings rather than the one expected, taking the baseline from forty-five entries to forty-two -- the enumerated baseline doing what a count could not. A periodic Fable consultation, the fourth since the last, produced seven new items: an audit item for the pattern itself, and six verified defects a self-hoster would hit, among them no proxy trust anywhere behind TLS, email uniqueness decided by the collation exactly as filenames were, and a locked-out admin with no route back in because the shipped image has no mailer and no user console command. Its blunt answer on process -- that UI items have been merged on component tests without ever driving the feature in the container -- is recorded and put to the user rather than adopted unilaterally."
+  "description": "trash-directory landed, the first item fixing a defect rather than adding a feature, and its own first attempt contained the same defect class in a new place. RestoreDirectory told a cascade-trashed row from an independently trashed one by matching deleted_at, which stores at second precision, so a file trashed in the same second as its directory was indistinguishable from one trashed by it and the restore resurrected what it was meant to leave behind. Rows now carry a trashed_batch that means the relationship instead of inferring it from a collision. Four further pushes chased PHPStan through types that could not be checked locally: reading thirty-five log lines and acting on the first error three times running, where the full output named every consequence at once. Typing descendants() as Builder<static> resolved three baselined findings rather than the one expected, taking the baseline from forty-five entries to forty-two -- the enumerated baseline doing what a count could not. A periodic Fable consultation, the fourth since the last, produced seven new items: an audit item for the pattern itself, and six verified defects a self-hoster would hit, among them no proxy trust anywhere behind TLS, email uniqueness decided by the collation exactly as filenames were, and a locked-out admin with no route back in because the shipped image has no mailer and no user console command. Its blunt answer on process -- that UI items have been merged on component tests without ever driving the feature in the container -- is recorded and put to the user rather than adopted unilaterally.",
+  "merges": [
+    {
+      "mergeSha": "f37039c0aee5fd710b94da59cc7ffb7cdacffcdf",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T10:51:42Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35212680355",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35212680267",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "38b4ba56199b4bad7f153584cf6270cb949f3ce9",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/63",
+      "mergedAt": "2026-09-17T11:18:20Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35214977235",
+      "testsConclusion": "failure",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35214977125",
+      "ledgerConclusion": "success"
+    }
+  ]
 }

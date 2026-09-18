@@ -12,7 +12,25 @@
     "item/schema-query-audit"
   ],
   "commit": "f102df2672d1855e37e2c33a4993d9efb5166fec",
-  "tests": 533,
-  "assertions": 1091,
-  "description": "schema-query-audit landed, so the class of defect behind seven bugs now fails at CI rather than in an install: a new raw-SQL or collation-dependent site that is not registered fails the test, as does a new index over either engine's key ceiling, a new foreign key without a leading index, and a new driver added to the matrix without a registered ceiling. Its doneWhen was corrected before delegation rather than after: the clause demanding a multi-byte round-trip shown failing on PostgreSQL first could not be honoured here, because fixing that failure is pgsql-value-string-index, a separate item depending on this one, so satisfying the sentence literally meant merging a red leg. The proof moved to that item and the reasoning went on the issue. The audit found six foreign key columns with no covering index outside MySQL on its first run, filed as its own item rather than fixed inline. Its own first CI run then failed on a gap in the check itself: index width was asserted on SQLite, which has no key length limit at all, tripping over SQLite's implicit autoindex for the framework cache table. Skipping was written to name the driver rather than rely on its absence from the limits table, so a driver added later fails instead of quietly opting out -- the property the rest of the file exists to provide. Three items whose doneWhen has now not survived contact with the code, which makes checking each clause against main before delegating the most valuable step in an iteration."
+  "description": "schema-query-audit landed, so the class of defect behind seven bugs now fails at CI rather than in an install: a new raw-SQL or collation-dependent site that is not registered fails the test, as does a new index over either engine's key ceiling, a new foreign key without a leading index, and a new driver added to the matrix without a registered ceiling. Its doneWhen was corrected before delegation rather than after: the clause demanding a multi-byte round-trip shown failing on PostgreSQL first could not be honoured here, because fixing that failure is pgsql-value-string-index, a separate item depending on this one, so satisfying the sentence literally meant merging a red leg. The proof moved to that item and the reasoning went on the issue. The audit found six foreign key columns with no covering index outside MySQL on its first run, filed as its own item rather than fixed inline. Its own first CI run then failed on a gap in the check itself: index width was asserted on SQLite, which has no key length limit at all, tripping over SQLite's implicit autoindex for the framework cache table. Skipping was written to name the driver rather than rely on its absence from the limits table, so a driver added later fails instead of quietly opting out -- the property the rest of the file exists to provide. Three items whose doneWhen has now not survived contact with the code, which makes checking each clause against main before delegating the most valuable step in an iteration.",
+  "merges": [
+    {
+      "mergeSha": "3fec3839ef226626132d94c7a295b1b11933b2fe",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T11:23:47Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35215457042",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35215457075",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "f102df2672d1855e37e2c33a4993d9efb5166fec",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/66",
+      "mergedAt": "2026-09-17T11:53:08Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35218054638",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35218054582",
+      "ledgerConclusion": "success"
+    }
+  ]
 }

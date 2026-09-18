@@ -12,7 +12,43 @@
     "item/pgsql-value-string-index"
   ],
   "commit": "02813272271f704ffada85fb09216de2afc35b6c",
-  "tests": 541,
-  "assertions": 1104,
-  "description": "The last of the latent cross-driver defects the matrix uncovered in run/0001 is closed. PostgreSQL now indexes md5(value_string) rather than the column whole, which decision/0011 records along with what it can and cannot serve and the obligation it places on search-filters. decision/0005 had deferred that choice for want of a test to judge by, and was vindicated twice: the test settled it, and reproducing the failure produced PostgreSQL's own hint recommending exactly this remedy. Then fk-index-coverage emptied SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS, so the audit landed two runs ago now asserts the foreign key rule with no exceptions at all -- found six, recorded six, fixed six, excluded none. It passed fourteen checks on a first attempt with no rounds, the guard that made it safe being a check for any index leading with the column rather than one of a chosen name, since InnoDB had already created its own where MySQL was concerned. Also fixed, on main and not in any item, a race this loop introduced in run/0008: a test asserted every cascaded row shared the root's deleted_at, which had been true only while the pinning that guaranteed it existed. Removing that pinning for trashed_batch made the assertion a coin toss on timing, green by luck three times, and PostgreSQL's microsecond precision finally called it. The same flaw sat inside the test written to demonstrate that very failure mode."
+  "description": "The last of the latent cross-driver defects the matrix uncovered in run/0001 is closed. PostgreSQL now indexes md5(value_string) rather than the column whole, which decision/0011 records along with what it can and cannot serve and the obligation it places on search-filters. decision/0005 had deferred that choice for want of a test to judge by, and was vindicated twice: the test settled it, and reproducing the failure produced PostgreSQL's own hint recommending exactly this remedy. Then fk-index-coverage emptied SCHEMA_AUDIT_FK_INDEX_EXCLUSIONS, so the audit landed two runs ago now asserts the foreign key rule with no exceptions at all -- found six, recorded six, fixed six, excluded none. It passed fourteen checks on a first attempt with no rounds, the guard that made it safe being a check for any index leading with the column rather than one of a chosen name, since InnoDB had already created its own where MySQL was concerned. Also fixed, on main and not in any item, a race this loop introduced in run/0008: a test asserted every cascaded row shared the root's deleted_at, which had been true only while the pinning that guaranteed it existed. Removing that pinning for trashed_batch made the assertion a coin toss on timing, green by luck three times, and PostgreSQL's microsecond precision finally called it. The same flaw sat inside the test written to demonstrate that very failure mode.",
+  "merges": [
+    {
+      "mergeSha": "6826f47997f8a1f08268093a94b72f71f9c132c8",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T12:02:01Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35218854000",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35218854003",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "1000a9dbe418030eb608f503f346df54dbf33c77",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T12:05:23Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35219169206",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35219169178",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "2aafd0686a8bf77bee7254a0012574a318827c8d",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/69",
+      "mergedAt": "2026-09-17T12:08:41Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35219465802",
+      "testsConclusion": "failure",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35219465820",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "02813272271f704ffada85fb09216de2afc35b6c",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/70",
+      "mergedAt": "2026-09-17T12:17:32Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35220280605",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35220280575",
+      "ledgerConclusion": "success"
+    }
+  ]
 }

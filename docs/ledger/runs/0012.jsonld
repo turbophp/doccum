@@ -12,7 +12,43 @@
     "item/user-reset-password-command"
   ],
   "commit": "75a3013b56a498e334dce0cf135e243da77254bf",
-  "tests": 595,
-  "assertions": 1228,
-  "description": "Two items, and the first run in which every assertion behind a security claim was proven by breaking the feature rather than by arguing about it. The rule decision/0012 introduced was applied in earnest to item/user-reset-password-command, whose central claim is a negative one -- that the forgot-password page reveals nothing about whether an address has an account -- and negative claims are exactly where a test quietly stops testing, because \"these two responses are identical\" passes just as well when both are broken the same way. Two mutations settled it: removing the deliverability guard made the oracle tests and the container smoke fail with the leak verbatim in the failure text, and corrupting the printed reset token made the reset-link test and the smoke fail while the command still exited zero and still printed a link of exactly the right shape. The same assertions then passed against the working feature. Four for four. The cost was real and should be recorded honestly: roughly six CI cycles for one small item, two of them spent on mutations and the rest on defects the mutations and CI exposed. Three of those defects were worth the price. The command built its link from config('app.url'), which the shipped image never sets, so every link it printed read http://localhost -- a valid token on a host that is not the administrator's, which is not what \"a locked-out admin can get back in\" means; found by reading the code, not by any test. Forcing the root without the scheme would have silently downgraded an operator's https, the identical mistake shipped in pull request 82 and caught then by all six legs. And two tests were wrong in ways that would have made them decorative: session assertions read the live session store rather than a snapshot, so asserting about the first response after making a second request inspected the wrong session entirely, and configuring a real mailer name made Fortify attempt a genuine send that threw, leaving neither a status nor an error for the test to find. item/trash-purge-manual landed more cleanly, splitting authorisation so that purging holds out for manage where trashing accepts edit -- irreversibility earning a higher bar -- and asserting through DocumentStorage that the bytes of every version, not merely the current one, actually leave the store. It also surfaced decision/0014, a latent way to lose every object beneath a directory, which is recorded now because the next item to touch that area is the one where the unsafe implementation is the obvious one. Two failures of method are worth keeping as well: a mutation that trips the formatter before it reaches the tests proves nothing, and a mutation branch cut from an earlier head than the one under test carries unrelated failures into the evidence."
+  "description": "Two items, and the first run in which every assertion behind a security claim was proven by breaking the feature rather than by arguing about it. The rule decision/0012 introduced was applied in earnest to item/user-reset-password-command, whose central claim is a negative one -- that the forgot-password page reveals nothing about whether an address has an account -- and negative claims are exactly where a test quietly stops testing, because \"these two responses are identical\" passes just as well when both are broken the same way. Two mutations settled it: removing the deliverability guard made the oracle tests and the container smoke fail with the leak verbatim in the failure text, and corrupting the printed reset token made the reset-link test and the smoke fail while the command still exited zero and still printed a link of exactly the right shape. The same assertions then passed against the working feature. Four for four. The cost was real and should be recorded honestly: roughly six CI cycles for one small item, two of them spent on mutations and the rest on defects the mutations and CI exposed. Three of those defects were worth the price. The command built its link from config('app.url'), which the shipped image never sets, so every link it printed read http://localhost -- a valid token on a host that is not the administrator's, which is not what \"a locked-out admin can get back in\" means; found by reading the code, not by any test. Forcing the root without the scheme would have silently downgraded an operator's https, the identical mistake shipped in pull request 82 and caught then by all six legs. And two tests were wrong in ways that would have made them decorative: session assertions read the live session store rather than a snapshot, so asserting about the first response after making a second request inspected the wrong session entirely, and configuring a real mailer name made Fortify attempt a genuine send that threw, leaving neither a status nor an error for the test to find. item/trash-purge-manual landed more cleanly, splitting authorisation so that purging holds out for manage where trashing accepts edit -- irreversibility earning a higher bar -- and asserting through DocumentStorage that the bytes of every version, not merely the current one, actually leave the store. It also surfaced decision/0014, a latent way to lose every object beneath a directory, which is recorded now because the next item to touch that area is the one where the unsafe implementation is the obvious one. Two failures of method are worth keeping as well: a mutation that trips the formatter before it reaches the tests proves nothing, and a mutation branch cut from an earlier head than the one under test carries unrelated failures into the evidence.",
+  "merges": [
+    {
+      "mergeSha": "a54ead26fb709d27b3ddca1edad897d99fe63869",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T13:31:34Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35227625151",
+      "testsConclusion": "failure",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35227625325",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "31dc1043ca20d5faa0eb120c4b638708c91a917a",
+      "pullRequest": null,
+      "mergedAt": "2026-09-17T13:49:05Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35229499626",
+      "testsConclusion": "failure",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35229499849",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "5ce044fa7768d55318abc0a193490b9375f7e170",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/87",
+      "mergedAt": "2026-09-17T15:48:44Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35242673176",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35242673110",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "75a3013b56a498e334dce0cf135e243da77254bf",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/89",
+      "mergedAt": "2026-09-17T16:20:29Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35245985166",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35245985017",
+      "ledgerConclusion": "success"
+    }
+  ]
 }
