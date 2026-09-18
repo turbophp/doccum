@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T10:10:00Z",
+  "dateModified": "2026-09-18T11:25:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -827,10 +827,12 @@
         "item/topbar-shell"
       ],
       "doneWhen": "All writes go through the Settings service; toggling auth.public_signup flips /register between 200 and 404.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T10:45:00Z",
+      "endTime": "2026-09-18T11:15:04Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/192"
+      ]
     },
     {
       "@id": "item/email-verification-decided",
@@ -2734,6 +2736,40 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/192",
+      "@type": "PullRequest",
+      "identifier": 192,
+      "name": "Settings: instance name, signup and retention -- and a retention window the purge plan was never reading",
+      "implements": [
+        "item/admin-instance-settings"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T11:02:30Z",
+      "headSha": "eaaa506601d4701032aabfd8c0e9c85e80587373",
+      "mergedAt": "2026-09-18T11:15:04Z",
+      "mergeSha": "bab413701aa9e3d9109b7c07b1c11292086a3bd6",
+      "mergedIn": "run/0020",
+      "mainRunUrl": "https://github.com/turbophp/doccum/actions/runs/35338699660",
+      "mainConclusion": "success"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/193",
+      "@type": "PullRequest",
+      "identifier": 193,
+      "name": "MUTATION -- DO NOT MERGE: item 38's smoke assertion, shown to fail",
+      "implements": [
+        "item/admin-instance-settings"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T11:15:30Z",
+      "headSha": "93f1f2611a6fa85974878f65435eaa263a8c12b4",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -3676,6 +3712,53 @@
         "item/admin-periods"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0057",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T11:25:00Z",
+      "run": "run/0020",
+      "name": "A setting whose reader bypasses the seam is a control that governs nothing",
+      "rationale": "item/admin-instance-settings's doneWhen says all writes go through the Settings service. Read as a UI instruction that is easy and worthless. retention.purge_after_years and retention.auto_purge lived in config/doccum.php OUTSIDE the settings block, and their readers used config() directly -- so a retention control could write a perfectly good settings row and change nothing at all. The purge plan would keep answering from the code default and the operator would have a governance control that governs nothing.\\n\\nBoth keys moved under config('doccum.settings') and both readers now go through Settings::get(). The second reader was not in the brief: App\\Console\\Commands\\PurgeExpired had the identical bug, and the worker found it. That was the more dangerous half -- the settings page would have appeared to work while the SCHEDULED weekly purge kept reading the code default, deleting or not deleting on the wrong rule, with nobody watching.\\n\\nThe assertion that makes the clause mean something is on BEHAVIOUR, not storage: writing retention.purge_after_years through the page changes what PeriodPurger::plan() reports in its blockers. A test asserting the stored row would be the same defect wearing a green test -- the exact shape decision/0054 catalogues.\\n\\nSO THE RULE, for any item that exposes a setting: find the code that READS it before adding the control. If nothing reads it, either wire it up or leave it out. 'limits' is named in issue #21's title and is deliberately absent, because nothing in the codebase reads an upload-size or quota setting; a limits field would have been this same defect one row over. instance.name is exposed with a flag rather than silently: it round-trips through the service and FirstRun already writes it, but nothing DISPLAYS it yet -- the topbar wordmark is a hardcoded literal. That is not the retention case (no second reader bypasses the seam) but it is not yet visible in the product either, and saying so is cheaper than someone discovering it.",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/admin-instance-settings",
+        "item/admin-periods"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0058",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T11:25:00Z",
+      "run": "run/0020",
+      "name": "auth()->id() is int|string|null: narrow it, never cast it",
+      "rationale": "phpstan refused four calls in InstanceSettings: Settings::set() takes ?int $userId and auth()->id() is int|string|null, because Laravel supports a string primary key. CLAUDE.md allows no new findings, so this had to be fixed rather than suppressed.\\n\\nThe obvious fix is (int) auth()->id(), and it is wrong twice over. It asserts something the framework does not promise -- this app's users table is bigIncrements TODAY. And a cast of a string key yields 0, which writes a settings row whose updated_by foreign key points at a user that does not exist: a silently corrupt row rather than a loud failure.\\n\\nactorId() narrows instead -- is_int($id) ? $id : null -- and the column is nullable precisely so 'unattributed' is expressible. Attribute the write when the key is what settings.updated_by can hold; leave it unattributed when it is not.\\n\\nSame reasoning that widened App\\Livewire\\Admin\\Roles::$permissionChoice's key to int|string rather than casting it (run/0020, item/admin-roles). Recorded as a pair because the general rule is one rule: when a framework type is wider than yours, move YOUR type or narrow the value -- never cast to what happens to be true in this schema this week.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/admin-instance-settings",
+        "item/admin-roles"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0059",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T11:25:00Z",
+      "run": "run/0020",
+      "name": "A pull request with zero check runs is conflicted until proven otherwise",
+      "rationale": "decision/0047 recorded that GitHub cannot build a merge commit for an un-mergeable pull request, so the pull_request event never fires and no workflow runs. It has now happened twice, and the second time it cost more than the first.\\n\\nPR #176, from the other session writing to this repository, sat for two and a half hours with `total_count: 0` check runs -- not red, not pending, NONE -- while main moved eleven commits underneath it. Its author had every reason to read that as 'waiting for CI'. Merging main into it (a merge commit, never a rebase, so the other session's checkout stays valid) made it buildable; CI then ran for the first time and immediately found a real defect that had been invisible the whole time: the branch's new click-to-open preview modal intercepts pointer events over the detail panel, so a PRE-EXISTING smoke check could no longer click the trash button it had always clicked.\\n\\nSO THE CHECK, every loop iteration: an open PR reporting zero check runs is conflicted until proven otherwise. Red CI is visible and gets attention; ABSENT CI looks exactly like patience. mergeable_state also reads 'unknown' in this state rather than 'dirty', so the API's own answer does not distinguish it -- a local `git merge-tree` against the base does, and takes seconds.\\n\\nOn resolution: the conflict was .github/mutations.json again, both sides appending to one array, resolved as a union with all 55 entries re-verified against the merged tree -- the same shape and the same verification decision/0047 required. container-smoke.mjs and routes/web.php auto-merged. The defect CI then found was NOT pushed as a fix: it is another session's PR and the two available fixes are not equivalent (dismiss the modal in the check, or stop a plain row click from opening a preview at all), so the diagnosis went to the author as a comment and the design call stayed theirs.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-main-push-record"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -3900,6 +3983,20 @@
       "headSha": "eeafacbde165566b7e1ea8a66de20df2b3bf08de",
       "mutant": "Removed only the `wire:submit=\"closePeriod\"` attribute from the close-period form in resources/views/livewire/admin/periods.blade.php. The form still renders, still carries its data-test, its inputs still bind and its submit button still clicks -- it simply no longer reaches the component. Chosen for the same reason as mutation/0015: App\\Livewire\\Admin\\Periods::closePeriod() is untouched, so AdminPeriodsTest, which calls that method directly through Livewire's test harness, cannot see it, and neither can guards, lint or any test matrix job.",
       "check": "container-smoke.mjs checkAdminPeriodsPage() -- the image job failed at the named assertion \"2020-01 was not archived after closePeriod() through the real form\", dumping \"closing 2020-01 through /admin/periods never archived it -- raw output: ARCHIVED:no\". Reached, not timed out on the way: the log shows the check created the scratch 2020-01 file through tinker, opened /admin/periods, found the close-period form, filled both fields and submitted, and got past checkAdminRolesPage and every check before it. Only the database failed to move. The other twelve checks on the same run all passed -- guards, lint, build assets, composer audit, dependency review, validate ledger and all six test matrix jobs -- which is the other half: AdminPeriodsTest calls closePeriod() directly through Livewire's test harness and cannot see a form that no longer reaches the component. Run https://github.com/turbophp/doccum/actions/runs/35332670342.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0017",
+      "@type": "Mutation",
+      "implements": [
+        "item/admin-instance-settings"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/193",
+      "run": "run/0020",
+      "headSha": "93f1f2611a6fa85974878f65435eaa263a8c12b4",
+      "mutant": "Removed only the `wire:submit=\"saveSignup\"` attribute from the public-signup form in resources/views/livewire/admin/instance-settings.blade.php. The form still renders, still carries its data-test, its checkbox still binds and its button still clicks -- it simply no longer reaches the component. App\\Livewire\\Admin\\InstanceSettings::saveSignup() is untouched, so AdminInstanceSettingsTest, which calls that method directly through Livewire's test harness, cannot see it, and neither can guards, lint or any test matrix job.",
+      "check": "container-smoke.mjs checkAdminInstanceSettingsPage() -- the image job failed at the doneWhen itself: \"enabling auth.public_signup through /admin/settings never made /register answer 200 for a guest -- got HTTP 404\". WHICH HALF FAILED IS THE POINT. The check asks an anonymous, cookie-less browser context for /register before and after the toggle; the 404-before control PASSED and the 200-after evidence FAILED, which is the right way round. CLAUDE.md records a case where the resting-state half of a smoke pair was argued to be load-bearing and mutation proved the reverse; here the half that requires the feature to DO something is the half that broke. The check also got past checkAdminPeriodsPage, including the purge control's disabled state and its retention blocker, so it reached its own assertion rather than falling over on the way. Every other check on the run passed. Run https://github.com/turbophp/doccum/actions/runs/35338752846.",
       "verdict": "negative",
       "supersedes": null
     }
