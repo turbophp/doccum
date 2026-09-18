@@ -43,7 +43,14 @@ class Roles extends Component
      * Seeded lazily in render() from each role's current permissions,
      * mirroring App\Livewire\Admin\Users::$roleChoice.
      *
-     * @var array<int, array<string, bool>>
+     * The key is int|string, not int, because Spatie's Role model supports a
+     * uuid primary key as well as an auto-incrementing one -- $role->id is
+     * genuinely either. This app's own migration uses bigIncrements, so a
+     * (int) cast would be correct TODAY and would be asserting something the
+     * package does not promise; PHP coerces integer-like string keys to int
+     * on write regardless, so the wider declaration is the true one.
+     *
+     * @var array<int|string, array<string, bool>>
      */
     public array $permissionChoice = [];
 
