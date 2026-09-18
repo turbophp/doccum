@@ -361,9 +361,30 @@ async function clickOnceUploadSettles(page, button, phase, label) {
  *
  * The fix is in resources/views/livewire/files/browser.blade.php: the submit
  * button is disabled for the whole upload, so the racing click cannot be
- * made. Retrying here would hide a regression of exactly that, so this no
- * longer retries -- if the guard is removed or Flux stops forwarding it, some
- * upload in this run stores nothing and the run says so.
+ * made. Retrying here would hide a regression of exactly that, so this does
+ * not retry.
+ *
+ * What this helper does NOT prove, stated plainly because it used to claim
+ * otherwise: it is no longer sensitive to the product guard. It used to say
+ * that removing wire:loading.attr="disabled" would leave some upload in this
+ * run storing nothing -- true while the click was timed off that very
+ * attribute, and false since setFileAndWaitForUpload() started waiting the
+ * upload-file POST out instead. With the bytes already acknowledged before
+ * the click, an undisabled button stores just fine here. That is the price
+ * of a helper that does not race, and it moves the whole weight of the guard
+ * onto one assertion elsewhere:
+ * checkUploadButtonIsDisabledWhileTheFileIsStillUploading() stalls the upload
+ * endpoint on purpose and asserts the button disabled inside that window --
+ * which is why that check still sets its file by hand rather than through
+ * the helper above. One check proves the guard; this one proves an upload
+ * stores. Neither pretends to do the other's job.
+ *
+ * Whether that one assertion can actually fail is being established by
+ * mutation as this lands (issue #106's guard removed from the button, and
+ * nothing else). decision/0030 already called it load-bearing, but on
+ * reasoning rather than a run -- the distinction CLAUDE.md draws, and the
+ * reason the claim is worth re-earning now that nothing else is sensitive to
+ * the guard.
  */
 async function uploadAndProveStored(page, name, contents, phase) {
   const tmpFile = path.join(os.tmpdir(), name);
