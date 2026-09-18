@@ -267,6 +267,12 @@ class Browser extends Component
         }
 
         $this->newDirectoryName = '';
+
+        // Dispatched on success ONLY, and the dialog closes on this rather
+        // than on submit: createDirectory() answers a duplicate name by adding
+        // an error and returning, so a dialog that closed when the form was
+        // submitted would take the explanation with it.
+        $this->dispatch('folder-created');
     }
 
     public function store(StoreFileVersion $action): void
@@ -285,6 +291,10 @@ class Browser extends Component
         );
 
         $this->upload = null;
+
+        // Success only, same reasoning as folder-created above: a rejected
+        // upload must leave its dialog open with the message still on screen.
+        $this->dispatch('file-uploaded');
     }
 
     /**

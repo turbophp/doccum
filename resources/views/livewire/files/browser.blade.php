@@ -249,7 +249,11 @@
                     </div>
 
                     <x-modal state="newFolderOpen" :title="__('New folder')" test="new-folder-modal">
-                        <form wire:submit="createDirectory" class="space-y-3" x-on:submit="newFolderOpen = false">
+                        <form
+                            wire:submit="createDirectory"
+                            class="space-y-3"
+                            x-on:folder-created.window="newFolderOpen = false"
+                        >
                             <input
                                 wire:model="newDirectoryName"
                                 type="text"
@@ -257,6 +261,10 @@
                                 placeholder="{{ __('Name') }}"
                                 class="h-9 w-full rounded border border-rule bg-sheet px-2 text-sm text-ink placeholder:text-ink-2 focus:border-select focus:outline-none focus:ring-1 focus:ring-select"
                             />
+
+                            @error('newDirectoryName')
+                                <p class="text-sm text-attention" data-test="new-folder-error">{{ $message }}</p>
+                            @enderror
 
                             <div class="flex justify-end gap-2">
                                 <flux:button size="sm" type="button" x-on:click="newFolderOpen = false">{{ __('Cancel') }}</flux:button>
@@ -283,13 +291,22 @@
                              smoke asserts the disabled state against a deliberately delayed
                              upload endpoint. --}}
                         <x-modal state="uploadOpen" :title="__('Upload a file')" test="upload-modal">
-                            <form wire:submit="store" class="space-y-3" data-test="upload-form">
+                            <form
+                                wire:submit="store"
+                                class="space-y-3"
+                                data-test="upload-form"
+                                x-on:file-uploaded.window="uploadOpen = false"
+                            >
                                 <input
                                     type="file"
                                     wire:model="upload"
                                     aria-label="{{ __('File') }}"
                                     class="block w-full text-sm text-ink file:mr-3 file:rounded file:border file:border-rule file:bg-chrome file:px-2 file:py-1 file:text-sm file:text-ink hover:file:bg-sheet"
                                 />
+
+                                @error('upload')
+                                    <p class="text-sm text-attention" data-test="upload-error">{{ $message }}</p>
+                                @enderror
 
                                 <div class="flex justify-end gap-2">
                                     <flux:button size="sm" type="button" x-on:click="uploadOpen = false">{{ __('Cancel') }}</flux:button>

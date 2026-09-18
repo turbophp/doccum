@@ -977,14 +977,17 @@ async function checkTopbar(page, phase) {
   }
   console.log(`[${phase}] version pill renders the configured value: ${pillText}`);
 
-  // The administrator holds properties.manage, so all three are expected.
-  // A plain member seeing Settings is covered by the layout test; what is
-  // asserted here is that the topbar renders at all outside the test
+  // What is asserted here is that the topbar renders at all outside the test
   // renderer, with Flux's own components resolving in the image.
-  for (const nav of ['nav-home', 'nav-files', 'nav-settings']) {
+  //
+  // Home and Files only: Settings moved into the account menu, so it is
+  // deliberately NOT visible at rest and is asserted below, once that menu is
+  // open. A plain member never seeing Settings at all is covered by the layout
+  // test.
+  for (const nav of ['nav-home', 'nav-files']) {
     await page.locator(`[data-test="${nav}"]`).waitFor({ state: 'visible', timeout: 10000 });
   }
-  console.log(`[${phase}] topbar shows Home, Files and Settings for the administrator`);
+  console.log(`[${phase}] topbar shows Home and Files for the administrator`);
 
   // Cheap sanity check only -- see the docblock. This passes with no JS in
   // the image at all, so it is evidence that the click changes something,
@@ -997,6 +1000,16 @@ async function checkTopbar(page, phase) {
   await page.locator('[data-test="account-menu-trigger"]').click();
   await logout.waitFor({ state: 'visible', timeout: 10000 });
   console.log(`[${phase}] account menu opens on click -- scripts booted in the image`);
+
+  // The administrator holds properties.manage, so Settings is expected -- in
+  // the account menu now rather than the primary nav. Asserting it here keeps
+  // what the old check proved (the destination renders in the image for an
+  // administrator) and adds what the move introduced: that it is reachable
+  // once the menu is open.
+  await page
+    .locator('[data-test="nav-settings"]')
+    .waitFor({ state: 'visible', timeout: 10000 });
+  console.log(`[${phase}] Settings is in the account menu for the administrator`);
 
   return logout;
 }
