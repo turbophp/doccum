@@ -1,0 +1,18 @@
+{
+  "@context": "../context.jsonld",
+  "@id": "run/0018",
+  "@type": "Run",
+  "identifier": 18,
+  "agent": "https://claude.ai/code/session_01ADCn2xmXjiP4pnatPFyF5r",
+  "startTime": "2026-09-18T00:41:00Z",
+  "endTime": null,
+  "outcome": "active",
+  "touched": [
+    "item/container-smoke-ci",
+    "item/file-policy-trashed-file-guards"
+  ],
+  "commit": "35679215ac5feb5c4fc2328cdd3cd0615f28781e",
+  "tests": 649,
+  "assertions": 1340,
+  "description": "Opened on the consult's findings rather than on the next backlog item, and the backlog was reshaped to say so. Two items are new: item/file-policy-trashed-file-guards at order 26, ahead of the remaining UI work, and item/login-by-username beside the admin items. The first piece of work is not an item at all but item/container-smoke-ci again -- the verify phase claiming object storage it never read. That one is first because everything else in this loop is verified through that phase, and a check that reports a subsystem it cannot see is worth less than no check."
+}
