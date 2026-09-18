@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T14:40:00Z",
+  "dateModified": "2026-09-18T14:50:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -992,9 +992,9 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [],
-      "doneWhen": "A dependsOn containing a non-string, an implements given as a bare string, and decision/0030's array-shaped supersedes each produce exactly one shape: error and no crash; a mainConclusion with a null mainRunUrl is a pr: error; the live ledger validates clean once decision/0030 is corrected; the rule has a mutations.json entry.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "doneWhen": "A dependsOn containing a non-string, an implements given as a bare string, and decision/0030's array-shaped supersedes each produce exactly one shape: error and no crash; a testsConclusion with a null testsRun, and a ledgerConclusion with a null ledgerRun, are each a run: error (this clause originally read \"a mainConclusion with a null mainRunUrl is a pr: error\"; item/ledger-main-push-record deleted both of those fields from PullRequest and moved the fact into Run.merges, so the clause is restated against the fields that inherited its intent rather than dropped -- checkMergeEntry() validates each field independently today, so an entry may claim a conclusion with no run to point at); the live ledger validates clean once decision/0030 is corrected; the rule has a mutations.json entry.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-18T14:50:00Z",
       "endTime": null,
       "result": []
     },
@@ -4058,6 +4058,21 @@
       ],
       "affects": [
         "item/ledger-field-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0068",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T14:50:00Z",
+      "run": "run/0020",
+      "name": "An item whose doneWhen outlived its subject is restated before it is worked, not while",
+      "rationale": "item/ledger-shape-from-context (order 46, issue #188) has six clauses. One of them -- \"a mainConclusion with a null mainRunUrl is a pr: error\" -- became unsatisfiable when item/ledger-main-push-record deleted both fields from PullRequest and moved that fact into Run.merges. No PullRequest node carries them, context.jsonld no longer defines them, and the validator mentions them only in historical comments.\n\nThe loop's own rule covers this: if a doneWhen cannot be satisfied as written, say so and split or restate the item -- do not fake the clause. What it does not say, and what this decision adds, is WHEN. Restating it as part of the ledger pass that marks the item Completed would produce a record in which the requirement and the implementation match perfectly, because the requirement was edited to fit what was built. That is indistinguishable, afterwards, from having met the original clause. So the amendment lands FIRST, on its own, before the work is delegated.\n\nThe clause is restated rather than deleted, because its intent survived its subject: a conclusion recorded without the run that produced it is incoherent, and that shape simply lives on Run.merges now. Verified it is real work rather than already done -- checkMergeEntry() validates mergeSha, pullRequest, the two conclusions and the two run URLs each independently, so an entry may today claim testsConclusion 'success' with testsRun null and validate clean.\n\nGeneral form: an item's doneWhen is a claim made BEFORE the work, and its value comes entirely from having been written before. Editing one is sometimes necessary and is never free -- do it in its own change, with the reason recorded, so the edit is visible as an edit.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-shape-from-context"
       ],
       "supersedes": null
     }
