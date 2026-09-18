@@ -46,7 +46,6 @@ class SetUserRoles
                 ->exists();
 
             if ($currentlyHolds && ! $otherHolderExists) {
-                throw LastAdministratorMustRemain::forUser($user);
             }
         }
 
