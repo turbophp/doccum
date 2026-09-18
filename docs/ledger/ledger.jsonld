@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T19:52:00Z",
+  "dateModified": "2026-09-18T20:12:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1362,10 +1362,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "files.directory_id is constrained with cascadeOnDelete, so forceDelete() on a Directory removes every descendant File ROW in SQL without PHP ever running per file -- so Services\\DocumentStorage is never reached and every object those files owned is left in the store with nothing referencing it. Directory::booted()'s forceDeleted hook clears only the directory's own morph-attached properties; it cannot clean up descendants the database already removed. LATENT, not live: nothing in the application force-deletes a Directory today, and PeriodPurger force-deletes FILES one at a time, deleting each object through DocumentStorage first -- which is exactly the ordering a cascade skips. Done when the objects beneath a force-deleted directory are removed through the DocumentStorage seam, or the cascade is replaced by a path that cannot bypass it, with a test that fails if the objects survive. The test must assert against the object store, not the rows: asserting the rows are gone passes on the broken code, since the cascade is precisely what removes them.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T19:53:00Z",
+      "endTime": "2026-09-18T20:08:30Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/243"
+      ]
     },
     {
       "@id": "item/upgrade-preserves-access",
@@ -3294,6 +3296,38 @@
       "mergedAt": "2026-09-18T19:49:28Z",
       "mergeSha": "936ae10e9177655acb1c34d15268c35de41c9d50",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/241",
+      "@type": "PullRequest",
+      "identifier": 241,
+      "name": "MUTATION -- DO NOT MERGE: force-delete bypasses DocumentStorage again",
+      "implements": [
+        "item/directory-force-delete-orphans"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T19:58:11Z",
+      "headSha": "2f9a1ea49bc6217b9465ee0bc013a9da4f8377f0",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/243",
+      "@type": "PullRequest",
+      "identifier": 243,
+      "name": "Force-deleting a directory cleans its subtree instead of orphaning it",
+      "implements": [
+        "item/directory-force-delete-orphans"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T20:04:38Z",
+      "headSha": "4afef0ae4d18480e8f9ae124bd12074ad53f79ec",
+      "mergedAt": "2026-09-18T20:08:30Z",
+      "mergeSha": "97264ee660337e42b9f8f5ecb07df8da4967f6e4",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4739,6 +4773,24 @@
         "item/image-size"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0088",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T20:12:00Z",
+      "run": "run/0020",
+      "name": "A mutation is a differential, so mutate a branch already shown green",
+      "rationale": "The first mutation for issue #86 was opened against a feature branch CI had never run. It came back red on all six test jobs, which is what a working mutation looks like from any distance at which you are not reading the log. None of it was the mutant. All three new tests were dying in a TypeError inside SearchIndexer before reaching an assertion, and a fourth failure was an unregistered driver-dependent site in SchemaPortabilityTest. Both were the branch's own, present with or without the mutant.\n\nEvery earlier item in this loop used the same order -- mutation PR first, feature PR after -- and got away with it because those branches happened to be clean. That is luck, not method. A mutation is a DIFFERENTIAL measurement: it means something only against a known baseline, and a differential against an unknown baseline is not a measurement at all. So the rule is now explicit in LOOP.md, in the same PR as this decision: the feature PR goes to a full green FIRST, then the mutant branches off it.\n\nThe second half of the rule matters as much. State in the mutation PR, before the run, which tests should fail and which should stay green -- then check the summary line's COUNT against it. 'Red' is not evidence. 'Two failed, and they are the two named beforehand, and the one predicted to survive survived' is evidence. The rebuilt run for this item reported exactly that, and the test predicted to stay green did stay green -- which is the half that proves the suite was measuring the subtree rather than anything wider.\n\nA mutant that reddens MORE than predicted has told you something about your tests rather than about the guard, and that is a finding to chase, not noise to average out. Chasing this one produced issue #242: SearchIndexer::forProperty() reads $property->subject, a morphTo that resolves to null once the subject is trashed, and hands it straight to directoryFor(Model $subject), whose parameter is not nullable. Reachable by any write to a property on a trashed file, and nothing to do with force-deleting directories. It was filed rather than fixed in that branch, so a real defect did not ride along inside an unrelated item and disappear from view.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/directory-force-delete-orphans",
+        "item/image-size",
+        "item/upgrade-smoke",
+        "item/v1-audit"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -5075,6 +5127,20 @@
       "headSha": "4420606cd0dae26fb987e100504ee5abb5dce36b",
       "mutant": "Commented out app/Livewire/Setup/FirstRun.php:405's $user->forceFill(['email_verified_at' => now()])->save(); so the first administrator the installer creates is left unverified. That is exactly the regression item/email-verification-decided shipped against: with verification enforced and no mailer configured, an unverified first administrator is bounced to /email/verify and can never leave it, because the only way off that page is a mail the instance cannot send.",
       "check": "The image job's container smoke, run/35387325216. MUTATED: the installer step failed with the message this item added, quoted from the job log rather than inferred from the job's red status -- '[setup] the installer never reached /files after submitting the administrator form -- bounced to the email verification notice (/email/verify) instead of the page this was asked for. A bounce to the verification notice here means the first administrator was not verified at creation (item/email-verification-decided, issue #161); a bounce anywhere else (e.g. back to \\'/\\', Laravel\\'s starter welcome page) is issue #97\\'s original failure mode instead.' The distinguishing half is what was on trial and the distinguishing half is what fired: the smoke named the verification bounce specifically, not a generic failure to arrive. WHAT THIS MUTATION DOES NOT PROVE, recorded because it weakens it: the same mutant also turned all six test jobs red, so this is not a case where the smoke was the only thing standing between the defect and a green tree. The evidence here is the message text read out of the image job's own log, not the redness of the run -- a red run would have been consistent with the old bare-boolean message too, and that is the thing this item replaced. Closed unmerged; main never carried the mutant.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0025",
+      "@type": "Mutation",
+      "implements": [
+        "item/directory-force-delete-orphans"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/241",
+      "run": "run/0020",
+      "headSha": "2f9a1ea49bc6217b9465ee0bc013a9da4f8377f0",
+      "mutant": "Removed Directory::booted()'s forceDeleting hook and its import -- literally the code as it stood before this item. Removed WHOLE rather than commented out, deliberately: a commented-out body leaves the import unused, pint fails, and a mutation PR that goes red on formatting says nothing about the guard.",
+      "check": "The six test jobs, run/35389348140. MUTATED: 'Tests: 2 failed, 1 skipped, 861 passed (1918 assertions)'. Two, not four and not six, and they are the two named in the PR before the run. The object test reported its survivor list in full -- ['root','child','trashed','trashedChild'] -- so all four objects outlived the force-delete, which is issue #86's orphaning reproduced exactly. Two of those four are the independently-trashed cases, the file soft-deleted on its own and the file inside a soft-deleted child directory: the rows Directory::descendants() drops through the SoftDeletes scope and the cascade removes anyway, which is what withTrashed() is in the action for. The collected-list form is what made them visible; a per-key toBeFalse() would have reported 'root' and stopped. THE RESULT WORTH KEEPING is what stayed green: 'it leaves a sibling directory and its object untouched' PASSED, as did SchemaPortabilityTest. That test asserts an untouched directory keeps its object, which the broken code satisfies too -- had it reddened, the suite would have been measuring something wider than the subtree and the other two failures would have meant less. Closed unmerged; main never carried the mutant.",
       "verdict": "negative",
       "supersedes": null
     }

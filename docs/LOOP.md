@@ -120,6 +120,19 @@ Every hour, the loop wakes and runs these steps in order.
 - **Never skip, disable or quarantine a test** to get a PR green.
 - **Every guard gets a mutation check.** Delete the guard, watch the test
   fail, restore it — and say in the PR that you did.
+- **Mutate a branch that is already green, and say beforehand what should
+  fail.** A mutation is a differential measurement, so a differential against
+  an unknown baseline is not a measurement. Get the feature PR to a full green
+  first, then branch the mutant off it. `decision/0088`: the mutation for
+  issue #86 was opened against a branch CI had never seen. It came back red on
+  every test job — which is what a working mutation looks like from a distance
+  — and none of it was the mutant. All three new tests were dying in an
+  unrelated `TypeError` before reaching an assertion, and a fourth failure was
+  an unregistered portability site. Red is not evidence; *which* tests, and
+  only those, is evidence. Write the prediction into the mutation PR before
+  the run, and check the count in the summary line against it: a mutant that
+  reddens more than it should has told you something about your tests, not
+  about the guard.
 - **Scope stays small.** One backlog item per PR. An item that grows past its
   "done when" line gets split in the ledger, not widened in the branch.
 - **The ledger is append-only for history.** Runs and decisions are never
