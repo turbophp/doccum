@@ -156,6 +156,12 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
         'safe today only because of what this column happens to contain.',
     'app/Models/Directory.php' => "Same 'like' prefix match against `path` (descendants(), scopeInSubtreeOf()) as "
         .'RestoreDirectory, same reasoning: safe because path is ids and slashes only.',
+    'app/Actions/Directories/PurgeSubtreeOrphans.php' => "A 'like' prefix match against `path`, resolving the subtree whose objects a "
+        .'force-delete is about to strand (issue #86). Same "path is ids and slashes only" '
+        .'reasoning as Directory, RestoreDirectory and DirectoryAccess; registered because the '
+        .'operator is raw and driver-conditional in general, not because this call site is at '
+        .'risk. The match runs through withTrashed() deliberately -- the cascade it gets ahead '
+        .'of does not consult the SoftDeletes scope, so neither may this.',
     'app/Services/DirectoryAccess.php' => "resolveViewable()'s 'like'/'not like' prefix matches against `path`, expanding a granted ".
         'subtree and excluding a trashed one (issue #49). Same "path is ids only" reasoning as '.
         'Directory and RestoreDirectory -- named explicitly in this item\'s brief as a known site.',

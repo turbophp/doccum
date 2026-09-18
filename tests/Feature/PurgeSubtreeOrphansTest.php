@@ -31,8 +31,10 @@ beforeEach(function () {
     $this->childFile = File::factory()->for($this->child, 'directory')->create(['name' => 'child.pdf']);
 
     // One file soft-deleted independently, in the root, before the purge.
+    // The delete itself happens at the bottom of this block, after the
+    // properties exist -- see the note there for why the order is
+    // load-bearing.
     $this->trashedFile = File::factory()->for($this->root, 'directory')->create(['name' => 'trashed.pdf']);
-    $this->trashedFile->delete();
 
     // One child directory soft-deleted independently, with a live file
     // still inside it -- the case Directory::descendants() would miss,
@@ -40,7 +42,6 @@ beforeEach(function () {
     // global scope filters.
     $this->trashedChild = Directory::factory()->for($this->root, 'parent')->create(['name' => 'TrashedChild']);
     $this->trashedChildFile = File::factory()->for($this->trashedChild, 'directory')->create(['name' => 'in-trashed-child.pdf']);
-    $this->trashedChild->delete();
 
     $this->objectKeys = [];
 
@@ -60,6 +61,21 @@ beforeEach(function () {
 
     $definition = PropertyDefinition::factory()->create();
 
+    // Every property is created while its subject is still live, and the two
+    // independent soft-deletes happen at the bottom of this block rather than
+    // where the subjects are built. That order is not cosmetic. A property
+    // save is observed by SearchProjectionObserver, which indexes it, and
+    // SearchIndexer::forProperty() reads $property->subject -- a morphTo,
+    // which applies the subject's SoftDeletes scope and so resolves to NULL
+    // once the subject is trashed. It passes that straight into
+    // directoryFor(Model $subject), whose parameter is not nullable, so
+    // creating a property on an already-trashed subject dies with a TypeError
+    // before this test can assert anything at all.
+    //
+    // That is a real latent defect in SearchIndexer, not a quirk of this test,
+    // and it is filed separately rather than worked around here. Building the
+    // rows live and trashing afterwards is what an ordinary caller does
+    // anyway; reaching for a workaround instead would have buried it.
     $this->properties = [
         'child' => Property::factory()->create([
             'property_definition_id' => $definition->id,
@@ -92,6 +108,16 @@ beforeEach(function () {
             'subject_id' => $this->trashedChildFile->getKey(),
         ]),
     ];
+
+    // Only now the two independent soft-deletes, with every property already
+    // written: a file trashed on its own, and a whole child directory trashed
+    // on its own with a live file still inside it. The second is the case
+    // Directory::descendants() misses, because it runs through
+    // static::query(), which the SoftDeletes global scope filters -- while
+    // the SQL cascade this action exists to get ahead of does not consult
+    // that scope at all.
+    $this->trashedFile->delete();
+    $this->trashedChild->delete();
 });
 
 it('removes every object beneath a force-deleted directory through DocumentStorage', function () {
