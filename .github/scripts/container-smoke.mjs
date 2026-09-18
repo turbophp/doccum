@@ -867,8 +867,25 @@ async function checkBreadcrumbNavigatesTwoLevels(page, phase) {
   // not a page.goto(), because reaching it that way is the point: this
   // proves the sidebar's tree link is a real, clickable one, not only that
   // the breadcrumb rendered.
+  // Waits for level1 to be back in the CENTRE pane, which is true only at
+  // the starting directory: level1 is its child, and level2's page lists
+  // level2's children instead.
+  //
+  // This wait used to be 'New folder' visible, and that field is on every
+  // directory page, so it was satisfied instantly by the page being left --
+  // the same non-discriminating signal as the two navigations above, and it
+  // did not merely fail this check, it LEAKED. The upload-guard check runs
+  // next; it began on the outgoing page, its upload fired, and wire:navigate
+  // then swapped in a fresh Upload button with no upload in flight, which
+  // reads enabled. So a wait that does not discriminate here reports as
+  // "issue #106 is reachable again" two checks later, blaming a guard that
+  // is present and correct.
+  //
+  // Every page transition in this function now waits on something true only
+  // on the destination. That is the rule, not a patch: a check that leaves
+  // the browser mid-navigation hands its own failure to whatever runs next.
   await page.locator('[data-test="directory-tree"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
-  await page.getByLabel('New folder', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await list.getByText(level1, { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
 }
 
 /**
