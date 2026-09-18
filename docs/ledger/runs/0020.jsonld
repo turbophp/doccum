@@ -7,7 +7,9 @@
   "startTime": "2026-09-18T08:36:30Z",
   "endTime": null,
   "outcome": "active",
-  "touched": [],
+  "touched": [
+    "item/admin-roles"
+  ],
   "commit": "c47ad90d203fd697e364c5d15e9c7ffd1560d714",
   "tests": -1,
   "assertions": -1,
