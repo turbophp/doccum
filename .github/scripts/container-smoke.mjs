@@ -808,12 +808,30 @@ async function checkBreadcrumbNavigatesTwoLevels(page, phase) {
     page.getByRole('button', { name: 'Create', exact: true }).click(),
   ]);
 
-  // The directory link has no href of its own worth trusting yet -- it is
-  // Flux's <a>, but wire:navigate is what has to actually carry the click,
-  // so this waits on the NEXT page's own content rather than assuming the
-  // click landed.
+  // Waits for the centre pane to stop listing level1, because a directory is
+  // not among its OWN children -- so this is true only once the navigation
+  // has actually landed.
+  //
+  // It used to wait for the 'New folder' field to be visible, and that field
+  // is on the root page too. The wait was therefore satisfied instantly by
+  // the page being left, before wire:navigate swapped the DOM, and the
+  // fill() below wrote into a field about to be destroyed: level2 was never
+  // created inside level1 and the next wait timed out. Deterministically, on
+  // three runs, including the correct build -- which is how it was caught
+  // rather than shipped.
+  //
+  // That is CLAUDE.md's topbar lesson in a different costume: a signal that
+  // is already true before the action proves nothing about the action. The
+  // comment this replaces even said it was waiting on "the NEXT page's own
+  // content"; the intent was right and the chosen signal did not
+  // discriminate.
+  //
+  // Deliberately NOT the breadcrumb, which is what this check exists to
+  // test: waiting on the thing under test would make a breadcrumb defect
+  // surface here, as an opaque navigation timeout, instead of at the count
+  // assertion below where it is named.
   await list.getByRole('link', { name: level1, exact: true }).click();
-  await page.getByLabel('New folder', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
+  await list.getByText(level1, { exact: true }).waitFor({ state: 'detached', timeout: 10000 });
 
   await page.getByLabel('New folder', { exact: true }).fill(level2);
   await Promise.all([
@@ -821,7 +839,11 @@ async function checkBreadcrumbNavigatesTwoLevels(page, phase) {
     page.getByRole('button', { name: 'Create', exact: true }).click(),
   ]);
 
+  // Same discriminating wait as above, and for the same reason: the count
+  // assertion below must be what fails when the breadcrumb is wrong, not a
+  // navigation wait that happens to depend on it.
   await list.getByRole('link', { name: level2, exact: true }).click();
+  await list.getByText(level2, { exact: true }).waitFor({ state: 'detached', timeout: 10000 });
 
   // Waits for THIS crumb specifically, not merely "a last breadcrumb item is
   // visible" -- the previous page (level1's) already had one of those
