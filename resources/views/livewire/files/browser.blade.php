@@ -226,11 +226,11 @@
                      attributes to the real <button> -- that is not assumed here. --}}
                 <form wire:submit="store" class="flex items-end gap-4" data-test="upload-form">
                     <flux:input wire:model="upload" :label="__('Upload a file')" type="file" />
+                    {{-- MUTATION: the in-flight guard is removed from the Upload
+                         button. Nothing else is touched. --}}
                     <flux:button
                         type="submit"
                         variant="primary"
-                        wire:loading.attr="disabled"
-                        wire:target="upload"
                     >{{ __('Upload') }}</flux:button>
                 </form>
             @endif
