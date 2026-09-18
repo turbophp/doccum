@@ -4,9 +4,9 @@
   "@type": "Run",
   "identifier": 18,
   "agent": "https://claude.ai/code/session_01ADCn2xmXjiP4pnatPFyF5r",
-  "startTime": "2026-09-18T00:41:00Z",
-  "endTime": null,
-  "outcome": "active",
+  "startTime": "2026-09-18T00:36:30Z",
+  "endTime": "2026-09-18T04:50:00Z",
+  "outcome": "completed",
   "touched": [
     "item/container-smoke-ci",
     "item/file-policy-trashed-file-guards",
@@ -17,7 +17,7 @@
     "item/download-missing-object",
     "item/ledger-mutation-nodes"
   ],
-  "commit": "1238b251801a815155927d3f74a326b3195780c6",
+  "commit": "221b30e91964a81e727ccc18bcfbbed571436ef8",
   "tests": 701,
   "assertions": 1446,
   "description": "Opened on the consult's findings rather than on the next backlog item, and the backlog was reshaped to say so. Two items are new: item/file-policy-trashed-file-guards at order 26, ahead of the remaining UI work, and item/login-by-username beside the admin items. The first piece of work is not an item at all but item/container-smoke-ci again -- the verify phase claiming object storage it never read. That one is first because everything else in this loop is verified through that phase, and a check that reports a subsystem it cannot see is worth less than no check."
