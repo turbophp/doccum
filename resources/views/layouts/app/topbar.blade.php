@@ -26,8 +26,35 @@
                     {{ __('Files') }}
                 </flux:navbar.item>
 
+                {{--
+                    Spec §10: Settings covers several sections (users and role
+                    assignment, roles and permissions, property definitions,
+                    archive periods, instance settings), "Each section gated
+                    by its Spatie permission" -- so an admin holding ONLY
+                    users.manage (and not properties.manage) must still see a
+                    way into Settings. Gating the whole nav item on ONE
+                    section's permission, as before item/admin-users (issue
+                    #18), would hide it from exactly that admin. This checks
+                    every section this viewer could reach and points the
+                    link at whichever one they can actually open --
+                    properties.manage is checked first only because that was
+                    the original single-permission check's section; nothing
+                    depends on that order.
+                --}}
                 @can('properties.manage')
                     <flux:navbar.item :href="route('admin.properties')" :current="request()->routeIs('admin.*')" wire:navigate data-test="nav-settings">
+                        {{ __('Settings') }}
+                    </flux:navbar.item>
+                @elsecan('users.manage')
+                    {{-- A users.manage-only admin has no properties.manage, so the
+                         nav item above never renders for them -- this is the one
+                         they get instead, pointed at the one Settings section they
+                         can actually open. data-test="nav-settings-users" (not
+                         "nav-settings", which the check above already owns) so a
+                         check that logs in as a users.manage-only account can tell
+                         it reached THIS link, not merely that some Settings link
+                         exists. --}}
+                    <flux:navbar.item :href="route('admin.users')" :current="request()->routeIs('admin.*')" wire:navigate data-test="nav-settings-users">
                         {{ __('Settings') }}
                     </flux:navbar.item>
                 @endcan

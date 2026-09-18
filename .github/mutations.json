@@ -313,5 +313,19 @@
     "file": "app/Models/User.php",
     "remove": "            if (str_contains($username, '@')) {\n                throw UsernameWouldBeAmbiguous::forUsername($username);\n            }\n\n",
     "expectFailing": "refuses to persist a username containing an at sign, whatever wrote it"
+  },
+  {
+    "id": "user-model-refuses-to-delete-last-administrator",
+    "why": "item/admin-users (issue #18): a shipped doccum instance is single-admin by construction, and App\\Livewire\\Settings\\DeleteUserForm lets the authenticated user delete their OWN account with no guard of its own -- the model hook in User::booting() is the one place nothing can bypass that. Remove the throw and the sole holder of `users.manage` can delete themselves (or be deleted through any future path) with the row simply gone: no admin left, and nothing in the running instance able to create one, assign a role, or reach Settings at all.",
+    "file": "app/Models/User.php",
+    "remove": "            throw LastAdministratorMustRemain::forUser($user);\n",
+    "expectFailing": "refuses to delete the sole holder of users.manage"
+  },
+  {
+    "id": "set-user-roles-refuses-to-strip-last-administrator",
+    "why": "item/admin-users (issue #18): the admin Users page changes a user's role set through App\\Actions\\Users\\SetUserRoles, and Spatie's syncRoles() writes the pivot table directly -- it fires no Eloquent model event, so User::booting()'s deleting hook (which catches the DELETE case) cannot see a role change at all. This throw is the entire protection for that path: remove it and an operator can leave the sole holder of `users.manage` with a role that does not carry it, through the ordinary admin UI, with no error and no way back in to fix it.",
+    "file": "app/Actions/Users/SetUserRoles.php",
+    "remove": "                throw LastAdministratorMustRemain::forUser($user);\n",
+    "expectFailing": "refuses to strip the sole holder of users.manage down to a role with no permission"
   }
 ]
