@@ -39,6 +39,31 @@ class ProfileUpdateTest extends TestCase
         $this->assertNull($user->email_verified_at);
     }
 
+    // item/email-verification-decided (issue #161): this is the case that
+    // makes App\Console\Commands\UserVerify necessary rather than a nicety.
+    // Changing your own email already nulled email_verified_at before this
+    // item (that assertion is above); what changes is that the `verified`
+    // middleware now actually enforces what that null means -- an operator
+    // who does this locks themselves out of every `verified` route, on a
+    // container whose mailer defaults to 'log', with no recovery besides
+    // that command.
+    public function test_changing_your_own_email_demotes_you_from_a_verified_route(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user);
+
+        Livewire::test(Profile::class)
+            ->set('name', $user->name)
+            ->set('email', 'new-address@example.com')
+            ->call('updateProfileInformation')
+            ->assertHasNoErrors();
+
+        $response = $this->get(route('dashboard'));
+
+        $response->assertRedirect(route('verification.notice', absolute: false));
+    }
+
     public function test_email_verification_status_is_unchanged_when_email_address_is_unchanged(): void
     {
         $user = User::factory()->create();
@@ -145,6 +170,27 @@ class ProfileUpdateTest extends TestCase
 
         $this->assertNull($user->fresh());
         $this->assertFalse(auth()->check());
+    }
+
+    // item/email-verification-decided (issue #161): Profile::showDeleteUser()
+    // only hides the delete-account button for an unverified user -- it does
+    // not, by itself, stop the request. This proves the refusal is real by
+    // calling deleteUser() directly, the same way the button's own click
+    // would, bypassing whatever the button's visibility decided.
+    public function test_an_unverified_user_cannot_delete_their_account(): void
+    {
+        $user = User::factory()->unverified()->create();
+
+        $this->actingAs($user);
+
+        $response = Livewire::test('settings.delete-user-form')
+            ->set('password', 'password')
+            ->call('deleteUser');
+
+        $response->assertHasErrors(['password']);
+
+        $this->assertNotNull($user->fresh());
+        $this->assertTrue(auth()->check());
     }
 
     public function test_correct_password_must_be_provided_to_delete_account(): void

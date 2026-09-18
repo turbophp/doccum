@@ -68,13 +68,18 @@ class Users extends Component
         // component's error bag, exactly as $this->validate() does, so a
         // duplicate email/username surfaces as a normal validation error
         // here too, not a 500. See App\Actions\Users\CreateUser.
+        // verified: true -- reaching this method at all already required
+        // the users.manage permission (see mount()'s authorize() and the
+        // route's own can:users.manage), so an operator vouched for this
+        // address the same way the first-run installer vouches for its own.
+        // See App\Actions\Users\CreateUser's docblock and issue #161.
         app(CreateUser::class)->handle([
             'name' => $this->name,
             'username' => $this->username,
             'email' => $this->email,
             'password' => $this->password,
             'password_confirmation' => $this->password_confirmation,
-        ], $this->role !== '' ? $this->role : null);
+        ], $this->role !== '' ? $this->role : null, verified: true);
 
         $this->reset(['name', 'username', 'email', 'password', 'password_confirmation', 'role']);
     }

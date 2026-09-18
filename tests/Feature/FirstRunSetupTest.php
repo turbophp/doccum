@@ -42,6 +42,30 @@ it('creates the first admin with a home directory', function () {
         ->and(auth()->check())->toBeTrue();
 });
 
+// item/email-verification-decided (issue #161): the first administrator
+// proved control of the instance by installing it, so they must not be
+// stranded behind the `verified` middleware with only a container-log
+// verification link to escape it. Asserts REACHABILITY, not merely the
+// column, because a Blade/column assertion alone would not catch a
+// `verified` middleware that still rejects them for some other reason.
+it('verifies the first admin at setup and lets them reach a verified route', function () {
+    Livewire::test(FirstRun::class)
+        ->set('instance_name', 'Acme Docs')
+        ->set('name', 'Ada Lovelace')
+        ->set('username', 'ada')
+        ->set('email', 'ada@example.com')
+        ->set('password', 'password-please')
+        ->set('password_confirmation', 'password-please')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $user = User::firstOrFail();
+
+    expect($user->hasVerifiedEmail())->toBeTrue();
+
+    $this->actingAs($user)->get(route('dashboard'))->assertOk();
+});
+
 it('folds the first admin\'s email to lowercase even when submitted with capitals', function () {
     Livewire::test(FirstRun::class)
         ->set('instance_name', 'Acme Docs')

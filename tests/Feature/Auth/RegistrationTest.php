@@ -51,6 +51,29 @@ class RegistrationTest extends TestCase
         $this->assertAuthenticated();
     }
 
+    // item/email-verification-decided (issue #161): self-registration is
+    // the case that must prove itself -- unlike the first-run installer and
+    // an admin-created account, nobody has vouched for this address, so it
+    // must come out of registration unverified and be turned back at a
+    // `verified` route until it proves itself.
+    public function test_a_self_registered_user_is_not_verified_and_is_redirected_from_a_verified_route(): void
+    {
+        $this->post(route('register.store'), [
+            'name' => 'John Doe',
+            'username' => 'johndoe',
+            'email' => 'newcomer@example.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ])->assertSessionHasNoErrors();
+
+        $user = User::where('email', 'newcomer@example.com')->firstOrFail();
+
+        $this->assertFalse($user->hasVerifiedEmail());
+
+        $this->get(route('dashboard'))
+            ->assertRedirect(route('verification.notice', absolute: false));
+    }
+
     // Issue #59, and the actual reproduction of it: the existing row is
     // seeded with a mixed-case email directly (bypassing the HTTP register
     // route entirely), because config('fortify.lowercase_usernames') means

@@ -1147,6 +1147,61 @@ async function checkHomeDashboardShowsRecentUpload(page, phase) {
 }
 
 /**
+ * item/email-verification-decided (issue #161): User now implements
+ * MustVerifyEmail for real, and `dashboard` carries the `verified`
+ * middleware -- so if the first administrator were not verified at
+ * creation, checkHomeDashboardShowsRecentUpload() below (and everything
+ * this smoke does afterwards, all of it as this same logged-in admin) would
+ * fail at the very first /dashboard visit. That is real coverage, but it is
+ * diffuse: it would show up as an unrelated-looking cascade of failures
+ * with no assertion naming the actual cause. This gives that fact a name of
+ * its own, right after the installer hands back control and before
+ * anything else has a chance to obscure it.
+ *
+ * Evidence through tinker() first (the column itself), then the DOM as
+ * confirmation (the middleware actually letting the request through) --
+ * the same order checkAdminInstanceSettingsPage() uses for its own
+ * round-trip check.
+ */
+async function checkFirstAdminIsVerified(page, phase) {
+  const output = tinker(
+    "$u = \\App\\Models\\User::first(); echo 'VERIFIED:' . ($u && $u->hasVerifiedEmail() ? 'yes' : 'no');",
+  );
+
+  if (!output.includes('VERIFIED:yes')) {
+    dumpContainerState(
+      `[${phase}] the first administrator's email_verified_at is not set right after setup -- raw tinker output: ${output.trim()}`,
+    );
+    throw Object.assign(
+      new Error('the first administrator was not verified at creation'),
+      { dumped: true },
+    );
+  }
+  console.log(`[${phase}] the first administrator's email_verified_at is set -- OK`);
+
+  await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
+
+  try {
+    // data-test="home-recent-files" (resources/views/livewire/home/index.
+    // blade.php) renders unconditionally, with or without any recent files
+    // -- exactly what makes it safe to check here, before this admin has
+    // uploaded anything at all. Its absence means the request never reached
+    // Home\Index, which is what a `verified` redirect to email verification
+    // would look like.
+    await page.locator('[data-test="home-recent-files"]').waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] /dashboard did not render Home for the first administrator -- current URL: ${page.url()}. Likely redirected to email verification instead of reaching a 'verified' route.`,
+    );
+    throw Object.assign(
+      new Error("the first administrator could not reach /dashboard, a 'verified' route"),
+      { dumped: true },
+    );
+  }
+  console.log(`[${phase}] the first administrator reaches /dashboard, a 'verified' route -- OK`);
+}
+
+/**
  * item/files-three-pane (issue #104/#99): creates two nested subdirectories
  * inside the directory the page is currently showing, navigates into both,
  * and counts the breadcrumb. tests/Feature/FileBrowserTest.php already
@@ -3096,6 +3151,9 @@ async function runSetup() {
     console.log('[setup] installer complete, admin created and logged in');
 
     checkEmbeddedSqlitePragmas();
+
+    console.log('[setup] checking the first administrator is verified at creation and reaches a verified route (issue #161)');
+    await checkFirstAdminIsVerified(page, 'setup');
 
     console.log('[setup] opening the home directory');
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });

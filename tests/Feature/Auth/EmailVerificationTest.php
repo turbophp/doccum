@@ -67,6 +67,32 @@ class EmailVerificationTest extends TestCase
         $this->assertFalse($user->fresh()->hasVerifiedEmail());
     }
 
+    // item/email-verification-decided (issue #161): the gate the other four
+    // tests in this file could not prove. Before that item, User did not
+    // implement the MustVerifyEmail CONTRACT (only Authenticatable's trait),
+    // so EnsureEmailIsVerified's `$request->user() instanceof MustVerifyEmail`
+    // was always false and every one of the four tests above passed while
+    // the `verified` middleware gated nothing at all. This is the test named
+    // in .github/mutations.json: delete `implements MustVerifyEmail` from
+    // App\Models\User and this fails.
+    public function test_an_unverified_user_is_redirected_away_from_a_verified_route(): void
+    {
+        $user = User::factory()->unverified()->create();
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertRedirect(route('verification.notice', absolute: false));
+    }
+
+    public function test_a_verified_user_reaches_a_verified_route(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response->assertOk();
+    }
+
     public function test_already_verified_user_visiting_verification_link_is_redirected_without_firing_event_again(): void
     {
         $user = User::factory()->create([
