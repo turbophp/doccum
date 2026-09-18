@@ -36,8 +36,15 @@
 # thing that needs real JSON parsing.
 set -euo pipefail
 
+print_only=0
+
+if [ "${1:-}" = "--print-only" ]; then
+  print_only=1
+  shift
+fi
+
 if [ "$#" -lt 1 ]; then
-  echo "usage: $(basename "$0") <image-tag>" >&2
+  echo "usage: $(basename "$0") [--print-only] <image-tag>" >&2
   exit 2
 fi
 
@@ -84,30 +91,56 @@ with open(sys.argv[1]) as f:
 print(budget["measuredAtCommit"])
 print(budget["uncompressedBytes"])
 print(budget["compressedBytes"])
+print(budget["tolerancePercent"])
 ' "$budget_file")"
 
 recorded_commit="$(echo "$budget_fields" | sed -n '1p')"
 recorded_uncompressed="$(echo "$budget_fields" | sed -n '2p')"
 recorded_compressed="$(echo "$budget_fields" | sed -n '3p')"
+tolerance_percent="$(echo "$budget_fields" | sed -n '4p')"
+
+if [ "$print_only" -eq 1 ]; then
+  echo "print-only: not gating here. tests.yml owns the ratchet, and release.yml's verify job runs tests.yml on this exact commit, so gating again here would be a second copy of the same check on the same input -- not defence in depth, just one more thing that can fail between a green tree and a published release."
+  exit 0
+fi
 
 if [ "$recorded_commit" = "UNMEASURED" ]; then
   echo "no budget recorded yet (measuredAtCommit is UNMEASURED in $budget_file) -- gate is INACTIVE; these measured numbers are the candidate first record. Copy them into $budget_file by hand along with this commit's SHA to start enforcing the ratchet."
   exit 0
 fi
 
+# The ceiling is the recorded figure plus a stated tolerance, and the tolerance
+# is not slack granted out of kindness -- it is the measurement's noise floor.
+# The Dockerfile pins `serversideup/php:8.5-frankenphp-bookworm` and
+# `node:26-bookworm-slim` by TAG, not by digest, and installs apt packages
+# without version pins. Those tags move under us, so two builds of the SAME
+# commit on different days legitimately differ in size by amounts this repo
+# did not cause. A byte-exact ratchet would therefore go red on somebody
+# else's upstream rebuild, and a gate that fires when nothing here changed
+# teaches people to re-run it rather than read it -- which is how a real
+# growth gets waved through later.
+#
+# The tolerance is recorded in the budget file rather than buried here, so
+# widening it is a visible diff and not a quiet edit to a script nobody reads.
+# Pinning the bases by digest would remove the need for it; that is a larger
+# change than this item, and item/image-size is not the place to make it.
+allowed_uncompressed=$((recorded_uncompressed + recorded_uncompressed * tolerance_percent / 100))
+allowed_compressed=$((recorded_compressed + recorded_compressed * tolerance_percent / 100))
+
 echo "recorded budget: ${recorded_uncompressed} uncompressed bytes, ${recorded_compressed} compressed bytes, measured at commit ${recorded_commit}"
+echo "ceiling with the recorded ${tolerance_percent}% tolerance: ${allowed_uncompressed} uncompressed bytes, ${allowed_compressed} compressed bytes"
 
 failed=0
 
-if [ "$uncompressed_bytes" -gt "$recorded_uncompressed" ]; then
-  over=$((uncompressed_bytes - recorded_uncompressed))
-  echo "::error::uncompressed image size ${uncompressed_bytes} bytes exceeds the recorded budget of ${recorded_uncompressed} bytes (over by ${over} bytes) -- recorded at commit ${recorded_commit}. Either shrink the image back under budget, or record a Decision explaining the growth and raise the recorded figure in $budget_file."
+if [ "$uncompressed_bytes" -gt "$allowed_uncompressed" ]; then
+  over=$((uncompressed_bytes - allowed_uncompressed))
+  echo "::error::uncompressed image size ${uncompressed_bytes} bytes exceeds the ceiling of ${allowed_uncompressed} bytes (over by ${over}) -- budget ${recorded_uncompressed} recorded at commit ${recorded_commit}, plus ${tolerance_percent}% tolerance. Either shrink the image back under the ceiling, or record a Decision explaining the growth and raise the recorded figure in $budget_file."
   failed=1
 fi
 
-if [ "$compressed_bytes" -gt "$recorded_compressed" ]; then
-  over=$((compressed_bytes - recorded_compressed))
-  echo "::error::compressed image size ${compressed_bytes} bytes exceeds the recorded budget of ${recorded_compressed} bytes (over by ${over} bytes) -- recorded at commit ${recorded_commit}. Either shrink the image back under budget, or record a Decision explaining the growth and raise the recorded figure in $budget_file."
+if [ "$compressed_bytes" -gt "$allowed_compressed" ]; then
+  over=$((compressed_bytes - allowed_compressed))
+  echo "::error::compressed image size ${compressed_bytes} bytes exceeds the ceiling of ${allowed_compressed} bytes (over by ${over}) -- budget ${recorded_compressed} recorded at commit ${recorded_commit}, plus ${tolerance_percent}% tolerance. Either shrink the image back under the ceiling, or record a Decision explaining the growth and raise the recorded figure in $budget_file."
   failed=1
 fi
 

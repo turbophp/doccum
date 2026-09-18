@@ -157,8 +157,8 @@ jobs:
           echo "PULLED_TAG=${tag}" >> "$GITHUB_ENV"
           docker pull "$tag"
 
-      - name: Print (and, once a budget is recorded, gate) image size
-        run: .github/scripts/image-size.sh "$PULLED_TAG"
+      - name: Print the image size for the release record
+        run: .github/scripts/image-size.sh --print-only "$PULLED_TAG"
 
   # item/changelog-release-notes (issue #31): a pushed tag is also supposed
   # to produce a GitHub Release, body taken verbatim from that version's

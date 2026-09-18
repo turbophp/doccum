@@ -78,6 +78,12 @@ placeholder. "Compressed" is a gzip of the whole `docker save` tarball, not
 what a registry pull downloads; see the script for why that distinction
 matters.
 
+The check allows a small stated tolerance above the recorded figure, kept in
+`.github/image-budget.json`. That is the measurement's noise floor rather than
+slack: the Dockerfile pins its base images by tag rather than by digest, so two
+builds of the same commit on different days differ by amounts this repository
+did not cause.
+
 ## Recovering
 
 | Situation | Command |
