@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T13:30:00Z",
+  "dateModified": "2026-09-18T14:16:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -891,10 +891,12 @@
         "item/ledger-mutation-nodes"
       ],
       "doneWhen": "A Run records every push to main in its window, not only those carrying a PullRequest node. runErrors() iterates `pullRequests`, and ledger-only PRs have no node at all, so the rule speaks for 3 of run/0019's 8 merges -- and the uncovered class has the worse record, since BOTH times main has gone red it was a ledger-only merge (9e2f7af, fixed by #158; 6663282, fixed by #138). Shape: `Run.merges`, a list of {mergeSha, pullRequest|null, mergedAt, testsRun, testsConclusion, ledgerRun, ledgerConclusion}. Two NAMED workflow fields rather than a list, because LOOP step 3 names exactly `tests` and `ledger` and those are the whole of what a main push triggers, so a closed pair cannot under-report where a list is only as complete as its caller. mainRunUrl/mainConclusion move off PullRequest so the fact has one home. Rules, each mutation-checked: every merged PullRequest's mergeSha appears in its mergedIn run's merges, which catches an item PR omitted from the list; Run.commit is DEFINED as the last entry's mergeSha; and outcome completed requires the last entry's conclusions to be success, so \"run/0018 closes green\" stops being prose and becomes checked. And the clause without which this is only bookkeeping: omission is detectable only against an external list. ledger.yml checks out at the default fetch-depth 1; at fetch-depth 0 the CLI wrapper hands the validator `git log --first-parent <previous completed run's commit>..HEAD` and the validator asserts every sha appears in some Run.merges. LedgerValidator stays framework-free and file-only -- the WRAPPER supplies the git fact, the two-caller seam its docblock already describes. No node-shaped fix substitutes for this: whatever type is added, the validator iterates nodes that exist, and a merge nobody wrote down stays invisible.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T13:45:00Z",
+      "endTime": "2026-09-18T14:06:39Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/203"
+      ]
     },
     {
       "@id": "item/ledger-field-audit",
@@ -1273,9 +1275,45 @@
       "result": []
     },
     {
-      "@id": "item/v1-audit",
+      "@id": "item/directory-force-delete-orphans",
       "@type": "Action",
       "order": 61,
+      "name": "Force-deleting a directory must not orphan the objects beneath it",
+      "url": "https://github.com/turbophp/doccum/issues/86",
+      "isBasedOn": [
+        "spec:6-storage-and-period-partitioning"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "files.directory_id is constrained with cascadeOnDelete, so forceDelete() on a Directory removes every descendant File ROW in SQL without PHP ever running per file -- so Services\\DocumentStorage is never reached and every object those files owned is left in the store with nothing referencing it. Directory::booted()'s forceDeleted hook clears only the directory's own morph-attached properties; it cannot clean up descendants the database already removed. LATENT, not live: nothing in the application force-deletes a Directory today, and PeriodPurger force-deletes FILES one at a time, deleting each object through DocumentStorage first -- which is exactly the ordering a cascade skips. Done when the objects beneath a force-deleted directory are removed through the DocumentStorage seam, or the cascade is replaced by a path that cannot bypass it, with a test that fails if the objects survive. The test must assert against the object store, not the rows: asserting the rows are gone passes on the broken code, since the cascade is precisely what removes them.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/move-destination-existence-leak",
+      "@type": "Action",
+      "order": 62,
+      "name": "A move destination must not distinguish \"does not exist\" from \"you may not use it\"",
+      "url": "https://github.com/turbophp/doccum/issues/109",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Browser::moveFile() and moveDirectory() resolve the destination with Directory::query()->findOrFail() against the UNSCOPED table, before authorize() is consulted. A crafted Livewire call therefore gets 404 for a directory id that does not exist and 403 for one that exists but the caller may not move into, which tells an authenticated caller which ids exist, one probe at a time, including in subtrees they have no reach into. The AUTHORISATION IS SOUND and this item must not be written as though it were not: DirectoryPolicy::move() requires directories.manage, Manage on the subject and Edit on the destination, so nothing can be moved anywhere the caller lacks Edit. This is information disclosure only. Done when both ids answer identically to a caller who may not use the destination, with a test that fails if the two responses differ -- and mutation-checked, because a test that merely asserts 403 for the unreachable case passes on today's code too.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/v1-audit",
+      "@type": "Action",
+      "order": 63,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -1306,7 +1344,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 62,
+      "order": 64,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -1628,6 +1666,24 @@
         "item/directory-access-ui"
       ],
       "doneWhen": "A directories.share permission gates DirectoryPolicy::manageAccess() and nothing else, so a member may hand out access to a subtree they hold Manage on without also gaining move and delete over it -- which is what granting directories.manage wholesale would do, and why this needs its own permission rather than a reused one. Both layers still apply; no layer is removed from manageAccess(). See decision/0036, which decided that sharing is an administrator act for v1.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/store-file-version-replace-entry-point",
+      "@type": "Action",
+      "order": 121,
+      "name": "StoreFileVersion::replace(), so appending a version cannot create a file",
+      "url": "https://github.com/turbophp/doccum/issues/115",
+      "isBasedOn": [
+        "spec:4-data-model"
+      ],
+      "size": "S",
+      "release": "post-v1",
+      "dependsOn": [],
+      "doneWhen": "StoreFileVersion::handle() decides between 'append a version' and 'create a file' by looking up (directory_id, name_key) and finding nothing, so the difference between the two is which string the caller passes: Replace appends a version only because Browser::replaceFile() passes $file->name rather than the uploaded file's client name. That IS a real guard -- it is mutation-checked in the container smoke as of #102 -- but it is a guard over a string rather than a structural impossibility, which is why this is post-v1 hardening and not a v1 defect. Done when a second entry point, replace(User, File, string $sourcePath, ?string $mime), shares a private append routine with handle(): the lock on directory_id, the archived-period check against the file's own period, version_number = max + 1, the object write, the row, the $file->update(), and ExtractText dispatched after commit -- so that appending to a named file cannot create one whatever string a caller passes.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -2858,6 +2914,22 @@
       "mergedAt": "2026-09-18T13:15:53Z",
       "mergeSha": "727fdc45ca9398d35ad150fed4b346bd0745711f",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/203",
+      "@type": "PullRequest",
+      "identifier": 203,
+      "name": "Every push to main is recorded per run, and CI can prove none is missing",
+      "implements": [
+        "item/ledger-main-push-record"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T13:59:40Z",
+      "headSha": "56196316ce085d36da773260e06a1ac00dcdee78",
+      "mergedAt": "2026-09-18T14:06:39Z",
+      "mergeSha": "a2e637d2612e9fb1239d578b1d86207d932a8622",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -3923,6 +3995,36 @@
       "affects": [
         "item/mutation-filter-regex",
         "item/extraction-missing-object"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0065",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T14:15:00Z",
+      "run": "run/0020",
+      "name": "A rule that requires the impossible is a deadlock, not strictness",
+      "rationale": "item/ledger-main-push-record's history check, as first written, required EVERY commit in the git-log window to appear in some Run.merges, all the way to the tip. It passed review and passed CI, because the backfill happened to end exactly at the main it was computed from.\n\nIt could not have survived its own merge. A merge commit's sha cannot appear in the ledger that merge commit CONTAINS -- the sha does not exist until the merge happens -- so on the push event, where MAIN_SHA is github.sha, `validate ledger` would have gone red on main the instant any PR merged. And the ledger pass that recorded those merges would create another unrecorded merge commit in turn: permanently red, with no sequence of correct actions that clears it.\n\nCaught by running the wrapper against a sha absent from Run.merges rather than by reading it, which is the only reason it was caught before merging: every local check passed, because every local check used the one sha for which the rule was satisfiable.\n\nTHE RULE, which generalises past this check: before shipping an invariant, ask what the state of the world is immediately AFTER the action the invariant governs, not only before it. An invariant that the system's own normal operation violates is not strict, it is a deadlock, and the difference is invisible while the world happens to be in the one state that satisfies it.\n\nThe fix is contiguity, not leniency: a commit BEFORE the newest recorded merge that is not itself recorded is a hole somebody left -- exactly the ledger-only merge nobody wrote down, which is the class both of main's red episodes belonged to -- while a commit AFTER it is simply not recorded yet, and becomes interior, and so caught, the moment a later merge is recorded. Verified all three ways before merging (interior hole -> reported, trailing -> not, all recorded -> not), and then verified in production: main's own run at a2e637d printed \"Compared 15 commits ... Ledger is sound\", the fifteenth being the merge commit itself.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-main-push-record"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0066",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T14:16:00Z",
+      "run": "run/0020",
+      "name": "Grandfather to the last real violation, not to the newest run",
+      "rationale": "MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN was first set to 20 -- the newest run in existence -- so that every already-closed run was exempt 'by construction'. That reads as prudent and is nearly worthless: computed over the backfill, exactly TWO runs close on a red merge, run/0000 and run/0008. A threshold of 8 grandfathers precisely those and binds runs 9 onward, twelve runs of real closed history. A threshold of 20 bound nothing at all, since run/0020 is active and the rule only applies to completed runs.\n\nThe difference was not theoretical and is worth recording because of how it surfaced. The mutation probe for that rule breaks run/0019 and checks the validator reports it; at threshold 20 it reports zero errors both mutated AND unmutated. The mutation would have been VOID while reading as proof -- the same failure decision/0062 and decision/0063 name, arrived at from a third direction: not an assertion that cannot fail, nor a mutation that fails for the wrong reason, but a rule whose scope excludes everything it could have been tested against.\n\nTHE RULE: a grandfathering threshold is a claim about history, so compute it from history. Set it to the last case that actually violates, and if that number is far below the newest run, the gap is the amount of real evidence the rule is now checked against. Setting it to 'now' exempts everything and cannot be distinguished from a rule that does not work.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-main-push-record"
       ],
       "supersedes": null
     }
