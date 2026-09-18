@@ -30,14 +30,16 @@ class LikeSearchIndex implements SearchIndex
             return new Collection;
         }
 
+        $driver = (new SearchDocument)->getConnection()->getDriverName();
+
         // Postgres is the only driver here whose LIKE is case-sensitive:
         // SQLite's is not, and MySQL's default utf8mb4 collation is not
         // either. Left as a plain LIKE, searching "quarterly" simply never
         // found "Quarterly-Report.pdf" on Postgres -- no error, no warning,
         // just nothing, which is the worst way for a search box to be wrong.
-        $operator = (new SearchDocument)->getConnection()->getDriverName() === 'pgsql'
-            ? 'ilike'
-            : 'like';
+        $operator = $driver === 'pgsql' ? 'ilike' : 'like';
+
+        $property = PropertyFilter::fromFilters($filters);
 
         $documents = SearchDocument::query()
             ->whereIn('directory_id', $viewableDirectoryIds)
@@ -54,6 +56,26 @@ class LikeSearchIndex implements SearchIndex
             ->when(isset($filters['mime']), fn (Builder $q) => $q->where('mime', $filters['mime']))
             ->when(isset($filters['extension']), fn (Builder $q) => $q->where('extension', $filters['extension']))
             ->when(isset($filters['subject_type']), fn (Builder $q) => $q->where('subject_type', $filters['subject_type']))
+            // Same shape as Fts5SearchIndex: an EXISTS against `properties`,
+            // ANDed onto the directory_id/permission predicate above, never
+            // a query built fresh that could drop it. On PostgreSQL the
+            // string/text/select columns also need the md5() predicate
+            // alongside the real one, or the planner never picks
+            // properties_property_definition_id_value_string_index -- see
+            // that migration's comment and PropertyFilter.
+            ->when($property !== null, function (Builder $q) use ($property, $driver): void {
+                $q->whereExists(function ($sub) use ($property, $driver): void {
+                    $sub->from('properties')
+                        ->whereColumn('properties.subject_type', 'search_documents.subject_type')
+                        ->whereColumn('properties.subject_id', 'search_documents.subject_id')
+                        ->where('properties.property_definition_id', $property->definitionId)
+                        ->where('properties.'.$property->column, $property->value);
+
+                    if ($driver === 'pgsql' && $property->isStringColumn()) {
+                        $sub->whereRaw('md5(properties.value_string) = md5(?)', [$property->value]);
+                    }
+                });
+            })
             ->orderBy('title')
             ->limit($limit)
             ->get();

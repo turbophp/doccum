@@ -3,10 +3,14 @@
 declare(strict_types=1);
 
 use App\Enums\AccessLevel;
+use App\Enums\PropertyDataType;
 use App\Livewire\Search\Results;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
+use App\Models\Property;
+use App\Models\PropertyDefinition;
+use App\Models\SearchDocument;
 use App\Models\User;
 use App\Search\SearchIndex;
 use App\Services\SearchIndexer;
@@ -72,4 +76,81 @@ it('requires a signed-in user', function () {
 
 it('lets a signed-in user open the page', function () {
     $this->actingAs($this->user)->get(route('search'))->assertOk();
+});
+
+it('narrows results with a mime filter, applied inside the query', function () {
+    grantView($this->dir, $this->user);
+
+    Livewire::actingAs($this->user)->test(Results::class)
+        ->set('query', 'tenant')
+        ->assertSee('Lease.pdf')
+        ->set('mime', 'text/plain')
+        ->assertDontSee('Lease.pdf')
+        ->set('mime', 'application/pdf')
+        ->assertSee('Lease.pdf');
+});
+
+it('narrows results with a period filter, applied inside the query', function () {
+    grantView($this->dir, $this->user);
+
+    SearchDocument::where('subject_type', 'file')->where('title', 'Lease.pdf')
+        ->update(['period_year' => 2024]);
+
+    Livewire::actingAs($this->user)->test(Results::class)
+        ->set('query', 'tenant')
+        ->set('periodYear', '2020')
+        ->assertDontSee('Lease.pdf')
+        ->set('periodYear', '2024')
+        ->assertSee('Lease.pdf');
+});
+
+it('narrows results with a property filter, on its typed column', function () {
+    grantView($this->dir, $this->user);
+
+    $definition = PropertyDefinition::factory()->create([
+        'key' => 'amount', 'label' => 'Amount', 'data_type' => PropertyDataType::Number,
+    ]);
+    $file = File::where('name', 'Lease.pdf')->first();
+    Property::for($file, $definition)->setValue(100);
+    app(SearchIndexer::class)->index($file->fresh());
+
+    // index() rebuilds the projection from scratch -- extracted text plus
+    // flattened properties -- which just replaced the body carrying "tenant"
+    // set in beforeEach. Restore it, the same way indexFile() does elsewhere
+    // in this suite, so the query word still matches.
+    $doc = SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->first();
+    $doc->update(['body' => 'the tenant shall maintain the premises in good repair']);
+    app(SearchIndex::class)->put($doc->fresh());
+
+    Livewire::actingAs($this->user)->test(Results::class)
+        ->set('query', 'tenant')
+        ->set('propertyDefinitionId', (string) $definition->id)
+        ->set('propertyValue', '999')
+        ->assertDontSee('Lease.pdf')
+        ->set('propertyValue', '100')
+        ->assertSee('Lease.pdf');
+});
+
+it('never lets a property filter surface a document outside the viewer reach', function () {
+    // Deliberately NOT granted: the file above belongs to $this->dir, which
+    // this test never calls grantView() for. A property filter that built
+    // its own query -- rather than ANDing onto the permission filter
+    // Search::for() resolves -- would find it anyway.
+    $definition = PropertyDefinition::factory()->create([
+        'key' => 'amount', 'label' => 'Amount', 'data_type' => PropertyDataType::Number,
+    ]);
+    $file = File::where('name', 'Lease.pdf')->first();
+    Property::for($file, $definition)->setValue(100);
+    app(SearchIndexer::class)->index($file->fresh());
+
+    $doc = SearchDocument::where('subject_type', 'file')->where('subject_id', $file->id)->first();
+    $doc->update(['body' => 'the tenant shall maintain the premises in good repair']);
+    app(SearchIndex::class)->put($doc->fresh());
+
+    Livewire::actingAs($this->user)->test(Results::class)
+        ->set('query', 'tenant')
+        ->set('propertyDefinitionId', (string) $definition->id)
+        ->set('propertyValue', '100')
+        ->assertDontSee('Lease.pdf')
+        ->assertSee('No results');
 });

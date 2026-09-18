@@ -287,6 +287,34 @@
     "expectFailing": "has exactly one link on /files with the accessible name \"Home\""
   },
   {
+    "id": "fts5-property-filter-keeps-permission-scope",
+    "why": "item/search-filters' doneWhen: a filter must be applied inside the query WITH the permission filter still active, never in place of it. The property filter added here is an EXISTS ANDed onto the same WHERE clause as `d.directory_id IN (...)` -- the predicate that scopes every Fts5SearchIndex query to viewableDirectoryIds(). Removing that predicate proves the new filter cannot substitute for it: a property match on a file outside the viewer's reach must still be invisible. (The mutation removes the directory_id predicate's SQL text, which also desyncs the query's placeholder count from $bindings, so it fails loudly rather than silently leaking -- either way the guard's absence is caught.) The removal target is the predicate AND its bindings together, not the SQL fragment alone: both default to empty above it, so deleting the block leaves valid SQL that simply stops restricting by directory and returns unreachable rows. Removing only the fragment would desync the placeholder count from $bindings and fail as a thrown exception, which would prove SQLite counts placeholders rather than that this predicate keeps unreachable documents out.",
+    "file": "app/Search/Fts5SearchIndex.php",
+    "remove": "        $permission = ' AND d.directory_id IN ('.implode(',', array_fill(0, count($viewableDirectoryIds), '?')).')';\n        $permissionBindings = array_values($viewableDirectoryIds);\n",
+    "expectFailing": "never returns a property-filtered match outside the viewer reach, on FTS5"
+  },
+  {
+    "id": "like-property-filter-keeps-permission-scope",
+    "why": "The same guard as fts5-property-filter-keeps-permission-scope, for LikeSearchIndex: the property filter's whereExists() is chained onto the same Eloquent builder as ->whereIn('directory_id', $viewableDirectoryIds), never a query built fresh that could drop it. Removing that whereIn() call leaves the property EXISTS clause as the only restriction, so a property match on a file outside the viewer's reach would come back.",
+    "file": "app/Search/LikeSearchIndex.php",
+    "remove": "            ->whereIn('directory_id', $viewableDirectoryIds)\n",
+    "expectFailing": "never returns a property-filtered match outside the viewer reach, via the LIKE fallback"
+  },
+  {
+    "id": "username-rules-excludes-at-sign",
+    "why": "item/login-by-username (issue #75): App\\Actions\\Fortify\\AuthenticateUser dispatches a login identifier to the `username` column whenever it contains no \"@\", on the stated invariant that a stored username can never contain one -- usernameRules()'s regex is the ONLY thing that makes that true, since emailRules() requires the opposite. Remove the regex and any string at all becomes a storable username, including one shaped exactly like another account's email; the two lookups are then no longer provably disjoint and login resolution becomes ambiguous by exactly the collision AuthenticateUser's docblock argues is unreachable.",
+    "file": "app/Concerns/ProfileValidationRules.php",
+    "remove": "            'regex:/^[a-z0-9._-]+$/',\n",
+    "expectFailing": "test_registering_a_username_containing_an_at_sign_is_rejected"
+  },
+  {
+    "id": "user-model-refuses-an-at-sign-in-a-username",
+    "why": "item/login-by-username (issue #75): AuthenticateUser dispatches a login identifier on str_contains($identifier, '@') -- with one it looks up an email, without one a username -- so the dispatch is unambiguous only while the character sets stay disjoint. usernameRules() excludes '@' at both application write paths, but that is a convention each future write path must remember; UserFactory is already a path that validates nothing. This hook is the one nothing can bypass, the same shape as the email fold beside it. Losing it does not merely break a login: a username equal to another account's email would send the typing user to THAT account's row.",
+    "file": "app/Models/User.php",
+    "remove": "            if (str_contains($username, '@')) {\n                throw UsernameWouldBeAmbiguous::forUsername($username);\n            }\n\n",
+    "expectFailing": "refuses to persist a username containing an at sign, whatever wrote it"
+  },
+  {
     "id": "a-directory-archive-reaches-only-its-requester",
     "why": "A zip of a directory is the one download that hands over many files at once, and it holds exactly what ONE viewer could reach at the moment the job ran. The download controller therefore authorises on requested_by rather than on the directory's policy, and the two are genuinely different questions: the test gives the other user Manage on the very directory that was archived, so a policy check would let them straight through. Remove the requested_by guard and that test fails -- someone with access to the directory downloads an archive assembled under somebody else's reach.",
     "file": "app/Http/Controllers/DirectoryArchiveDownloadController.php",
