@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T16:20:00Z",
+  "dateModified": "2026-09-18T17:05:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1021,9 +1021,103 @@
       ]
     },
     {
-      "@id": "item/api-sanctum-tokens",
+      "@id": "item/compose-secret",
       "@type": "Action",
       "order": 48,
+      "name": "Remove the known-value secret from compose.yaml",
+      "url": "https://github.com/turbophp/doccum/issues/28",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "compose.yaml contains no occurrence of doccum-secret; the storage profile fails without MINIO_ROOT_PASSWORD; the default stack still boots under the smoke job.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-18T17:05:00Z",
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/version-from-tag",
+      "@type": "Action",
+      "order": 49,
+      "name": "The version pill reports the released tag",
+      "url": "https://github.com/turbophp/doccum/issues/29",
+      "isBasedOn": [
+        "spec:10-user-facing-surface"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "An image built from tag vX.Y.Z reports vX.Y.Z; the development default stays 0.1.0-dev.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/changelog-release-notes",
+      "@type": "Action",
+      "order": 50,
+      "name": "A changelog that becomes the release notes",
+      "url": "https://github.com/turbophp/doccum/issues/31",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Pushing a tag produces a GitHub Release whose body is that version's changelog section.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/release-v0-1-0",
+      "@type": "Action",
+      "order": 51,
+      "name": "Tag v0.1.0 to prove the release pipeline",
+      "url": "https://github.com/turbophp/doccum/issues/32",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [
+        "item/changelog-release-notes",
+        "item/compose-secret",
+        "item/version-from-tag"
+      ],
+      "doneWhen": "docker pull of the 0.1.0 image works on amd64 and arm64 and boots to the installer.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/spec-reconcile",
+      "@type": "Action",
+      "order": 52,
+      "name": "Reconcile the spec with what actually shipped, before the audit reads it",
+      "url": "https://github.com/turbophp/doccum/issues/219",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "The spec is both the standard item/v1-audit measures against and the text workers are briefed with (LOOP.md step 5 hands a worker 'the relevant spec section'), and it has drifted from the product in three verified places: line 1025 names base image 8.4 where the Dockerfile is 8.5; the section 2 decision table still says search ships on Laravel Scout's database driver, which is not installed -- search goes through the SearchIndex seam, and line 426 of the SAME document already says so, so the spec contradicts itself and section 2 is the half read first; line 1135 lists SQLite FTS5 as a post-v1 optimisation though Fts5SearchIndex has shipped and line 438 describes it. .github/workflows/ledger.yml pinning php-version 8.4 is the same staleness one file over. Done when each is corrected or explicitly marked superseded with a pointer to the section that now governs, the section 2 / section 8 contradiction is resolved in one direction, a dated revisions note at the top says what was reconciled, ledger.yml runs 8.5, and validate-ledger.php still passes -- which is what proves no heading moved. TWO CONSTRAINTS. Spec headings are load-bearing: LedgerValidator's spec-anchor rule derives valid isBasedOn anchors from them, so a renamed or removed heading reddens ledger.yml; edit content only. And section 2 is a decision table cited by decisions 0001 through 0004, so a superseded row is MARKED superseded rather than deleted -- the spec is a design record, and a row that silently changes loses why the original choice was made. This is deliberately NOT folded into item/v1-audit: see decision/0077.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
+    },
+    {
+      "@id": "item/api-sanctum-tokens",
+      "@type": "Action",
+      "order": 53,
       "name": "Sanctum tokens managed from My Account",
       "url": "https://github.com/turbophp/doccum/issues/22",
       "isBasedOn": [
@@ -1043,7 +1137,7 @@
     {
       "@id": "item/api-content",
       "@type": "Action",
-      "order": 49,
+      "order": 54,
       "name": "The /api/v1 content surface",
       "url": "https://github.com/turbophp/doccum/issues/23",
       "isBasedOn": [
@@ -1066,7 +1160,7 @@
     {
       "@id": "item/api-presigned-upload",
       "@type": "Action",
-      "order": 50,
+      "order": 55,
       "name": "Presigned upload, commit and the staging sweep",
       "url": "https://github.com/turbophp/doccum/issues/24",
       "isBasedOn": [
@@ -1086,7 +1180,7 @@
     {
       "@id": "item/openapi-reference",
       "@type": "Action",
-      "order": 51,
+      "order": 56,
       "name": "A generated, committed OpenAPI document",
       "url": "https://github.com/turbophp/doccum/issues/25",
       "isBasedOn": [
@@ -1106,7 +1200,7 @@
     {
       "@id": "item/self-hosting-docs",
       "@type": "Action",
-      "order": 52,
+      "order": 57,
       "name": "The self-hosting documentation set",
       "url": "https://github.com/turbophp/doccum/issues/26",
       "isBasedOn": [
@@ -1127,7 +1221,7 @@
     {
       "@id": "item/docs-site",
       "@type": "Action",
-      "order": 53,
+      "order": 58,
       "name": "Publish the docs to GitHub Pages",
       "url": "https://github.com/turbophp/doccum/issues/27",
       "isBasedOn": [
@@ -1145,45 +1239,9 @@
       "result": []
     },
     {
-      "@id": "item/compose-secret",
-      "@type": "Action",
-      "order": 54,
-      "name": "Remove the known-value secret from compose.yaml",
-      "url": "https://github.com/turbophp/doccum/issues/28",
-      "isBasedOn": [
-        "spec:13-infrastructure"
-      ],
-      "size": "S",
-      "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "compose.yaml contains no occurrence of doccum-secret; the storage profile fails without MINIO_ROOT_PASSWORD; the default stack still boots under the smoke job.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
-      "@id": "item/version-from-tag",
-      "@type": "Action",
-      "order": 55,
-      "name": "The version pill reports the released tag",
-      "url": "https://github.com/turbophp/doccum/issues/29",
-      "isBasedOn": [
-        "spec:10-user-facing-surface"
-      ],
-      "size": "S",
-      "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "An image built from tag vX.Y.Z reports vX.Y.Z; the development default stays 0.1.0-dev.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
       "@id": "item/image-size",
       "@type": "Action",
-      "order": 56,
+      "order": 59,
       "name": "Measure and reduce the image",
       "url": "https://github.com/turbophp/doccum/issues/30",
       "isBasedOn": [
@@ -1199,49 +1257,9 @@
       "result": []
     },
     {
-      "@id": "item/changelog-release-notes",
-      "@type": "Action",
-      "order": 57,
-      "name": "A changelog that becomes the release notes",
-      "url": "https://github.com/turbophp/doccum/issues/31",
-      "isBasedOn": [
-        "spec:12-documentation"
-      ],
-      "size": "S",
-      "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "Pushing a tag produces a GitHub Release whose body is that version's changelog section.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
-      "@id": "item/release-v0-1-0",
-      "@type": "Action",
-      "order": 58,
-      "name": "Tag v0.1.0 to prove the release pipeline",
-      "url": "https://github.com/turbophp/doccum/issues/32",
-      "isBasedOn": [
-        "spec:13-infrastructure"
-      ],
-      "size": "S",
-      "release": "v1.0.0",
-      "dependsOn": [
-        "item/changelog-release-notes",
-        "item/compose-secret",
-        "item/version-from-tag"
-      ],
-      "doneWhen": "docker pull of the 0.1.0 image works on amd64 and arm64 and boots to the installer.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
-    },
-    {
       "@id": "item/readme-owner",
       "@type": "Action",
-      "order": 59,
+      "order": 60,
       "name": "A README that describes the shipped product",
       "url": "https://github.com/turbophp/doccum/issues/33",
       "isBasedOn": [
@@ -1263,7 +1281,7 @@
     {
       "@id": "item/smoke-installer-names-the-bounce",
       "@type": "Action",
-      "order": 60,
+      "order": 61,
       "name": "The smoke installer step names a verification bounce, and the unprovable check goes",
       "url": "https://github.com/turbophp/doccum/issues/197",
       "isBasedOn": [
@@ -1283,7 +1301,7 @@
     {
       "@id": "item/directory-force-delete-orphans",
       "@type": "Action",
-      "order": 61,
+      "order": 62,
       "name": "Force-deleting a directory must not orphan the objects beneath it",
       "url": "https://github.com/turbophp/doccum/issues/86",
       "isBasedOn": [
@@ -1301,7 +1319,7 @@
     {
       "@id": "item/upgrade-preserves-access",
       "@type": "Action",
-      "order": 62,
+      "order": 63,
       "name": "Upgrading an existing instance must not lock out every user",
       "url": "https://github.com/turbophp/doccum/issues/210",
       "isBasedOn": [
@@ -1321,7 +1339,7 @@
     {
       "@id": "item/role-permissions-survive-restart",
       "@type": "Action",
-      "order": 63,
+      "order": 64,
       "name": "A role permission an operator edits must survive a container restart",
       "url": "https://github.com/turbophp/doccum/issues/214",
       "isBasedOn": [
@@ -1331,15 +1349,17 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "AUTORUN_ENABLED=true (Dockerfile:68) makes docker/entrypoint.d/51-doccum-roles.sh run doccum:ensure-roles on every boot, and RolesAndPermissionsSeeder::run() calls syncPermissions() on both roles -- which REPLACES the set. So every restart, the documented upgrade procedure, discards whatever item/admin-roles's UI let an operator configure. Not inference about the package: SetRolePermissions depends on that same replace behaviour to remove a permission when an operator unticks it. Done when an edit survives a restart, while the seeder still creates missing roles and permissions on a fresh install and still makes a permission added by an upgrade EXIST as an assignable row -- those are what EnsureRoles exists for. That clause was ambiguous as first written and is settled here, before the work is judged against it: 'picks up' meant, in EnsureRoles's original docblock, that existing roles were GRANTED the new permission, because syncPermissions() granted it as a side effect of replacing the set. Only the weaker reading survives -- the Permission row is created on every boot, and existing roles are left untouched. The stronger one is given up deliberately, and is arguably not a loss: a new capability that grants ITSELF to every existing member on upgrade is a privilege-escalation path, not a convenience, and the operator granting it through Settings -> Roles is the same surface that lets them revoke one. Preserving all three properties at once -- operator grants, operator revocations, and automatic upgrade grants -- needs version-tracked deltas, which is real machinery for a problem with a one-click remedy. A release note naming any newly added permission is the cost of this choice and belongs with item/changelog-release-notes. The decision about what 'ensure' means is stated rather than implied: creating what is absent is not the same operation as asserting what the set must be, and only the first is safe to run on every boot against a database an operator can edit. The container smoke asserts it ACROSS the replacement -- runVerify() re-checks the permission runSetup() granted, which is nearly free since the grant already happens -- and restoring the destructive sync must make that assertion fail.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-18T16:20:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-18T16:54:34Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/218"
+      ]
     },
     {
       "@id": "item/upgrade-smoke",
       "@type": "Action",
-      "order": 64,
+      "order": 65,
       "name": "CI must exercise an upgrade, not only a restart",
       "url": "https://github.com/turbophp/doccum/issues/210",
       "isBasedOn": [
@@ -1359,7 +1379,7 @@
     {
       "@id": "item/v1-audit",
       "@type": "Action",
-      "order": 65,
+      "order": 66,
       "name": "Audit the whole surface against the spec",
       "url": "https://github.com/turbophp/doccum/issues/34",
       "isBasedOn": [
@@ -1390,7 +1410,7 @@
     {
       "@id": "item/tag-v1-0-0",
       "@type": "Action",
-      "order": 66,
+      "order": 67,
       "name": "Tag and publish 1.0.0",
       "url": "https://github.com/turbophp/doccum/issues/35",
       "isBasedOn": [
@@ -3022,6 +3042,38 @@
       "mergedAt": "2026-09-18T16:01:21Z",
       "mergeSha": "8c006fc5c7dddf4c97c1d98f696fcdb460819c17",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/217",
+      "@type": "PullRequest",
+      "identifier": 217,
+      "name": "MUTATION -- DO NOT MERGE: restore the destructive role sync from issue #214",
+      "implements": [
+        "item/role-permissions-survive-restart"
+      ],
+      "run": "run/0020",
+      "state": "closed",
+      "dateCreated": "2026-09-18T16:45:31Z",
+      "headSha": "b5638fb1dc042ca5039acfb5c9941d273e54e527",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/218",
+      "@type": "PullRequest",
+      "identifier": 218,
+      "name": "Stop doccum:ensure-roles from undoing operator role edits",
+      "implements": [
+        "item/role-permissions-survive-restart"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T16:50:29Z",
+      "headSha": "d9946b58b2ff49b0665e0234fc6be000f8253f81",
+      "mergedAt": "2026-09-18T16:54:34Z",
+      "mergeSha": "739b577af0b1ead0d3b348f260e4f69f2b9af758",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -4209,6 +4261,92 @@
         "item/ledger-rule-witnesses"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0073",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T17:00:00Z",
+      "run": "run/0020",
+      "name": "Ensure means create what is absent, never assert what a set must be",
+      "rationale": "RolesAndPermissionsSeeder ran on EVERY container boot and ended in syncPermissions() on both roles. Its own docblock called that 'idempotent by construction -- safe on every boot'. It was idempotent against the seeder's own constants and destructive against the database: every restart silently discarded whatever an operator had configured through Settings -> Roles (issue #214).\n\nTHE RULE, which generalises well past this seeder: code that runs unattended on every boot against a database a human can edit may CREATE what is absent, and may not ASSERT what a set must be. Those are different operations and only the first is safe there. 'Ensure' reads like the second and is almost always meant as the first.\n\nThe test of whether you have the right one is not the function name but the diff it would produce against a database somebody has touched. syncPermissions() produces a deletion. findOrCreate plus a wasRecentlyCreated guard produces nothing.\n\nWhat this gives up is stated in the item and in #216 rather than discovered later: a permission added by an upgrade is no longer granted to existing roles, only created as an assignable row. That was chosen deliberately -- a capability that grants ITSELF to every existing member on upgrade is a privilege-escalation path, not a convenience -- and the cost, a release note naming any new permission, is assigned to item/changelog-release-notes.\n\nWorth promoting into CLAUDE.md alongside the seam rules: the repository has other boot-time work (docker/entrypoint.d) and the same mistake is available to all of it.",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "affects": [
+        "item/role-permissions-survive-restart",
+        "item/upgrade-preserves-access",
+        "item/changelog-release-notes"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0074",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T17:02:00Z",
+      "run": "run/0020",
+      "name": "The worker brief is the defect, not the decision vocabulary -- adopt promotion, reject the type split and the cap",
+      "rationale": "The ledger holds 72 decisions. LOOP.md step 5 hands a worker 'its plan, the relevant spec section and CLAUDE.md'. Decisions are not in that brief, so the hardest-won rules in the project reach nobody who needs them. Four remedies were considered -- a promotion rule, splitting Decision into Decision and Finding, a retirement status, a per-run cap -- and consultation returned a diagnosis worth recording over any of them: the graph cannot even route decisions to a brief, because affects points BACKWARD at the items a decision came from. Of the open v1 items, 14 have no affecting decision at all, including every release item. A brief built from affects would be empty exactly where it is needed.\n\nMeanwhile promotion already happens and is unrecorded in both directions: CLAUDE.md's 'never cite an unmutated assertion as evidence' is decision/0012's rule with no citation, and LOOP.md step 3 is decisions 0016 and 0021 nearly verbatim, uncited. The loop has a promotion PRACTICE and no promotion RULE, so the ledger cannot say which of its 72 nodes have already been acted on.\n\nADOPTED: promotion, in two layers. Process first, at zero schema cost -- LOOP.md step 5 includes every non-superseded decision whose affects names the item, plus the promoted rules in CLAUDE.md; step 7 asks of each new decision whether it goes to CLAUDE.md, to LOOP.md, into the validator, or stays. The promoted line carries the decision id; the rationale stays here. Record second, as an S item: a promotedTo field on Decision, backfilled null.\n\nREJECTED: splitting Decision into Decision and Finding. It touches eight or more sites in a 2,000-line validator plus a new collection and new witnesses, retyping 72 existing nodes is a history rewrite, leaving them untyped yields a corpus where the split means nothing, and no consumer cares -- a worker does not need to know whether a rule was chosen or discovered, only whether it binds them. The classification is fuzzy anyway: decision/0058 is both.\n\nREJECTED as schema, ADOPTED as a read rule: retirement. supersedes already exists and is used. A superseded decision is simply never cited in a brief and never promoted. One line in LOOP.md, no validator change.\n\nREJECTED: a per-run cap. Runs are sessions of wildly different length -- run/0020 wrote roughly one decision per merge, which is the right ratio, not excess. A cap would suppress recording in long runs and bind nothing in short ones. The write-time triage a cap is meant to force is the promotion question itself, which asks 'does this generalise, and to whom' rather than 'have we hit five'.\n\nTHE FALSIFIER, fixed now so it cannot be argued later: within two runs, a worker PR description cites a decision id. If none does, promotedTo is decorative and comes out, the way decision/0044 removed tests and assertions.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/ledger-field-audit",
+        "item/ledger-rule-witnesses"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0075",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T17:03:00Z",
+      "run": "run/0020",
+      "name": "Release mechanics move ahead of the API chain, against step 4's own tiebreak",
+      "rationale": "This is a deliberate correction of the plan under decision/0055, not rule-following, and is recorded because the loop's own rule would NOT have picked it. Step 4's tiebreak is 'unblocks the most items', and by that measure item/api-sanctum-tokens wins: its chain runs eight items deep, longer than the release chain.\n\nThe facts that override it. git tag is empty -- release.yml HAS NEVER RUN. The loop's stopping condition IS that pipeline: a tag pushed, ghcr carrying the image. Leaving it at position 58 of 66, behind roughly four M and L items, means it runs for the first time within a couple of items of the v1 tag -- the exact no-slack shape LOOP.md step 1 already condemns for item/v1-audit. item/release-v0-1-0 exists precisely to exercise the pipeline early, and its position defeated its own purpose.\n\nThere is also a live defect that does not wait on any plan: release.yml has no needs on a test job and fires on workflow_dispatch, so a dispatch against a red main publishes latest. That is a violation of 'CI is the gate' sitting in the repository today, and it is folded into item/release-v0-1-0 rather than filed separately, because 'prove the release pipeline' is exactly what an ungated pipeline fails to do.\n\nThe move costs little: compose-secret, version-from-tag and changelog-release-notes are all S, unblocked, and touch a disjoint file set from the API chain, so with two sessions writing to main they can run alongside it rather than displacing it.\n\nNew order 48-52: compose-secret, version-from-tag, changelog-release-notes, release-v0-1-0, spec-reconcile. The API and docs chain follows at 53-58. Completed items 62 and 63 shifted to 63 and 64 to open the slot; that renumbering is plan position, not history, and no recorded run's touched list is affected because those name ids, not orders.\n\nThree doneWhens must be restated before delegation, per decision/0068, because they are unsatisfiable or unstated as written: item/compose-secret cites a smoke job that boots compose, and no such job exists; item/version-from-tag has to pick 0.1.0 or 0.1.0-dev and needs the image to carry an org.opencontainers.image.version label before the version pill check is anything but decorative; item/image-size has no budget number, and inventing one now would be a guess dressed as a requirement -- the budget should be the size measured at item start, which no later change may exceed without a decision.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/release-v0-1-0",
+        "item/compose-secret",
+        "item/version-from-tag",
+        "item/changelog-release-notes",
+        "item/image-size",
+        "item/api-sanctum-tokens"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0076",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T17:04:00Z",
+      "run": "run/0020",
+      "name": "arm64 is booted natively in CI or the claim is dropped -- never emulated",
+      "rationale": "item/release-v0-1-0 and item/tag-v1-0-0 both say the image 'boots to the installer on amd64 and arm64'. release.yml publishes linux/amd64,linux/arm64 through QEMU, and tests.yml's image job builds and boots amd64 ONLY -- its own comment says so. No arm64 FrankenPHP, MinIO, tesseract or SQLite FTS5 binary has ever been executed in this project.\n\nBy this ledger's own standard that is not a weak assertion, it is no assertion. decision/0012 says an unmutated assertion is not evidence; an assertion that was never run is further down than that, and a dual-arch manifest published on it is a claim to users that nothing backs.\n\nThe repository is public -- verified, not assumed -- so GitHub's ubuntu-24.04-arm runners are available at no cost. The honest treatment is therefore to EXERCISE the claim: an image-arm64 job doing a native linux/arm64 build, then the existing first-screen shell smoke (installer served, container still running) factored into a script both image jobs call. Deliberately not the full Playwright drive: the arch-dependent risk is binaries loading and the MinIO COPY --from resolving per platform, not Livewire logic, and duplicating the whole smoke doubles the slowest job for no added signal.\n\nBooting under QEMU is REJECTED rather than merely dispreferred. FrankenPHP and MinIO are Go binaries under qemu-user plus supervisor; a failure there is ambiguous between an emulation bug and an image bug, so it cannot be read in either direction -- the defect decision/0018 names, where a refusal two mechanisms both produce proves neither.\n\nIf the native runner turns out to be unavailable, the fallback is not to keep the claim quietly: drop linux/arm64 from release.yml, strike arm64 from both items' doneWhen, say amd64-only in the README, and file arm64 as post-v1. An honest single-arch image beats a dual-arch manifest nobody has booted.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/release-v0-1-0",
+        "item/tag-v1-0-0",
+        "item/container-smoke-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0077",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T17:05:00Z",
+      "run": "run/0020",
+      "name": "The spec is reconciled in its own change, never inside the audit that reads it",
+      "rationale": "The spec has drifted from the product in three verified places: base image 8.4 against a Dockerfile on 8.5; the section 2 decision table still specifying Laravel Scout, which is not installed, while line 426 of the SAME document already says extraction goes through the project's own seam 'not through Laravel Scout as originally specified'; and FTS5 listed as a post-v1 optimisation though Fts5SearchIndex has shipped and line 438 describes it. The document contradicts itself, and section 2 is the half a reader meets first.\n\nThis matters twice over, which is why it is an item and not a chore. The spec is the standard item/v1-audit measures the product against, AND it is the text LOOP.md step 5 briefs workers with -- so a worker briefed on section 13 today is briefed on things that are not true. The reorder in decision/0075 sharpens this: the release items now run FIRST and section 13 is their section.\n\nTHE RULE: reconciliation is a separate change from the audit. Folding it in makes the auditor the editor of the standard it audits against -- the conflict decision/0068 names -- and afterwards 'the requirement was edited to fit what was built' is indistinguishable from 'the original clause was met'. Its own item, its own PR, so the edit is visible as an edit.\n\nTwo constraints the item carries. Spec headings are load-bearing: LedgerValidator's spec-anchor rule derives valid isBasedOn anchors from them, so renaming or removing one reddens ledger.yml -- edit content only. And section 2 is a decision table cited by decisions 0001 through 0004, so a superseded row is marked superseded with a pointer to the section that now governs, never deleted: the spec is a design record, and a row that silently changes loses why the original choice was made.\n\nStated plainly rather than papered over: there is no test for prose. The validator passing proves only that no anchor broke, not that the text is now true. The check on the text is that it stays a small, reviewable, doc-only diff.",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "affects": [
+        "item/spec-reconcile",
+        "item/v1-audit"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -4477,6 +4615,20 @@
       "check": "container-smoke.mjs checkAdminUsersPage() -- the image job failed at the named assertion: \"/admin/users answered HTTP 200 for smokemember733429273, who holds no users.manage -- expected 403\". Reached, not collapsed on the way: the check got past the installer and the file, trash, search, roles and periods checks, created the member through the real form, confirmed its home directory and grant, logged in as it, and failed on the status. THE 200 IS NOT A BYPASS, and that was verified by reading the check rather than assumed: it uses memberPage.goto() and reads response.status(), and Playwright's goto() follows redirects, so the status is the FINAL response -- the unverified member was redirected to the verification notice and 200 is that notice rendering. The gate held. Recorded because the message reads exactly like a real authorisation bypass and is not one, which is folded into issue #197. Run https://github.com/turbophp/doccum/actions/runs/35343087954.",
       "verdict": "negative",
       "supersedes": "mutation/0018"
+    },
+    {
+      "@id": "mutation/0020",
+      "@type": "Mutation",
+      "implements": [
+        "item/role-permissions-survive-restart"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/217",
+      "run": "run/0020",
+      "headSha": "b5638fb1dc042ca5039acfb5c9941d273e54e527",
+      "mutant": "Restored issue #214's destructive behaviour in RolesAndPermissionsSeeder::run() -- createRoleIfMissing() replaced by Role::findOrCreate($name, 'web')->syncPermissions($defaultPermissions), so every container boot puts both roles back to the seeder's constants. Three tokens, the exact defect the item was filed against.",
+      "check": "TWO independent guards, and the run separates them cleanly. (1) container-smoke.mjs checkRolePermissionSurvivesContainerReplacement() -- the image job failed AT THE NAMED CHECK AND NOWHERE ELSE: the whole setup phase ran to completion, through the last-administrator refusal, closing 2020-01, the public-signup 404/200 flip, the forwarded-proto reset URL and the byte-identical forgot-password answer, and then '[verify] the member role no longer holds periods.manage after the container was replaced -- raw output: HOLDS:no', 'container-smoke (verify) failed: member role lost periods.manage across a container restart'. (2) RolesAndPermissionsTest 'it leaves an operator-edited role alone when re-seeded' -- 1 failed, 1 skipped, 859 passed, so exactly one case out of 860, its own, with 'Failed asserting that an array contains periods.manage'. lint, build assets and guards stayed green, which is what a three-token seeder change should leave. The prediction was recorded in the PR body BEFORE the run, naming the phase, the message and the HOLDS:no line, with the standard stated as: if it fails anywhere other than that named check, the assertion is measuring something other than what it claims. It did not. The other direction was then observed rather than inferred -- the same smoke line reads '-- OK' on the merged fix. Run https://github.com/turbophp/doccum/actions/runs/35370360355.",
+      "verdict": "negative",
+      "supersedes": null
     }
   ]
 }
