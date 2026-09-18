@@ -314,6 +314,75 @@ jobs:
         if: always()
         run: git diff --exit-code
 
+  # item/compose-secret / decision/0078: `docker compose config` resolves
+  # variables and interpolation WITHOUT starting anything, so this proves the
+  # `storage` profile actually refuses to run without MINIO_ROOT_PASSWORD
+  # rather than quietly falling back to the known password that used to ship
+  # in compose.yaml. No `needs:` on purpose -- this costs seconds and needs
+  # nothing the other jobs build, so it runs immediately rather than waiting
+  # behind `image`, which it has nothing to do with.
+  compose-secret:
+    timeout-minutes: 5
+    name: compose requires MINIO_ROOT_PASSWORD
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Both directions matter, and a grep for the literal string "doccum-secret"
+      # would pass the first one even with a `${MINIO_ROOT_PASSWORD:-doccum-secret}`
+      # default in place, since a default never leaves the unset case failing --
+      # it just quietly keeps the known password. Only actually asking compose
+      # to resolve the variable, unset, catches that.
+      - name: Unset MINIO_ROOT_PASSWORD must fail the storage profile, naming it
+        run: |
+          set +e
+          output="$(env -u MINIO_ROOT_PASSWORD docker compose --profile storage config 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::expected 'docker compose --profile storage config' to exit non-zero with MINIO_ROOT_PASSWORD unset, but it exited 0 -- the storage profile is defaulting the secret instead of requiring it (use \${MINIO_ROOT_PASSWORD:?message}, not :-)"
+            echo "$output"
+            exit 1
+          fi
+
+          if ! printf '%s' "$output" | grep -q "MINIO_ROOT_PASSWORD"; then
+            echo "::error::'docker compose --profile storage config' failed as expected with MINIO_ROOT_PASSWORD unset, but its output never named MINIO_ROOT_PASSWORD -- an operator would not know what to set"
+            echo "$output"
+            exit 1
+          fi
+
+          echo "unset MINIO_ROOT_PASSWORD correctly fails the storage profile and names it:"
+          echo "$output"
+
+      - name: Set MINIO_ROOT_PASSWORD must succeed with no doccum-secret left
+        env:
+          MINIO_ROOT_PASSWORD: ci-compose-secret-check
+        run: |
+          set +e
+          output="$(docker compose --profile storage config 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error::expected 'docker compose --profile storage config' to exit 0 with MINIO_ROOT_PASSWORD set, but it exited $status"
+            echo "$output"
+            exit 1
+          fi
+
+          if printf '%s' "$output" | grep -q "doccum-secret"; then
+            echo "::error::'docker compose --profile storage config' rendered a doccum-secret occurrence with MINIO_ROOT_PASSWORD set -- expected none"
+            echo "$output"
+            exit 1
+          fi
+
+          echo "MINIO_ROOT_PASSWORD set resolves cleanly with no doccum-secret in the rendered config"
+
   image:
     timeout-minutes: 30
     name: image
