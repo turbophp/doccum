@@ -104,14 +104,20 @@ it('changes what can() answers in the same request once the permission cache is 
 
     app(SetRolePermissions::class)->handle($member, $withoutDirectoriesCreate);
 
-    // Deliberately the SAME $user instance, with no ->fresh() and no new
-    // HTTP request or Livewire::actingAs() call: re-resolving the user (or
-    // the app) in a fresh request would prove nothing about this clause,
-    // because a fresh request boots nothing that could carry a stale cache
-    // forward in the first place -- it would pass whether or not
-    // SetRolePermissions ever called forgetCachedPermissions(). This
-    // assertion fails, in the SAME PHP process and the SAME $user object,
-    // unless the action clears PermissionRegistrar's cache -- which is
-    // exactly clause one of item/admin-roles's doneWhen.
-    expect($user->can('directories.create'))->toBeFalse();
+    // A freshly resolved User, in the SAME PHP process and the same request
+    // -- no ->fresh() on the old object, no second HTTP request, no
+    // Livewire::actingAs(). The distinction matters and was established by
+    // CI rather than by reasoning: asserting on the ORIGINAL $user instance
+    // fails even with forgetCachedPermissions() in place, so that version of
+    // the test could not prove anything about removing the call. An
+    // already-resolved model carries authorization state that this action
+    // has no reference to and cannot clear; PermissionRegistrar's cache is
+    // the only thing it governs, so that is the only thing this asserts.
+    //
+    // It still discriminates, which is the point: the registrar's cache is
+    // process-global, so WITHOUT the call a newly loaded User consults the
+    // same stale mapping and answers true. `guards` proves both directions.
+    $sameRequestUser = User::query()->findOrFail($user->getKey());
+
+    expect($sameRequestUser->can('directories.create'))->toBeFalse();
 });
