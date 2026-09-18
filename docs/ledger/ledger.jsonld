@@ -664,7 +664,7 @@
       "name": "Mutation runs become ledger nodes with verdicts, so a prediction cannot pass as a finding",
       "url": "https://github.com/turbophp/doccum/issues/150",
       "isBasedOn": [
-        "spec:10-user-facing-surface"
+        "spec:13-infrastructure"
       ],
       "size": "S",
       "release": "v1.0.0",
