@@ -3449,9 +3449,7 @@
         "item/container-smoke-ci",
         "item/files-versions-replace"
       ],
-      "supersedes": [
-        "decision/0026"
-      ]
+      "supersedes": "decision/0026"
     },
     {
       "@id": "decision/0031",

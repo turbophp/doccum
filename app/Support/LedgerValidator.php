@@ -40,6 +40,16 @@ final class LedgerValidator
     /** JSON-LD keywords and CURIE namespace prefixes in context.jsonld -- infrastructure, not data terms. */
     private const CONTEXT_INFRASTRUCTURE_KEYS = ['@version', '@vocab', '@base', 'schema', 'xsd', 'spec'];
 
+    /**
+     * Terms context.jsonld types as a single @id reference where the seed
+     * legitimately embeds a full node instead of pointing at one by string --
+     * ordinary JSON-LD node embedding (Ledger.about holds a full
+     * SoftwareApplication node, already validated structurally by
+     * collectAndCheckStructure()), not a shape violation. shapeErrors()
+     * skips these rather than reporting the embedded node as "not a string".
+     */
+    private const SHAPE_EXEMPT_TERMS = ['about'];
+
     private const ITEM_ID_PATTERN = '/^item\/[a-z0-9]+(-[a-z0-9]+)*$/';
 
     private const RUN_ID_PATTERN = '/^run\/\d{4}$/';
@@ -343,6 +353,14 @@ final class LedgerValidator
         [$nodes, $structuralErrors] = self::collectAndCheckStructure($ledger, $runs, $vocabTerms);
         $errors = array_merge($errors, $structuralErrors);
 
+        // issue #188: closing the vocabulary (above) says which KEYS a node
+        // may carry; this says what SHAPE each key's value must have, read
+        // straight from context.jsonld's own @container/@type declarations,
+        // rather than every other rule in this file silently skipping a
+        // wrong-shaped value via array_filter(..., 'is_string') or crashing
+        // on a (string) cast of an array. See shapeErrors()'s own docblock.
+        $errors = array_merge($errors, self::shapeErrors($ledger, $runs, $context));
+
         $errors = array_merge($errors, self::idErrors($nodes));
         $errors = array_merge($errors, self::referenceErrors($ledger, $runs, $nodes));
         $errors = array_merge($errors, self::enumerationErrors($nodes));
@@ -452,6 +470,208 @@ final class LedgerValidator
         }
 
         return array_values(array_diff(array_keys($entries), self::CONTEXT_INFRASTRUCTURE_KEYS));
+    }
+
+    // -- Shape from context ----------------------------------------------
+
+    /**
+     * issue #188: every other rule in this file learned to tolerate a
+     * wrong-shaped value by silently skipping it (array_filter(...,
+     * 'is_string'), is_string() guards before resolving a reference) --
+     * useful so a bad value cannot cascade into unrelated failures or a
+     * crash, but on its own that means a value context.jsonld describes as
+     * one shape and the ledger gives another validates clean. Nothing was
+     * actually reading the shape context.jsonld already declares.
+     *
+     * Four shapes are derived from context.jsonld's own term definitions,
+     * rather than hand-listing which field is which:
+     *   - idSet:      @type: @id with @container: @set or @list -- must be
+     *                 an array, every element a string (dependsOn,
+     *                 implements, affects, touched, isBasedOn, result).
+     *   - idSingle:   @type: @id with no @container -- must be a string or
+     *                 null (supersedes, run, mergedIn, latestRun,
+     *                 pullRequest, testsRun, ledgerRun, url, agent -- and
+     *                 `about`, but see SHAPE_EXEMPT_TERMS).
+     *   - integer:    xsd:integer -- must be an int or null (order).
+     *   - dateTime:   xsd:dateTime -- must be a parseable string or null
+     *                 (dateCreated, dateModified, startTime, endTime,
+     *                 mergedAt).
+     *
+     * A term with no @container and no @id/xsd @type (a plain string field
+     * like `name` or `rationale`, or actionStatus's @type: @vocab) carries
+     * no shape this method enforces -- there is nothing in context.jsonld to
+     * derive a rule from.
+     *
+     * Deliberately not walked here: `items`/`pullRequests`/`decisions`/
+     * `mutations`/`merges` themselves. Each is a @container of embedded
+     * OBJECTS, not @id references (no `@type: @id` alongside their
+     * `@container`), and each already has its own not-a-list/not-an-object
+     * guard elsewhere (collectAndCheckStructure()'s per-collection loops,
+     * checkRunMerges()) that does not crash on a wrong shape either.
+     *
+     * "Exactly one" error per wrong-shaped field, even when an idSet has
+     * several bad elements: several errors from one bad value would be the
+     * same cascading noise this rule exists to replace, just relocated to a
+     * new tag.
+     *
+     * @param  array<string, mixed>  $ledger
+     * @param  array<string, array<string, mixed>>  $runs
+     * @param  array<string, mixed>  $context
+     * @return list<string>
+     */
+    private static function shapeErrors(array $ledger, array $runs, array $context): array
+    {
+        $errors = [];
+        $shapes = self::termShapes($context);
+
+        $checkFields = function (array $node, string $label) use (&$errors, $shapes): void {
+            foreach ($node as $key => $value) {
+                $shape = $shapes[$key] ?? null;
+                if ($shape !== null) {
+                    self::checkShape($errors, $label, $key, $shape, $value);
+                }
+            }
+        };
+
+        $checkFields($ledger, 'Ledger');
+
+        foreach (['items' => 'Action', 'pullRequests' => 'PullRequest', 'decisions' => 'Decision', 'mutations' => 'Mutation'] as $collection => $typeLabel) {
+            foreach (($ledger[$collection] ?? []) as $index => $node) {
+                if (! is_array($node)) {
+                    continue;
+                }
+                $id = is_string($node['@id'] ?? null) ? $node['@id'] : "$collection[$index]";
+                $checkFields($node, "$typeLabel '$id'");
+            }
+        }
+
+        foreach ($runs as $filename => $run) {
+            $id = is_string($run['@id'] ?? null) ? $run['@id'] : $filename;
+            $checkFields($run, "Run '$id'");
+
+            foreach (($run['merges'] ?? []) as $index => $entry) {
+                if (is_array($entry)) {
+                    $checkFields($entry, "Run '$id'.merges[$index]");
+                }
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Reads the shape context.jsonld declares for each vocabulary term. See
+     * shapeErrors()'s own docblock for what each returned shape means.
+     *
+     * @param  array<string, mixed>  $context
+     * @return array<string, string>
+     */
+    private static function termShapes(array $context): array
+    {
+        $entries = $context['@context'] ?? [];
+        if (! is_array($entries)) {
+            return [];
+        }
+
+        $shapes = [];
+        foreach ($entries as $term => $definition) {
+            if (! is_string($term)
+                || in_array($term, self::CONTEXT_INFRASTRUCTURE_KEYS, true)
+                || in_array($term, self::SHAPE_EXEMPT_TERMS, true)
+                || ! is_array($definition)) {
+                continue;
+            }
+
+            $container = $definition['@container'] ?? null;
+            $type = $definition['@type'] ?? null;
+
+            if ($type === '@id' && in_array($container, ['@set', '@list'], true)) {
+                $shapes[$term] = 'idSet';
+            } elseif ($type === '@id') {
+                $shapes[$term] = 'idSingle';
+            } elseif ($type === 'xsd:integer') {
+                $shapes[$term] = 'integer';
+            } elseif ($type === 'xsd:dateTime') {
+                $shapes[$term] = 'dateTime';
+            }
+        }
+
+        return $shapes;
+    }
+
+    /** @param list<string> $errors */
+    private static function checkShape(array &$errors, string $label, string $key, string $shape, mixed $value): void
+    {
+        match ($shape) {
+            'idSet' => self::checkIdSetShape($errors, $label, $key, $value),
+            'idSingle' => self::checkIdSingleShape($errors, $label, $key, $value),
+            'integer' => self::checkIntegerShape($errors, $label, $key, $value),
+            'dateTime' => self::checkDateTimeShape($errors, $label, $key, $value),
+            default => null,
+        };
+    }
+
+    /**
+     * context.jsonld's @container: @set/@list -- must be an array, and every
+     * element a string. Exactly one error even when several elements are
+     * bad: this is what makes `dependsOn: ["item/x", 42]` one shape: error
+     * rather than a per-element pile-on.
+     *
+     * @param  list<string>  $errors
+     */
+    private static function checkIdSetShape(array &$errors, string $label, string $key, mixed $value): void
+    {
+        if (! is_array($value)) {
+            $errors[] = "shape: $label.$key = ".self::describe($value)." is not an array, but context.jsonld declares it @container: @set/@list.";
+
+            return;
+        }
+
+        foreach ($value as $element) {
+            if (! is_string($element)) {
+                $errors[] = "shape: $label.$key contains a non-string element (".self::describe($element).'), but context.jsonld types every element as an @id reference.';
+
+                return;
+            }
+        }
+    }
+
+    /**
+     * context.jsonld's @type: @id with no @container -- must be a string or
+     * null, never an array. This is decision/0030's own defect: `supersedes:
+     * ["decision/0026"]` where context.jsonld declares a single @id.
+     *
+     * @param  list<string>  $errors
+     */
+    private static function checkIdSingleShape(array &$errors, string $label, string $key, mixed $value): void
+    {
+        if ($value === null || is_string($value)) {
+            return;
+        }
+
+        $errors[] = "shape: $label.$key = ".self::describe($value).' is neither a string nor null, but context.jsonld declares it a single @id reference.';
+    }
+
+    /** @param list<string> $errors */
+    private static function checkIntegerShape(array &$errors, string $label, string $key, mixed $value): void
+    {
+        if ($value === null || is_int($value)) {
+            return;
+        }
+
+        $errors[] = "shape: $label.$key = ".self::describe($value).' is not an integer, but context.jsonld declares it xsd:integer.';
+    }
+
+    /** @param list<string> $errors */
+    private static function checkDateTimeShape(array &$errors, string $label, string $key, mixed $value): void
+    {
+        if ($value === null) {
+            return;
+        }
+
+        if (! is_string($value) || strtotime($value) === false) {
+            $errors[] = "shape: $label.$key = ".self::describe($value).' is not a parseable xsd:dateTime string, but context.jsonld declares it xsd:dateTime.';
+        }
     }
 
     // -- Structure: @type, closed vocabulary, required keys ------------
@@ -572,6 +792,31 @@ final class LedgerValidator
         return is_string($value) ? "'$value'" : gettype($value);
     }
 
+    /**
+     * Coerces a context @set/@list value (dependsOn, implements, affects,
+     * touched, isBasedOn, result) to the list<string> every rule but
+     * shapeErrors() actually wants, tolerating a shape shapeErrors() has
+     * already reported -- a bare scalar instead of an array, or an array
+     * containing something other than a string -- by treating it as empty
+     * rather than crashing.
+     *
+     * Before issue #188, every call site did this inline as
+     * `array_filter($x ?? [], 'is_string')`, which throws a TypeError the
+     * moment $x is not an array at all (PullRequest.implements given as a
+     * bare string, rather than `["item/x"]`, crashed exactly this way in
+     * referenceErrors()). Centralising it here means the "tolerate, don't
+     * crash" behaviour lives in one place, and shapeErrors() is the one
+     * place that actually reports the wrong shape as an error.
+     */
+    private static function stringList(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter($value, 'is_string'));
+    }
+
     // -- @id patterns and uniqueness ------------------------------------
 
     /**
@@ -664,11 +909,16 @@ final class LedgerValidator
             }
         };
 
-        $resolveEach = function (array $refs, string $expectedType, string $context) use ($resolve): void {
-            foreach ($refs as $ref) {
-                if (is_string($ref)) {
-                    $resolve($ref, $expectedType, $context);
-                }
+        // Untyped $refs deliberately: a @set/@list field is expected to be an
+        // array of strings, but shapeErrors() is what reports it when it is
+        // not -- this closure only resolves the strings that ARE there
+        // (self::stringList() below tolerates anything else by returning
+        // none), so a wrong-shaped value degrades to "nothing to resolve"
+        // here rather than a TypeError from an `array $refs` parameter that
+        // a bare string or an int cannot satisfy. See issue #188.
+        $resolveEach = function (mixed $refs, string $expectedType, string $context) use ($resolve): void {
+            foreach (self::stringList($refs) as $ref) {
+                $resolve($ref, $expectedType, $context);
             }
         };
 
@@ -1022,7 +1272,7 @@ final class LedgerValidator
             if (! is_array($item) || ! is_string($item['@id'] ?? null)) {
                 continue;
             }
-            $edges[$item['@id']] = array_values(array_filter($item['dependsOn'] ?? [], 'is_string'));
+            $edges[$item['@id']] = self::stringList($item['dependsOn'] ?? null);
         }
 
         $state = []; // id => 0 unvisited, 1 in progress, 2 done
@@ -1102,7 +1352,7 @@ final class LedgerValidator
         }
 
         $implementsItem = static function (array $mutationNode, string $itemId): bool {
-            return in_array($itemId, array_filter($mutationNode['implements'] ?? [], 'is_string'), true);
+            return in_array($itemId, self::stringList($mutationNode['implements'] ?? null), true);
         };
 
         foreach ($items as $item) {
@@ -1132,13 +1382,13 @@ final class LedgerValidator
             }
 
             if ($status === 'CompletedActionStatus') {
-                foreach (array_filter($item['dependsOn'] ?? [], 'is_string') as $dependency) {
+                foreach (self::stringList($item['dependsOn'] ?? null) as $dependency) {
                     if ($statusOf($dependency) !== 'CompletedActionStatus') {
                         $errors[] = "status: Action '$id' is Completed but dependsOn '$dependency' is not.";
                     }
                 }
 
-                $result = array_filter($item['result'] ?? [], 'is_string');
+                $result = self::stringList($item['result'] ?? null);
                 if ($result === []) {
                     $errors[] = "status: Action '$id' is Completed but has an empty result.";
                 }
@@ -1170,7 +1420,7 @@ final class LedgerValidator
                 // is past MUTATION_RULES_EFFECTIVE_AFTER_RUN, needs at least
                 // one negative Mutation with a non-empty check.
                 $isBasedOnSpec10 = false;
-                foreach (array_filter($item['isBasedOn'] ?? [], 'is_string') as $basis) {
+                foreach (self::stringList($item['isBasedOn'] ?? null) as $basis) {
                     if (preg_match('/^spec:10(-|$)/', $basis) === 1) {
                         $isBasedOnSpec10 = true;
                         break;
@@ -1226,7 +1476,7 @@ final class LedgerValidator
     private static function itemCompletedAfterMutationRulesEffective(array $item, array $nodes): bool
     {
         $runNumbers = [];
-        foreach (array_filter($item['result'] ?? [], 'is_string') as $prId) {
+        foreach (self::stringList($item['result'] ?? null) as $prId) {
             $prNode = $nodes[$prId]['node'] ?? null;
             if (! is_array($prNode)) {
                 continue;
@@ -1264,7 +1514,7 @@ final class LedgerValidator
         foreach ($runs as $run) {
             $runId = $run['@id'] ?? null;
             if (is_string($runId)) {
-                $touchedByRun[$runId] = array_filter($run['touched'] ?? [], 'is_string');
+                $touchedByRun[$runId] = self::stringList($run['touched'] ?? null);
 
                 $shas = [];
                 foreach (($run['merges'] ?? []) as $entry) {
@@ -1311,7 +1561,7 @@ final class LedgerValidator
                 }
             }
 
-            $implements = array_filter($pr['implements'] ?? [], 'is_string');
+            $implements = self::stringList($pr['implements'] ?? null);
             if ($implements === []) {
                 $errors[] = "pr: '$id' implements no items.";
             }
@@ -1395,7 +1645,7 @@ final class LedgerValidator
                 $errors[] = "mutation: '$id'.check = ".self::describe($check).' is neither a string nor null.';
             }
 
-            if (array_filter($mutation['implements'] ?? [], 'is_string') === []) {
+            if (self::stringList($mutation['implements'] ?? null) === []) {
                 $errors[] = "mutation: '$id' implements no items.";
             }
 
@@ -1425,6 +1675,11 @@ final class LedgerValidator
      * - item/ledger-mutation-nodes (issue #150): a run past
      *   MUTATION_RULES_EFFECTIVE_AFTER_RUN may not carry outcome completed
      *   while a PullRequest merged in it lacks mainConclusion.
+     * - item/ledger-shape-from-context (issue #188), clause 4 as amended by
+     *   decision/0068: every merge entry, in every run, with a non-null
+     *   testsConclusion/ledgerConclusion must carry the matching non-null
+     *   testsRun/ledgerRun -- a conclusion recorded with no run to point at
+     *   is incoherent, unconditionally, not only past a threshold.
      *
      * @param  array<string, mixed>  $ledger
      * @param  array<string, array<string, mixed>>  $runs
@@ -1452,7 +1707,7 @@ final class LedgerValidator
             // touched no backlog item. Every run after it that claims to
             // have completed must say what it worked on, or a run that did
             // nothing is indistinguishable from one that did.
-            if ($number !== 0 && ($run['outcome'] ?? null) === 'completed' && array_filter($run['touched'] ?? [], 'is_string') === []) {
+            if ($number !== 0 && ($run['outcome'] ?? null) === 'completed' && self::stringList($run['touched'] ?? null) === []) {
                 $errors[] = "run: '$expectedId' has outcome completed but an empty touched set.";
             }
 
@@ -1487,6 +1742,29 @@ final class LedgerValidator
                         self::describe($last['mergeSha'] ?? null).
                         ') did not close green (testsConclusion = '.self::describe($last['testsConclusion'] ?? null).
                         ', ledgerConclusion = '.self::describe($last['ledgerConclusion'] ?? null).').';
+                }
+            }
+
+            // Rule 4 (decision/0068, restating item/ledger-shape-from-context's
+            // original "mainConclusion with a null mainRunUrl" clause against
+            // the fields that inherited its intent): a conclusion recorded
+            // with no run that produced it is incoherent. checkMergeEntry()
+            // validates mergeSha, pullRequest, the two conclusions and the
+            // two run URLs each independently, so without this an entry could
+            // claim testsConclusion: "success" with testsRun: null (or the
+            // ledger equivalent) and validate clean. Checked on every merge
+            // entry, not only the last -- Rule 3 above cares about the run's
+            // own closing state, this cares about each entry's own
+            // provenance.
+            foreach (($run['merges'] ?? []) as $index => $entry) {
+                if (! is_array($entry)) {
+                    continue;
+                }
+                if (($entry['testsConclusion'] ?? null) !== null && ($entry['testsRun'] ?? null) === null) {
+                    $errors[] = "run: '$expectedId'.merges[$index] has testsConclusion ".self::describe($entry['testsConclusion']).' but testsRun is null -- a conclusion with no run to point at.';
+                }
+                if (($entry['ledgerConclusion'] ?? null) !== null && ($entry['ledgerRun'] ?? null) === null) {
+                    $errors[] = "run: '$expectedId'.merges[$index] has ledgerConclusion ".self::describe($entry['ledgerConclusion']).' but ledgerRun is null -- a conclusion with no run to point at.';
                 }
             }
         }
@@ -1675,7 +1953,7 @@ final class LedgerValidator
         $errors = [];
         $check = function (array $node, string $label) use (&$errors, $anchors): void {
             $id = is_string($node['@id'] ?? null) ? $node['@id'] : '?';
-            foreach (array_filter($node['isBasedOn'] ?? [], 'is_string') as $value) {
+            foreach (self::stringList($node['isBasedOn'] ?? null) as $value) {
                 if (! str_starts_with($value, 'spec:')) {
                     $errors[] = "spec-anchor: $label '$id' has isBasedOn '$value', which does not start with 'spec:'.";
 
