@@ -157,6 +157,30 @@ function versionFromContainer() {
   return match[1];
 }
 
+/**
+ * org.opencontainers.image.version off the IMAGE itself, via `docker inspect`
+ * -- a genuinely different source from the PHP process versionFromContainer()
+ * reads. Set by the Dockerfile's `ARG DOCCUM_VERSION` / `LABEL
+ * org.opencontainers.image.version` (item/version-from-tag), and inherited by
+ * every container started from the image, so inspecting the running
+ * container's own config is equivalent to inspecting the image and needs no
+ * separate image name/tag to be threaded through this script.
+ */
+function versionLabelFromContainer() {
+  const output = execFileSync(
+    'docker',
+    ['inspect', '-f', '{{ index .Config.Labels "org.opencontainers.image.version" }}', CONTAINER_NAME],
+    { encoding: 'utf8' },
+  ).trim();
+  if (!output) {
+    throw new Error(
+      `docker inspect reported no org.opencontainers.image.version label on ${CONTAINER_NAME} -- ` +
+        'the image was not built with the Dockerfile\'s DOCCUM_VERSION ARG/LABEL',
+    );
+  }
+  return output;
+}
+
 function dumpContainerState(reason) {
   console.error(`\n::error::${reason}`);
   try {
@@ -1000,29 +1024,33 @@ async function checkForgotPasswordSameResponseRegardlessOfAccount(browser, phase
  *     sanity check that the click is what changes the state, and must never
  *     be cited as evidence the page is alive.
  *
- *   - The version pill check is WEAK and is not a cross-source comparison.
- *     tinker reads config('doccum.version') and so does the Blade: same
- *     process, same source. The Dockerfile runs no config:cache, so the
- *     stale-cache scenario an earlier version of this comment described
- *     does not exist. What it does prove is narrow but real: the pill
- *     renders the configured value rather than a literal baked into the
- *     view. It becomes a genuine assertion once item/version-from-tag (36)
- *     gives an external source -- the image's
- *     org.opencontainers.image.version label -- to compare against.
+ *   - The version pill check is now a genuine cross-source comparison
+ *     (item/version-from-tag). tinker reads config('doccum.version') from
+ *     the PHP process; `docker inspect` reads org.opencontainers.image.version
+ *     off the image's own metadata, set by the Dockerfile's DOCCUM_VERSION
+ *     ARG/LABEL entirely independently of anything Laravel resolves at
+ *     runtime. The check requires pill == label == config, so it fails
+ *     whenever any one of those three disagrees with the other two -- not
+ *     just when the Blade renders a hardcoded literal. Confirmed by mutation:
+ *     an image built with DOCCUM_VERSION=9.9.9 while DOCCUM_VERSION was
+ *     overridden to a different value at container-run time makes this throw,
+ *     naming all three values.
  */
 async function checkTopbar(page, phase) {
   const version = versionFromContainer();
+  const label = versionLabelFromContainer();
 
   const pill = page.locator('[data-test="version-pill"]');
   await pill.waitFor({ state: 'visible', timeout: 10000 });
   const pillText = (await pill.innerText()).trim();
-  if (pillText !== `v${version}`) {
+  if (pillText !== `v${version}` || label !== version) {
     throw new Error(
-      `version pill reads "${pillText}" but the running container reports ` +
-        `config('doccum.version') = "${version}"`,
+      `version mismatch across sources -- pill: "${pillText}", ` +
+        `config('doccum.version'): "${version}", ` +
+        `org.opencontainers.image.version label: "${label}"`,
     );
   }
-  console.log(`[${phase}] version pill renders the configured value: ${pillText}`);
+  console.log(`[${phase}] version pill, config('doccum.version') and the image label all agree: ${pillText}`);
 
   // What is asserted here is that the topbar renders at all outside the test
   // renderer, with Flux's own components resolving in the image.

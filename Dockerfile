@@ -95,6 +95,35 @@ ENV DOCCUM_EMBEDDED_STORAGE=true \
 ENV DB_CONNECTION=sqlite \
     DB_DATABASE=/data/doccum.sqlite
 
+# Declared this late on purpose: an ARG instruction busts build-cache for
+# itself and every instruction after it in this stage, and nothing above this
+# line -- installing dependencies, building assets, copying the app in --
+# depends on the version, so a tag-only rebuild (the release workflow's
+# normal case) still reuses every one of those layers. Only these last few
+# metadata/env layers get rebuilt.
+#
+# Defaults to the same dev value config/doccum.php falls back to, so a plain
+# `docker build .` with no --build-arg (a local `docker compose up --build`,
+# or this repo's own CI image job) produces a container whose label, env var
+# and config('doccum.version') all agree on 0.1.0-dev -- see
+# .github/scripts/container-smoke.mjs's version-pill check.
+ARG DOCCUM_VERSION=0.1.0-dev
+
+# Reaches config('doccum.version') via env('DOCCUM_VERSION', ...) in
+# config/doccum.php -- config:cache is never run in this image (see the
+# comment on checkTopbar in container-smoke.mjs), so a plain env var read at
+# request time is enough; no config rebuild is needed for this to take effect.
+ENV DOCCUM_VERSION=${DOCCUM_VERSION}
+
+# The external source the smoke test's version-pill check reads with `docker
+# inspect`, independent of the PHP process entirely -- see
+# item/version-from-tag. release.yml also gets org.opencontainers.image.version
+# from docker/metadata-action based on the pushed tag; that label and this one
+# are set from the same tag value on a real release (see release.yml), so they
+# do not disagree there. This explicit LABEL is what makes the value present
+# at all on a locally built image, which never goes through metadata-action.
+LABEL org.opencontainers.image.version="${DOCCUM_VERSION}"
+
 # supervisord replaces frankenphp as PID 1's command, but serversideup's own
 # entrypoint still runs first and ends with `exec "$@"` -- so every
 # entrypoint.d script (migrations, storage link, our own credential

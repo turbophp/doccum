@@ -41,6 +41,21 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          # steps.meta.outputs.labels already includes
+          # org.opencontainers.image.version, derived from the same pushed
+          # tag as steps.meta.outputs.version below. Passed here as --label
+          # (confirmed empirically: a CLI/BuildKit --label wins over a
+          # same-key Dockerfile LABEL), it is what actually lands in the
+          # pushed image's config, overriding the Dockerfile's own
+          # `LABEL org.opencontainers.image.version="$DOCCUM_VERSION"`. The
+          # two never disagree in practice, because build-args below feeds
+          # the Dockerfile's ARG the identical value metadata-action derived
+          # the label from -- but on a release build it is metadata-action's
+          # label, not the Dockerfile's, that wins. The Dockerfile's LABEL
+          # exists for the case metadata-action is absent entirely: a plain
+          # local `docker build`, or this repo's own tests.yml image job.
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            DOCCUM_VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

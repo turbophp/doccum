@@ -401,6 +401,14 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
 
+      # No DOCCUM_VERSION build-arg on purpose: this job never builds from a
+      # tag, so there is no external version to pass in. The Dockerfile's ARG
+      # default (0.1.0-dev) and config/doccum.php's env() default are the
+      # same literal, so the smoke's version-pill check -- pill == the
+      # image's org.opencontainers.image.version label == config('doccum.version')
+      # -- still compares three independently-sourced reads of that one
+      # value, it just happens to be the dev default rather than a release
+      # tag. See item/version-from-tag and container-smoke.mjs's checkTopbar.
       - name: Build image
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
