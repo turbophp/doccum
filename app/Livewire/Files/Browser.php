@@ -644,7 +644,7 @@ class Browser extends Component
         }
 
         return Directory::query()
-            ->whereIn('id', $this->directory->ancestorIds())
+            ->whereIn('id', [$this->directory->getKey()])
             ->whereIn('id', $viewable)
             ->orderBy('depth')
             ->get();
