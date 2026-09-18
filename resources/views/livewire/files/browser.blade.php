@@ -368,6 +368,60 @@
                                 {{ __('Trash') }}
                             </flux:button>
                         @endcan
+
+                        {{-- item/directory-access-ui (issue #14): a non-manager must see NO
+                             control at all, not a disabled one -- @can is what makes this
+                             block absent from the response rather than merely hidden by CSS. --}}
+                        @can('manageAccess', $selectedDirectory)
+                            <div class="space-y-3 border-t pt-4" data-test="directory-access-panel">
+                                <flux:heading level="3">{{ __('Access') }}</flux:heading>
+
+                                {{-- A plain <ul>, not flux:table -- rule F: flux:table does not
+                                     exist in the free tier and fails to resolve in the built
+                                     image while still rendering fine under the test renderer. --}}
+                                <ul data-test="directory-grant-list" class="space-y-2 text-sm">
+                                    @forelse ($directoryGrants as $grant)
+                                        <li class="flex items-center justify-between gap-4" data-test="directory-grant-row" data-grant-id="{{ $grant->id }}">
+                                            <span>
+                                                {{ $grant->grantee?->email ?? __('(deleted user)') }}
+                                                &mdash; {{ $grant->level->value }}
+                                            </span>
+                                            {{-- flux:button, not a plain <button> -- wire:click,
+                                                 wire:confirm and data-test together on flux:button
+                                                 are already the exact combination
+                                                 trash-directory-button above uses, which the
+                                                 container smoke has already proven Flux forwards
+                                                 (rule E). data-grant-id lives on the plain <li>
+                                                 above for the smoke to select this row by. --}}
+                                            <flux:button
+                                                variant="danger"
+                                                wire:click="revokeAccess({{ $grant->id }})"
+                                                wire:confirm="{{ __('Revoke this grant?') }}"
+                                                data-test="revoke-access-button"
+                                            >
+                                                {{ __('Revoke') }}
+                                            </flux:button>
+                                        </li>
+                                    @empty
+                                        <li data-test="directory-grant-empty"><flux:text>{{ __('Nobody else has been granted access.') }}</flux:text></li>
+                                    @endforelse
+                                </ul>
+
+                                <form wire:submit="grantAccess" class="flex items-end gap-2" data-test="grant-access-form">
+                                    <flux:input
+                                        wire:model="grantEmail"
+                                        :label="__('Grant access to (email)')"
+                                        type="email"
+                                    />
+                                    <flux:select wire:model="grantLevel" :label="__('Level')">
+                                        @foreach (\App\Enums\AccessLevel::cases() as $level)
+                                            <flux:select.option :value="$level->value">{{ $level->value }}</flux:select.option>
+                                        @endforeach
+                                    </flux:select>
+                                    <flux:button type="submit" data-test="grant-access-button">{{ __('Grant') }}</flux:button>
+                                </form>
+                            </div>
+                        @endcan
                     </div>
                 @endif
             </div>

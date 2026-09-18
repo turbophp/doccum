@@ -201,5 +201,26 @@
     "file": "app/Http/Controllers/FileVersionDownloadController.php",
     "remove": "        abort_if((int) $fileVersion->file_id !== (int) $file->getKey(), 404);\n",
     "expectFailing": "404s a version id belonging to a different file"
+  },
+  {
+    "id": "browser-grant-access-manage",
+    "why": "item/directory-access-ui (issue #14): granting directory access through the panel must require manageAccess() (Manage-level directory_access), and GrantDirectoryAccess itself checks nothing -- actions never authorise (CLAUDE.md). Without this the Grant control would let anyone who can merely view or edit a directory hand access to it to any other user.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        // The one ability check standing between \"may view/edit this\n        // directory\" and \"may hand ANY OTHER USER access to it\" -- without\n        // it, GrantDirectoryAccess itself checks nothing (CLAUDE.md: actions\n        // never authorise).\n        $this->authorize('manageAccess', $this->selectedDirectory);\n\n",
+    "expectFailing": "refuses to grant access server-side for a caller without manage access"
+  },
+  {
+    "id": "browser-revoke-access-manage",
+    "why": "item/directory-access-ui (issue #14): revoking directory access through the panel must require manageAccess() (Manage-level directory_access), and RevokeDirectoryAccess itself checks nothing -- actions never authorise (CLAUDE.md). Without this the Revoke control would let anyone who can merely view or edit a directory strip any other user's access to it.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "        // Same ability as grantAccess() above, checked again here rather\n        // than assumed from having reached this method: RevokeDirectoryAccess\n        // itself checks nothing (CLAUDE.md: actions never authorise), so\n        // without this call revoking is wide open to anyone who can select\n        // the directory at all.\n        $this->authorize('manageAccess', $this->selectedDirectory);\n\n",
+    "expectFailing": "refuses to revoke access server-side for a caller without manage access"
+  },
+  {
+    "id": "browser-revoke-access-scoped-to-directory",
+    "why": "item/directory-access-ui (issue #14): directoryGrantsQuery() -- the query BOTH revokeAccess() and render()'s grants listing resolve a grant through -- must scope to the directory currently being managed. Without this, a manager of ONE directory could revoke a grant belonging to a DIFFERENT directory they hold no access to at all, merely by naming its id -- the same cross-resource hole FileVersionDownloadController's cross-file 404 guard closes for versions.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "            ->where('directory_id', $directory->getKey())\n",
+    "expectFailing": "refuses to revoke a grant belonging to a different directory"
   }
 ]
