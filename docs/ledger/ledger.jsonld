@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T02:42:00Z",
+  "dateModified": "2026-09-18T03:55:03Z",
   "latestRun": "run/0018",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -650,10 +650,12 @@
         "item/download-reaches-the-browser"
       ],
       "doneWhen": "Both download controllers resolve the object BEFORE any header is sent -- DocumentStorage reports a missing object through a typed exception rather than a bare RuntimeException raised from inside the streamDownload callback, where the status line has already been decided and the observed code is an accident of when the exception surfaces relative to the header flush. Each route answers a deliberate status with a body and a log line naming the object key, so an operator can tell 'object storage is missing this object' from 'doccum crashed'. A test deletes the faked object behind a live row and asserts the status, the message and the log entry, for the current-version route and the per-version route both; the chosen status is stated in the docblock with its reasoning. The presigned path answers MinIO's own 404 and is left as is, noted rather than fixed. This matters because /data is the only volume and the backup story is 'copy /data': a restore that brings the database but not objects/ is the likeliest operator mistake in the product, and item/self-hosting-docs must be able to say what happens then.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T03:35:00Z",
+      "endTime": "2026-09-18T03:53:32Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/152"
+      ]
     },
     {
       "@id": "item/ledger-mutation-nodes",
@@ -2242,6 +2244,38 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/152",
+      "@type": "PullRequest",
+      "identifier": 152,
+      "name": "item/download-missing-object: a missing object is a stated answer, not a crash (#134)",
+      "implements": [
+        "item/download-missing-object"
+      ],
+      "run": "run/0018",
+      "state": "merged",
+      "dateCreated": "2026-09-18T03:42:00Z",
+      "headSha": "70ff6cc65c7c099cc4a1b7988f49292d08c9576b",
+      "mergedAt": "2026-09-18T03:53:32Z",
+      "mergeSha": "baca8da9ad5a98dae1bd63e9a1b1274f816f168a",
+      "mergedIn": "run/0018"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/154",
+      "@type": "PullRequest",
+      "identifier": 154,
+      "name": "MUTATION -- DO NOT MERGE: the stream is opened inside the callback again",
+      "implements": [
+        "item/download-missing-object"
+      ],
+      "run": "run/0018",
+      "state": "closed",
+      "dateCreated": "2026-09-18T03:50:00Z",
+      "headSha": "95c5770e6a41db96478a086e34aa9c3ae6374bb5",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -2852,6 +2886,22 @@
       "affects": [
         "item/directory-access-ui",
         "item/directory-share-permission"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0037",
+      "@type": "Decision",
+      "dateCreated": "2026-09-18T03:55:00Z",
+      "run": "run/0018",
+      "name": "A guard whose null branch is dead in production proves nothing, and a remedy named before the evidence is the one reached for under pressure",
+      "rationale": "item/download-missing-object was scoped as one change and was two, and CI proved that neither half fixes anything alone. The measurements, in the order they arrived:\n\nTHE HALF THAT WAS SPECIFIED. Open the object's stream BEFORE constructing the response, so a missing object can choose a status. Shipped on its own in the first round: every one of the six test jobs answered 500 where the tests expect 502.\n\nTHE HALF NOBODY HAD NOTICED. config/filesystems.php sets 'throw' => true on the documents disk, so Laravel's FilesystemAdapter::readStream() RETHROWS Flysystem's UnableToReadFile instead of returning null. The `if ($stream === null)` guard in DocumentStorage::readStream() has therefore been dead code in the shipped product for as long as that flag has been set. The typed ObjectMissingFromStorage the first round introduced could not be thrown by any real install, so converting only the null branch would have turned the suite green against a code path nobody takes -- a fix reporting success and changing nothing, which is exactly what CLAUDE.md means by a green suite being necessary and not sufficient. readStream() now converts both signals, because which one a caller gets depends on disk config rather than on anything the caller controls, and a provider seam owes its callers one answer.\n\nTHE MUTATION MEASURED SOMETHING THE ISSUE HAD ONLY GUESSED. PR 154 put readStream() back inside the streamDownload() callback, leaving the seam conversion in place and leaving FileVersionDownloadController untouched as a control. The control passed; the mutated route's test failed with HTTP 200, not 500. So with the stream opened inside the callback, the status line commits as SUCCESS before the missing object is ever discovered: on that server the failure is invisible to any client checking only the status code. Issue 134's reported 500 really was an artefact of FrankenPHP's header-flush timing, which the item asserted and could not show. A 500 would have been a weaker result than the 200 that actually came back.\n\nSo: open-early without convert-at-seam answers 500; convert-at-seam without open-early answers 200; both answer 502. Either half alone would have LOOKED like progress on the issue as written.\n\nTHE REMEDY I PRE-COMMITTED TO WAS THE WRONG ONE. The pull request body flagged the Storage::fake()/'throw' interaction as unverified -- correctly, since vendor/ is absent here and neither the worker nor I could read or execute the source -- and then said that if it went the other way the fix would be a one-line Storage::fake('documents', ['throw' => false]). That would have made the tests pass by configuring the fake to behave UNLIKE the real disk, hiding the production defect completely. Flagging the uncertainty was right and is worth continuing to do; naming a remedy in advance of the evidence was not, because the named remedy is what gets reached for under time pressure when the failure arrives. Flag the uncertainty, and say what would DISTINGUISH the cases, not what to do about one of them.\n\nWHAT IS NOT PROVEN. The Log::shouldHaveReceived('error') expectation rode along with the status assertion in the same failure and is not independently shown to fail. The status assertion is the one this item can claim.",
+      "isBasedOn": [
+        "spec:6-storage-and-period-partitioning"
+      ],
+      "affects": [
+        "item/download-missing-object",
+        "item/download-reaches-the-browser"
       ],
       "supersedes": null
     }
