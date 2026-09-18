@@ -22,6 +22,17 @@ Every hour, the loop wakes and runs these steps in order.
 1. **Re-read state.** `docs/ledger/ledger.jsonld` is the source of truth for
    what is done, in flight and next. Re-read it rather than trusting memory:
    a previous iteration may have run in a different session.
+
+   Then list the open issues whose URL no item carries, and dispose of each:
+   an item, a line in an existing item's `doneWhen`, or closed with a reason.
+   Issue #74 sat open for a day with no ledger node and no item referencing
+   it, while Download was dead in the shipped product; nothing in this loop
+   was looking, because the ledger only describes work that is already on it.
+   Two runs later the same sweep found that `AuthenticateUser`'s docblock
+   claimed username login was "tracked as its own item" when no item
+   mentioned username at all. An issue nobody has disposed of is invisible
+   until `item/v1-audit`, which sits one place before the tag with no slack
+   to fix anything.
 2. **Review and merge.** Look at every open PR this loop opened. CI is the
    gate — a PR is mergeable only when every required check is green. Review
    the diff, then merge to `main`. Record the merge in the ledger.
