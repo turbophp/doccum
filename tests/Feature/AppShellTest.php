@@ -57,7 +57,45 @@ it('shows settings in the primary nav, pointed at the users page, for a viewer h
     $response->assertOk()
         ->assertSee(__('Settings'))
         ->assertSeeHtml('data-test="nav-settings-users"')
-        ->assertSeeHtml(route('admin.users'));
+        ->assertSeeHtml(route('admin.users'))
+        // ... and NOT the properties section, which they cannot reach.
+        ->assertDontSeeHtml('data-test="nav-settings"');
+});
+
+// item/admin-roles (issue #19). The case nothing covered, and the one that was
+// actually broken in the product: the seeded `admin` role holds EVERY
+// permission, properties.manage and users.manage included. While the two
+// entries were mutually exclusive (@can/@elsecan) the first branch always won,
+// so the only administrator a shipped instance has saw the properties section
+// and had NO link to Users or Roles anywhere. Every existing test passed --
+// they reach those pages by route() -- and so did the container smoke, which
+// navigates by URL. The test above isolates users.manage with a DIRECT grant
+// precisely because the admin role masks this, which is why the gap survived.
+it('shows every settings section an administrator holding all permissions can reach', function () {
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    expect($admin->can('properties.manage'))->toBeTrue()
+        ->and($admin->can('users.manage'))->toBeTrue()
+        ->and($admin->can('periods.manage'))->toBeTrue();
+
+    $response = $this->actingAs($admin)->get(route('files.browse'));
+
+    $response->assertOk()
+        ->assertSeeHtml('data-test="nav-settings"')
+        ->assertSeeHtml('data-test="nav-settings-users"')
+        ->assertSeeHtml('data-test="nav-settings-roles"')
+        // item/admin-periods (issue #20): added to the SAME test rather than
+        // isolated with a direct permission grant, on purpose -- see the
+        // comment above this test. Isolating periods.manage on its own is
+        // precisely the shape that hid the identical defect for Users and
+        // Roles: the admin role masks a chained @elsecan, and only a check
+        // that grants EVERY permission at once can catch that.
+        ->assertSeeHtml('data-test="nav-settings-periods"')
+        ->assertSeeHtml(route('admin.properties'))
+        ->assertSeeHtml(route('admin.users'))
+        ->assertSeeHtml(route('admin.roles'))
+        ->assertSeeHtml(route('admin.periods'));
 });
 
 // Hiding the nav item is an affordance, not access control: strip the route's

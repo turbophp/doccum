@@ -181,28 +181,79 @@
                         </flux:menu.item>
 
                         {{--
-                            Spec 10: Settings covers several sections (users and
+                            Spec 10: Settings is a GROUP of sections -- users and
                             role assignment, roles and permissions, property
-                            definitions, archive periods, instance settings),
-                            "Each section gated by its Spatie permission" -- so
-                            an admin holding ONLY users.manage, and not
-                            properties.manage, must still have a way in. Gating
-                            the single entry on ONE section's permission hides
-                            Settings from exactly that admin. properties.manage
-                            is checked first only because it was the original
-                            check's section; nothing depends on that order.
+                            definitions, archive periods, instance settings --
+                            and "Each section gated by its Spatie permission".
+                            Each entry below therefore carries its OWN @can and
+                            they are independent.
+
+                            They were mutually exclusive (@can/@elsecan) until
+                            item/admin-roles, and that was a live defect rather
+                            than a style choice: the seeded `admin` role holds
+                            EVERY permission in RolesAndPermissionsSeeder::
+                            PERMISSIONS, properties.manage and users.manage
+                            included, so the first branch always won for the only
+                            administrator a shipped instance has -- and the Users
+                            and Roles pages had no link anywhere in the product.
+                            Nothing caught it: the feature tests and the container
+                            smoke both reach those pages by URL, and AppShellTest
+                            isolated "users.manage but not properties.manage" with
+                            a direct grant precisely because the admin role masks
+                            it. The pages existed and were unreachable.
+
+                            Each entry is also named for its own section rather
+                            than all of them saying "Settings", which would put two
+                            or three identically-named links in one menu and make
+                            every locator by accessible name ambiguous under
+                            Playwright's strict mode.
                         --}}
+                        @canany(['properties.manage', 'users.manage', 'periods.manage'])
+                            <div class="px-2 pb-1 pt-2 text-xs font-medium text-zinc-500 dark:text-zinc-400" data-test="nav-settings-heading">
+                                {{ __('Settings') }}
+                            </div>
+                        @endcanany
+
                         @can('properties.manage')
                             <flux:menu.item :href="route('admin.properties')" icon="cog-6-tooth" wire:navigate data-test="nav-settings">
-                                {{ __('Settings') }}
+                                {{ __('Properties') }}
                             </flux:menu.item>
-                        @elsecan('users.manage')
-                            {{-- Its own data-test, not "nav-settings", so a check
-                                 logging in as a users.manage-only account can tell
-                                 it reached THIS entry rather than merely that some
-                                 Settings entry exists. --}}
-                            <flux:menu.item :href="route('admin.users')" icon="cog-6-tooth" wire:navigate data-test="nav-settings-users">
-                                {{ __('Settings') }}
+                        @endcan
+
+                        @can('users.manage')
+                            <flux:menu.item :href="route('admin.users')" icon="users" wire:navigate data-test="nav-settings-users">
+                                {{ __('Users') }}
+                            </flux:menu.item>
+
+                            <flux:menu.item :href="route('admin.roles')" icon="shield-check" wire:navigate data-test="nav-settings-roles">
+                                {{ __('Roles') }}
+                            </flux:menu.item>
+                        @endcan
+
+                        {{--
+                            item/admin-periods (issue #20): its own independent
+                            @can block, never @elsecan chained onto another
+                            permission -- see the note above this menu.
+                            periods.manage is not held by users.manage or
+                            properties.manage, so this would already be
+                            reachable through the existing @can blocks alone,
+                            but the independence is the point: the seeded
+                            admin role holds every permission in
+                            RolesAndPermissionsSeeder::PERMISSIONS, so an
+                            @elsecan chained onto users.manage or
+                            properties.manage would mean the only
+                            administrator a shipped instance has never sees
+                            this entry at all -- exactly the defect that hid
+                            /admin/users and /admin/roles until item/admin-roles.
+
+                            A distinct data-test (nav-settings-periods) and a
+                            link text naming the section, not a third link
+                            reading "Settings" -- Playwright's strict mode
+                            makes duplicate accessible names ambiguous.
+                        --}}
+                        @can('periods.manage')
+                            <flux:menu.item :href="route('admin.periods')" icon="archive-box" wire:navigate data-test="nav-settings-periods">
+                                {{ __('Archive periods') }}
                             </flux:menu.item>
                         @endcan
                     </flux:menu.radio.group>

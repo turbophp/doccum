@@ -254,6 +254,53 @@ async function setFileAndWaitForUpload(page, input, filePath) {
 }
 
 /**
+ * Clicks a locator and waits for the Livewire round trip THAT CLICK starts,
+ * rather than for a bare networkidle registered after the click.
+ *
+ * Issue #182: networkidle resolves once the page has had no network activity
+ * for 500ms, but Livewire does not issue its XHR synchronously inside the
+ * click handler -- the page can still be idle at the instant
+ * waitForLoadState('networkidle') is called, so it resolves immediately,
+ * before the request it was meant to settle has even started. The very next
+ * statement at both call sites this replaces shells into the container and
+ * runs tinker, which takes roughly a second to boot Laravel -- just about
+ * enough to lose that race, and on run 35328394591's image job it did:
+ * RESTORE_LIVE:yes PURGED_GONE:no, with no 4xx or 5xx anywhere in the
+ * container access log, because the purge's Livewire POST was still in
+ * flight when the database was read.
+ *
+ * So the response listener is armed BEFORE the click, the way
+ * setFileAndWaitForUpload() above already does for the upload endpoint. The
+ * matcher tests /livewire/i against the whole URL rather than a guessed
+ * prefix, because the Livewire endpoint carries a per-install hash (observed
+ * as /livewire-2dbf666b/update) -- run/0014's note near
+ * instrumentUploadPath() above is exactly the lesson here: "an instrument may
+ * not assume the shape of what it is measuring." A guessed prefix would
+ * silently stop matching on a different install and this helper would degrade
+ * to the bug it was written to fix without ever failing loudly.
+ *
+ * The .catch(() => null) is kept for the same reason setFileAndWaitForUpload()
+ * keeps its own: a future Livewire release that renames the endpoint must
+ * degrade this helper to today's networkidle-only behaviour, not turn the
+ * helper itself into a failure.
+ *
+ * This does not violate decision/0033 ("never wait on the thing under test"):
+ * it waits for the REQUEST the click caused, never for the row disappearing
+ * or the file being gone -- the database read that follows remains the
+ * assertion, unchanged and still first.
+ */
+async function clickAndWaitForLivewire(page, locator, options = {}) {
+  const settled = page
+    .waitForResponse((r) => r.request().method() === 'POST' && /livewire/i.test(r.url()), { timeout: 10000 })
+    .catch(() => null);
+
+  await locator.click(options);
+  await settled;
+
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+}
+
+/**
  * Clicks a submit button that Livewire disables for the duration of a file
  * upload, WITHOUT racing that disabled window.
  *
@@ -1010,6 +1057,36 @@ async function checkTopbar(page, phase) {
     .locator('[data-test="nav-settings"]')
     .waitFor({ state: 'visible', timeout: 10000 });
   console.log(`[${phase}] Settings is in the account menu for the administrator`);
+
+  // item/admin-roles (issue #19): the administrator this smoke runs as holds
+  // EVERY permission, which is the case the product was broken in. While the
+  // Settings entries were mutually exclusive, properties.manage won and this
+  // account -- the only administrator a shipped instance has -- had no link to
+  // Users or Roles at all. The pages were reachable only by typing the URL,
+  // which is exactly what every feature test and every other check in this
+  // script does, so nothing caught it.
+  //
+  // Asserting the OTHER sections here is therefore not redundant with the
+  // check above: nav-settings alone was visible throughout the defect.
+  // item/admin-periods (issue #20): the SAME defect shape, once more -- see
+  // the note above. periods.manage is not held by users.manage or
+  // properties.manage, so an @elsecan chained onto either of those would
+  // have hidden this entry from the very administrator this smoke runs as.
+  for (const [section, testId] of [['Users', 'nav-settings-users'], ['Roles', 'nav-settings-roles'], ['Archive periods', 'nav-settings-periods']]) {
+    try {
+      await page.locator(`[data-test="${testId}"]`).waitFor({ state: 'visible', timeout: 10000 });
+    } catch {
+      dumpContainerState(
+        `[${phase}] the ${section} section is missing from the account menu for an administrator holding every`
+        + ` permission -- [data-test="${testId}"] never became visible, so that page is unreachable in the product`,
+      );
+      throw Object.assign(
+        new Error(`${section} is not reachable from the account menu for a full administrator`),
+        { dumped: true },
+      );
+    }
+  }
+  console.log(`[${phase}] Users, Roles and Archive periods are reachable from the account menu too -- OK`);
 
   return logout;
 }
@@ -2353,16 +2430,15 @@ async function checkTrashViewRestoreAndPurge(page, phase) {
 
   const restoreRow = page.locator('tr[data-test="trashed-file-row"]').filter({ hasText: TRASH_VIEW_RESTORE_FILE_NAME });
   await restoreRow.waitFor({ timeout: 10000 });
-  await restoreRow.locator('[data-test="restore-file-button"]').click();
-  // Settles the request the click just started before this check moves on --
-  // never a wait on the row itself, which is the thing under test.
-  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  // Settles the request the click itself starts, registered before the
+  // click -- see clickAndWaitForLivewire(). Never a wait on the row itself,
+  // which is the thing under test.
+  await clickAndWaitForLivewire(page, restoreRow.locator('[data-test="restore-file-button"]'));
 
   const purgeRow = page.locator('tr[data-test="trashed-file-row"]').filter({ hasText: TRASH_VIEW_PURGE_FILE_NAME });
   await purgeRow.waitFor({ timeout: 10000 });
   page.once('dialog', (dialog) => dialog.accept());
-  await purgeRow.locator('[data-test="purge-file-button"]').click();
-  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+  await clickAndWaitForLivewire(page, purgeRow.locator('[data-test="purge-file-button"]'));
 
   const php = [
     `$restored = \\App\\Models\\File::where('name', '${TRASH_VIEW_RESTORE_FILE_NAME}')->first();`,
@@ -2373,8 +2449,18 @@ async function checkTrashViewRestoreAndPurge(page, phase) {
 
   // Database evidence first -- no polling loop here, deliberately: both
   // writes already happened synchronously inside the request each click
-  // above waited out via networkidle, unlike the queued work
-  // checkBulkTrashLeavesUnselectedFilesAlone() polls for.
+  // above waited out via clickAndWaitForLivewire(), unlike the queued work
+  // checkBulkTrashLeavesUnselectedFilesAlone() polls for. This USED to say
+  // "waited out via networkidle" -- that was exactly the bug (issue #182).
+  // A bare networkidle registered after the click can resolve before
+  // Livewire has even issued its XHR, since the request is not dispatched
+  // synchronously inside the click handler. On the image job of run
+  // 35328394591 that is what happened: RESTORE_LIVE:yes PURGED_GONE:no, with
+  // no 4xx or 5xx anywhere in the container access log, because the purge
+  // request was still in flight -- networkidle had already resolved -- when
+  // the tinker read below reached the database first. clickAndWaitForLivewire()
+  // now arms the response listener before each click, so the write really
+  // has happened by the time this comment's promise is kept.
   const output = tinker(php);
   const restoreLive = /RESTORE_LIVE:(\S+)/.exec(output)?.[1] === 'yes';
   const purgedGone = /PURGED_GONE:(\S+)/.exec(output)?.[1] === 'yes';
@@ -2561,6 +2647,228 @@ async function checkAdminUsersPage(page, phase) {
     throw Object.assign(new Error('last-admin-error never became visible after a refused role change'), { dumped: true });
   }
   console.log(`[${phase}] the last-administrator refusal is visible on the page -- OK`);
+}
+
+/**
+ * item/admin-roles (issue #19): drives the roles x permissions matrix at
+ * /admin/roles the way an operator would -- toggle a box, save, prove the
+ * database moved; then attempt the refused change and prove it did NOT.
+ * Follows checkAdminUsersPage() above exactly (same "prove the effect, not
+ * a resting state" shape CLAUDE.md asks for): every failure path dumps
+ * container state naming what was being proved, then throws with
+ * { dumped: true }, and the last-admin error element is checked absent
+ * BEFORE the refusing click so its later visibility actually proves
+ * something about that click, not merely that the element can render.
+ */
+async function checkAdminRolesPage(page, phase) {
+  console.log(`[${phase}] opening /admin/roles as the administrator`);
+  await page.goto(`${BASE_URL}/admin/roles`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="roles-permissions-table"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  const memberRow = page.locator('[data-test="role-row"][data-role-name="member"]');
+  const memberPeriodsCheckbox = memberRow.locator('[data-test="role-permission-checkbox"][data-permission="periods.manage"]');
+
+  if (await memberPeriodsCheckbox.isChecked()) {
+    dumpContainerState(
+      `[${phase}] the member role's periods.manage checkbox was already checked before checkAdminRolesPage toggled it`
+      + ' -- RolesAndPermissionsSeeder::MEMBER_PERMISSIONS changed underneath this check',
+    );
+    throw Object.assign(new Error('member role already holds periods.manage before the toggle'), { dumped: true });
+  }
+
+  console.log(`[${phase}] granting periods.manage to the member role through the real form`);
+  await memberPeriodsCheckbox.check();
+  await memberRow.locator('[data-test="save-role-permissions-button"]').click();
+
+  function memberHoldsPeriodsManage() {
+    const php = [
+      "$r = \\Spatie\\Permission\\Models\\Role::findByName('member');",
+      "echo 'HOLDS:' . ($r->hasPermissionTo('periods.manage') ? 'yes' : 'no');",
+    ].join(' ');
+    return tinker(php);
+  }
+
+  let output = memberHoldsPeriodsManage();
+  const grantDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  while (Date.now() < grantDeadline && !/HOLDS:yes/.test(output)) {
+    await sleep(POLL_INTERVAL_MS);
+    output = memberHoldsPeriodsManage();
+  }
+
+  if (!/HOLDS:yes/.test(output)) {
+    dumpContainerState(
+      `[${phase}] toggling periods.manage for the member role through /admin/roles never reached the database -- raw output: ${output}`,
+    );
+    throw Object.assign(new Error('member role never gained periods.manage through the real form'), { dumped: true });
+  }
+  console.log(`[${phase}] the member role gained periods.manage through the real form -- OK`);
+
+  console.log(`[${phase}] attempting, through the UI, to uncheck users.manage on the admin role`);
+  const adminRow = page.locator('[data-test="role-row"][data-role-name="admin"]');
+  const adminUsersManageCheckbox = adminRow.locator('[data-test="role-permission-checkbox"][data-permission="users.manage"]');
+
+  if (!(await adminUsersManageCheckbox.isChecked())) {
+    dumpContainerState(`[${phase}] the admin role's users.manage checkbox was already unchecked before the refused-change attempt`);
+    throw Object.assign(new Error('admin role does not hold users.manage before the refusal check'), { dumped: true });
+  }
+
+  const rolesLastAdminError = page.locator('[data-test="roles-last-admin-error"]');
+  if (await rolesLastAdminError.isVisible()) {
+    dumpContainerState(`[${phase}] roles-last-admin-error was already visible before Save was clicked for the admin role`);
+    throw Object.assign(new Error('roles-last-admin-error was visible before the refusing click, so it proves nothing about the click'), { dumped: true });
+  }
+
+  await adminUsersManageCheckbox.uncheck();
+  await adminRow.locator('[data-test="save-role-permissions-button"]').click();
+
+  function adminRoleStillHoldsUsersManage() {
+    const php = [
+      "$r = \\Spatie\\Permission\\Models\\Role::findByName('admin');",
+      "echo 'HOLDS:' . ($r->hasPermissionTo('users.manage') ? 'yes' : 'no');",
+    ].join(' ');
+    return tinker(php);
+  }
+
+  let holdsOutput = adminRoleStillHoldsUsersManage();
+  const holdsDeadline = Date.now() + REPLACE_TIMEOUT_MS;
+  while (Date.now() < holdsDeadline && !/HOLDS:yes/.test(holdsOutput)) {
+    await sleep(POLL_INTERVAL_MS);
+    holdsOutput = adminRoleStillHoldsUsersManage();
+  }
+
+  if (!/HOLDS:yes/.test(holdsOutput)) {
+    dumpContainerState(
+      `[${phase}] the admin role no longer holds users.manage after the refused permission change -- raw output: ${holdsOutput}`,
+    );
+    throw Object.assign(new Error('admin role lost users.manage through a change the guard was supposed to refuse'), { dumped: true });
+  }
+  console.log(`[${phase}] the admin role still holds users.manage after the attempted change -- the write was refused -- OK`);
+
+  try {
+    await rolesLastAdminError.waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] the database confirms the refused permission change held, but [data-test="roles-last-admin-error"] never became visible`
+      + ' -- the guard held, but the operator would have seen nothing explaining why the click did nothing',
+    );
+    throw Object.assign(new Error('roles-last-admin-error never became visible after a refused permission change'), { dumped: true });
+  }
+  console.log(`[${phase}] the last-administrator refusal is visible on the roles page -- OK`);
+}
+
+/**
+ * item/admin-periods (issue #20): closes a finished period through the real
+ * /admin/periods form and proves, via tinker, that the resulting
+ * ArchivePeriod row now exists and is archived -- CLAUDE.md's own rule,
+ * prefer an assertion that requires the feature to DO something over one
+ * that observes a resting state.
+ *
+ * The period closed here (2020-01) is a file dated into it through tinker,
+ * built by hand with File::create() rather than File::factory() --
+ * checkGrantAndRevokeDirectoryAccess()'s own note above gives the reason:
+ * fakerphp/faker is a require-dev dependency (composer.json) and is not
+ * autoloadable at all in this --no-dev image, so any ::factory() call
+ * fails here even though the feature suite can use it freely against the
+ * dev-installed vendor/ tree. Set up through tinker rather than through the
+ * upload UI, the same way checkTrashViewRestoreAndPurge() above trashes its
+ * targets through tinker to keep its own DOM interaction scoped to the page
+ * under test: this check is about closing a period, not uploading, and a
+ * real upload would be dated into the CURRENT month, which by definition
+ * has not ended.
+ *
+ * THE LOAD-BEARING ASSERTION (predicted, not proven here -- the mutation is
+ * run separately; see the task report): ARCHIVED:yes read back from the
+ * database immediately after the click. A broken `can:periods.manage` route
+ * guard or a mount()/method-level authorize() that never actually runs
+ * would 403 or silently no-op before PeriodCloser::close() is ever called;
+ * a Blade form whose wire:model bindings never reached $closeYear/
+ * $closeMonth would submit nothing PeriodCloser::close() could use; either
+ * way no ArchivePeriod row would exist, or archived_at would stay null,
+ * which is exactly what this reads.
+ *
+ * The DOM checks after it are confirmation only, never the proof, per the
+ * same rule: with no retention window configured (config/doccum.php's
+ * shipped default), the freshly archived 2020-01 period can never be
+ * purgeable, so the doneWhen's "the purge control is disabled ... and
+ * lists the blockers" has a real, deterministic case sitting right here to
+ * observe.
+ */
+async function checkAdminPeriodsPage(page, phase) {
+  console.log(`[${phase}] creating a file dated into the 2020-01 period through tinker, for /admin/periods to close`);
+
+  const createPhp = [
+    `$admin = \\App\\Models\\User::where('username', '${ADMIN_USERNAME}')->first();`,
+    "$dir = \\App\\Models\\Directory::where('home_user_id', $admin->id)->first();",
+    '$f = \\App\\Models\\File::create([',
+    "'directory_id' => $dir->id, 'name' => 'DoccumSmokePeriodTarget.txt',",
+    "'mime' => 'text/plain', 'size' => 10, 'checksum' => hash('sha256', 'doccum-smoke-period-target'),",
+    "'created_by' => $admin->id, 'period_year' => 2020, 'period_month' => 1,",
+    ']);',
+    "echo 'CREATED:' . ($f ? 'yes' : 'no');",
+  ].join(' ');
+
+  const createOutput = tinker(createPhp);
+  if (!createOutput.includes('CREATED:yes')) {
+    dumpContainerState(`[${phase}] could not create the scratch 2020-01 file for the admin periods check -- raw output: ${createOutput}`);
+    throw Object.assign(new Error('scratch 2020-01 file creation for the admin periods check failed'), { dumped: true });
+  }
+
+  function archivePeriodState() {
+    const php = [
+      "$p = \\App\\Models\\ArchivePeriod::where('year', 2020)->where('month', 1)->first();",
+      "echo 'ARCHIVED:' . ($p && $p->isArchived() ? 'yes' : 'no');",
+    ].join(' ');
+    return tinker(php);
+  }
+
+  const before = archivePeriodState();
+  if (/ARCHIVED:yes/.test(before)) {
+    dumpContainerState(`[${phase}] the 2020-01 period was already archived before the close form was submitted -- raw output: ${before}`);
+    throw Object.assign(new Error('2020-01 was already archived before this check ran'), { dumped: true });
+  }
+
+  console.log(`[${phase}] opening /admin/periods as the administrator`);
+  await page.goto(`${BASE_URL}/admin/periods`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="close-period-form"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  console.log(`[${phase}] closing 2020-01 through the real close-period form`);
+  // getByLabel(), not a data-test locator: flux:input renders a
+  // label/wrapper around the real <input>, and there is no precedent in
+  // this codebase for an attribute placed on flux:input landing on that
+  // inner element in the built image -- see the Blade view's own note.
+  await page.locator('[data-test="close-period-form"]').getByLabel('Year', { exact: true }).fill('2020');
+  await page.locator('[data-test="close-period-form"]').getByLabel('Month (optional -- leave blank for the whole year)', { exact: true }).fill('1');
+  await clickAndWaitForLivewire(page, page.locator('[data-test="close-period-button"]'));
+
+  const after = archivePeriodState();
+  if (!/ARCHIVED:yes/.test(after)) {
+    dumpContainerState(`[${phase}] closing 2020-01 through /admin/periods never archived it -- raw output: ${after}`);
+    throw Object.assign(new Error('2020-01 was not archived after closePeriod() through the real form'), { dumped: true });
+  }
+  console.log(`[${phase}] 2020-01 is archived after closing it through the real form -- OK`);
+
+  const row = page.locator('[data-test="period-row"][data-year="2020"][data-month="1"]');
+
+  try {
+    await row.locator('[data-test="period-status"]').filter({ hasText: 'Archived' }).waitFor({ timeout: 10000 });
+  } catch {
+    dumpContainerState(`[${phase}] the database confirms 2020-01 is archived, but its row never shows "Archived" on /admin/periods`);
+    throw Object.assign(new Error('period-status never showed Archived for 2020-01 after closing it'), { dumped: true });
+  }
+
+  // Confirmation only, per the docblock above.
+  const purgeButton = row.locator('[data-test="purge-period-button"]');
+  if (!(await purgeButton.isDisabled())) {
+    dumpContainerState(`[${phase}] the purge button for 2020-01 is NOT disabled even though no retention window is configured, so plan()->purgeable must be false`);
+    throw Object.assign(new Error('purge-period-button was enabled for a period that cannot be purgeable'), { dumped: true });
+  }
+
+  const blockersText = (await row.locator('[data-test="period-blockers"]').innerText()).trim();
+  if (!blockersText.includes('retention window')) {
+    dumpContainerState(`[${phase}] 2020-01's blockers list does not mention the retention window -- raw text: "${blockersText}"`);
+    throw Object.assign(new Error('period-blockers did not list the missing-retention-window blocker'), { dumped: true });
+  }
+  console.log(`[${phase}] the purge control is disabled and lists the retention-window blocker for 2020-01 -- OK`);
 }
 
 /**
@@ -2826,6 +3134,12 @@ async function runSetup() {
 
     console.log('[setup] creating a user through /admin/users and checking its home directory, its 403 for a non-admin, and the last-administrator guard (issue #18)');
     await checkAdminUsersPage(page, 'setup');
+
+    console.log('[setup] toggling a role permission through /admin/roles and checking the last-administrator guard on a role edit (issue #19)');
+    await checkAdminRolesPage(page, 'setup');
+
+    console.log('[setup] closing a period through /admin/periods and checking the purge control is disabled and lists its blockers (issue #20)');
+    await checkAdminPeriodsPage(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();
