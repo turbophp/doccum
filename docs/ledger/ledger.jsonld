@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-19T12:00:00Z",
+  "dateModified": "2026-09-19T12:25:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1250,10 +1250,12 @@
         "item/api-presigned-upload"
       ],
       "doneWhen": "Adding an unlisted route fails the contract test, mutation-checked; openapi.json is committed.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-19T11:50:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-19T12:19:40Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/269"
+      ]
     },
     {
       "@id": "item/self-hosting-docs",
@@ -3582,6 +3584,22 @@
       "mergedAt": "2026-09-19T11:49:39Z",
       "mergeSha": "7d9b06b9896988df6613ccc2c32fa568e1a78a37",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/269",
+      "@type": "PullRequest",
+      "identifier": 269,
+      "name": "A generated, committed OpenAPI reference for /api/v1",
+      "implements": [
+        "item/openapi-reference"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T12:01:40Z",
+      "headSha": "3b5afea2348cd3846b819cdef67a942af38b784c",
+      "mergedAt": "2026-09-19T12:19:40Z",
+      "mergeSha": "6dfc948fcf40366c048a9d4c836f9e59c0f3d99d",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -5196,6 +5214,23 @@
       ],
       "affects": [
         "item/self-hosting-docs"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0098",
+      "@type": "Decision",
+      "dateCreated": "2026-09-19T12:14:00Z",
+      "run": "run/0020",
+      "name": "A false positive in a guard's grep is registered, not narrowed",
+      "rationale": "SchemaPortabilityTest's driver-dependent-site grep flagged the new app/Support/OpenApi/OpenApiSpecBuilder.php on its `lower\\\\(` alternative, matching strtolower($method) -- a PHP call folding an HTTP verb into the lowercase key OpenAPI wants for a path item. Nothing in that class touches a database; it carries no Illuminate import at all. So the hit is a false positive, and the obvious repair is to anchor the pattern: \\\\blower\\\\( stops matching strtolower( and the PR goes green on a one-character change.\\n\\nMeasured before applying, and the measurement is the decision. Running both patterns over app/ and database/ takes the match count from 20 files to 13. SIX REGISTERED SITES are caught by exactly that substring -- AuthenticateUser, ConfigShow, User, DocumentStorage, SearchIndexer and LedgerValidator -- plus two more that lose a line each, EmailKey and NameKey. Anchoring would have disarmed all of them silently while turning the PR green: the registry would still list them, the test would still pass, and nothing would be checking them any more.\\n\\nThe grep is not sloppy. It catches strtolower() deliberately, because PHP-side case folding versus a database's own collation IS a portability decision -- NameKey's own entry exists to state the folding rule in PHP so that no driver's collation decides what \\\"the same name\\\" means (issue #46). The audit's contract is that every matching site is REGISTERED with the semantics it relies on, and it already carries entries for sites that touch no database, ConfigShow's ending \\\"Registered as a false positive the grep cannot filter out on its own.\\\"\\n\\nSo the rule, stated for the next time a guard fires on something innocent: a false positive in a registry-backed audit is registered with its reason, never filtered out by narrowing the detector. The registry is auditable and the narrower pattern is not -- an entry can be read and disputed, a missing match cannot. Widen the registry, never the blind spot.",
+      "isBasedOn": [
+        "spec:14-testing",
+        "spec:4-data-model"
+      ],
+      "affects": [
+        "item/openapi-reference",
+        "item/schema-query-audit"
       ],
       "supersedes": null
     }
