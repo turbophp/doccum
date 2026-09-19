@@ -183,6 +183,16 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
         'it should be masked as a secret -- pure PHP string matching, nothing stored, compared for '.
         'uniqueness, or touching a database. Registered as a false positive the grep cannot filter '.
         'out on its own.',
+    'app/Support/OpenApi/OpenApiSpecBuilder.php' => 'strtolower() here folds an HTTP METHOD NAME -- "GET", "POST" -- into the lowercase key '.
+        'OpenAPI requires for a path item\'s operations. The value comes from the router\'s own '.
+        'methods() array, never from user input, and is written into docs/api/openapi.json; no '.
+        'database, no column, no collation is involved anywhere in this class, which holds no '.
+        'Illuminate import at all. False positive, registered rather than filtered: narrowing the '.
+        'grep\'s `lower\\(` to a word boundary would stop matching strtolower() everywhere, and six '.
+        'registered sites -- AuthenticateUser, ConfigShow, User, DocumentStorage, SearchIndexer and '.
+        'LedgerValidator -- are caught by exactly that, so the "fix" would silently disarm them. '.
+        'Checked by running both patterns over app/ and database/ before choosing: 20 files matched '.
+        'to 13.',
     'app/Services/SearchIndexer.php' => 'strtolower() here normalises a file *extension* for the search projection\'s `extension` '.
         'column -- a value the application computes and writes, not one compared against '.
         'unnormalised user input, and no database function is involved. False positive.',
