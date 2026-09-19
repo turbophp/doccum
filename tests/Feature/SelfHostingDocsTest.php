@@ -13,7 +13,7 @@ declare(strict_types=1);
 |
 | 1. The configuration reference documents every environment variable that
 |    actually matters, and nothing that doesn't -- see the docblock on
-|    DOC_AUDIT_ENV_KEY_EXEMPTIONS below for why "every one of the 141 keys
+|    DOC_AUDIT_ENV_KEY_EXEMPTIONS below for why "every one of the 142 keys
 |    this codebase reads" is the wrong bar.
 |
 | 2. Every listed page exists and is non-trivial -- see the docblock on
@@ -345,7 +345,19 @@ it('documents every self-hosting-relevant env() key, and exempts every other one
     $undocumented = [];
 
     foreach (array_keys($hits) as $key) {
-        $inReference = str_contains($reference, $key);
+        // Whole-token, not str_contains. Eleven of the keys this scan
+        // finds are strict substrings of another one it also finds --
+        // LOG_CHANNEL inside MAIL_LOG_CHANNEL, DB_QUEUE inside
+        // DB_QUEUE_TABLE, DB_CACHE_TABLE inside DYNAMODB_CACHE_TABLE. A
+        // substring test would count the shorter key as documented on the
+        // strength of a row that is actually about the longer one, which
+        // is the audit reporting a guarantee it did not check. None of the
+        // eleven is mis-counted today (each is either exempt outright or
+        // present in the reference under its own name), so this is closing
+        // the mechanism, not fixing a present miss: \b treats _ as a word
+        // character, so LOG_CHANNEL does not match inside MAIL_LOG_CHANNEL
+        // while `LOG_CHANNEL` in backticks still does.
+        $inReference = preg_match('/\b'.preg_quote($key, '/').'\b/', $reference) === 1;
         $inExemptions = array_key_exists($key, DOC_AUDIT_ENV_KEY_EXEMPTIONS);
 
         if ($inReference || $inExemptions) {
