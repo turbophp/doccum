@@ -72,6 +72,72 @@ class DocumentStorage
     }
 
     /**
+     * A short-lived signed PUT URL against the given key, so an API
+     * client's own upload bytes go straight to the object store and never
+     * pass through PHP. See spec §11's upload flow and
+     * App\Actions\Files\CreateUploadUrl, step 1.
+     *
+     * Testable exactly the way temporaryUrl() already is: Laravel's
+     * FilesystemAdapter::temporaryUploadUrl() forwards to the underlying S3
+     * client for a real disk, but for ANY disk -- including a Storage::fake()
+     * one -- falls back to a `buildTemporaryUploadUrlsUsing()` callback when
+     * one has been registered, the exact counterpart of the
+     * `buildTemporaryUrlsUsing()` seam temporaryUrl() already relies on (see
+     * tests/Feature/DocumentStorageTest.php's existing "issues a temporary
+     * url" test). A test registers that callback on the faked disk and this
+     * method needs no test-only branch of its own to be exercised end to
+     * end. See this item's report for where that was confirmed against
+     * Laravel's own source rather than assumed.
+     *
+     * @return array{url: string, headers: array<string, string>}
+     */
+    public function presignedUploadUrl(string $key, string $contentType, int $minutes = 15): array
+    {
+        $this->ensureBucket();
+
+        /** @var array{url: string, headers: array<string, string>} $signed */
+        $signed = $this->disk()->temporaryUploadUrl(
+            $key,
+            now()->addMinutes($minutes),
+            ['ContentType' => $contentType],
+        );
+
+        return $signed;
+    }
+
+    /**
+     * The size of a staged object, or null when nothing was ever PUT to that
+     * key -- an abandoned upload, or a client that never finished step 2 of
+     * spec §11's flow. App\Actions\Files\CommitUpload verifies a commit's
+     * declared size against this before trusting anything else about the
+     * object.
+     */
+    public function stagedSize(string $key): ?int
+    {
+        return $this->exists($key) ? $this->size($key) : null;
+    }
+
+    /**
+     * Copies a staged object's bytes to a local temporary file, the same
+     * shape as downloadToTemp() below and for the identical reason: some
+     * callers need a real path on disk rather than a stream.
+     * App\Actions\Files\CommitUpload uses this to verify a staged object's
+     * sha256 against what a commit declares, and to hand that same local
+     * copy to StoreFileVersion -- which uploads it fresh under its final key
+     * through the ordinary putVersion() path, rather than this method
+     * attempting a storage-side move of a key StoreFileVersion knows
+     * nothing about. The caller owns the returned file and must remove it.
+     *
+     * Throws the typed ObjectMissingFromStorage for a missing object, the
+     * same as downloadToTemp() -- see downloadKeyToTemp()'s own docblock for
+     * why both signalling paths are handled.
+     */
+    public function downloadStagedToTemp(string $key): string
+    {
+        return $this->downloadKeyToTemp($key);
+    }
+
+    /**
      * Whether a presigned URL issued for this disk is something a BROWSER can
      * actually fetch.
      *
@@ -180,14 +246,28 @@ class DocumentStorage
      */
     public function downloadToTemp(FileVersion $version): string
     {
+        return $this->downloadKeyToTemp($version->object_key);
+    }
+
+    /**
+     * The key-based half of downloadToTemp() above, factored out so
+     * downloadStagedToTemp() can read an arbitrary staging key the same
+     * verified way -- identical missing-object handling, identical temp-file
+     * lifecycle -- without a second copy of either. downloadToTemp(FileVersion)
+     * keeps its own public signature and behaviour; this is purely an
+     * extraction, not a behaviour change, and every existing caller and test
+     * of downloadToTemp() sees no difference.
+     */
+    private function downloadKeyToTemp(string $key): string
+    {
         try {
-            $stream = $this->disk()->readStream($version->object_key);
+            $stream = $this->disk()->readStream($key);
         } catch (UnableToReadFile) {
-            throw ObjectMissingFromStorage::forKey($version->object_key);
+            throw ObjectMissingFromStorage::forKey($key);
         }
 
         if ($stream === null) {
-            throw ObjectMissingFromStorage::forKey($version->object_key);
+            throw ObjectMissingFromStorage::forKey($key);
         }
 
         $tempPath = tempnam(sys_get_temp_dir(), 'doccum-extract-');

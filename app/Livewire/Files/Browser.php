@@ -308,6 +308,19 @@ class Browser extends Component
      * gated as an upload into the file's directory plus a check on the
      * file's own trashed state, and see the $replacement property above for
      * why this never touches $upload.
+     *
+     * Calls StoreFileVersion::replace() -- issue #115's entry point, added
+     * by item/api-presigned-upload -- rather than handle(). Before that
+     * entry point existed, this method resolved $this->selectedFile's
+     * directory by hand and passed handle() the selected file's OWN name
+     * rather than the uploaded file's client name, because handle() decides
+     * "append" or "create" purely by which string it is given; getting that
+     * one argument wrong would silently create a second file instead of a
+     * version (see the container smoke's checkReplaceAddsASecondVersion(),
+     * PR #118). replace() takes the File directly, needs no Directory at
+     * all, and cannot create one -- the guarantee is now structural rather
+     * than a matter of remembering which name to pass, and this line is
+     * still exactly the one a reverted image would get wrong.
      */
     public function replaceFile(StoreFileVersion $action): void
     {
@@ -317,27 +330,11 @@ class Browser extends Component
 
         $this->validate(['replacement' => ['required', 'file', 'max:102400']]);
 
-        // Resolved from the FILE, never from $this->directory. After
-        // moveFile() the selected file lives somewhere else while
-        // $this->directory is unchanged, and handing StoreFileVersion the
-        // browsed directory would make its (directory_id, name_key) lookup
-        // miss and CREATE A NEW FILE in the wrong directory -- the create
-        // path, with no mutation needed.
-        $directory = Directory::query()->findOrFail($this->selectedFile->directory_id);
-
         try {
-            $this->selectedFile = $action->handle(
+            $this->selectedFile = $action->replace(
                 auth()->user(),
-                $directory,
+                $this->selectedFile,
                 $this->replacement->getRealPath(),
-                // The selected file's OWN name, never the uploaded file's
-                // client name. This single argument is what makes Replace
-                // append a version instead of creating a second file, and it
-                // is also what keeps v2's object key named after the
-                // document rather than after whatever the operator happened
-                // to call the new upload (see App\Support\ObjectKey). It is
-                // the line the container smoke's mutation flips.
-                $this->selectedFile->name,
                 $this->replacement->getMimeType(),
             );
         } catch (PeriodIsArchived $e) {
