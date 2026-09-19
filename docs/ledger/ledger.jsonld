@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-19T09:10:00Z",
+  "dateModified": "2026-09-19T09:25:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1260,10 +1260,9 @@
       "size": "M",
       "release": "v1.0.0",
       "dependsOn": [
-        "item/admin-periods",
-        "item/api-presigned-upload"
+        "item/admin-periods"
       ],
-      "doneWhen": "A test greps every env() key read under app/, config/ and docker/ and asserts each appears in the configuration reference; every listed page exists and is non-trivial.",
+      "doneWhen": "A test greps every env() key read under app/, config/ and docker/ and asserts each appears in the configuration reference; every listed page exists and is non-trivial.\n\nThe dependsOn edge to item/api-presigned-upload was REMOVED on 2026-09-19 by decision/0094: spec section 12 splits documentation by audience and the self-hoster page list contains no API page, so the edge expressed writing order and was being enforced as necessity. This item is startable independently of the API chain.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -5042,6 +5041,39 @@
         "item/self-hosting-docs",
         "item/docs-site",
         "item/readme-owner",
+        "item/v1-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0094",
+      "@type": "Decision",
+      "dateCreated": "2026-09-19T09:20:00Z",
+      "run": "run/0020",
+      "name": "self-hosting-docs does not depend on the API, and dependsOn is quietly doing two jobs",
+      "rationale": "item/self-hosting-docs carried dependsOn item/api-presigned-upload. Checked against the spec rather than against intuition: spec section 12 splits documentation by AUDIENCE, and the self-hoster list is quick start, configuration reference, storage, search, operations runbook, and backup/restore/upgrading/troubleshooting. No API page. The API reference belongs to the other audience, Integrators, and is item/openapi-reference. The item's own doneWhen -- \"A test greps every env() key read under app/, config/ and docker/ and asserts each appears in the configuration reference; every listed page exists and is non-trivial\" -- names nothing the API provides.\n\nThe edge was ordering, not necessity, and it was being enforced as necessity: the validator refuses Completed on an item whose dependsOn are not Completed, so a preference about writing order became a gate. It also propagated: docs-site depends on self-hosting-docs and readme-owner on docs-site, so the whole documentation chain sat behind the API chain for no reason either clause states. Dropped.\n\nThe one argument FOR the edge is worth stating because it survives the change: writing the configuration reference before the API means a later API item that adds an env key would leave the reference incomplete. But that is exactly what the env() grep test catches, and it catches it in the PR that adds the key rather than months later. The test is self-enforcing forward; the dependency edge was not buying anything the test does not already buy.\n\nreadme-owner -> docs-site is the SAME CLASS and is deliberately left in place. The clause it would need it for (\"the README links to the published site\") lives in docs-site's doneWhen, not readme-owner's, so the edge is ordering there too. Removing it would gain nothing -- readme-owner also depends on release-v0-1-0 and image-size, both still blocked -- and would cost a sensible ordering hint. Recorded rather than acted on, because the honest fix is not edge-by-edge: dependsOn is doing two jobs at once, pick-order for LOOP.md step 4 and completion-gating for the validator, and only one of them is about necessity. Separating them is a vocabulary change and needs its own decision.\n\nSEPARATELY, an unrecorded prerequisite on item/docs-site, stated as an unknown rather than a wall because that is what it is. Its doneWhen opens \"The Pages workflow is green\". GitHub Pages must be enabled on the repository for actions/deploy-pages to work, which is a repository setting. This session cannot observe whether it is enabled: GET /repos/turbophp/doccum/pages returns 403 with the body \"Access to this GitHub API path is not permitted through this proxy\" -- the proxy refusing, not GitHub. So the item may have a prerequisite only the owner can satisfy, and nobody has checked. Not asserting that it does. Asserting that it is unknown and that the loop cannot find out.",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "affects": [
+        "item/self-hosting-docs",
+        "item/docs-site",
+        "item/readme-owner"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0095",
+      "@type": "Decision",
+      "dateCreated": "2026-09-19T09:22:00Z",
+      "run": "run/0020",
+      "name": "The loop's stopping condition names two things that do not exist",
+      "rationale": "docs/LOOP.md's Stopping section reads: \"The loop is finished when the ledger's `v1.0.0` release node is `Completed`: every `required` backlog item done, the suite green across the full CI matrix, the container smoke test passing, the tag pushed and `ghcr.io` carrying the image.\"\n\nNeither named thing exists. There is no node of @type Release anywhere in the graph -- checked, the types present are Action, PullRequest, Decision, Mutation and Run. And no item carries a `required` field: 0 of 89. The field that exists is `release`, an enum whose values are v1.0.0, v1.1.0 and post-v1. Line 139's \"only item status and the release node are mutable\" names the same absent node.\n\nSo the loop's own termination condition cannot be evaluated as written, and has not been evaluable at any point in this project. That matters more than a docs nit: the owner asked for a loop that runs until v1 ships, and the document defining 'ships' points at two absent things. Nobody noticed because the loop never got close enough to check -- which is the same shape as the walls decision/0092 and decision/0093 corrected, a claim nothing forced anyone to re-derive.\n\nLOOP.md is rewritten to name what the ledger actually has: every item with `release` = v1.0.0 at CompletedActionStatus, which is already enforced mechanically -- LedgerValidator refuses item/tag-v1-0-0 as Completed while any v1.0.0 item is not -- plus the CI matrix green, the container smoke passing, and the tag pushed with ghcr carrying the image. item/tag-v1-0-0 becomes the stopping node, because it is the one the validator already treats as such.\n\nNOT changed, and flagged rather than fixed: `about.version` reads \"0.1.0\" while no tag exists in the repository (git ls-remote --tags returns nothing). By the ledger's own standard that reads as an assertion about a release that has not happened. But the field plausibly means the version being developed TOWARD rather than the version released, and the validator's own docblock declines to check it. Its meaning is undefined, not wrong, and picking one unilaterally would replace an ambiguity with a guess. It needs a definition in context.jsonld, which is a vocabulary change.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/tag-v1-0-0",
         "item/v1-audit"
       ],
       "supersedes": null

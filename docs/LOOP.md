@@ -97,9 +97,9 @@ Every hour, the loop wakes and runs these steps in order.
 8. **Consult.** Every fourth iteration, or whenever the backlog shape changes,
    ask Fable whether the remaining road to v1 and the ledger vocabulary still
    describe reality. Fold the answer back into the ledger.
-9. **Re-arm.** Schedule the next wake-up. The loop stops only when the
-   ledger's release node reaches `Completed` — that is, `v1.0.0` is tagged and
-   the image is published.
+9. **Re-arm.** Schedule the next wake-up. The loop stops only when
+   `item/tag-v1-0-0` reaches `CompletedActionStatus` — that is, `v1.0.0` is
+   tagged and the image is published. See **Stopping**.
 
 ## Rules the loop does not get to bend
 
@@ -136,11 +136,22 @@ Every hour, the loop wakes and runs these steps in order.
 - **Scope stays small.** One backlog item per PR. An item that grows past its
   "done when" line gets split in the ledger, not widened in the branch.
 - **The ledger is append-only for history.** Runs and decisions are never
-  rewritten; only item status and the release node are mutable.
+  rewritten; only item status is mutable.
 
 ## Stopping
 
-The loop is finished when the ledger's `v1.0.0` release node is `Completed`:
-every `required` backlog item done, the suite green across the full CI matrix,
-the container smoke test passing, the tag pushed and `ghcr.io` carrying the
-image. At that point the loop unschedules itself and reports.
+The loop is finished when `item/tag-v1-0-0` reaches `CompletedActionStatus`:
+every item whose `release` is `v1.0.0` done, the suite green across the full CI
+matrix, the container smoke test passing, the tag pushed and `ghcr.io` carrying
+the image. At that point the loop unschedules itself and reports.
+
+`item/tag-v1-0-0` is the stopping node because it is the one already enforced
+mechanically: `LedgerValidator` refuses it as `Completed` while any item with
+`release` = `v1.0.0` is not, so the first clause cannot be claimed without
+being true.
+
+This section previously named a `v1.0.0` release node and a `required` field
+on backlog items. Neither exists -- there is no node of `@type` `Release` in
+the graph, and 0 of 89 items carry `required`; the field is `release`, an enum.
+The loop's termination condition was therefore unevaluable as written, for the
+whole project. See `decision/0095`.
