@@ -7,7 +7,6 @@ namespace App\Livewire\Settings;
 use App\Actions\ApiTokens\CreateApiToken;
 use App\Actions\ApiTokens\RevokeApiToken;
 use App\Enums\ApiTokenAbility;
-use App\Models\PersonalAccessToken;
 use App\Models\User;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -15,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Laravel\Sanctum\PersonalAccessToken;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -202,6 +202,21 @@ class ApiTokens extends Component
     }
 
     /**
+     * Typed with SANCTUM's PersonalAccessToken, not doccum's subclass, and
+     * the difference is a real one rather than a formality.
+     * HasApiTokens::tokens() is declared as MorphMany<Laravel\Sanctum\
+     * PersonalAccessToken, ...>; every row this returns is really an
+     * App\Models\PersonalAccessToken, but only because
+     * Sanctum::usePersonalAccessTokenModel() swapped the model at runtime in
+     * DoccumServiceProvider, which static analysis cannot see and should not
+     * be asked to take on trust. Narrowing the annotation to the subclass
+     * would be asserting something this file has not established -- PHPStan
+     * said so, and it was right.
+     *
+     * Nothing here needs the subclass anyway: it adds no public API, only a
+     * saving hook. The ability guard lives on the model precisely so callers
+     * like this one do not have to know about it.
+     *
      * @return MorphMany<PersonalAccessToken, User>
      */
     private function ownTokensQuery(): MorphMany
