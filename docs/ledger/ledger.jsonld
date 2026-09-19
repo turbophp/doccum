@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-19T09:50:00Z",
+  "dateModified": "2026-09-19T11:10:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1205,11 +1205,13 @@
         "item/search-filters",
         "item/trash-directory"
       ],
-      "doneWhen": "Per-endpoint three-gate matrix: a missing ability is 403 despite the permission, a denied ACL is 404 or 403, and revoking the owner's role narrows an existing token on the next request; a test asserts no /api route touches users, roles, definition writes or periods. The 404-or-403 choice this clause left open is settled as 404, and settled ONCE for the whole product: a denied ACL answers 404, the same as a nonexistent id, on every route AND in Browser::moveFile()/moveDirectory(), whose destination lookup is scoped to DirectoryAccess::viewableDirectoryIds() inside the query rather than resolved with findOrFail before authorize (issue #109). The two existing tests asserting 403 flip to 404 in the same PR. Deciding it here rather than ad hoc in the Livewire component is the point: two postures in one product is the cost of deciding it twice.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "doneWhen": "Per-endpoint three-gate matrix: a missing ability is 403 despite the permission, a denied ACL is 404 or 403, and revoking the owner's role narrows an existing token on the next request; a test asserts no /api route touches users, roles, definition writes or periods. The 404-or-403 choice this clause left open is settled as 404, and settled ONCE for the whole product: a denied ACL answers 404, the same as a nonexistent id, on every route AND in Browser::moveFile()/moveDirectory(), whose destination lookup is scoped to DirectoryAccess::viewableDirectoryIds() inside the query rather than resolved with findOrFail before authorize (issue #109). The two existing tests asserting 403 flip to 404 in the same PR. Deciding it here rather than ad hoc in the Livewire component is the point: two postures in one product is the cost of deciding it twice.\n\nCOMPLETED 2026-09-19. 18 routes under /api/v1, a per-endpoint gate matrix, and the 404 posture applied in Browser::moveFile()/moveDirectory() as the clause requires.\n\nONE CLAUSE WAS STALE AND IS CORRECTED RATHER THAN SATISFIED AS WRITTEN. The text says \"The two existing tests asserting 403 flip to 404\". Only ONE needed to. The other -- 'offers an edit-reachable move destination and refuses a view-only one' -- uses a destination the mover CAN see at View level, so the scoped query still finds it, authorize() still runs, and 403 is still correct: that refusal is not an existence leak, because the mover already knows the directory exists. A new test was added instead for moveDirectory(), which had no coverage of an out-of-reach destination at all. Flipping a second test to reach the number two would have been faking the clause.\n\nGATE (c) IS NOT UNIVERSALLY APPLICABLE, and the matrix says so per endpoint rather than leaving holes. Six routes carry all three gates. Nine are ACL-only -- no Spatie permission exists to revoke, so the N/A is TESTED (strip every role, keep the grant, assert 200) rather than asserted in a comment. Three are ACL-filtered listings with no authorize() call, where gate (b) is 'a hidden row never appears' and gate (c) uses a grant made to the ROLE, so revocation narrows the ACL itself. One route, GET /property-definitions, has neither dimension and proves both N/A with a zero-role, zero-grant user who still sees every definition. FilePolicy::move() having no permission clause where DirectoryPolicy::move() does is exactly the asymmetry that assuming symmetry would have hidden.\n\nSCOPE: the first pass also built item/api-presigned-upload's presign, commit, sweep and mismatch exceptions -- untested -- while leaving that item's defining clause (the StoreFileVersion entry point, issue #115) untouched. Removed before the PR opened; DocumentStorage.php was verified byte-identical to main afterwards. Landing it would have put untested code on main and made both items' records wrong.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-19T10:05:00Z",
+      "endTime": "2026-09-19T11:02:41Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/265"
+      ]
     },
     {
       "@id": "item/api-presigned-upload",
@@ -3527,6 +3529,22 @@
       "headSha": "cb0de315a30448d5cc9c4f470a70d67c9e077132",
       "mergedAt": "2026-09-19T09:47:30Z",
       "mergeSha": "e0e99c642eb2794bfe61cd2245c7413a353a3779",
+      "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/265",
+      "@type": "PullRequest",
+      "identifier": 265,
+      "name": "The /api/v1 content surface, and the 404 posture settled once for the product",
+      "implements": [
+        "item/api-content"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T10:49:05Z",
+      "headSha": "5f52be9bda181e955630de9cf90db4ecbb05bd19",
+      "mergedAt": "2026-09-19T11:02:41Z",
+      "mergeSha": "f233ef627202588179470d44f5b292a834fe4507",
       "mergedIn": "run/0020"
     }
   ],
