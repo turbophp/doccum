@@ -71,189 +71,189 @@ final class OpenApiSpecBuilder
     private static function operations(): array
     {
         return [
-        'api.v1.directories.index' => [
-            'summary' => 'List directories, optionally by parent',
-            'query' => [
-                ['name' => 'parent_id', 'required' => false, 'schema' => ['type' => ['integer', 'null']]],
-            ],
-            'responses' => [
-                '200' => ['description' => 'A page of directories.', 'content' => self::cursorPage('Directory')],
-            ],
-        ],
-        'api.v1.directories.show' => [
-            'summary' => 'Show one directory',
-            'responses' => [
-                '200' => ['description' => 'The directory.', 'content' => self::jsonRef('Directory')],
-            ],
-        ],
-        'api.v1.directories.files' => [
-            'summary' => "List a directory's immediate files",
-            'responses' => [
-                '200' => ['description' => 'A page of files.', 'content' => self::cursorPage('File')],
-            ],
-        ],
-        'api.v1.directories.store' => [
-            'summary' => 'Create a directory',
-            'requestBody' => self::body([
-                'parent_id' => ['type' => ['integer', 'null']],
-                'name' => ['type' => 'string', 'maxLength' => 255],
-            ], ['name']),
-            'responses' => [
-                '201' => ['description' => 'The created directory.', 'content' => self::jsonRef('Directory')],
-                '422' => self::ref('#/components/responses/ValidationError'),
-            ],
-        ],
-        'api.v1.directories.update' => [
-            'summary' => 'Rename and/or move a directory',
-            'requestBody' => self::body([
-                'name' => ['type' => 'string', 'maxLength' => 255],
-                'parent_id' => ['type' => ['integer', 'null']],
-            ], []),
-            'responses' => [
-                '200' => ['description' => 'The updated directory.', 'content' => self::jsonRef('Directory')],
-                '422' => self::ref('#/components/responses/ValidationError'),
-            ],
-        ],
-        'api.v1.directories.destroy' => [
-            'summary' => 'Trash a directory',
-            'responses' => [
-                '200' => ['description' => 'The trashed directory.', 'content' => self::jsonRef('Directory')],
-            ],
-        ],
-        'api.v1.files.update' => [
-            'summary' => 'Rename and/or move a file',
-            'requestBody' => self::body([
-                'name' => ['type' => 'string', 'maxLength' => 255],
-                'directory_id' => ['type' => 'integer'],
-            ], []),
-            'responses' => [
-                '200' => ['description' => 'The updated file.', 'content' => self::jsonRef('File')],
-                '422' => self::ref('#/components/responses/ValidationError'),
-            ],
-        ],
-        'api.v1.files.upload-url' => [
-            'summary' => 'Mint a presigned upload URL for a new file (or a new version by name)',
-            'requestBody' => self::body([
-                'directory_id' => ['type' => 'integer'],
-                'name' => ['type' => 'string', 'maxLength' => 255],
-                'mime' => ['type' => 'string', 'maxLength' => 255],
-                'size' => ['type' => 'integer', 'minimum' => 0],
-            ], ['directory_id', 'name', 'mime', 'size']),
-            'responses' => [
-                '201' => ['description' => 'The presigned upload.', 'content' => self::jsonSchema(self::ref('#/components/schemas/UploadUrl'))],
-                '422' => self::ref('#/components/responses/ValidationError'),
-            ],
-        ],
-        'api.v1.files.store' => [
-            'summary' => 'Commit a staged upload as a new file or a new version',
-            'requestBody' => self::body([
-                'directory_id' => ['type' => 'integer', 'description' => 'Exactly one of directory_id or file_id -- never both, never neither.'],
-                'file_id' => ['type' => 'integer', 'description' => 'Exactly one of directory_id or file_id -- never both, never neither.'],
-                'upload_id' => ['type' => 'string'],
-                'checksum' => ['type' => 'string', 'pattern' => '^[a-f0-9]{64}$', 'description' => 'SHA-256 of the uploaded object, case-insensitive hex.'],
-            ], ['upload_id', 'checksum']),
-            'responses' => [
-                '201' => ['description' => 'The created or appended-to file.', 'content' => self::jsonRef('File')],
-                '422' => self::ref('#/components/responses/ValidationError'),
-            ],
-        ],
-        'api.v1.files.versions.upload-url' => [
-            'summary' => 'Mint a presigned upload URL for a new version of a known file',
-            'requestBody' => self::body([
-                'mime' => ['type' => 'string', 'maxLength' => 255],
-                'size' => ['type' => 'integer', 'minimum' => 0],
-            ], ['mime', 'size']),
-            'responses' => [
-                '201' => ['description' => 'The presigned upload.', 'content' => self::jsonSchema(self::ref('#/components/schemas/UploadUrl'))],
-                '422' => self::ref('#/components/responses/ValidationError'),
-            ],
-        ],
-        'api.v1.files.show' => [
-            'summary' => 'Show one file',
-            'responses' => [
-                '200' => ['description' => 'The file.', 'content' => self::jsonRef('File')],
-            ],
-        ],
-        'api.v1.files.download-url' => [
-            'summary' => "Mint a presigned GET URL for a file's current version",
-            'responses' => [
-                '200' => ['description' => 'The presigned download.', 'content' => self::jsonSchema(self::ref('#/components/schemas/DownloadUrl'))],
-            ],
-        ],
-        'api.v1.files.versions.index' => [
-            'summary' => 'List a file\'s versions, newest first',
-            'responses' => [
-                '200' => ['description' => 'A page of versions.', 'content' => self::cursorPage('FileVersion')],
-            ],
-        ],
-        'api.v1.files.text' => [
-            'summary' => "Show a file's extracted text and extraction status",
-            'responses' => [
-                '200' => ['description' => 'The extraction record.', 'content' => self::jsonSchema(self::ref('#/components/schemas/FileText'))],
-            ],
-        ],
-        'api.v1.files.destroy' => [
-            'summary' => 'Trash a file',
-            'responses' => [
-                '200' => ['description' => 'The trashed file.', 'content' => self::jsonRef('File')],
-            ],
-        ],
-        'api.v1.property-definitions.index' => [
-            'summary' => 'List property definitions',
-            'responses' => [
-                '200' => ['description' => 'A page of property definitions.', 'content' => self::cursorPage('PropertyDefinition')],
-            ],
-        ],
-        'api.v1.directories.properties.update' => [
-            'summary' => "Replace a directory's property values",
-            'requestBody' => self::body([
-                'values' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Property key to value; validated per-key against its own PropertyDefinition.'],
-            ], ['values']),
-            'responses' => [
-                '200' => ['description' => 'The directory, refreshed.', 'content' => self::jsonRef('Directory')],
-                '422' => self::ref('#/components/responses/ValidationError'),
-            ],
-        ],
-        'api.v1.files.properties.update' => [
-            'summary' => "Replace a file's property values",
-            'requestBody' => self::body([
-                'values' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Property key to value; validated per-key against its own PropertyDefinition.'],
-            ], ['values']),
-            'responses' => [
-                '200' => ['description' => 'The file, refreshed.', 'content' => self::jsonRef('File')],
-                '422' => self::ref('#/components/responses/ValidationError'),
-            ],
-        ],
-        'api.v1.search' => [
-            'summary' => 'Search directories and files within the caller\'s reach',
-            'query' => [
-                ['name' => 'q', 'required' => true, 'schema' => ['type' => 'string']],
-                ['name' => 'type', 'required' => false, 'schema' => ['type' => 'string']],
-                ['name' => 'mime', 'required' => false, 'schema' => ['type' => 'string']],
-                ['name' => 'period', 'required' => false, 'schema' => ['type' => 'string', 'pattern' => '^\\d{4}(-\\d{2})?$']],
-                ['name' => 'attr', 'required' => false, 'schema' => ['type' => 'object', 'additionalProperties' => ['type' => 'string'], 'description' => 'attr[key]=value -- exactly one key is honoured.']],
-            ],
-            'responses' => [
-                '200' => ['description' => 'Search hits, unpaginated (see App\\Http\\Controllers\\Api\\V1\\SearchController\'s own docblock).', 'content' => self::jsonArray('SearchHit')],
-                '422' => self::ref('#/components/responses/ValidationError'),
-            ],
-        ],
-        'api.v1.trash.index' => [
-            'summary' => 'List trashed files and directories within the caller\'s reach',
-            'responses' => [
-                '200' => ['description' => 'The trashed files and directories.', 'content' => self::jsonSchema(self::ref('#/components/schemas/TrashIndex'))],
-            ],
-        ],
-        'api.v1.trash.restore' => [
-            'summary' => 'Restore a trashed file or directory',
-            'responses' => [
-                '200' => [
-                    'description' => 'The restored file or directory.',
-                    'content' => self::jsonSchema(['oneOf' => [self::ref('#/components/schemas/File'), self::ref('#/components/schemas/Directory')]]),
+            'api.v1.directories.index' => [
+                'summary' => 'List directories, optionally by parent',
+                'query' => [
+                    ['name' => 'parent_id', 'required' => false, 'schema' => ['type' => ['integer', 'null']]],
                 ],
-                '422' => self::ref('#/components/responses/ValidationError'),
+                'responses' => [
+                    '200' => ['description' => 'A page of directories.', 'content' => self::cursorPage('Directory')],
+                ],
             ],
-        ],
+            'api.v1.directories.show' => [
+                'summary' => 'Show one directory',
+                'responses' => [
+                    '200' => ['description' => 'The directory.', 'content' => self::jsonRef('Directory')],
+                ],
+            ],
+            'api.v1.directories.files' => [
+                'summary' => "List a directory's immediate files",
+                'responses' => [
+                    '200' => ['description' => 'A page of files.', 'content' => self::cursorPage('File')],
+                ],
+            ],
+            'api.v1.directories.store' => [
+                'summary' => 'Create a directory',
+                'requestBody' => self::body([
+                    'parent_id' => ['type' => ['integer', 'null']],
+                    'name' => ['type' => 'string', 'maxLength' => 255],
+                ], ['name']),
+                'responses' => [
+                    '201' => ['description' => 'The created directory.', 'content' => self::jsonRef('Directory')],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
+            'api.v1.directories.update' => [
+                'summary' => 'Rename and/or move a directory',
+                'requestBody' => self::body([
+                    'name' => ['type' => 'string', 'maxLength' => 255],
+                    'parent_id' => ['type' => ['integer', 'null']],
+                ], []),
+                'responses' => [
+                    '200' => ['description' => 'The updated directory.', 'content' => self::jsonRef('Directory')],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
+            'api.v1.directories.destroy' => [
+                'summary' => 'Trash a directory',
+                'responses' => [
+                    '200' => ['description' => 'The trashed directory.', 'content' => self::jsonRef('Directory')],
+                ],
+            ],
+            'api.v1.files.update' => [
+                'summary' => 'Rename and/or move a file',
+                'requestBody' => self::body([
+                    'name' => ['type' => 'string', 'maxLength' => 255],
+                    'directory_id' => ['type' => 'integer'],
+                ], []),
+                'responses' => [
+                    '200' => ['description' => 'The updated file.', 'content' => self::jsonRef('File')],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
+            'api.v1.files.upload-url' => [
+                'summary' => 'Mint a presigned upload URL for a new file (or a new version by name)',
+                'requestBody' => self::body([
+                    'directory_id' => ['type' => 'integer'],
+                    'name' => ['type' => 'string', 'maxLength' => 255],
+                    'mime' => ['type' => 'string', 'maxLength' => 255],
+                    'size' => ['type' => 'integer', 'minimum' => 0],
+                ], ['directory_id', 'name', 'mime', 'size']),
+                'responses' => [
+                    '201' => ['description' => 'The presigned upload.', 'content' => self::jsonSchema(self::ref('#/components/schemas/UploadUrl'))],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
+            'api.v1.files.store' => [
+                'summary' => 'Commit a staged upload as a new file or a new version',
+                'requestBody' => self::body([
+                    'directory_id' => ['type' => 'integer', 'description' => 'Exactly one of directory_id or file_id -- never both, never neither.'],
+                    'file_id' => ['type' => 'integer', 'description' => 'Exactly one of directory_id or file_id -- never both, never neither.'],
+                    'upload_id' => ['type' => 'string'],
+                    'checksum' => ['type' => 'string', 'pattern' => '^[a-f0-9]{64}$', 'description' => 'SHA-256 of the uploaded object, case-insensitive hex.'],
+                ], ['upload_id', 'checksum']),
+                'responses' => [
+                    '201' => ['description' => 'The created or appended-to file.', 'content' => self::jsonRef('File')],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
+            'api.v1.files.versions.upload-url' => [
+                'summary' => 'Mint a presigned upload URL for a new version of a known file',
+                'requestBody' => self::body([
+                    'mime' => ['type' => 'string', 'maxLength' => 255],
+                    'size' => ['type' => 'integer', 'minimum' => 0],
+                ], ['mime', 'size']),
+                'responses' => [
+                    '201' => ['description' => 'The presigned upload.', 'content' => self::jsonSchema(self::ref('#/components/schemas/UploadUrl'))],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
+            'api.v1.files.show' => [
+                'summary' => 'Show one file',
+                'responses' => [
+                    '200' => ['description' => 'The file.', 'content' => self::jsonRef('File')],
+                ],
+            ],
+            'api.v1.files.download-url' => [
+                'summary' => "Mint a presigned GET URL for a file's current version",
+                'responses' => [
+                    '200' => ['description' => 'The presigned download.', 'content' => self::jsonSchema(self::ref('#/components/schemas/DownloadUrl'))],
+                ],
+            ],
+            'api.v1.files.versions.index' => [
+                'summary' => 'List a file\'s versions, newest first',
+                'responses' => [
+                    '200' => ['description' => 'A page of versions.', 'content' => self::cursorPage('FileVersion')],
+                ],
+            ],
+            'api.v1.files.text' => [
+                'summary' => "Show a file's extracted text and extraction status",
+                'responses' => [
+                    '200' => ['description' => 'The extraction record.', 'content' => self::jsonSchema(self::ref('#/components/schemas/FileText'))],
+                ],
+            ],
+            'api.v1.files.destroy' => [
+                'summary' => 'Trash a file',
+                'responses' => [
+                    '200' => ['description' => 'The trashed file.', 'content' => self::jsonRef('File')],
+                ],
+            ],
+            'api.v1.property-definitions.index' => [
+                'summary' => 'List property definitions',
+                'responses' => [
+                    '200' => ['description' => 'A page of property definitions.', 'content' => self::cursorPage('PropertyDefinition')],
+                ],
+            ],
+            'api.v1.directories.properties.update' => [
+                'summary' => "Replace a directory's property values",
+                'requestBody' => self::body([
+                    'values' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Property key to value; validated per-key against its own PropertyDefinition.'],
+                ], ['values']),
+                'responses' => [
+                    '200' => ['description' => 'The directory, refreshed.', 'content' => self::jsonRef('Directory')],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
+            'api.v1.files.properties.update' => [
+                'summary' => "Replace a file's property values",
+                'requestBody' => self::body([
+                    'values' => ['type' => 'object', 'additionalProperties' => true, 'description' => 'Property key to value; validated per-key against its own PropertyDefinition.'],
+                ], ['values']),
+                'responses' => [
+                    '200' => ['description' => 'The file, refreshed.', 'content' => self::jsonRef('File')],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
+            'api.v1.search' => [
+                'summary' => 'Search directories and files within the caller\'s reach',
+                'query' => [
+                    ['name' => 'q', 'required' => true, 'schema' => ['type' => 'string']],
+                    ['name' => 'type', 'required' => false, 'schema' => ['type' => 'string']],
+                    ['name' => 'mime', 'required' => false, 'schema' => ['type' => 'string']],
+                    ['name' => 'period', 'required' => false, 'schema' => ['type' => 'string', 'pattern' => '^\\d{4}(-\\d{2})?$']],
+                    ['name' => 'attr', 'required' => false, 'schema' => ['type' => 'object', 'additionalProperties' => ['type' => 'string'], 'description' => 'attr[key]=value -- exactly one key is honoured.']],
+                ],
+                'responses' => [
+                    '200' => ['description' => 'Search hits, unpaginated (see App\\Http\\Controllers\\Api\\V1\\SearchController\'s own docblock).', 'content' => self::jsonArray('SearchHit')],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
+            'api.v1.trash.index' => [
+                'summary' => 'List trashed files and directories within the caller\'s reach',
+                'responses' => [
+                    '200' => ['description' => 'The trashed files and directories.', 'content' => self::jsonSchema(self::ref('#/components/schemas/TrashIndex'))],
+                ],
+            ],
+            'api.v1.trash.restore' => [
+                'summary' => 'Restore a trashed file or directory',
+                'responses' => [
+                    '200' => [
+                        'description' => 'The restored file or directory.',
+                        'content' => self::jsonSchema(['oneOf' => [self::ref('#/components/schemas/File'), self::ref('#/components/schemas/Directory')]]),
+                    ],
+                    '422' => self::ref('#/components/responses/ValidationError'),
+                ],
+            ],
         ];
     }
 
