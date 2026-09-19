@@ -99,10 +99,24 @@
   },
   {
     "id": "browser-move-file-move",
-    "why": "item/files-actions-ui (issue #101): moving a file through the panel must require edit access on both the source and the chosen destination, and MoveFile itself never checks either. Without this the Move control would relocate any file anywhere for any signed-in user.",
+    "why": "item/files-actions-ui (issue #101): moving a file through the panel must require edit access on both the source and the chosen destination, and MoveFile itself never checks either. Without this the Move control would relocate any file anywhere for any signed-in user. RETARGETED by item/api-content (issue #23): the destination lookup below this line is now scoped to viewableDirectoryIds() (see the 'browser-move-file-destination-scope' entry below), so a destination wholly outside the mover's reach 404s before this authorize() call is ever reached, and the old expectFailing test (a destination the mover could not see at all) no longer depends on this line. This one still needs a REACHABLE-but-insufficient-level destination to prove -- 'offers an edit-reachable move destination and refuses a view-only one' uses exactly that: $viewOnly is inside the mover's viewableDirectoryIds() (View level), so the scoped lookup still finds it and only this authorize() call refuses the move.",
     "file": "app/Livewire/Files/Browser.php",
     "remove": "        $this->authorize('move', [$this->selectedFile, $destination]);\n\n",
-    "expectFailing": "refuses to move a file without edit access on both ends"
+    "expectFailing": "offers an edit-reachable move destination and refuses a view-only one"
+  },
+  {
+    "id": "browser-move-file-destination-scope",
+    "why": "item/api-content (issue #23), issue #109's settled 404 posture: moveFile()'s destination lookup must be scoped to DirectoryAccess::viewableDirectoryIds() INSIDE the query, not resolved with a bare findOrFail() left for authorize() to refuse -- the latter leaks a destination's existence through a 403 to a viewer who cannot even see it. Without this line, a destination wholly outside the mover's reach is found anyway (it exists), authorize('move', ...) runs, and denies it with 403 instead of the settled 404.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "            ->whereIn('id', $reachableForFileMove)\n",
+    "expectFailing": "404s moving a file to a destination the viewer cannot even see"
+  },
+  {
+    "id": "browser-move-directory-destination-scope",
+    "why": "item/api-content (issue #23), issue #109's settled 404 posture: moveDirectory()'s own half of the same fix as moveFile() above. Without this line, a destination wholly outside the mover's reach is found anyway (it exists), authorize('move', ...) runs, and denies it with 403 instead of the settled 404.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "                ->whereIn('id', $reachableForDirectoryMove)\n",
+    "expectFailing": "404s moving a directory to a destination the mover cannot even see"
   },
   {
     "id": "browser-trash-file-delete",

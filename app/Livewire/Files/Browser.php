@@ -504,13 +504,34 @@ class Browser extends Component
         abort(404);
     }
 
-    public function moveFile(MoveFile $action): void
+    public function moveFile(MoveFile $action, DirectoryAccess $access): void
     {
         abort_if($this->selectedFile === null, 404);
 
         $this->validate(['moveFileDestinationId' => ['required', 'integer']]);
 
-        $destination = Directory::query()->findOrFail($this->moveFileDestinationId);
+        // Scoped to the viewer's own reach INSIDE the query, not resolved
+        // with a bare findOrFail() and left for authorize() below to
+        // refuse -- settled product-wide as 404 for a destination the
+        // viewer cannot even see, the same as a nonexistent id (issue
+        // #109). findOrFail()-then-authorize() would leak existence
+        // through a 403: the old shape answered 403 for "you cannot move
+        // here" whether the destination was invisible to the viewer or
+        // merely below the access LEVEL a move needs, and those are not
+        // the same fact. A destination the viewer CAN see (it is inside
+        // this scope) but lacks Edit on -- View-level, or nothing granted
+        // beyond View -- still 403s below, from authorize('move', ...):
+        // its existence is not a secret from a viewer who can already see
+        // it, so that refusal stays legible rather than hidden behind a
+        // 404 that would prove nothing. See moveDirectory()'s identical
+        // fix and this item's report for the one test this flips.
+        $reachableForFileMove = $access->viewableDirectoryIds(auth()->user());
+
+        $destination = Directory::query()
+            ->whereIn('id', $reachableForFileMove)
+            ->find($this->moveFileDestinationId);
+
+        abort_if($destination === null, 404);
 
         $this->authorize('move', [$this->selectedFile, $destination]);
 
@@ -560,13 +581,24 @@ class Browser extends Component
         }
     }
 
-    public function moveDirectory(MoveDirectory $action): void
+    public function moveDirectory(MoveDirectory $action, DirectoryAccess $access): void
     {
         abort_if($this->selectedDirectory === null, 404);
 
+        // See moveFile()'s identical comment: scoped to the viewer's own
+        // reach INSIDE the query, so a destination wholly outside it 404s
+        // like a nonexistent id (issue #109), rather than findOrFail()
+        // finding it and authorize() below leaking its existence through a
+        // 403. '' still means "the root", with nothing to scope.
+        $reachableForDirectoryMove = $access->viewableDirectoryIds(auth()->user());
+
         $destination = $this->moveDirectoryDestinationId === ''
             ? null
-            : Directory::query()->findOrFail((int) $this->moveDirectoryDestinationId);
+            : Directory::query()
+                ->whereIn('id', $reachableForDirectoryMove)
+                ->find((int) $this->moveDirectoryDestinationId);
+
+        abort_if($this->moveDirectoryDestinationId !== '' && $destination === null, 404);
 
         $this->authorize('move', [$this->selectedDirectory, $destination]);
 

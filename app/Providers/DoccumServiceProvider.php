@@ -26,10 +26,13 @@ use App\Services\DirectoryAccess;
 use App\Support\ProcessRunner;
 use AzureOss\Storage\Blob\BlobServiceClient;
 use AzureOss\Storage\BlobFlysystem\AzureBlobStorageAdapter;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Filesystem\FilesystemAdapter;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse as FailedPasswordResetLinkRequestResponseContract;
@@ -127,6 +130,29 @@ class DoccumServiceProvider extends ServiceProvider
         // itself to hold for a token minted by any path other than
         // App\Livewire\Settings\ApiTokens. See that model's own docblock.
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+
+        // item/api-content (issue #23), spec §11: "rate-limited per token".
+        // Keyed on the token's own id, not the user's -- two tokens held by
+        // the same person are two independent budgets, matching what
+        // Settings -> API tokens lets an operator reason about per token
+        // (last-used, abilities, revoke). Falls back to the request's IP
+        // only for the case this limiter is never actually reached under
+        // that key: every /api/v1 route also carries auth:sanctum ahead of
+        // 'throttle:api' in routes/api.php, so a request reaching this
+        // limiter unauthenticated cannot happen in production, and the
+        // fallback exists only so misconfiguring that order fails safe
+        // (still rate-limited) rather than throwing.
+        RateLimiter::for('api', function (Request $request): Limit {
+            // $request->user() is typed to the generic Authenticatable
+            // contract, which knows nothing about Sanctum's
+            // currentAccessToken() -- the same narrowing
+            // App\Livewire\Settings\ApiTokens already uses for Auth::user().
+            /** @var User|null $user */
+            $user = $request->user();
+            $tokenId = $user?->currentAccessToken()?->getKey();
+
+            return Limit::perMinute(120)->by($tokenId !== null ? "token:{$tokenId}" : $request->ip());
+        });
 
         $this->registerAzureDriver();
     }

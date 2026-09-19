@@ -42,6 +42,21 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // item/api-content (issue #23): every /api/v1 route is
+        // `auth:sanctum`, which resolves THIS guard. Sanctum's own service
+        // provider supplies the 'sanctum' driver; nothing else needs
+        // registering for a Bearer-token personal access token to
+        // authenticate a request. No 'provider' key -- Sanctum resolves the
+        // token's owner itself, through whichever model
+        // Sanctum::usePersonalAccessTokenModel() names (App\Models\
+        // PersonalAccessToken, see DoccumServiceProvider::boot()) -- a
+        // fixed provider here would be for stateful SPA cookie auth, which
+        // this API does not use.
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => null,
+        ],
     ],
 
     /*
