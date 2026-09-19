@@ -15,10 +15,17 @@ return Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         // item/api-content (issue #23), spec §11: everything under
         // /api/v1, greenfield -- there was no routes/api.php before this.
-        // Passing `api:` here is also what makes Laravel register the
-        // 'api' middleware group at all (throttle:api + SubstituteBindings
-        // by default), which the 'throttle:api' reference below and every
-        // route in routes/api.php depends on.
+        // Passing `api:` here wraps that whole file in
+        // Route::middleware('api')->prefix('api') (Laravel's own
+        // ApplicationBuilder::buildRoutingCallback(), not something this
+        // file configures), which is where the leading 'api/' in every
+        // route's URI comes from -- routes/api.php's own group only adds
+        // the 'v1' segment on top of it. The 'api' GROUP itself is just
+        // SubstituteBindings by default (no throttle, no Sanctum stateful
+        // middleware, unless $middleware->throttleApi()/statefulApi() is
+        // called, which this file does not); routes/api.php supplies its
+        // own 'auth:sanctum' and 'throttle:api' explicitly rather than
+        // relying on either.
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',

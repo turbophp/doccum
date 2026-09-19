@@ -5,12 +5,10 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\DirectoryController;
 use App\Http\Controllers\Api\V1\DirectoryFileController;
 use App\Http\Controllers\Api\V1\DirectoryPropertyController;
-use App\Http\Controllers\Api\V1\FileCommitController;
 use App\Http\Controllers\Api\V1\FileController;
 use App\Http\Controllers\Api\V1\FileDownloadUrlController;
 use App\Http\Controllers\Api\V1\FilePropertyController;
 use App\Http\Controllers\Api\V1\FileTextController;
-use App\Http\Controllers\Api\V1\FileUploadUrlController;
 use App\Http\Controllers\Api\V1\FileVersionController;
 use App\Http\Controllers\Api\V1\PropertyDefinitionController;
 use App\Http\Controllers\Api\V1\SearchController;
@@ -36,7 +34,12 @@ use Illuminate\Support\Facades\Route;
  *
  * `throttle:api` is spec §11's "rate-limited per token" --
  * DoccumServiceProvider::boot() defines the 'api' limiter keyed on the
- * token's own id.
+ * token's own id. It is named explicitly here rather than assumed:
+ * bootstrap/app.php's `api:` wraps this whole file in Laravel's own 'api'
+ * middleware group, but that group carries throttle:api only when
+ * $middleware->throttleApi() is called (Illuminate\Foundation\
+ * Configuration\Middleware::defaultMiddleware()), which bootstrap/app.php
+ * does not do -- so this line is what actually adds it, not the wrapping.
  */
 Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('v1')->name('api.v1.')->group(function (): void {
     Route::middleware('ability:directories:read')->group(function (): void {
@@ -51,11 +54,14 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('v1')->name('api.v1.
         Route::delete('directories/{directory}', [DirectoryController::class, 'destroy'])->name('directories.destroy');
     });
 
+    // item/api-presigned-upload (issue #57, order 57) owns the upload-url
+    // and commit routes -- POST /files/upload-url, POST /files, and
+    // POST /files/{id}/versions/upload-url -- along with the
+    // StoreFileVersion entry point issue #115 asks for. None of that is
+    // built on this branch; this is deliberately just the rename/move
+    // PATCH that already existed as part of THIS item's own surface.
     Route::middleware('ability:files:write')->group(function (): void {
-        Route::post('files/upload-url', [FileUploadUrlController::class, 'store'])->name('files.upload-url');
-        Route::post('files', [FileCommitController::class, 'store'])->name('files.store');
         Route::patch('files/{file}', [FileController::class, 'update'])->name('files.update');
-        Route::post('files/{file}/versions/upload-url', [FileVersionController::class, 'storeUploadUrl'])->name('files.versions.upload-url');
     });
 
     Route::middleware('ability:files:read')->group(function (): void {
