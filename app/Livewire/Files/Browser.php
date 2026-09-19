@@ -525,9 +525,13 @@ class Browser extends Component
         // it, so that refusal stays legible rather than hidden behind a
         // 404 that would prove nothing. See moveDirectory()'s identical
         // fix and this item's report for the one test this flips.
+        $reachableForFileMove = $access->viewableDirectoryIds(auth()->user());
+
         $destination = Directory::query()
-            ->whereIn('id', $access->viewableDirectoryIds(auth()->user()))
-            ->findOrFail($this->moveFileDestinationId);
+            ->whereIn('id', $reachableForFileMove)
+            ->find($this->moveFileDestinationId);
+
+        abort_if($destination === null, 404);
 
         $this->authorize('move', [$this->selectedFile, $destination]);
 
@@ -586,11 +590,15 @@ class Browser extends Component
         // like a nonexistent id (issue #109), rather than findOrFail()
         // finding it and authorize() below leaking its existence through a
         // 403. '' still means "the root", with nothing to scope.
+        $reachableForDirectoryMove = $access->viewableDirectoryIds(auth()->user());
+
         $destination = $this->moveDirectoryDestinationId === ''
             ? null
             : Directory::query()
-                ->whereIn('id', $access->viewableDirectoryIds(auth()->user()))
-                ->findOrFail((int) $this->moveDirectoryDestinationId);
+                ->whereIn('id', $reachableForDirectoryMove)
+                ->find((int) $this->moveDirectoryDestinationId);
+
+        abort_if($this->moveDirectoryDestinationId !== '' && $destination === null, 404);
 
         $this->authorize('move', [$this->selectedDirectory, $destination]);
 

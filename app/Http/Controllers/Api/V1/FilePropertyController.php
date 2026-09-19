@@ -21,7 +21,7 @@ class FilePropertyController extends Controller
 
         $this->authorize('update', $model);
 
-        $validated = $request->validate(['values' => ['required', 'array']]);
+        $validated = $request->validate(['values' => ['present', 'array']]);
 
         try {
             app(SetProperties::class)->handle($model, $validated['values']);
