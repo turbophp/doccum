@@ -1,0 +1,1850 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "doccum API",
+        "version": "1",
+        "description": "Content operations under /api/v1 -- spec \u00a711. Generated from the live route table by App\\Console\\Commands\\GenerateOpenApi; never hand-edited."
+    },
+    "servers": [
+        {
+            "url": "/api/v1"
+        }
+    ],
+    "security": [
+        {
+            "sanctum": []
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "sanctum": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "A Laravel Sanctum personal access token. Every route also requires the token to carry the `ability:` scope(s) named on its operation, spec \u00a711's first of three authorisation gates."
+            }
+        },
+        "responses": {
+            "Unauthorized": {
+                "description": "Missing or invalid bearer token.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorMessage"
+                        }
+                    }
+                }
+            },
+            "Forbidden": {
+                "description": "The token lacks the required ability, or the signed-in user's own permissions/directory access refuse the request.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorMessage"
+                        }
+                    }
+                }
+            },
+            "NotFound": {
+                "description": "Not found, including a subject entirely outside the caller's reach.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorMessage"
+                        }
+                    }
+                }
+            },
+            "ValidationError": {
+                "description": "Laravel's standard validation error shape.",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ValidationErrorBody"
+                        }
+                    }
+                }
+            },
+            "TooManyRequests": {
+                "description": "Rate-limited per token (throttle:api).",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/ErrorMessage"
+                        }
+                    }
+                }
+            }
+        },
+        "schemas": {
+            "ErrorMessage": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "message"
+                ]
+            },
+            "ValidationErrorBody": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    },
+                    "errors": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "message",
+                    "errors"
+                ]
+            },
+            "Directory": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "parent_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "depth": {
+                        "type": "integer"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "deleted_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "parent_id",
+                    "name",
+                    "depth",
+                    "created_at",
+                    "updated_at"
+                ]
+            },
+            "File": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "directory_id": {
+                        "type": "integer"
+                    },
+                    "uuid": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "mime": {
+                        "type": "string"
+                    },
+                    "size": {
+                        "type": "integer"
+                    },
+                    "checksum": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "legal_hold": {
+                        "type": "boolean"
+                    },
+                    "current_version_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "period_year": {
+                        "type": "integer"
+                    },
+                    "period_month": {
+                        "type": "integer"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "deleted_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "directory_id",
+                    "uuid",
+                    "name",
+                    "mime",
+                    "size",
+                    "checksum",
+                    "legal_hold",
+                    "current_version_id",
+                    "period_year",
+                    "period_month",
+                    "created_at",
+                    "updated_at"
+                ]
+            },
+            "FileVersion": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "file_id": {
+                        "type": "integer"
+                    },
+                    "version_number": {
+                        "type": "integer"
+                    },
+                    "size": {
+                        "type": "integer"
+                    },
+                    "mime": {
+                        "type": "string"
+                    },
+                    "checksum": {
+                        "type": "string"
+                    },
+                    "uploaded_by": {
+                        "type": "integer"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "file_id",
+                    "version_number",
+                    "size",
+                    "mime",
+                    "checksum",
+                    "uploaded_by",
+                    "created_at"
+                ]
+            },
+            "FileText": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "processing",
+                            "done",
+                            "failed",
+                            "unsupported"
+                        ]
+                    },
+                    "extractor": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "text": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "chars": {
+                        "type": "integer"
+                    },
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "status",
+                    "extractor",
+                    "text",
+                    "chars",
+                    "error"
+                ]
+            },
+            "PropertyDefinition": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "key": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "data_type": {
+                        "type": "string",
+                        "enum": [
+                            "string",
+                            "text",
+                            "number",
+                            "date",
+                            "boolean",
+                            "select"
+                        ]
+                    },
+                    "options": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "is_required": {
+                        "type": "boolean"
+                    },
+                    "applies_to": {
+                        "type": "string",
+                        "enum": [
+                            "directory",
+                            "file",
+                            "both"
+                        ]
+                    },
+                    "sort_order": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "id",
+                    "key",
+                    "label",
+                    "data_type",
+                    "options",
+                    "is_required",
+                    "applies_to",
+                    "sort_order"
+                ]
+            },
+            "SearchHit": {
+                "type": "object",
+                "properties": {
+                    "subject_type": {
+                        "type": "string"
+                    },
+                    "subject_id": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "snippet": {
+                        "type": "string"
+                    },
+                    "score": {
+                        "type": "number"
+                    },
+                    "directory_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "subject_type",
+                    "subject_id",
+                    "title",
+                    "snippet",
+                    "score",
+                    "directory_id"
+                ]
+            },
+            "UploadUrl": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "upload_id": {
+                                "type": "string"
+                            },
+                            "upload_url": {
+                                "type": "string",
+                                "format": "uri"
+                            },
+                            "upload_headers": {
+                                "type": "object",
+                                "additionalProperties": {
+                                    "type": "string"
+                                }
+                            },
+                            "expires_at": {
+                                "type": "string",
+                                "format": "date-time"
+                            }
+                        },
+                        "required": [
+                            "upload_id",
+                            "upload_url",
+                            "upload_headers",
+                            "expires_at"
+                        ]
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "DownloadUrl": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "format": "uri"
+                            },
+                            "expires_in": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "url",
+                            "expires_in"
+                        ]
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "TrashIndex": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "files": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/File"
+                                }
+                            },
+                            "directories": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/Directory"
+                                }
+                            }
+                        },
+                        "required": [
+                            "files",
+                            "directories"
+                        ]
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            }
+        }
+    },
+    "paths": {
+        "/directories": {
+            "get": {
+                "operationId": "api.v1.directories.index",
+                "summary": "List directories, optionally by parent",
+                "security": [
+                    {
+                        "sanctum": [
+                            "directories:read"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A page of directories.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Directory"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "parent_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ]
+                        }
+                    }
+                ]
+            },
+            "post": {
+                "operationId": "api.v1.directories.store",
+                "summary": "Create a directory",
+                "security": [
+                    {
+                        "sanctum": [
+                            "directories:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "The created directory.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Directory"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "parent_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    }
+                                },
+                                "required": [
+                                    "name"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/directories/{directory}": {
+            "delete": {
+                "operationId": "api.v1.directories.destroy",
+                "summary": "Trash a directory",
+                "security": [
+                    {
+                        "sanctum": [
+                            "directories:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The trashed directory.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Directory"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "directory",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            },
+            "get": {
+                "operationId": "api.v1.directories.show",
+                "summary": "Show one directory",
+                "security": [
+                    {
+                        "sanctum": [
+                            "directories:read"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The directory.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Directory"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "directory",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            },
+            "patch": {
+                "operationId": "api.v1.directories.update",
+                "summary": "Rename and/or move a directory",
+                "security": [
+                    {
+                        "sanctum": [
+                            "directories:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The updated directory.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Directory"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "directory",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "parent_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/directories/{directory}/files": {
+            "get": {
+                "operationId": "api.v1.directories.files",
+                "summary": "List a directory's immediate files",
+                "security": [
+                    {
+                        "sanctum": [
+                            "directories:read"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A page of files.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/File"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "directory",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            }
+        },
+        "/directories/{directory}/properties": {
+            "put": {
+                "operationId": "api.v1.directories.properties.update",
+                "summary": "Replace a directory's property values",
+                "security": [
+                    {
+                        "sanctum": [
+                            "properties:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The directory, refreshed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Directory"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "directory",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "values": {
+                                        "type": "object",
+                                        "additionalProperties": true,
+                                        "description": "Property key to value; validated per-key against its own PropertyDefinition."
+                                    }
+                                },
+                                "required": [
+                                    "values"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/files": {
+            "post": {
+                "operationId": "api.v1.files.store",
+                "summary": "Commit a staged upload as a new file or a new version",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "The created or appended-to file.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/File"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "directory_id": {
+                                        "type": "integer",
+                                        "description": "Exactly one of directory_id or file_id -- never both, never neither."
+                                    },
+                                    "file_id": {
+                                        "type": "integer",
+                                        "description": "Exactly one of directory_id or file_id -- never both, never neither."
+                                    },
+                                    "upload_id": {
+                                        "type": "string"
+                                    },
+                                    "checksum": {
+                                        "type": "string",
+                                        "pattern": "^[a-f0-9]{64}$",
+                                        "description": "SHA-256 of the uploaded object, case-insensitive hex."
+                                    }
+                                },
+                                "required": [
+                                    "upload_id",
+                                    "checksum"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/files/upload-url": {
+            "post": {
+                "operationId": "api.v1.files.upload-url",
+                "summary": "Mint a presigned upload URL for a new file (or a new version by name)",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "The presigned upload.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UploadUrl"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "directory_id": {
+                                        "type": "integer"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "mime": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "size": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    }
+                                },
+                                "required": [
+                                    "directory_id",
+                                    "name",
+                                    "mime",
+                                    "size"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/files/{file}": {
+            "delete": {
+                "operationId": "api.v1.files.destroy",
+                "summary": "Trash a file",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:delete"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The trashed file.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/File"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            },
+            "get": {
+                "operationId": "api.v1.files.show",
+                "summary": "Show one file",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:read"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The file.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/File"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            },
+            "patch": {
+                "operationId": "api.v1.files.update",
+                "summary": "Rename and/or move a file",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The updated file.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/File"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "directory_id": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/files/{file}/download-url": {
+            "get": {
+                "operationId": "api.v1.files.download-url",
+                "summary": "Mint a presigned GET URL for a file's current version",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:read"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The presigned download.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DownloadUrl"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            }
+        },
+        "/files/{file}/properties": {
+            "put": {
+                "operationId": "api.v1.files.properties.update",
+                "summary": "Replace a file's property values",
+                "security": [
+                    {
+                        "sanctum": [
+                            "properties:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The file, refreshed.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/File"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "values": {
+                                        "type": "object",
+                                        "additionalProperties": true,
+                                        "description": "Property key to value; validated per-key against its own PropertyDefinition."
+                                    }
+                                },
+                                "required": [
+                                    "values"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/files/{file}/text": {
+            "get": {
+                "operationId": "api.v1.files.text",
+                "summary": "Show a file's extracted text and extraction status",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:read"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The extraction record.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FileText"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            }
+        },
+        "/files/{file}/versions": {
+            "get": {
+                "operationId": "api.v1.files.versions.index",
+                "summary": "List a file's versions, newest first",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:read"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A page of versions.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/FileVersion"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            }
+        },
+        "/files/{file}/versions/upload-url": {
+            "post": {
+                "operationId": "api.v1.files.versions.upload-url",
+                "summary": "Mint a presigned upload URL for a new version of a known file",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "The presigned upload.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UploadUrl"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "file",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "mime": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "size": {
+                                        "type": "integer",
+                                        "minimum": 0
+                                    }
+                                },
+                                "required": [
+                                    "mime",
+                                    "size"
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/property-definitions": {
+            "get": {
+                "operationId": "api.v1.property-definitions.index",
+                "summary": "List property definitions",
+                "security": [
+                    {
+                        "sanctum": [
+                            "properties:read"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "A page of property definitions.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PropertyDefinition"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                }
+            }
+        },
+        "/search": {
+            "get": {
+                "operationId": "api.v1.search",
+                "summary": "Search directories and files within the caller's reach",
+                "security": [
+                    {
+                        "sanctum": [
+                            "search"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Search hits, unpaginated (see App\\Http\\Controllers\\Api\\V1\\SearchController's own docblock).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/SearchHit"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "mime",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "period",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d{4}(-\\d{2})?$"
+                        }
+                    },
+                    {
+                        "name": "attr",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            },
+                            "description": "attr[key]=value -- exactly one key is honoured."
+                        }
+                    }
+                ]
+            }
+        },
+        "/trash": {
+            "get": {
+                "operationId": "api.v1.trash.index",
+                "summary": "List trashed files and directories within the caller's reach",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:read",
+                            "directories:read"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The trashed files and directories.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TrashIndex"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                }
+            }
+        },
+        "/trash/{type}/{id}/restore": {
+            "post": {
+                "operationId": "api.v1.trash.restore",
+                "summary": "Restore a trashed file or directory",
+                "security": [
+                    {
+                        "sanctum": [
+                            "files:write",
+                            "directories:write"
+                        ]
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The restored file or directory.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/File"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/Directory"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "file",
+                                "directory"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
