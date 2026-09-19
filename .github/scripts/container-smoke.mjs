@@ -937,10 +937,18 @@ async function checkCommandPaletteOpensSearchesAndOpensAHit(page, phase) {
   // a swap that produced an empty <mark> would satisfy the element and tell
   // the reader nothing about which word matched, which is the whole point of
   // showing a passage instead of the document's opening.
+  //
+  // 'attached', not 'visible', and textContent() rather than innerText(): the
+  // snippet span is `truncate` (white-space: nowrap; overflow: hidden), so a
+  // <mark> far enough along the passage is clipped by CSS rather than absent
+  // from the DOM. Requiring it to be visible would make this assertion depend
+  // on the viewport width, which is not what it is about. The hit itself is
+  // already required to be visible by the wait above, so this is a <mark>
+  // inside something the viewer can see.
   const marked = hit.first().locator('mark');
 
   try {
-    await marked.first().waitFor({ state: 'visible', timeout: 10000 });
+    await marked.first().waitFor({ state: 'attached', timeout: 10000 });
   } catch {
     dumpContainerState(
       `[${phase}] the palette hit for ${FILE_NAME} carried no <mark> -- the index's snippet markers did not`
@@ -949,7 +957,7 @@ async function checkCommandPaletteOpensSearchesAndOpensAHit(page, phase) {
     throw Object.assign(new Error('the palette hit rendered no highlighted snippet'), { dumped: true });
   }
 
-  const markedText = (await marked.first().innerText()).trim().toLowerCase();
+  const markedText = ((await marked.first().textContent()) ?? '').trim().toLowerCase();
 
   if (! markedText.includes(FILE_MARKER.toLowerCase())) {
     dumpContainerState(
