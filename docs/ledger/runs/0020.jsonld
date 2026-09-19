@@ -20,6 +20,7 @@
     "item/directory-force-delete-orphans",
     "item/directory-policy-trashed-move",
     "item/directory-policy-trashed-update",
+    "item/docs-site",
     "item/email-verification-decided",
     "item/extraction-missing-object",
     "item/image-size",
@@ -42,7 +43,7 @@
     "item/upgrade-smoke",
     "item/version-from-tag"
   ],
-  "commit": "e702176b5f30629c36d1ca7e0be4490ab21da35f",
+  "commit": "fa499f58d7414c0f0febd368042649dc97c6dfdb",
   "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally.\n\nTHREE MAIN PUSHES RECORDED LATE, and two of them carry pullRequest: null for a reason worth stating. 95b49d2 is this run's own previous ledger merge, null by the convention every ledger PR follows. c930b60 is PR #176 -- file preview, a command palette and search snippets -- authored in the owner's own session and merged by someone other than this loop; e702176 is PR #272, this loop's fix to a defect in that code. NEITHER CAN CARRY A PR NODE, because a node's implements must name an item and no item covers the preview surface at all. That is not a recording problem to work around by inventing an item: it is the ledger saying plainly that main receives work the item model does not describe, so \"66 of 89\" counts a plan narrower than the product, and item/v1-audit would audit the narrower thing. Raised with the owner rather than resolved here, because the choice -- retroactive items, a decision bounding what the ledger tracks, or a forward item bringing the surface under audit -- changes what the count means.",
   "merges": [
     {
@@ -682,6 +683,24 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35444906294",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35444903759",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "74c301bb53b87785c21a7d2e49e46f928bfe8ad8",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T13:25:19Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35445715630",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35445715669",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "fa499f58d7414c0f0febd368042649dc97c6dfdb",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/274",
+      "mergedAt": "2026-09-19T13:41:19Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35446505302",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35446505267",
       "ledgerConclusion": "success"
     }
   ]
