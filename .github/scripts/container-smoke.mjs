@@ -1222,12 +1222,13 @@ async function checkTopbar(page, phase) {
 /**
  * Opens a file in the preview dialog and requires it to SHOW something.
  *
- * What makes this worth running rather than decorative: it asserts the frame
- * has actually loaded the file's bytes, not merely that a dialog appeared. An
- * <iframe> exists whether or not its src resolves, so "the dialog opened" is
- * satisfied by a preview pointing at a 404 -- which is exactly the state a
- * file with no stored version was in before this branch. The assertion reads
- * the frame's own document and requires the uploaded text to be inside it.
+ * What makes this worth running rather than decorative: it asserts the preview
+ * has actually rendered the file's bytes, not merely that a dialog appeared.
+ * An element exists whether or not what it was supposed to show arrived, so
+ * "the dialog opened" is satisfied by a preview showing nothing -- which is
+ * exactly the state a file with no stored version, or a frame pointing at a
+ * 404, was in before this branch. The assertion requires the uploaded text to
+ * be inside what was drawn.
  *
  * Also the one check that drives an icon action: every control on a row is
  * icon-only now, named by aria-label, so this is where "the icons reached
@@ -1243,8 +1244,14 @@ async function checkTopbar(page, phase) {
  *     guard deleted -> fail: locator.waitFor: Timeout 8000ms exceeded
  *     restored      -> pass
  *
- * That was run against the dev server first, and the container then found
- * something the dev server could not: the preview pointed at the DOWNLOAD
+ * Re-measured after the assertion moved from the frame to the rendered source,
+ * because a mutation proves the assertion it was run against and not its
+ * successor: emptying the code view (dropping x-html="code") made it fail at
+ * the timeout, and restoring it made it pass.
+ *
+ * The original measurement, kept because what the container caught is the
+ * reason this check exists. That was run against the dev server first, and the
+ * container then found something the dev server could not: the preview pointed at the DOWNLOAD
  * route, which answers Content-Disposition: attachment and, where object
  * storage can issue one, redirects to a presigned URL. On a dev machine that
  * redirect lands on Laravel's own /storage path and renders; in the image it
@@ -1271,11 +1278,21 @@ async function checkFilePreviewShowsTheFileContents(page, phase) {
   // two previews open in sequence which one they are looking at.
   await dialog.getByText(name, { exact: true }).waitFor({ timeout: 10000 });
 
-  const frame = page.frameLocator('[data-test="preview-frame"]');
-  await frame.locator('body').filter({ hasText: 'must appear inside the preview frame' })
+  // A .txt renders as highlighted SOURCE, not in an iframe: the preview shows
+  // markup in a frame and everything else textual as its own text, so
+  // [data-test="preview-frame"] does not exist for this file at all. This
+  // assertion used to wait for that frame and timed out at 15s once the code
+  // view landed -- the check outliving the shape of the thing it checks.
+  //
+  // What it requires is unchanged and is the point: the uploaded bytes have to
+  // be INSIDE what was rendered. "A dialog appeared" is satisfied by a preview
+  // showing nothing at all.
+  const rendered = page.locator('[data-test="preview-code"]');
+  await rendered.waitFor({ state: 'visible', timeout: 15000 });
+  await rendered.filter({ hasText: 'must appear inside the preview frame' })
     .waitFor({ timeout: 15000 });
 
-  console.log(`[${phase}] the preview frame rendered the uploaded file's own bytes`);
+  console.log(`[${phase}] the preview rendered the uploaded file's own bytes`);
 
   await page.keyboard.press('Escape');
   await dialog.waitFor({ state: 'hidden', timeout: 10000 });
