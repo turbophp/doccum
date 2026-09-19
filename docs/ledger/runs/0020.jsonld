@@ -42,7 +42,7 @@
     "item/upgrade-smoke",
     "item/version-from-tag"
   ],
-  "commit": "7d9b06b9896988df6613ccc2c32fa568e1a78a37",
+  "commit": "6dfc948fcf40366c048a9d4c836f9e59c0f3d99d",
   "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally.",
   "merges": [
     {
@@ -637,6 +637,24 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35441171053",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35441171019",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "41423c40fafe5ee142829face6f2a803d8fe23bc",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T12:09:01Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35442042751",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35442042749",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "6dfc948fcf40366c048a9d4c836f9e59c0f3d99d",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/269",
+      "mergedAt": "2026-09-19T12:19:40Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35442539345",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35442539261",
       "ledgerConclusion": "success"
     }
   ]
