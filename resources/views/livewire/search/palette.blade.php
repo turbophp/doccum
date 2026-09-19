@@ -45,7 +45,6 @@
                         wire:model.live.debounce.200ms="query"
                         x-on:keydown.down.prevent="move(1, {{ $hits->count() }})"
                         x-on:keydown.up.prevent="move(-1, {{ $hits->count() }})"
-                        x-on:keydown.enter.prevent="openSelected()"
                         x-init="$nextTick(() => $el.focus())"
                         aria-label="{{ __('Find documents') }}"
                         placeholder="{{ __('Search names, properties and the text inside documents') }}"
