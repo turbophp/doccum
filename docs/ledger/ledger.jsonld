@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-19T13:50:00Z",
+  "dateModified": "2026-09-19T21:25:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1471,6 +1471,7 @@
         "item/home-dashboard",
         "item/image-size",
         "item/openapi-reference",
+        "item/palette-smoke",
         "item/purge-commands",
         "item/readme-owner",
         "item/search-indexer-null-subject",
@@ -1564,6 +1565,27 @@
       "endTime": "2026-09-18T23:59:51Z",
       "result": [
         "https://github.com/turbophp/doccum/pull/256"
+      ]
+    },
+    {
+      "@id": "item/palette-smoke",
+      "@type": "Action",
+      "order": 73,
+      "name": "The command palette is driven by the container smoke",
+      "url": "https://github.com/turbophp/doccum/issues/276",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "container-smoke.mjs opens the palette with Ctrl-K from a page that is NOT /search, searches in it, and opens a hit -- and at least one of those assertions has been SHOWN to fail against a deliberately broken image, with the run recorded as a Mutation here.\n\nWHY THIS ITEM EXISTS AT ALL, stated plainly rather than left to be inferred from its order. `grep -n palette .github/scripts/container-smoke.mjs` returned nothing: the surface people reach search through most often had never been executed in a browser by anything in this repository. tests/Feature/Search/PaletteTest.php covers the component thoroughly and every clause it can reach is server side -- openPalette() sets a flag, hits() honours the viewer's reach, destinationFor() resolves a route. Everything that makes the palette a palette rather than a Livewire property is browser side: the window Ctrl-K binding, the open-search-palette CustomEvent and its listener, wire:model.live on an input the opening round trip creates, Alpine's selected/openSelected navigation, and the swap of the index's private-use markers into <mark>. CLAUDE.md says a Blade assertion renders the markup for all of that and cannot see that none of it booted.\n\nWHAT THIS ITEM IS NOT. It is TESTING DEBT under spec:14-testing, and its clause is bounded to \"the palette is driven by the smoke\". It is deliberately NOT an item that brings \"the palette surface\" under audit, and filing it does not answer the accounting question decision/0102 puts to the owner. It is one of the three options offered there, taken for one surface only -- and partly forced: LedgerValidator requires Mutation.implements and PullRequest.implements to resolve to an Action, so mutation/0032 and the PR nodes for #277 and #280 could not exist in this file without an item to name. Recording that here rather than presenting the item as a neutral bookkeeping choice.\n\nWHAT IT LEAVES OPEN, so that Completed is not read as coverage. One of the check's four assertions is mutation-proven; see mutation/0032. The escape-before-swap ORDER is unproven and is issue #279. move() is not driven at all. /search's own results page still carries no data-test hooks, so snippet rendering there remains browser-unproven.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-19T20:30:00Z",
+      "endTime": "2026-09-19T21:19:00Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/277",
+        "https://github.com/turbophp/doccum/pull/280"
       ]
     },
     {
@@ -3618,6 +3640,38 @@
       "mergedAt": "2026-09-19T13:41:19Z",
       "mergeSha": "fa499f58d7414c0f0febd368042649dc97c6dfdb",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/277",
+      "@type": "PullRequest",
+      "identifier": 277,
+      "name": "The command palette, driven by the container smoke",
+      "implements": [
+        "item/palette-smoke"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T20:54:16Z",
+      "headSha": "66b3bd577baae77eaf044229e4a96e9e8d0fcab5",
+      "mergedAt": "2026-09-19T21:00:13Z",
+      "mergeSha": "f8d7958763e22df6fb7da3bee03714cb72599f7f",
+      "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/280",
+      "@type": "PullRequest",
+      "identifier": 280,
+      "name": "Correct three claims the palette check made, and the one place it over-matched",
+      "implements": [
+        "item/palette-smoke"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T21:11:53Z",
+      "headSha": "b8203d80e187dc83066080f99fabcff7d99f2dc6",
+      "mergedAt": "2026-09-19T21:18:52Z",
+      "mergeSha": "bca36e70ca396a8b67288ca56e9398c7a4760f86",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -5268,6 +5322,52 @@
         "item/release-v0-1-0"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0100",
+      "@type": "Decision",
+      "dateCreated": "2026-09-19T21:25:00Z",
+      "run": "run/0020",
+      "name": "A comment written as a plan and read as a record: the docblock vouched for a mutation nobody ran",
+      "rationale": "A comment that vouches for a record is a claim, and this one shipped false.\n\nThe palette smoke check merged in PR #277 carried a docblock paragraph headed \"WHAT IS MUTATION-PROVEN, and what the mutation had to be\". It said severing the keystroke \"therefore means removing the whole x-on set from the palette root: its two keydown bindings AND its open-search-palette listener\". The mutation that ran, mutation/0032, removed x-on:keydown.enter.prevent from the INPUT. The file described a mutant nobody had made. The same paragraph then asserted \"The mutation is recorded against this item in the ledger, with the run that failed\" at a moment when no item/palette-smoke, no mutation/0032 and no PR node existed in this file at all.\n\nBoth halves were written in good faith and both were false at merge. The mechanism is worth naming because it is not carelessness: the paragraph was written BEFORE the mutant was chosen, describing the mutation the analysis implied; the analysis then changed -- correctly, because the Ctrl-K mutant would have gone green -- and the prose did not follow. A sentence written as a plan and read as a record.\n\ndecision/0080 says a citation of evidence is a claim and is checked like one. It was written about a test comment citing a mutation nobody ran. This is the same failure in the same repository, three days later, in a comment whose own next sentence was \"a citation in a comment is a claim nobody re-checks\". Writing the rule down is not the same as being governed by it.\n\nWHAT CHANGES. The rule already exists; nothing new is added to it. What is recorded is the failure mode it does not currently defend against: prose written ahead of the evidence and not revisited when the evidence lands. The check that catches it is the one that caught this -- reading a merged artefact against the run it names, rather than reading it for sense. PR #280 rewrote the paragraph to describe the mutant that ran, and deliberately KEPT a line saying the earlier text vouched for a run nobody made, rather than overwriting it silently, so the file carries its own correction where a reader would otherwise have believed the original.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/palette-smoke"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0101",
+      "@type": "Decision",
+      "dateCreated": "2026-09-19T21:25:00Z",
+      "run": "run/0020",
+      "name": "A mutation says an assertion is load-bearing, never that it bears the right load",
+      "rationale": "I wrote the over-matching defect into the check whose issue cited the rule against it.\n\ndecisions 0096 to 0099 name one shape: a check that reports on something other than what it appears to. Three of them were substring matches that matched too much. Issue #276, filed to open item/palette-smoke, quotes that reasoning. The check merged under it four hours later asserted:\n\n  await page.waitForURL((u) => /^\\/files\\/\\d+/.test(u.pathname) && u.searchParams.has('file'), { timeout: 15000 });\n\nAny file preview URL satisfies that. It passes today only because exactly one document matches the smoke's marker word: SMOKE_FILE_MARKER is smokeword<digits>, the home directory is named smokeadmin<digits> and the file smoke-<run>-<attempt>.txt, and unicode61 tokenisation puts neither within reach of the marker. Add a second marker-bearing document -- which any future check that uploads one would do -- and Enter could open the WRONG hit with the assertion none the wiser, because \"some file preview opened\" was all it ever required. The assertion would then be reporting on navigation having happened rather than on the selected hit having opened, which is the thing it is named for.\n\nTHE GENERALISATION, which is what makes this worth a Decision rather than a fix. Every over-matching defect in 0096-0099 was a PREDICATE THAT WAS TOO WEAK TO DISTINGUISH the case it was named for from a neighbouring case. A mutation cannot find this class: delete the guard and the weak predicate fails too, so the mutation passes and certifies the assertion. mutation/0032 did exactly that here -- it failed on this assertion, in the right shape, while the assertion was still over-matching. A passing mutation says an assertion is load-bearing. It says nothing about whether the assertion bears the right load.\n\nWHAT CHANGES. When an assertion names a specific object -- THIS hit, THIS file, THIS user -- it must be pinned to an identifier read from that object, not to a pattern the object happens to satisfy. The palette check now reads the hit's own href before pressing Enter and waits for exactly that URL, which also pins selected === 0 to the hit the viewer can see. And the review question that finds this class is not \"would this fail if the feature broke\" -- a mutation answers that -- but \"what ELSE would satisfy this, and is any of it reachable\".",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/palette-smoke"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0102",
+      "@type": "Decision",
+      "dateCreated": "2026-09-19T21:25:00Z",
+      "run": "run/0020",
+      "name": "The ledger tracks a plan narrower than the product, and the v1 denominator was misreported",
+      "rationale": "The ledger tracks a plan narrower than the product, by more than anyone had counted. The owner decides what to do; this records what is true.\n\nFIRST, THE DENOMINATOR. \"66 of 89\" has been reported repeatedly and mixes two releases. Of 89 items, 17 carry release post-v1 (orders 105-121). The v1 figure is 66 of 72: 66 Completed, 2 Active (item/docs-site, item/image-size), 4 Potential (item/release-v0-1-0, item/readme-owner, item/v1-audit, item/tag-v1-0-0), plus item/palette-smoke now Completed, making 67 of 73. Any future progress sentence uses the v1 denominator or names both.\n\nSECOND, THE SURFACES WITH NO ITEM. Established by reading the ledger's items against the tree, not by recollection. The keyword scan is reproducible: none of \"archive-download\", \"zip\", \"notification\", \"appearance\", \"welcome\", \"mammoth\", \"docx\" or \"prefix\" appears in any item. Two apparent hits are incidental -- \"labelling\" inside item/version-from-tag contains \"bell\", and item/email-verification-decided names the PasskeyUser CONTRACT while discussing MustVerifyEmail.\n\n(a) PR #163 (merge 88924d4, recorded in run/0019 with pullRequest: null). Its own commit 27d773a describes \"selectable folders, async zip download, notifications, and a reshaped header\". app/Http/Controllers/DirectoryArchiveDownloadController.php, app/Jobs/ZipDirectory.php and app/Notifications/DirectoryArchiveReady.php all exist; the notifications bell is topbar.blade.php lines 114-151. No item names any of it, and no line in container-smoke.mjs matches notification, zip or DirectoryArchive. decision/0047 recorded #163 only as a merge-conflict hazard. This is a queue job and a dropdown, the two things CLAUDE.md says a green suite cannot see -- and it predates the #176 gap by a day, unnoticed.\n\n(b) PR #176 shipped more than the three surfaces previously named. Besides the file preview, the palette and search snippets: prefix matching (Terms::toFts5, covered by SearchPageTest, no smoke types a partial word), Word documents converted in the BROWSER (mammoth, resources/js/shell/preview.js), source rendering via highlight.js, markup as both render and source, and preview stepping through the listing. checkFilePreviewShowsTheFileContents drives a .txt only, so the docx path, the markup frame and the stepping controls are browser-unproven.\n\n(c) Starter-kit surfaces the spec never adopted: two-factor authentication and passkeys on /settings/security, and /settings/appearance. Spec section 10 says \"My Account: profile, password, sessions\" and mentions two-factor only as secrets; passkeys and appearance appear nowhere in it. Tests exist; the smoke names /settings/security only as a gate it has never driven.\n\n(d) \"/\" is still Laravel's starter welcome page, linked as route('home') from all three auth layouts. The smoke's own comments call it \"Laravel's starter page\". No item.\n\nWHY THIS IS NOT DECIDED HERE. item/v1-audit's doneWhen walks \"spec milestones 1 to 11 and this backlog\". Its spec half already covers pre-ledger work; its BACKLOG half would audit only what the items name, so every surface above is outside the audit as the clause stands. Three options were identified and two of them SHRINK what gets audited -- retroactive Completed items whose doneWhen never bound anyone, or a Decision bounding what the ledger tracks. The third adds requirements. Choosing among them changes what \"v1 is done\" means, which is the owner's call and not a loop's.\n\nWHAT THE LOOP DID WITHOUT WAITING, and why that is not the same thing. item/palette-smoke was filed and closed because CLAUDE.md makes missing container-smoke coverage a DEFECT independent of the accounting question, and fixing a defect needs nobody's permission. It is bounded to testing debt and says so in its own doneWhen. It is not a precedent for the other surfaces, and (a) through (d) above remain unowned until this is answered.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/v1-audit",
+        "item/palette-smoke"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -5702,6 +5802,20 @@
       "headSha": "15dfc4a600ea58137b0918e6d8b8ed5db8c71a61",
       "mutant": "Branch mutation/0031-api-tokens-smoke: PR #262's smoke check plus one deliberate regression, shaped like something somebody would actually write -- stash the plaintext token in the session on create, restore it in a new mount(), because \"the operator loses the token when the page reloads\". Never merged; PR #263 closed unmerged. pullRequest is null deliberately: #263 is not a PullRequest node in this ledger and must not become one, because every registered PR here is part of the product's history and this branch is the opposite -- a tree built to be refused. Its run URL is in `check`, which is where the evidence belongs.\n\nThe CHOICE of mutant is the substance here. Breaking creation outright would have proved only that the check runs at all. CLAUDE.md's account-menu lesson is that the obvious half of an assertion is often the worthless one and that reasoning about which half carries weight is unreliable -- the topbar check's hidden-before half was argued load-bearing and mutation proved the reverse. So this mutant leaves creation working and breaks only \"shown exactly once\", isolating the reload assertion, which is the clause this item is actually about.",
       "check": "Run https://github.com/turbophp/doccum/actions/runs/35435327343, image job. Verbatim, timestamps stripped:\n\n  [setup] opening /settings/api-tokens as the administrator\n  [setup] /settings/api-tokens bounced to the password-confirm gate -- confirming with the admin's password\n  [setup] password-confirm gate cleared, back at /settings/api-tokens -- OK\n  [setup] creating a token named \"Smoke Token 811011512\" through the real form\n  [setup] the plaintext token appeared on the page right after creating it -- OK\n  [setup] reloading /settings/api-tokens and checking that exact plaintext value is gone\n  ##[error][setup] the plaintext token captured off \"Smoke Token 811011512\"'s creation is still on the page after a reload of /settings/api-tokens\n  ##[error]container-smoke (setup) failed: plaintext token value survived a reload of /settings/api-tokens\n  ##[error]Process completed with exit code 1.\n\nTHREE THINGS, established separately rather than pooled.\n\n(1) The mutation was ISOLATED. \"the plaintext token appeared on the page right after creating it -- OK\" is present, so creation still worked and only the reload assertion failed. Had the check died earlier the reload assertion would still be unproven and PR #262 would have gone back for rework rather than the item closing -- which is precisely the outcome this run was built to be able to produce.\n\n(2) The password-confirm path RAN. The gate fired and was cleared; the \"no password-confirm gate this time\" branch never executed. This smoke had never driven a password.confirm interstitial before, so that path is exercised rather than assumed.\n\n(3) The other half. Against the same commit with the feature intact, PR #262 was green on all 16 checks including image. Check passes with the feature, fails without it -- both halves observed, neither inferred from the other.\n\nONE CORRECTION to this session's own framing, recorded rather than quietly dropped: PR #263's body said a dumpContainerState header would precede the error. The literal string appears nowhere in the log, and the container dump (--- docker logs ---) follows the thrown error rather than preceding it. The diagnostic is real and adjacent; its position was described wrongly.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0032",
+      "@type": "Mutation",
+      "implements": [
+        "item/palette-smoke"
+      ],
+      "pullRequest": null,
+      "run": "run/0020",
+      "headSha": "dec5a900005c847fba712e4865e2b94a80038998",
+      "mutant": "Branch mutation/0032-palette-smoke: PR #277's palette smoke check plus one deliberate regression -- remove exactly one attribute, x-on:keydown.enter.prevent, from the palette input. Never merged; PR #278 closed unmerged. pullRequest is null deliberately, on the same grounds as mutation/0031: every registered PullRequest here is part of the product's history and this branch is the opposite, a tree built to be refused. Its run URLs are in `check`.\n\nTHE CHOICE OF MUTANT IS THE SUBSTANCE, and here the obvious mutant would have been worthless rather than merely weak. Ctrl-K is handled TWICE and INDEPENDENTLY: the topbar's focusSearch() (layouts/app/topbar.blade.php) dispatches an open-search-palette CustomEvent, and the palette's own x-on:keydown.window.prevent.ctrl.k calls $wire.openPalette() directly. Deleting either one alone leaves the keystroke working through the other, so a Ctrl-K mutant would have gone GREEN and been recorded as proof. That is decision/0080's \"counting readers is not counting sources\" arriving on the writing side: two writers of one behaviour, neither a witness to itself.\n\nThe Enter mutant was chosen instead for three reasons, each checkable rather than argued. RELIABLE: <livewire:search.palette /> is mounted outside the topbar's GET form (topbar.blade.php line 326, after </flux:main>), so the palette input sits in no form at all and Enter with the handler gone is inert rather than subtly different -- a mutant that might still work proves nothing and costs a full image build to discover. ISOLATING: it touches nothing the three earlier assertions depend on, so they must still pass in the failing run. UNREACHABLE OTHERWISE: openSelected() and the selected state live entirely in the root element's x-data, so the test renderer cannot execute a line of it and PaletteTest.php never tries.",
+      "check": "BOTH DIRECTIONS, on two runs of the same check.\n\nDIRECTION 2, the guard deleted. Run https://github.com/turbophp/doccum/actions/runs/35468822002, image job, head dec5a90. Verbatim, timestamps stripped:\n\n  [setup] clearing the period filter restores smoke-35468822002-1.txt -- OK\n  [setup] opening the command palette with Ctrl-K from /files, searching in it, and opening a hit with Enter\n  [setup] Ctrl-K opened the command palette -- the window binding and its Livewire round trip both ran\n  [setup] the palette's debounced live query found smoke-35468822002-1.txt by a word inside it\n  [setup] the hit's snippet highlights smokeword354688220021 itself -- the escape-then-swap ran in the image\n  ##[error][setup] Enter on the palette did not navigate to the selected hit -- the URL stayed at http://127.0.0.1:8080/files, so Alpine's openSelected() did not reach the selected anchor\n  ##[error]container-smoke (setup) failed: Enter did not open the selected palette hit\n  ##[error]Process completed with exit code 1.\n\nDIRECTION 1, the guard in place. Run https://github.com/turbophp/doccum/actions/runs/35468807853, image job, SUCCESS, all eighteen checks green on PR #277:\n\n  [setup] Ctrl-K opened the command palette -- the window binding and its Livewire round trip both ran\n  [setup] the palette's debounced live query found smoke-35468807853-1.txt by a word inside it\n  [setup] the hit's snippet highlights smokeword354688078531 itself -- the escape-then-swap ran in the image\n  [setup] Enter opened the selected hit at /files/1?file=1 -- OK\n\nTHREE THINGS, established separately rather than pooled.\n\n(1) LOAD-BEARING. The same check passes at 66b3bd5 and fails at dec5a90, and the only difference between those trees is one deleted attribute.\n\n(2) ISOLATED. The three lines before the failure printed IN THE FAILING RUN, so Ctrl-K still opened the palette, the live query still reached Services\\Search, and the snippet still rendered a <mark> with the mutated attribute gone. Those three do not depend on it, and the failure is attributable to the one clause the mutant touched rather than to the palette having stopped working generally.\n\n(3) READS IN THE RIGHT DIRECTION. The failure names the assertion and the observed state -- \"the URL stayed at http://127.0.0.1:8080/files\" -- rather than surfacing as a bare waitForURL timeout. A failure that names no assertion is one nobody can act on.\n\nWHAT THIS DOES NOT ESTABLISH, recorded here so that a reader of the green log cannot infer otherwise. Exactly ONE of the check's assertions is mutation-proven. The other three passed in BOTH directions, which is what makes them a control for (2) and precisely why they are not evidence about themselves. Nothing here says the Ctrl-K assertion would fail if the palette's keyboard wiring broke; only that it is unaffected by THIS mutant. The two assertions PR #280 added -- the Alpine-boot precondition and the topbar-focus leg -- are not mutation-proven either, and are labelled as such in the code rather than folded into this count.\n\nNOTE ON THE LOG LINES QUOTED ABOVE. Both runs print \"the escape-then-swap ran in the image\". That wording overstated what the assertion proves, and PR #280 corrected it to name the swap only; the ESCAPE half is unproven and is issue #279. The lines are quoted here as they were EMITTED rather than as the code now reads, because a mutation record that edits its own evidence is not a record.",
       "verdict": "negative",
       "supersedes": null
     }
