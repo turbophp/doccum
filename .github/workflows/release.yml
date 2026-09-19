@@ -160,6 +160,154 @@ jobs:
       - name: Print the image size for the release record
         run: .github/scripts/image-size.sh --print-only "$PULLED_TAG"
 
+  # item/release-v0-1-0 (issue #32), proof (1): "ARM64, ACTUALLY BOOTED".
+  # release.yml's `image` job above publishes linux/amd64,linux/arm64, but
+  # tests.yml's own `image` job only ever builds and boots amd64 -- no arm64
+  # binary of this project has ever been executed. This pulls the image
+  # `image` just PUSHED (not a local build) natively on each architecture:
+  # amd64 on ubuntu-latest, arm64 on ubuntu-24.04-arm (a free GitHub-hosted
+  # runner for public repositories). No docker/setup-qemu-action anywhere in
+  # this job, deliberately: a failure under emulation cannot be told apart
+  # from an emulation bug, so it would read in neither direction. Each
+  # matrix leg's runner is already that architecture, so `docker pull
+  # --platform` and `docker run` execute the real binary, not a translated
+  # one.
+  #
+  # needs: image, guarded to the tag-push trigger the same way `release`
+  # below is: this workflow also fires on workflow_dispatch, where
+  # github.ref is a branch, not a tag, and there is no version to resolve
+  # into an image reference.
+  #
+  # Follows tests.yml's `image` job's own "Smoke test the image" idiom
+  # (docker run -d, poll for the installer screen, confirm still running)
+  # rather than inventing a new one -- the only difference is the image
+  # comes from `docker pull`, not a local `docker build`.
+  boot-published-image:
+    name: "boot published image (${{ matrix.arch }})"
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      packages: read
+    steps:
+      # Pulling a public ghcr.io package generally works unauthenticated,
+      # but this repo's package visibility is not this job's business to
+      # assume -- login the same way the `image` job above does before
+      # pushing, so this works whether or not the package is public.
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # This job is separate from `image`, so steps.meta.outputs.version
+      # from that job is not in scope here -- resolved independently, the
+      # same way docker/metadata-action's `type=semver,pattern={{version}}`
+      # derives it: the pushed tag minus a leading "v".
+      - name: Resolve the tag this run published
+        run: |
+          set -euo pipefail
+          echo "IMAGE_REF=ghcr.io/${{ github.repository }}:${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Pull the published image for this architecture, no QEMU
+        run: docker pull --platform ${{ matrix.platform }} "$IMAGE_REF"
+
+      - name: Boot the pulled image and assert it serves the installer
+        run: |
+          set -e
+          docker run -d --name doccum-boot-${{ matrix.arch }} -v doccum-boot-${{ matrix.arch }}:/data -p 8080:8080 "$IMAGE_REF"
+
+          ok=false
+          for i in $(seq 1 30); do
+            if ! docker inspect -f '{{.State.Running}}' doccum-boot-${{ matrix.arch }} 2>/dev/null | grep -q true; then
+              echo "::error::[${{ matrix.arch }}] published image ($IMAGE_REF) exited before it ever answered"
+              break
+            fi
+            if body=$(curl -sS -L --max-time 5 http://127.0.0.1:8080/ 2>/dev/null); then
+              if echo "$body" | grep -q 'Set up doccum'; then
+                ok=true
+                break
+              fi
+            fi
+            sleep 2
+          done
+
+          if [ "$ok" != true ]; then
+            echo "::error::[${{ matrix.arch }}] doccum never served the first-run setup screen from the PUBLISHED image $IMAGE_REF -- this architecture has effectively never been booted"
+            docker logs doccum-boot-${{ matrix.arch }} || true
+            exit 1
+          fi
+
+          echo "[${{ matrix.arch }}] published image is up and serving the installer screen"
+
+          if ! docker inspect -f '{{.State.Running}}' doccum-boot-${{ matrix.arch }} | grep -q true; then
+            echo "::error::[${{ matrix.arch }}] published image crashed after answering once"
+            docker logs doccum-boot-${{ matrix.arch }} || true
+            exit 1
+          fi
+
+      - name: Container logs
+        if: failure()
+        run: docker logs doccum-boot-${{ matrix.arch }} || true
+
+  # item/release-v0-1-0 (issue #32), proof (2): "THE TAG REACHES THE IMAGE".
+  # ARG DOCCUM_VERSION feeds both the org.opencontainers.image.version label
+  # and config('doccum.version'), so those two agreeing (container-smoke.mjs's
+  # version-pill check) proves nothing about whether the build arg itself was
+  # right -- decision/0080: two readers of one upstream value are one source
+  # wearing two hats. The only independent witness is the git ref this run
+  # was triggered from, which is what this job compares against.
+  #
+  # needs: image and guarded the same way boot-published-image is above, for
+  # the same reason: no image job, this doesn't run, and no tag, there is
+  # nothing to compare against.
+  verify-version-label:
+    name: published image label matches the tag
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    steps:
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Resolved independently of the `image` job's steps.meta output, same
+      # as boot-published-image above -- this is a separate job.
+      - name: Resolve the tag this run published
+        run: |
+          set -euo pipefail
+          echo "EXPECTED_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+          echo "IMAGE_REF=ghcr.io/${{ github.repository }}:${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Pull the published image
+        run: docker pull "$IMAGE_REF"
+
+      - name: Assert the image's version label equals the tag that triggered this run
+        run: |
+          set -euo pipefail
+          LABEL_VERSION="$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$IMAGE_REF")"
+
+          if [ "$LABEL_VERSION" != "$EXPECTED_VERSION" ]; then
+            echo "::error::published image's org.opencontainers.image.version label ('${LABEL_VERSION}') does not equal the tag that triggered this run ('${EXPECTED_VERSION}', from ref ${{ github.ref }}) -- ARG DOCCUM_VERSION disagrees with the git ref this image was supposedly built from"
+            exit 1
+          fi
+
+          echo "published image's version label ('${LABEL_VERSION}') matches the triggering tag ('${EXPECTED_VERSION}')"
+
   # item/changelog-release-notes (issue #31): a pushed tag is also supposed
   # to produce a GitHub Release, body taken verbatim from that version's
   # CHANGELOG.md section. Split from the `image` job (needs: image) so a
@@ -242,3 +390,87 @@ jobs:
       - name: Explain why no Release was created
         run: |
           echo "::notice::This run was not a tag push (ref: ${{ github.ref }}), so no GitHub Release was created. Push a v* tag to publish one."
+
+  # item/release-v0-1-0 (issue #32), proof (3): "THE RELEASE CARRIES THE
+  # CHANGELOG". item/changelog-release-notes wired `release` (above) to
+  # create a GitHub Release from changelog-section.sh's output, and nothing
+  # has ever actually created one. This asserts the Release that `release`
+  # just created has a body identical to what changelog-section.sh prints
+  # for this tag -- the same extractor, including its pre-release fallback
+  # (a "-rc1" tag's Release body is the release-core section, e.g. [0.1.0]
+  # for a v0.1.0-rc1 tag, never a fabricated "[0.1.0-rc1]" section).
+  #
+  # needs: release, not image: this has nothing to check until `release` has
+  # actually run, and if `release` failed (or was skipped by
+  # release-skipped-notice on a workflow_dispatch run) there is no Release
+  # to fetch, so this job is skipped along with it via the ordinary `needs`
+  # success rule. Guarded to the tag-push trigger anyway, matching `release`
+  # exactly, so a workflow_dispatch run never even attempts this.
+  #
+  # `contents: read` is enough for GET /repos/{owner}/{repo}/releases/tags/{tag}
+  # -- GitHub gates the Releases REST API on the `contents` permission, not a
+  # separate one -- so this reuses `${{ github.token }}` rather than any
+  # broader credential.
+  verify-release-notes:
+    name: GitHub Release body matches the changelog section
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The exact same command the `release` job's own "Extract this
+      # version's changelog section" step ran, against the same checked-out
+      # CHANGELOG.md -- this is the expected value, not a re-derivation of it.
+      - name: Extract this version's changelog section
+        run: |
+          set -e
+          .github/scripts/changelog-section.sh "${{ github.ref_name }}" CHANGELOG.md > /tmp/expected-release-notes.md
+
+      - name: Fetch the GitHub Release body for this tag
+        env:
+          RELEASE_API_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -sS -f \
+            -H "Authorization: Bearer ${RELEASE_API_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}" \
+            | jq -r '.body // ""' > /tmp/actual-release-body.md
+
+      - name: Assert the Release body is exactly this version's changelog section
+        run: |
+          set -e
+
+          # Normalise CRLF before comparing, and do it on BOTH sides rather
+          # than only the one suspected of carrying it.
+          #
+          # changelog-section.sh emits LF. GitHub's Releases API returns a
+          # release `body` with CRLF line endings for notes that were posted
+          # with LF, so a byte comparison of the two would have failed on the
+          # FIRST rc for a reason that has nothing to do with the notes having
+          # drifted -- burning the throwaway tag this whole job exists to make
+          # count, and reporting "the notes have drifted" when they had not.
+          #
+          # Stripping CR rather than adding it keeps the assertion about the
+          # TEXT. What this job is for is catching a Release whose body is not
+          # this version's changelog section; line-ending transport is not
+          # part of that claim, so it must not be able to fail it.
+          expected="$(tr -d '\r' < /tmp/expected-release-notes.md)"
+          actual="$(tr -d '\r' < /tmp/actual-release-body.md)"
+
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::the GitHub Release for tag ${{ github.ref_name }} has a body that does not match '.github/scripts/changelog-section.sh ${{ github.ref_name }} CHANGELOG.md' -- release.yml's release job created a Release whose notes have drifted from the changelog"
+            echo "--- expected (changelog-section.sh) ---"
+            echo "$expected"
+            echo "--- actual (GitHub Release body) ---"
+            echo "$actual"
+            exit 1
+          fi
+
+          echo "GitHub Release body for ${{ github.ref_name }} matches the changelog section exactly"
