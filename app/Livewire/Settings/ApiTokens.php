@@ -83,6 +83,19 @@ class ApiTokens extends Component
     public string $revokingTokenName = '';
 
     /**
+     * MUTANT -- mutation/0031, never merged. A plausible-looking regression:
+     * "the plaintext disappears when the page reloads, let's keep it around
+     * so the operator does not lose it." Creation still works, so the smoke's
+     * create-and-reveal assertions are untouched; only "shown exactly once"
+     * is broken. That isolation is the point -- it tests whether the RELOAD
+     * assertion is load-bearing, not merely whether the check runs at all.
+     */
+    public function mount(): void
+    {
+        $this->plainTextToken = session('api_tokens.last_plaintext');
+    }
+
+    /**
      * Creates a token for the signed-in user with the chosen name, abilities
      * and optional expiry.
      */
@@ -118,6 +131,7 @@ class ApiTokens extends Component
         );
 
         $this->plainTextToken = $newToken->plainTextToken;
+        session(['api_tokens.last_plaintext' => $newToken->plainTextToken]);
         $this->plainTextTokenId = (int) $newToken->accessToken->getKey();
 
         $this->reset('name', 'selectedAbilities', 'expiresAt');
