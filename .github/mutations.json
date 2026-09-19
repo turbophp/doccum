@@ -614,5 +614,12 @@
     "file": "app/Policies/DirectoryPolicy.php",
     "remove": "        if ($newParent !== null && $newParent->trashed()) {\n            // Not the same reveal as above -- the destination isn't hidden\n            // from the mover, since DirectoryAccess resolves Edit on it the\n            // same self-trashed-excused way. It is refused because\n            // Directory::syncPath() looks up the new parent's path through\n            // the default (non-trashed) query scope: for a trashed\n            // $newParent that lookup finds nothing, so the moved subtree's\n            // `path` is rebuilt missing the parent's own segment and its\n            // leading '/' -- exactly the column ancestorIds() and\n            // hasTrashedProperAncestor() both trust. Moving out of a\n            // trashed directory is a visibility question; moving into one\n            // is a corruption bug, and this refuses it outright.\n            return false;\n        }\n\n",
     "expectFailing": "refuses to move a directory into a trashed destination, even with edit access granted on it"
+  },
+  {
+    "id": "personal-access-token-abilities-restricted-to-eight",
+    "why": "item/api-sanctum-tokens (issue #22): spec §11 fixes a personal access token's abilities to eight coarse scopes (App\\Enums\\ApiTokenAbility), and that has to hold for a token minted by ANY path -- App\\Livewire\\Settings\\ApiTokens's own form already limits its checkbox list to the eight, but that is a courtesy to whoever is filling in the form, not a guard: $user->createToken() is public API a future /api/v1 endpoint, a console command, or Tinker can call directly with any abilities array at all, including the '*' wildcard Laravel\\Sanctum\\HasApiTokens::createToken() defaults to when none is given. Remove this throw and App\\Models\\PersonalAccessToken::booted()'s saving hook computes $unknown and does nothing with it, so a token with an ability spec §11 never sanctioned saves without complaint.",
+    "file": "app/Models/PersonalAccessToken.php",
+    "remove": "            if ($unknown !== []) {\n                throw InvalidApiTokenAbility::forAbilities($unknown);\n            }\n",
+    "expectFailing": "rejects an ability outside the eight when a token is created directly, bypassing the settings form"
   }
 ]
