@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-19T11:10:00Z",
+  "dateModified": "2026-09-19T12:00:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1228,10 +1228,12 @@
         "item/api-content"
       ],
       "doneWhen": "End-to-end url then commit; a size or checksum mismatch is rejected and the staging object removed; an archived period is rejected at upload-url; the sweep removes only stale staging objects. The per-file versions commit appends through a StoreFileVersion entry point taking the File itself, which cannot create one (issue #115): the API commit step has no Directory and no client filename, so it cannot use handle() without the string-passing hazard that issue describes. Browser::replaceFile() moves onto the same entry point. handle()'s create-or-append behaviour and StoreFileVersionTest are unchanged, and the container smoke's replace mutation (PR #118) still fails against an image whose Replace calls handle() with the client filename.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-19T11:06:00Z",
+      "endTime": "2026-09-19T11:47:24Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/267"
+      ]
     },
     {
       "@id": "item/openapi-reference",
@@ -1248,8 +1250,8 @@
         "item/api-presigned-upload"
       ],
       "doneWhen": "Adding an unlisted route fails the contract test, mutation-checked; openapi.json is committed.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-19T11:50:00Z",
       "endTime": null,
       "result": []
     },
@@ -1268,10 +1270,12 @@
         "item/admin-periods"
       ],
       "doneWhen": "A test greps every env() key read under app/, config/ and docker/ and asserts each appears in the configuration reference; every listed page exists and is non-trivial.\n\nThe dependsOn edge to item/api-presigned-upload was REMOVED on 2026-09-19 by decision/0094: spec section 12 splits documentation by audience and the self-hoster page list contains no API page, so the edge expressed writing order and was being enforced as necessity. This item is startable independently of the API chain.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-19T11:06:00Z",
+      "endTime": "2026-09-19T11:49:39Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/268"
+      ]
     },
     {
       "@id": "item/docs-site",
@@ -3546,6 +3550,38 @@
       "mergedAt": "2026-09-19T11:02:41Z",
       "mergeSha": "f233ef627202588179470d44f5b292a834fe4507",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/267",
+      "@type": "PullRequest",
+      "identifier": 267,
+      "name": "Presigned upload, commit, and the staging sweep — with a real end-to-end test",
+      "implements": [
+        "item/api-presigned-upload"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T11:31:00Z",
+      "headSha": "d2e31f6e60f4dcc143f72d2dd35b5e12a70962a5",
+      "mergedAt": "2026-09-19T11:47:24Z",
+      "mergeSha": "97a0fbf3ebc91d85bf9e6f5d127ba5761ce2f988",
+      "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/268",
+      "@type": "PullRequest",
+      "identifier": 268,
+      "name": "Self-hosting docs, with an env-key audit that a wrapped call cannot escape",
+      "implements": [
+        "item/self-hosting-docs"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T11:38:35Z",
+      "headSha": "fa57ad6cb3a4578d5d88d04401c82cc7460a58d1",
+      "mergedAt": "2026-09-19T11:49:39Z",
+      "mergeSha": "7d9b06b9896988df6613ccc2c32fa568e1a78a37",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -5128,6 +5164,38 @@
       "affects": [
         "item/tag-v1-0-0",
         "item/v1-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0096",
+      "@type": "Decision",
+      "dateCreated": "2026-09-19T11:35:00Z",
+      "run": "run/0020",
+      "name": "An invented validation rule name is a 500 on every request, and nothing local can see it",
+      "rationale": "FileCommitController validated with 'prohibited_with:file_id'. There is no such Laravel rule. Illuminate\\Validation\\Validator resolves rules through __call() to validate{StudlyRule}(), so an unknown name is neither a boot-time error nor a rule that quietly passes -- it is a BadMethodCallException thrown mid-request. Every POST /api/v1/files returned 500 regardless of its body, which is why all five PresignedUploadTest failures shared one cause and why two of them expected 201 and three expected 422.\n\nChecked against laravel/framework v13.31.0's own ValidatesAttributes rather than from memory, by fetching the file from raw.githubusercontent.com at the pinned tag: it implements validateProhibited, ProhibitedIf, ProhibitedIfAccepted, ProhibitedIfDeclined, ProhibitedUnless and Prohibits. There is no ProhibitedWith. 'prohibits:other' carries exactly the intended meaning -- other attributes must not be present when this one is -- and paired with the existing required_without on each side gives the XOR the endpoint documents.\n\nThe general point, and the reason this is a Decision rather than a commit message: a rule name is a STRING, so no static check in this repository can catch a wrong one. php -l passes, phpstan passes, pint passes. Only executing the endpoint finds it, and this environment cannot execute it. That makes a rule name exactly the kind of thing to verify against the framework's own source at the pinned version instead of recalling it. Swept the rest of app/ for other rule names the framework does not implement; this was the only one.",
+      "isBasedOn": [
+        "spec:11-api"
+      ],
+      "affects": [
+        "item/api-presigned-upload",
+        "item/api-content"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0097",
+      "@type": "Decision",
+      "dateCreated": "2026-09-19T11:44:00Z",
+      "run": "run/0020",
+      "name": "A substring test for 'is this documented' credits the wrong row",
+      "rationale": "SelfHostingDocsTest asked str_contains($reference, $key) to decide whether an env key is documented. Eleven of the 142 keys the scan finds are strict substrings of another key it also finds: LOG_CHANNEL inside MAIL_LOG_CHANNEL, DB_QUEUE inside DB_QUEUE_TABLE and DB_QUEUE_CONNECTION and DB_QUEUE_RETRY_AFTER, DB_CACHE_TABLE inside DYNAMODB_CACHE_TABLE, QUEUE_CONNECTION inside DB_QUEUE_CONNECTION and REDIS_QUEUE_CONNECTION, REDIS_QUEUE inside REDIS_QUEUE_CONNECTION, BEANSTALKD_QUEUE inside two more. A substring test counts the shorter key as documented on the strength of a row that is about the longer one -- the audit reporting a guarantee it did not check, inside the test written to prevent exactly that.\n\nNo key was mis-counted on the tree as it stood: each of the eleven was checked individually and is either exempt outright or present in the reference under its own name. So this closed the mechanism rather than fixing a present miss, which is the case where CLAUDE.md's rule bites hardest -- an unmutated tightening is indistinguishable from a no-op. Proven by mutation instead of argued: renaming the reference's QUEUE_CONNECTION rows to REDIS_QUEUE_CONNECTION leaves QUEUE_CONNECTION genuinely undocumented, and str_contains reported none undocumented (MISSED) while the \\b regex reported QUEUE_CONNECTION (CAUGHT). Re-ran the scan on the unmutated tree after: 142 scanned, 104 exempt, 0 undocumented, 0 stale, unchanged.\n\nThis is the second hole in the same audit in one iteration -- the first was a per-line scan blind to config/session.php:130's wrapped env( call, which hid SESSION_COOKIE. Both share a shape worth naming: the audit was reading the right SOURCE and asking the wrong QUESTION of it, and in both cases the wrong question still produced a green test.",
+      "isBasedOn": [
+        "spec:12-documentation",
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/self-hosting-docs"
       ],
       "supersedes": null
     }

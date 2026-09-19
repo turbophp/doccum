@@ -12,6 +12,7 @@
     "item/admin-periods",
     "item/admin-roles",
     "item/api-content",
+    "item/api-presigned-upload",
     "item/api-sanctum-tokens",
     "item/changelog-release-notes",
     "item/compose-boot-ci",
@@ -28,9 +29,11 @@
     "item/ledger-rule-witnesses",
     "item/ledger-shape-from-context",
     "item/mutation-filter-regex",
+    "item/openapi-reference",
     "item/release-gate",
     "item/role-permissions-survive-restart",
     "item/search-indexer-null-subject",
+    "item/self-hosting-docs",
     "item/smoke-installer-names-the-bounce",
     "item/smoke-livewire-settle",
     "item/spec-reconcile",
@@ -39,7 +42,7 @@
     "item/upgrade-smoke",
     "item/version-from-tag"
   ],
-  "commit": "f233ef627202588179470d44f5b292a834fe4507",
+  "commit": "7d9b06b9896988df6613ccc2c32fa568e1a78a37",
   "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally.",
   "merges": [
     {
@@ -607,6 +610,33 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35439028505",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35439028632",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "c0c724c5ea9bb73d979a6d66faeeb41e107341b6",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T11:14:25Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35439566744",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35439566727",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "97a0fbf3ebc91d85bf9e6f5d127ba5761ce2f988",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/267",
+      "mergedAt": "2026-09-19T11:47:24Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35441071445",
+      "testsConclusion": "cancelled",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35441071455",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "7d9b06b9896988df6613ccc2c32fa568e1a78a37",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/268",
+      "mergedAt": "2026-09-19T11:49:39Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35441171053",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35441171019",
       "ledgerConclusion": "success"
     }
   ]
