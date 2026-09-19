@@ -816,6 +816,175 @@ async function checkSearchFilterExcludesByPeriod(page, phase) {
   await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
 }
 
+/**
+ * item/palette-smoke (issue #276): drives the command palette in a real browser.
+ *
+ * WHY THIS EXISTS AT ALL. The palette shipped with no container-smoke
+ * assertion of any kind -- `grep palette .github/scripts/container-smoke.mjs`
+ * returned nothing before this function -- while tests/Feature/Search/
+ * PaletteTest.php covers the component thoroughly. That split is the exact
+ * one CLAUDE.md warns about: every clause PaletteTest can reach is server
+ * side (openPalette() sets a flag, hits() honours the viewer's reach,
+ * destinationFor() resolves a route), and every clause that makes the palette
+ * a palette rather than a Livewire property is browser side and was proved by
+ * nothing:
+ *
+ *   - the window-level Ctrl-K / Cmd-K binding,
+ *   - the topbar's open-search-palette CustomEvent and the palette's listener
+ *     for it,
+ *   - wire:model.live.debounce.200ms on an input that is created by the same
+ *     round trip that opens the dialog,
+ *   - Alpine's selected/move/openSelected keyboard navigation, which exists
+ *     only in x-data and so is invisible to the test renderer entirely,
+ *   - the escape-then-swap that turns the index's two private-use codepoints
+ *     into <mark>, which nothing drives in a browser: the results page carries
+ *     no data-test hooks at all.
+ *
+ * A Blade assertion renders palette.blade.php and sees the markup for all of
+ * these. It cannot see that none of it booted.
+ *
+ * WHAT IS MUTATION-PROVEN, and what the mutation had to be. Ctrl-K is handled
+ * TWICE and independently: the topbar's focusSearch() (layouts/app/topbar.blade.php)
+ * dispatches open-search-palette, and the palette's own
+ * x-on:keydown.window.prevent.ctrl.k calls $wire.openPalette() directly.
+ * Deleting either one alone leaves the keystroke working through the other,
+ * so neither is a witness to itself -- CLAUDE.md's "counting readers is not
+ * counting sources", arriving here as two writers of one behaviour. Severing
+ * the keystroke therefore means removing the whole x-on set from the palette
+ * root: its two keydown bindings AND its open-search-palette listener, which
+ * is the one site the topbar's path funnels through. The mutation is recorded
+ * against this item in the ledger, with the run that failed; no run is cited
+ * here, because a citation in a comment is a claim nobody re-checks.
+ *
+ * Called with the page already logged in and FILE_NAME already findable by
+ * FILE_MARKER -- searchUntilFound() above established both -- and it starts by
+ * navigating to /files ON PURPOSE. The palette's reason to exist is answering
+ * a search over the top of whatever you were reading; driving it from /search
+ * would prove it opens on the one page whose own field already searches.
+ */
+async function checkCommandPaletteOpensSearchesAndOpensAHit(page, phase) {
+  await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="search-palette"]').waitFor({ state: 'attached', timeout: 10000 });
+
+  const input = page.locator('[data-test="palette-input"]');
+
+  // Resting state, and worth no more than that. palette.blade.php renders its
+  // dialog inside @if ($open), so this element is absent from the DOM with no
+  // JavaScript in the image at all -- exactly the half CLAUDE.md's topbar note
+  // says was argued to be load-bearing and proved by mutation not to be. It is
+  // here so that the wait below cannot resolve against a palette that was
+  // already open, and for nothing else.
+  if (await input.count() !== 0) {
+    throw new Error('the palette was already open before Ctrl-K was pressed');
+  }
+
+  await page.keyboard.press('Control+k');
+
+  try {
+    await input.waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] Ctrl-K did not open the command palette -- [data-test="palette-input"] never appeared, so either`
+      + ' the keydown binding, the open-search-palette listener or the Livewire round trip that renders the dialog'
+      + ' is not running in the image',
+    );
+    throw Object.assign(new Error('Ctrl-K did not open the command palette'), { dumped: true });
+  }
+
+  console.log(`[${phase}] Ctrl-K opened the command palette -- the window binding and its Livewire round trip both ran`);
+
+  // Same shape as searchUntilFound(): refill rather than fill once. The
+  // component is freshly mounted here, so its query starts empty and one fill
+  // is enough to trigger the debounced commit -- but the indexing race that
+  // note describes is about the queue, not about this component, and a check
+  // that can only ever see one commit turns a slow worker into a failure that
+  // blames the palette. Clearing first is what makes a second commit fire at
+  // all: refilling an unchanged value does not.
+  const hit = page.locator('[data-test="palette-hit"]').filter({ hasText: FILE_NAME });
+  const deadline = Date.now() + SEARCH_TIMEOUT_MS;
+  let matched = false;
+
+  while (Date.now() < deadline) {
+    await input.fill('');
+    await input.fill(FILE_MARKER);
+
+    matched = await hit.first()
+      .waitFor({ state: 'visible', timeout: 2000 })
+      .then(() => true)
+      .catch(() => false);
+
+    if (matched) {
+      break;
+    }
+  }
+
+  if (! matched) {
+    dumpContainerState(
+      `[${phase}] typing ${FILE_MARKER} into the palette never produced a hit for ${FILE_NAME} within`
+      + ` ${SEARCH_TIMEOUT_MS}ms, although the search page found the same document by the same word`,
+    );
+    throw Object.assign(new Error('the command palette returned no hit for an indexed document'), { dumped: true });
+  }
+
+  console.log(`[${phase}] the palette's debounced live query found ${FILE_NAME} by a word inside it`);
+
+  // The snippet, and specifically the <mark> in it. SearchIndex wraps each
+  // matched term in two private-use codepoints rather than HTML, and the view
+  // escapes the whole snippet BEFORE swapping those two for <mark> -- the
+  // order that makes document text safe to render unescaped. Nothing drove
+  // that swap in a browser before this line, on this surface or the results
+  // page. Asserting the marked text rather than merely that a <mark> exists:
+  // a swap that produced an empty <mark> would satisfy the element and tell
+  // the reader nothing about which word matched, which is the whole point of
+  // showing a passage instead of the document's opening.
+  const marked = hit.first().locator('mark');
+
+  try {
+    await marked.first().waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] the palette hit for ${FILE_NAME} carried no <mark> -- the index's snippet markers did not`
+      + ' reach the rendered hit, so a result shows what matched but never why',
+    );
+    throw Object.assign(new Error('the palette hit rendered no highlighted snippet'), { dumped: true });
+  }
+
+  const markedText = (await marked.first().innerText()).trim().toLowerCase();
+
+  if (! markedText.includes(FILE_MARKER.toLowerCase())) {
+    dumpContainerState(
+      `[${phase}] the palette highlighted "${markedText}" rather than the searched word ${FILE_MARKER}`,
+    );
+    throw Object.assign(new Error('the palette highlighted a word other than the one searched for'), { dumped: true });
+  }
+
+  console.log(`[${phase}] the hit's snippet highlights ${FILE_MARKER} itself -- the escape-then-swap ran in the image`);
+
+  // Enter, not a click. openSelected() lives entirely in the root element's
+  // x-data and clicks whatever carries data-selected="true"; selected starts
+  // at 0, so the first hit is the one that opens. Clicking the anchor directly
+  // would prove the href and skip every line of that x-data, which is the part
+  // no other test in this repository executes.
+  await input.press('Enter');
+
+  try {
+    await page.waitForURL((u) => /^\/files\/\d+/.test(u.pathname) && u.searchParams.has('file'), { timeout: 15000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] Enter on the palette did not navigate to the selected hit -- the URL stayed at`
+      + ` ${page.url()}, so Alpine's openSelected() did not reach the selected anchor`,
+    );
+    throw Object.assign(new Error('Enter did not open the selected palette hit'), { dumped: true });
+  }
+
+  console.log(`[${phase}] Enter opened the selected hit at ${new URL(page.url()).pathname + new URL(page.url()).search} -- OK`);
+
+  // The palette closes on its way out (x-on:click on the anchor calls
+  // closePalette()), and wire:navigate replaced the page underneath it. Settle
+  // before handing the browser on, for the reason decision/0033 records above.
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+}
+
 // item/reverse-proxy-ready (issue #58): proves bootstrap/app.php's
 // TRUSTED_PROXIES default and ForceRootUrlFromRequest reach all the way to a
 // password-reset link, not just a page rendered straight to a browser (the
@@ -3777,6 +3946,9 @@ async function runSetup() {
 
     console.log('[setup] checking the search page\'s period filter actually narrows results (issue #17)');
     await checkSearchFilterExcludesByPeriod(page, 'setup');
+
+    console.log('[setup] opening the command palette with Ctrl-K from /files, searching in it, and opening a hit with Enter');
+    await checkCommandPaletteOpensSearchesAndOpensAHit(page, 'setup');
 
     console.log('[setup] trashing a file through the detail panel and confirming it disappears from the listing and from search');
     await checkTrashRemovesFileFromListingAndSearch(page, 'setup');
