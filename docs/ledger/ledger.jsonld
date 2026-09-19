@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-19T21:58:00Z",
+  "dateModified": "2026-09-19T23:10:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1476,6 +1476,7 @@
         "item/readme-owner",
         "item/search-indexer-null-subject",
         "item/smoke-installer-names-the-bounce",
+        "item/snippet-escape-order",
         "item/spec-reconcile",
         "item/spec-section8-reconcile",
         "item/trash-view",
@@ -1586,6 +1587,26 @@
       "result": [
         "https://github.com/turbophp/doccum/pull/277",
         "https://github.com/turbophp/doccum/pull/280"
+      ]
+    },
+    {
+      "@id": "item/snippet-escape-order",
+      "@type": "Action",
+      "order": 74,
+      "name": "The search snippet is escaped before its markers become <mark>",
+      "url": "https://github.com/turbophp/doccum/issues/279",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "A document whose TEXT contains markup next to the searched word is uploaded, searched, and the snippet asserted to carry that markup as literal characters -- not as an element -- on both the palette hit and the /search results row; and the guard is mutation-checked, per CLAUDE.md.\n\nWHAT WAS WRONG. Both surfaces render document text through {!! !!}. Fts5SearchIndex deliberately wraps matched terms in two PRIVATE-USE codepoints rather than in HTML, so the view can escape the whole passage first and only then swap those two for real <mark> tags. Escape-then-swap is safe; swap-then-escape renders the tags as text; never escaping renders the document's own bytes as markup -- and the passage comes from an uploaded file, so an uploader chooses them. Both views say exactly this in their own comments.\n\nNOTHING PROVED IT. SearchPageTest's fixture body was \"the tenant shall maintain the premises in good repair\" -- no '<', '&' or quote anywhere -- so the e() call could be deleted from either view and every test stayed green. The existing snippet test asserts the <mark> element, which survives that deletion untouched. A guard whose test passes without it is the state CLAUDE.md calls worse than none, because it looks protected.\n\nHOW IT IS PROVEN NOW. One test per surface, each with its own document bodied 'the <b>tenant</b> shall & \"maintain\" the premises', and three assertions that PARTITION the failure modes rather than pooling them: assertSee('&lt;b&gt;') catches \"never escapes\", assertDontSee('<b>') catches the same mode from the other side, and assertSee('<mark ...>tenant</mark>') catches \"swap-then-escape\" -- which escapes the document's markup correctly and breaks only the highlight, so neither of the first two can see it. Both fixtures are created INSIDE their own test rather than in beforeEach, so no sibling assertion changes.\n\nThe mutation is TWO .github/mutations.json entries rather than a hand-run branch, so `guards` asserts both directions on every push and the guard cannot quietly rot. See mutation/0036 and mutation/0037.\n\nWHAT THIS ITEM IS NOT, on the same footing as item/palette-smoke. Testing debt under spec:14-testing, bounded to this one ordering property. It is not a claim about what the ledger tracks and does not answer decision/0102's question; it exists as an item partly because LedgerValidator requires a Mutation's and a PullRequest's implements to resolve to an Action.\n\nWHAT REMAINS UNPROVEN, recorded so Completed is not read as coverage. resources/views/livewire/search/results.blade.php still carries no data-test hooks, and the container smoke still does not drive /search's snippet in a BROWSER -- these are Livewire component tests asserting rendered HTML, which is a different thing. The issue's original clause guessed that a data-test hook would be needed first; it was not, and that guess is recorded here rather than silently dropped.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-19T22:45:00Z",
+      "endTime": "2026-09-19T23:06:10Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/284"
       ]
     },
     {
@@ -3687,6 +3708,22 @@
       "headSha": "6ad7846598c8be71550bf1a965dde1fc6c4b1332",
       "mergedAt": "2026-09-19T21:56:20Z",
       "mergeSha": "9cda77073196c26a620066085a88565ccd19d90a",
+      "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/284",
+      "@type": "PullRequest",
+      "identifier": 284,
+      "name": "Prove the search snippet is escaped before its markers become <mark>",
+      "implements": [
+        "item/snippet-escape-order"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T22:59:09Z",
+      "headSha": "c4ddc7e41bddbca766e607f53dbeef8e0dd19881",
+      "mergedAt": "2026-09-19T23:06:10Z",
+      "mergeSha": "61ff5622b256cffe0cf0d75321ac9d92e7b14cdb",
       "mergedIn": "run/0020"
     }
   ],
@@ -5890,6 +5927,34 @@
       "headSha": "6ad7846598c8be71550bf1a965dde1fc6c4b1332",
       "mutant": "The pre-release fallback finds the RIGHT section and returns a truncated body: `extract_section \"$core\"` becomes `extract_section \"$core\" | head -1`.\n\nWritten specifically because mutation/0034 failed on the exit code and therefore left the body comparison unproven. This mutant keeps the fallback succeeding -- right section, exit 0 -- and changes only what it returns, so the exit-code clause cannot fire and the body comparison is the only thing left that can catch it.\n\nRun locally, restored byte-identical, confirmed with cmp.",
       "check": "Same harness as mutation/0033 and 0034.\n\nMUTATED:\n  A1 pass\n  A2 pass\n  A3 FAIL   body differs from [0.1.0]\n  A4 pass\n\nTHE BODY COMPARISON IS LOAD-BEARING, which mutation/0034 could not establish. The failure names the clause -- \"body differs from [0.1.0]\" -- rather than an exit code, so the two mutants together partition the assertion: 0034 proves the exit-code clause catches a fallback that lands on an empty section, 0035 proves the body clause catches one that lands on the right section and returns the wrong text. An assertion asserting only `exit 0` would have passed this mutant and published a one-line Release.\n\nWHAT THE PAIR STILL DOES NOT ESTABLISH. Neither mutant makes the fallback land on a wrong section that is NON-empty, because CHANGELOG.md currently has only two sections and one of them is blank. The body comparison is proven against truncation, not against substitution. A changelog with a second populated section would allow that case; recorded rather than left for a reader to assume the partition is complete.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0036",
+      "@type": "Mutation",
+      "implements": [
+        "item/snippet-escape-order"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/284",
+      "run": "run/0020",
+      "headSha": "c4ddc7e41bddbca766e607f53dbeef8e0dd19881",
+      "mutant": ".github/mutations.json entry `search-results-snippet-escaped-before-mark-swap`. Unlike most Mutation nodes here, this one is not a branch somebody pushed once: it is a registered guard that CI's `guards` job re-runs on every push, the same shape as mutation/0028 and mutation/0029.\n\nTHE MUTANT removes the bare letter `e` immediately before `(Str::limit($hit->snippet, 260))` in resources/views/livewire/search/results.blade.php, leaving a no-op parenthesised group. The `remove` string carries the preceding newline and indentation so that it matches exactly once -- verified with substr_count and cross-checked with grep -c, not by reading.\n\nWHY THAT MUTANT AND NOT THE OBVIOUS ONE. Deleting the whole e(...) call leaves str_replace() with two arguments: an ArgumentCountError that crashes the render. That would prove the test notices SOMETHING, not that it notices THIS. The bare-letter mutant is precise because the swap array is [e(MARK_OPEN), e(MARK_CLOSE)] and e() leaves a private-use codepoint untouched -- so under the mutant the marker swap still runs and produces a real <mark>, and the only thing lost is the escaping. The failure is therefore attributable to the ordering rather than to the view having broken.",
+      "check": "The `guards` job on PR #284, run https://github.com/turbophp/doccum/actions/runs/35474841420, head c4ddc7e. Verbatim:\n\n  === search-results-snippet-escaped-before-mark-swap ===\n      guard present  -> \"escapes hostile markup in the results page snippet before swapping the match into a mark element\" passes\n      guard deleted  -> \"escapes hostile markup in the results page snippet before swapping the match into a mark element\" fails, as it must\n\nBOTH DIRECTIONS IN ONE RUN, which is what a registered entry buys over a hand-pushed mutation branch: mutation-check.php asserts that the named test passes with the guard in place AND fails with it deleted, then restores the file and the job asserts the working tree is clean.\n\nREAD FROM THE LOG, NOT INFERRED FROM THE JOB. A green `guards` says all registered guards held; it does not by itself say this entry ran at all -- an entry whose `remove` failed to match could in principle be skipped. The lines above were grepped out of the job log for that reason, and the run also printed \"All 94 guard(s) are load-bearing.\"",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0037",
+      "@type": "Mutation",
+      "implements": [
+        "item/snippet-escape-order"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/284",
+      "run": "run/0020",
+      "headSha": "c4ddc7e41bddbca766e607f53dbeef8e0dd19881",
+      "mutant": ".github/mutations.json entry `search-palette-snippet-escaped-before-mark-swap`. Unlike most Mutation nodes here, this one is not a branch somebody pushed once: it is a registered guard that CI's `guards` job re-runs on every push, the same shape as mutation/0028 and mutation/0029.\n\nTHE MUTANT removes the bare letter `e` immediately before `(Str::limit($hit->snippet, 160))` in resources/views/livewire/search/palette.blade.php, leaving a no-op parenthesised group. The `remove` string carries the preceding newline and indentation so that it matches exactly once -- verified with substr_count and cross-checked with grep -c, not by reading.\n\nWHY THAT MUTANT AND NOT THE OBVIOUS ONE. Deleting the whole e(...) call leaves str_replace() with two arguments: an ArgumentCountError that crashes the render. That would prove the test notices SOMETHING, not that it notices THIS. The bare-letter mutant is precise because the swap array is [e(MARK_OPEN), e(MARK_CLOSE)] and e() leaves a private-use codepoint untouched -- so under the mutant the marker swap still runs and produces a real <mark>, and the only thing lost is the escaping. The failure is therefore attributable to the ordering rather than to the view having broken.",
+      "check": "The `guards` job on PR #284, run https://github.com/turbophp/doccum/actions/runs/35474841420, head c4ddc7e. Verbatim:\n\n  === search-palette-snippet-escaped-before-mark-swap ===\n      guard present  -> \"escapes hostile markup in the palette snippet before swapping the match into a mark element\" passes\n      guard deleted  -> \"escapes hostile markup in the palette snippet before swapping the match into a mark element\" fails, as it must\n\nBOTH DIRECTIONS IN ONE RUN, which is what a registered entry buys over a hand-pushed mutation branch: mutation-check.php asserts that the named test passes with the guard in place AND fails with it deleted, then restores the file and the job asserts the working tree is clean.\n\nREAD FROM THE LOG, NOT INFERRED FROM THE JOB. A green `guards` says all registered guards held; it does not by itself say this entry ran at all -- an entry whose `remove` failed to match could in principle be skipped. The lines above were grepped out of the job log for that reason, and the run also printed \"All 94 guard(s) are load-bearing.\"",
       "verdict": "negative",
       "supersedes": null
     }
