@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Services\DocumentStorage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Throwable;
 
 /**
  * Clears staging objects (spec §11's `uploads/{uuid}` prefix) left behind by
@@ -41,9 +42,17 @@ class SweepUploads extends Command
         $swept = 0;
 
         foreach ($disk->allFiles($prefix) as $path) {
-            $lastModified = $disk->lastModified($path);
-
-            if ($lastModified === false) {
+            // allFiles() lists, then lastModified() asks about each entry one
+            // at a time, so a commit that promotes and deletes its own staging
+            // object in between leaves this loop asking about a path that no
+            // longer exists. The previous guard here compared the result to
+            // `false`, which PHPStan correctly called unreachable: the method
+            // is typed int and signals failure by throwing, so the `continue`
+            // could never run and the race it was written for was unhandled.
+            // A vanished object is exactly what this sweep wants to skip.
+            try {
+                $lastModified = $disk->lastModified($path);
+            } catch (Throwable) {
                 continue;
             }
 

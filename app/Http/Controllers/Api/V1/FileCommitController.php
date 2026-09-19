@@ -42,8 +42,8 @@ class FileCommitController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'directory_id' => ['required_without:file_id', 'prohibited_with:file_id', 'integer'],
-            'file_id' => ['required_without:directory_id', 'prohibited_with:directory_id', 'integer'],
+            'directory_id' => ['required_without:file_id', 'prohibits:file_id', 'integer'],
+            'file_id' => ['required_without:directory_id', 'prohibits:directory_id', 'integer'],
             'upload_id' => ['required', 'string'],
             'checksum' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
         ]);

@@ -153,6 +153,8 @@ class CommitUpload
      *
      * A mismatch removes the staging object before throwing, so a rejected
      * commit never leaves a stale object behind (spec's own doneWhen).
+     *
+     * @param  array<string, mixed>  $payload
      */
     private function verify(array $payload, string $checksum): string
     {
