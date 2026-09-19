@@ -80,6 +80,54 @@ class LikeSearchIndex implements SearchIndex
             ->limit($limit)
             ->get();
 
-        return $documents->map(static fn (SearchDocument $d): SearchHit => SearchHit::fromDocument($d, 0.0))->values();
+        return $documents
+            ->map(fn (SearchDocument $d): SearchHit => SearchHit::fromDocument($d, 0.0, $this->snippet($d, $words)))
+            ->values();
+    }
+
+    /**
+     * A passage around the first matching term, marked the same way FTS5 marks
+     * its own.
+     *
+     * SQLite gets this from snippet(); MySQL and PostgreSQL have no equivalent
+     * here, and without it a result on those drivers shows the opening of the
+     * document instead of the part that matched -- the same page behaving
+     * differently depending on which database an operator chose. The markers
+     * are the index's own constants, so the view's escape-then-mark step is
+     * identical whichever driver answered.
+     *
+     * @param  array<int, string>  $terms
+     */
+    private function snippet(SearchDocument $document, array $terms): string
+    {
+        $body = (string) $document->body;
+
+        if ($body === '' || $terms === []) {
+            return '';
+        }
+
+        foreach ($terms as $term) {
+            $at = mb_stripos($body, $term);
+
+            if ($at === false) {
+                continue;
+            }
+
+            $start = max(0, $at - 60);
+            $passage = mb_substr($body, $start, 260);
+
+            // Marked case-insensitively but rendered with the document's own
+            // casing: a result that silently rewrote the text it quotes would
+            // be worse than one that quotes nothing.
+            $marked = preg_replace_callback(
+                '/'.preg_quote($term, '/').'/iu',
+                static fn (array $m): string => Fts5SearchIndex::MARK_OPEN.$m[0].Fts5SearchIndex::MARK_CLOSE,
+                $passage,
+            );
+
+            return ($start > 0 ? '…' : '').(string) $marked;
+        }
+
+        return '';
     }
 }

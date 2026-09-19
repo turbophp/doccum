@@ -6,16 +6,34 @@
     lays out what it was handed (CLAUDE.md: filter in the query, never in
     the view).
 
-    Every x-on/x-show/x-text below resolves against the Alpine component
-    declared on the ancestor <aside data-test="directory-tree"> in
+    Every x-on/x-show below resolves against the Alpine component declared
+    on the ancestor <aside data-test="directory-tree"> in
     browser.blade.php -- toggle()/isExpanded() persist per-directory
     collapse state to localStorage, wrapped in try/catch there because it
     throws in a private window. Nothing in this partial needs its own
     x-data.
+
+    Plain <a>, not flux:link: flux:link renders `inline` and an accent text
+    colour of its own. Layout utilities do not win by being written later in
+    an attribute -- `inline` and `flex` have the same specificity, so the
+    stylesheet's order decides, and the row's icon and label stopped being a
+    flex row at all. The Home entry above already writes its anchor by hand,
+    for a different reason; this one does it for this one.
 --}}
 @foreach ($nodes as $node)
+    @php
+        $isCurrent = isset($directory) && $directory?->getKey() === $node->getKey();
+    @endphp
+
     <li data-test="sidebar-directory" data-directory-id="{{ $node->id }}" data-drop-directory-id="{{ $node->id }}">
-        <div class="group flex h-7 items-center gap-1 rounded px-1 hover:bg-sheet">
+        {{-- Where you are is said with weight and ink, not with a coloured
+             panel: a tree is a list of names, and tinting one of them turns a
+             quiet index into a component with a state. --}}
+        <div @class([
+            'flex h-7 items-center gap-1 rounded',
+            'bg-chrome' => $isCurrent,
+            'hover:bg-chrome/60' => ! $isCurrent,
+        ])>
             @if ($node->children->isNotEmpty())
                 {{-- A plain <button>, not flux:button: this is a dense tree
                      row and the built-in button's default padding would
@@ -25,39 +43,49 @@
                      The chevron rotates through a CSS transition rather than
                      move(): 120ms of rotation needs neither a spring nor
                      JavaScript. It is reduced-motion-safe because app.css
-                     collapses every transition under the media query -- the
-                     per-element `motion-reduce:` variant this used to need
-                     could be forgotten, and was. --}}
+                     collapses every transition under the media query. --}}
                 <button
                     type="button"
                     data-test="sidebar-toggle"
-                    class="flex w-4 shrink-0 cursor-pointer items-center justify-center text-ink-2 hover:text-ink"
+                    class="flex size-5 shrink-0 cursor-pointer items-center justify-center text-ink-2 hover:text-ink"
                     x-on:click="toggle({{ $node->id }})"
                     :aria-expanded="isExpanded({{ $node->id }}) ? 'true' : 'false'"
                     aria-label="{{ __('Toggle :name', ['name' => $node->name]) }}"
                 >
                     <flux:icon.chevron-right
                         variant="micro"
-                        class="transition-transform duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)]"
+                        class="size-3.5 transition-transform duration-[120ms] ease-[cubic-bezier(0.2,0,0,1)]"
                         x-bind:class="isExpanded({{ $node->id }}) ? 'rotate-90' : ''"
                     />
                 </button>
             @else
-                <span class="w-4 shrink-0"></span>
+                <span class="size-5 shrink-0"></span>
             @endif
 
-            <flux:icon.folder variant="micro" class="shrink-0 text-ink-2" />
-
-            <flux:link
-                :href="route('files.browse', $node)"
+            {{-- The link fills the rest of the row, so clicking anywhere right
+                 of the chevron navigates. Its accessible name is the
+                 directory's name and nothing else -- the icon is decorative,
+                 and the container smoke locates these with
+                 getByRole('link', { name: <username> }) in eleven places. --}}
+            <a
+                href="{{ route('files.browse', $node) }}"
                 wire:navigate
-                variant="ghost"
-                class=" min-w-0 flex-1 truncate text-sm text-ink"
-            >{{ $node->name }}</flux:link>
+                @class([
+                    'flex min-w-0 flex-1 items-center gap-1.5 pr-1.5 text-sm no-underline',
+                    'font-medium text-ink' => $isCurrent,
+                    'text-ink-2 hover:text-ink' => ! $isCurrent,
+                ])
+            >
+                <flux:icon.folder variant="micro" class="size-4 shrink-0" aria-hidden="true" />
+                <span class="truncate">{{ $node->name }}</span>
+            </a>
         </div>
 
         @if ($node->children->isNotEmpty())
-            <ul class="ml-4 space-y-0.5" x-show="isExpanded({{ $node->id }})">
+            {{-- An indent guide rather than bare margin: three levels deep, a
+                 plain indent is a column of text with nothing tying a child to
+                 its parent, and counting pixels is not reading. --}}
+            <ul class="ml-2.5 space-y-px border-l border-rule pl-2" x-show="isExpanded({{ $node->id }})">
                 @include('livewire.files.partials.directory-tree', ['nodes' => $node->children])
             </ul>
         @endif

@@ -123,3 +123,109 @@ it('refuses to trash a folder that is not a child of the directory being browsed
 
     expect($elsewhere->fresh()->trashed())->toBeFalse();
 });
+
+// --- preview navigation ------------------------------------------------------
+//
+// Stepping moves through the listing the person is looking at, in the order
+// they see, and every step is authorised exactly like opening one is.
+
+it('steps to the next and previous file in the order the listing shows', function () {
+    $a = File::factory()->for($this->dir, 'directory')->create(['name' => 'a.txt']);
+    $b = File::factory()->for($this->dir, 'directory')->create(['name' => 'b.txt']);
+    $c = File::factory()->for($this->dir, 'directory')->create(['name' => 'c.txt']);
+
+    $component = Livewire::actingAs($this->member)
+        ->test(Browser::class, ['directory' => $this->dir])
+        ->call('preview', $b->id);
+
+    $component->call('previewStep', 1)->assertSet('previewFileId', $c->id);
+    $component->call('previewStep', -1)->assertSet('previewFileId', $b->id);
+    $component->call('previewStep', -1)->assertSet('previewFileId', $a->id);
+});
+
+it('stops at the ends rather than wrapping around', function () {
+    $a = File::factory()->for($this->dir, 'directory')->create(['name' => 'a.txt']);
+    File::factory()->for($this->dir, 'directory')->create(['name' => 'b.txt']);
+
+    Livewire::actingAs($this->member)
+        ->test(Browser::class, ['directory' => $this->dir])
+        ->call('preview', $a->id)
+        ->call('previewStep', -1)
+        ->assertSet('previewFileId', $a->id);
+});
+
+it('follows the listing order rather than the id order when sorted', function () {
+    // Created in one order, sorted into another: stepping must agree with the
+    // rows on screen, not with whichever integers the database handed out.
+    $first = File::factory()->for($this->dir, 'directory')->create(['name' => 'a.txt', 'size' => 900]);
+    $second = File::factory()->for($this->dir, 'directory')->create(['name' => 'b.txt', 'size' => 100]);
+
+    Livewire::actingAs($this->member)
+        ->test(Browser::class, ['directory' => $this->dir])
+        ->set('sort', 'size')
+        ->set('direction', 'asc')
+        ->call('preview', $second->id)
+        ->call('previewStep', 1)
+        ->assertSet('previewFileId', $first->id);
+});
+
+it('reports the position in the listing, one-based', function () {
+    File::factory()->for($this->dir, 'directory')->create(['name' => 'a.txt']);
+    $b = File::factory()->for($this->dir, 'directory')->create(['name' => 'b.txt']);
+    File::factory()->for($this->dir, 'directory')->create(['name' => 'c.txt']);
+
+    $component = Livewire::actingAs($this->member)
+        ->test(Browser::class, ['directory' => $this->dir])
+        ->call('preview', $b->id);
+
+    expect($component->instance()->previewPosition())->toBe([2, 3]);
+});
+
+it('refuses to step into a file the viewer cannot reach', function () {
+    // The neighbouring row is not evidence: previewStep() goes through
+    // preview(), which authorises, so a listing that somehow contained an
+    // unreachable id still cannot open it.
+    $mine = File::factory()->for($this->dir, 'directory')->create(['name' => 'mine.txt']);
+    $elsewhere = Directory::factory()->create(['name' => 'Theirs']);
+    $theirs = File::factory()->for($elsewhere, 'directory')->create(['name' => 'theirs.txt']);
+
+    Livewire::actingAs($this->member)
+        ->test(Browser::class, ['directory' => $this->dir])
+        ->call('preview', $mine->id)
+        ->call('preview', $theirs->id)
+        ->assertForbidden();
+});
+
+// --- a preview is a place, not a dialog -------------------------------------
+
+it('opens the file its link names, in that file\'s own directory', function () {
+    // The point of putting the preview in the URL is that the link can be
+    // sent to someone. A recipient has the file, not the folder, so the page
+    // has to find the folder itself -- otherwise a shared link lands in the
+    // root with a dialog over the wrong listing.
+    $elsewhere = Directory::factory()->create(['name' => 'Filed']);
+    grant($elsewhere, $this->member, AccessLevel::Manage);
+    $file = File::factory()->for($elsewhere, 'directory')->create(['name' => 'shared.txt']);
+
+    $component = Livewire::actingAs($this->member)
+        ->withQueryParams(['file' => $file->id])
+        ->test(Browser::class);
+
+    $component->assertSet('previewFileId', $file->id);
+
+    expect($component->instance()->previewFile()?->getKey())->toBe($file->getKey());
+});
+
+it('drops a file parameter the viewer may not see, rather than refusing the page', function () {
+    // The link is simply a link to the file browser for someone without the
+    // grant. Refusing the whole page would tell them a file exists at that id,
+    // which is more than they are entitled to know.
+    $elsewhere = Directory::factory()->create(['name' => 'Theirs']);
+    $file = File::factory()->for($elsewhere, 'directory')->create(['name' => 'secret.txt']);
+
+    Livewire::actingAs($this->member)
+        ->withQueryParams(['file' => $file->id])
+        ->test(Browser::class)
+        ->assertOk()
+        ->assertSet('previewFileId', null);
+});

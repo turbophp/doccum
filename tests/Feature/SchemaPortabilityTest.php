@@ -130,6 +130,14 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
     'app/Search/LikeSearchIndex.php' => "PostgreSQL's LIKE is case-sensitive; SQLite's and MySQL's default utf8mb4 collation are ".
         'not. Switches to ILIKE on pgsql specifically so search does not go silently empty there -- '.
         'the fix for issue #2/PR #2.',
+    'app/Search/Terms.php' => 'Builds an FTS5 MATCH expression, which is SQLite-only syntax: quoted terms, and a '.
+        'trailing * for the prefix queries that let "invo" find "invoice". Only Fts5SearchIndex '.
+        'calls toFts5(), and DoccumServiceProvider resolves that class only when getDriverName() '.
+        'is sqlite. words() is plain PHP and is what LikeSearchIndex uses, so the two drivers '.
+        'share the tokenising and differ only in the expression built from it -- which is the '.
+        'whole point of keeping them in one class. Worth knowing that the two are not equivalent: '.
+        'LIKE matches %word% and so finds a word from its middle, while a prefix finds it only '.
+        'from its start.',
     'app/Search/SearchIndex.php' => 'The word "LIKE" appears only in a docblock explaining LikeSearchIndex\'s relationship to '.
         'this interface -- prose, not a query. Not actually driver-dependent; registered because '.
         'the grep cannot tell the difference.',

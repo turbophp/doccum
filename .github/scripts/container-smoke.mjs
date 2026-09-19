@@ -1220,6 +1220,86 @@ async function checkTopbar(page, phase) {
 }
 
 /**
+ * Opens a file in the preview dialog and requires it to SHOW something.
+ *
+ * What makes this worth running rather than decorative: it asserts the preview
+ * has actually rendered the file's bytes, not merely that a dialog appeared.
+ * An element exists whether or not what it was supposed to show arrived, so
+ * "the dialog opened" is satisfied by a preview showing nothing -- which is
+ * exactly the state a file with no stored version, or a frame pointing at a
+ * 404, was in before this branch. The assertion requires the uploaded text to
+ * be inside what was drawn.
+ *
+ * Also the one check that drives an icon action: every control on a row is
+ * icon-only now, named by aria-label, so this is where "the icons reached
+ * their methods in the built image" is established.
+ *
+ * Mutation, measured rather than argued -- with the caveat stated plainly,
+ * because CLAUDE.md says never to cite an unmutated assertion as evidence and
+ * a half-measured one deserves the same honesty. Replacing the text/pdf branch
+ * of the preview with `@elseif (false)` and running this assertion's exact
+ * locators produced:
+ *
+ *     guard present -> pass: frame contains the file bytes
+ *     guard deleted -> fail: locator.waitFor: Timeout 8000ms exceeded
+ *     restored      -> pass
+ *
+ * Re-measured after the assertion moved from the frame to the rendered source,
+ * because a mutation proves the assertion it was run against and not its
+ * successor: emptying the code view (dropping x-html="code") made it fail at
+ * the timeout, and restoring it made it pass.
+ *
+ * The original measurement, kept because what the container caught is the
+ * reason this check exists. That was run against the dev server first, and the
+ * container then found something the dev server could not: the preview pointed at the DOWNLOAD
+ * route, which answers Content-Disposition: attachment and, where object
+ * storage can issue one, redirects to a presigned URL. On a dev machine that
+ * redirect lands on Laravel's own /storage path and renders; in the image it
+ * names MinIO on loopback:9000, which the browser on :8080 cannot reach, so
+ * the frame stayed blank and this assertion timed out at 15s.
+ *
+ * That is the check doing exactly the job CLAUDE.md keeps it for -- a green
+ * suite and a passing dev-server run both said the preview worked. The fix is
+ * FilePreviewController, which always streams and always inline.
+ */
+async function checkFilePreviewShowsTheFileContents(page, phase) {
+  const name = 'DoccumSmokePreviewTarget.txt';
+  const body = 'These exact words must appear inside the preview frame.\n';
+
+  await uploadAndProveStored(page, name, body, phase);
+
+  const row = page.locator('tr[data-test="file-row"]').filter({ hasText: name });
+  await row.getByLabel('View', { exact: true }).click();
+
+  const dialog = page.locator('[data-test="preview-modal"]');
+  await dialog.waitFor({ state: 'visible', timeout: 10000 });
+
+  // The header names the file being shown, which is what tells someone with
+  // two previews open in sequence which one they are looking at.
+  await dialog.getByText(name, { exact: true }).waitFor({ timeout: 10000 });
+
+  // A .txt renders as highlighted SOURCE, not in an iframe: the preview shows
+  // markup in a frame and everything else textual as its own text, so
+  // [data-test="preview-frame"] does not exist for this file at all. This
+  // assertion used to wait for that frame and timed out at 15s once the code
+  // view landed -- the check outliving the shape of the thing it checks.
+  //
+  // What it requires is unchanged and is the point: the uploaded bytes have to
+  // be INSIDE what was rendered. "A dialog appeared" is satisfied by a preview
+  // showing nothing at all.
+  const rendered = page.locator('[data-test="preview-code"]');
+  await rendered.waitFor({ state: 'visible', timeout: 15000 });
+  await rendered.filter({ hasText: 'must appear inside the preview frame' })
+    .waitFor({ timeout: 15000 });
+
+  console.log(`[${phase}] the preview rendered the uploaded file's own bytes`);
+
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden', timeout: 10000 });
+  console.log(`[${phase}] Escape closes the preview`);
+}
+
+/**
  * item/home-dashboard (issue #16): confirms the Home destination (spec §10)
  * is wired to real data, not a static placeholder -- the starter kit's own
  * `dashboard` view before this item, which rendered three empty tiles no
@@ -1673,7 +1753,13 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-  await page.getByText(TRASH_CHECK_FILE_NAME, { exact: true }).click();
+
+  // Through the row, not the name. Clicking a file's NAME opens it in the
+  // preview dialog now, and this check wants the detail panel BEHIND that
+  // dialog: with the preview open, trash-file-button resolves but never
+  // becomes actionable, because a scrim is over it. Selecting exactly one row
+  // populates the same panel without opening anything.
+  await clickFileRow(page, TRASH_CHECK_FILE_NAME);
 
   const trashButton = page.locator('[data-test="trash-file-button"]');
   await trashButton.waitFor({ state: 'visible', timeout: 10000 });
@@ -1845,7 +1931,11 @@ async function checkReplaceAddsASecondVersion(page, phase) {
   await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
   await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
   await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).waitFor({ timeout: 10000 });
-  await page.getByText(VERSIONS_CHECK_FILE_NAME, { exact: true }).click();
+
+  // Through the row, not the name: clicking a file's NAME now opens it in the
+  // preview dialog, and this check wants the detail panel behind it rather
+  // than a dialog over it. Selecting exactly one row populates that panel.
+  await clickFileRow(page, VERSIONS_CHECK_FILE_NAME);
 
   // Two input[type="file"] elements exist on the page from this point on --
   // the main upload form's and this now-visible Replace form's -- so every
@@ -3696,6 +3786,9 @@ async function runSetup() {
 
     console.log('[setup] following a Download link and checking the bytes come back (issue #74)');
     await checkDownloadReturnsTheUploadedBytes(page, 'setup');
+
+    console.log('[setup] opening a file in the preview dialog and reading its bytes back out of the frame');
+    await checkFilePreviewShowsTheFileContents(page, 'setup');
 
     console.log('[setup] bulk-trashing two of three uploaded files and confirming the third survives');
     await checkBulkTrashLeavesUnselectedFilesAlone(page, 'setup');

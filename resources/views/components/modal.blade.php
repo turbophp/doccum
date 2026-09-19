@@ -37,9 +37,12 @@
     x-show="{{ $state }}"
     x-cloak
     @class([
-        'fixed inset-0 z-50 flex justify-center px-4',
-        'items-start pt-24' => $size !== 'full',
-        'items-center py-6' => $size === 'full',
+        'fixed inset-0 z-50 flex justify-center',
+        // A form floats; a viewer takes the screen. `full` means the viewport
+        // itself -- no gutter, no rounding, nothing of the page behind it to
+        // look past while reading a document.
+        'items-start px-4 pt-24' => $size !== 'full',
+        'items-stretch' => $size === 'full',
     ])
     @if ($test) data-test="{{ $test }}" @endif
     x-on:keydown.escape.window="{{ $dismissExpression }}"
@@ -55,17 +58,25 @@
 
     <div
         @class([
-            'relative flex w-full flex-col rounded-lg border border-rule bg-sheet shadow-lg',
-            'max-w-md' => $size !== 'full',
-            'h-[88vh] max-w-[min(1400px,94vw)]' => $size === 'full',
+            'relative flex w-full flex-col bg-sheet',
+            'max-w-md rounded-lg border border-rule shadow-lg' => $size !== 'full',
+            'h-screen max-w-none' => $size === 'full',
         ])
         role="dialog"
         aria-modal="true"
         aria-label="{{ $title }}"
         x-trap.noscroll="{{ $state }}"
     >
-        <div class="flex shrink-0 items-center gap-3 border-b border-rule px-4 py-3">
-            <h2 class="min-w-0 flex-1 truncate text-sm font-semibold text-ink">{{ $title }}</h2>
+        <div @class([
+            'flex shrink-0 items-center gap-3 border-b border-rule',
+            'px-4 py-3' => $size !== 'full',
+            'h-14 px-5' => $size === 'full',
+        ])>
+            <h2 @class([
+                'min-w-0 flex-1 truncate font-semibold text-ink',
+                'text-sm' => $size !== 'full',
+                'text-base' => $size === 'full',
+            ])>{{ $title }}</h2>
 
             @if ($controls)
                 <div class="flex shrink-0 items-center gap-2">{{ $controls }}</div>
@@ -73,11 +84,15 @@
 
             <button
                 type="button"
-                class="text-ink-2 hover:text-ink"
+                @class([
+                    'flex shrink-0 items-center justify-center rounded text-ink-2 hover:bg-chrome hover:text-ink',
+                    'size-6' => $size !== 'full',
+                    'size-9' => $size === 'full',
+                ])
                 x-on:click="{{ $dismissExpression }}"
                 aria-label="{{ __('Close') }}"
             >
-                <flux:icon.x-mark variant="micro" />
+                <flux:icon.x-mark :variant="$size === 'full' ? 'outline' : 'micro'" @class(['size-5' => $size === 'full']) />
             </button>
         </div>
 

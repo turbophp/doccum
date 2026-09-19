@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -149,7 +150,19 @@ class Browser extends Component
 
     /**
      * The file being previewed, if any.
+     *
+     * In the URL, because a preview with no address cannot be sent to anyone.
+     * Opening a document and then pasting the link is what people do with a
+     * viewer, and a dialog that lives only in component state answers that
+     * with the directory listing.
+     *
+     * Query string rather than a fragment: a fragment never reaches the
+     * server, so the page would arrive closed and pop open afterwards, and a
+     * link shared with someone who cannot see the file would look like it
+     * worked until it did not. `?file=` is resolved and authorised during the
+     * request that renders the page.
      */
+    #[Url(as: 'file', except: null)]
     public ?int $previewFileId = null;
 
     /**
@@ -178,6 +191,34 @@ class Browser extends Component
         }
 
         $this->directory = $directory;
+
+        // A link to a file carries the file, not the folder it happens to sit
+        // in. Someone sharing a preview should not have to know -- or send --
+        // the directory as well, and a recipient who pasted /files?file=123
+        // would otherwise land in the root with a dialog open over the wrong
+        // listing, or over nothing at all.
+        //
+        // So the file decides where the page opens. It is authorised first,
+        // and a file the viewer may not see clears the parameter rather than
+        // refusing the page: the link is then simply a link to the file
+        // browser, which is what it is to them.
+        if ($this->previewFileId !== null) {
+            $file = File::query()->find($this->previewFileId);
+
+            if ($file === null || auth()->user()?->cannot('view', $file)) {
+                $this->previewFileId = null;
+
+                return;
+            }
+
+            if ($this->directory?->getKey() !== $file->directory_id) {
+                $destination = $file->directory;
+
+                if ($destination !== null && auth()->user()?->can('view', $destination)) {
+                    $this->directory = $destination;
+                }
+            }
+        }
     }
 
     /** Opens the detail area's property panel on one file in the current directory. */
@@ -437,6 +478,81 @@ class Browser extends Component
         $this->authorize('view', $file);
 
         $this->previewFileId = $file->getKey();
+
+        // The panel behind the dialog describes what is being previewed,
+        // so closing the preview leaves the details of the file just seen
+        // rather than whatever was selected beforehand.
+        if ($file->directory_id === $this->directory?->getKey()) {
+            $this->selectFile($file->getKey());
+        }
+    }
+
+    /**
+     * Move the preview to the next or previous file in the listing.
+     *
+     * The order comes from filesQuery(), the same query the table renders, so
+     * "next" means the next row you can see rather than the next id in the
+     * database -- those differ the moment anything is sorted by size or owner.
+     *
+     * Reuses preview() rather than assigning the id directly, so stepping is
+     * authorised exactly like opening is; a neighbouring row is not evidence
+     * of anything.
+     */
+    public function previewStep(int $offset): void
+    {
+        if ($this->previewFileId === null) {
+            return;
+        }
+
+        // A list of ints, not whatever pluck() hands back: array_search on a
+        // mixed-key array returns int|string, and the arithmetic below needs
+        // an integer position.
+        /** @var list<int> $ids */
+        $ids = $this->filesQuery()->pluck('files.id')->map(intval(...))->values()->all();
+
+        $position = array_search($this->previewFileId, $ids, true);
+
+        if ($position === false) {
+            return;
+        }
+
+        $target = $ids[$position + $offset] ?? null;
+
+        if ($target === null) {
+            return;
+        }
+
+        $this->preview((int) $target);
+    }
+
+    /**
+     * Where the previewed file sits in the listing, as [position, total].
+     *
+     * Both 1-based and only for display. Returns null when nothing is being
+     * previewed, or when the file is no longer in this listing at all -- it
+     * may have been moved or trashed in another tab while the dialog was open.
+     *
+     * @return array{int, int}|null
+     */
+    public function previewPosition(): ?array
+    {
+        if ($this->previewFileId === null || $this->directory === null) {
+            return null;
+        }
+
+        // A list of ints, not whatever pluck() hands back: array_search on a
+        // mixed-key array returns int|string, and the arithmetic below needs
+        // an integer position.
+        /** @var list<int> $ids */
+        $ids = $this->filesQuery()->pluck('files.id')->map(intval(...))->values()->all();
+
+        $position = array_search($this->previewFileId, $ids, true);
+
+        if ($position === false) {
+            return null;
+        }
+
+        return [$position + 1, count($ids)];
     }
 
     public function closePreview(): void
@@ -783,6 +899,17 @@ class Browser extends Component
         }
 
         $this->lastClickedId = $id;
+
+        // A selection of exactly one file also shows that file's details --
+        // the behaviour every file manager has, and what makes a plain row
+        // click worth making. Anything else clears the panel, because a
+        // detail panel showing one of five selected files is a lie about
+        // what the next action will apply to.
+        if (count($this->selectedIds) === 1) {
+            $this->selectFile($this->selectedIds[0]);
+        } else {
+            $this->selectedFile = null;
+        }
     }
 
     /**

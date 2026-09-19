@@ -364,6 +364,13 @@
     "expectFailing": "refuses to strip the sole holder of users.manage down to a role with no permission"
   },
   {
+    "id": "previewed-bytes-are-sandboxed-so-an-upload-cannot-run-as-the-app",
+    "why": "The preview endpoint serves somebody's uploaded bytes INLINE, same-origin, for a browser to render -- which the download endpoint never did. Without a sandbox policy an uploaded HTML page runs its own scripts with the viewer's session, so in a system built around people filing documents for each other, one upload acts as whoever opens it. `sandbox` with no allow-scripts answers that: opaque origin, scripts inert, and it holds however the response is loaded -- including a direct navigation, which an iframe's sandbox attribute does not cover. The header is sent for markup ONLY, because sandbox disables plugins and blanked the PDF viewer; remove the assignment and executable markup is served with nothing stopping it.",
+    "file": "app/Http/Controllers/FilePreviewController.php",
+    "remove": "            $headers['Content-Security-Policy'] =\n                \"sandbox; default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'\";\n",
+    "expectFailing": "neutralises uploaded HTML with a sandbox policy"
+  },
+  {
     "id": "set-role-permissions-refuses-to-strip-last-administrator",
     "why": "item/admin-roles (issue #19): the admin Roles page changes a ROLE's permission set through App\\Actions\\Roles\\SetRolePermissions, and Spatie's syncPermissions() writes the role_has_permissions pivot table directly -- exactly like SetUserRoles's own syncRoles() call, it fires no Eloquent model event, so nothing else in the application observes this write at all (verified for this item: no model hook, no observer, no listener anywhere sees a permission sync). This throw is therefore the ENTIRE protection for this path, one level more dangerous than the user-role case beside it -- editing one role strips `users.manage` from every user who holds that role at once, not just one account. Remove it and an operator can uncheck users.manage on the admin role through the ordinary admin UI, with no error, and lock themselves and everyone else out with no way back in.",
     "file": "app/Actions/Roles/SetRolePermissions.php",

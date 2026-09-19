@@ -145,3 +145,32 @@ ui-checkbox[data-indeterminate] [data-flux-checkbox-indicator] {
 [x-cloak] {
     display: none !important;
 }
+
+/*
+ * Syntax highlighting for the preview's Code tab, written against doccum's own
+ * tokens rather than imported from one of highlight.js's stock themes. A
+ * stylesheet built for somebody else's palette is how an application ends up
+ * with two greys and two blues that nearly match.
+ *
+ * Deliberately few colours: source in a records system is read to check what a
+ * document says, not to be programmed in, so structure is carried by weight
+ * and one accent rather than by a rainbow.
+ */
+.hljs { color: var(--color-ink); background: transparent; }
+.hljs-comment,
+.hljs-quote { color: var(--color-ink-2); font-style: italic; }
+.hljs-tag,
+.hljs-name,
+.hljs-keyword,
+.hljs-selector-tag { color: var(--color-select); }
+.hljs-attr,
+.hljs-attribute,
+.hljs-selector-attr,
+.hljs-selector-class { color: var(--color-ink-2); }
+.hljs-string,
+.hljs-number,
+.hljs-literal { color: var(--color-attention); }
+.hljs-title,
+.hljs-section,
+.hljs-strong { font-weight: 600; }
+.hljs-deletion { color: var(--color-hold); }

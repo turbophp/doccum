@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\DirectoryArchiveDownloadController;
 use App\Http\Controllers\FileDownloadController;
+use App\Http\Controllers\FilePreviewController;
 use App\Http\Controllers\FileVersionDownloadController;
 use App\Livewire\Admin\InstanceSettings;
 use App\Livewire\Admin\Periods;
@@ -52,6 +53,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('/directories/archives/{archive}/download', DirectoryArchiveDownloadController::class)
         ->name('directories.archives.download');
+
+    // Separate from the download route because the two want opposite things
+    // from a browser: download answers Content-Disposition: attachment and may
+    // redirect to a presigned URL, neither of which a preview frame can use.
+    // See FilePreviewController.
+    Route::get('/files/{file}/preview', FilePreviewController::class)
+        ->name('files.preview');
 
     Route::get('/files/{file}/download', FileDownloadController::class)
         ->name('files.download');
