@@ -11,6 +11,7 @@
     "item/admin-instance-settings",
     "item/admin-periods",
     "item/admin-roles",
+    "item/api-content",
     "item/api-sanctum-tokens",
     "item/changelog-release-notes",
     "item/compose-boot-ci",
@@ -38,7 +39,7 @@
     "item/upgrade-smoke",
     "item/version-from-tag"
   ],
-  "commit": "e0e99c642eb2794bfe61cd2245c7413a353a3779",
+  "commit": "f233ef627202588179470d44f5b292a834fe4507",
   "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally.",
   "merges": [
     {
@@ -589,6 +590,24 @@
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35435662914",
       "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "5def75f90689977679b7b1fb6901c43abeeea216",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T09:58:43Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35436141377",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35436141396",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "f233ef627202588179470d44f5b292a834fe4507",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/265",
+      "mergedAt": "2026-09-19T11:02:41Z",
+      "testsRun": null,
+      "testsConclusion": null,
+      "ledgerRun": null,
+      "ledgerConclusion": null
     }
   ]
 }
