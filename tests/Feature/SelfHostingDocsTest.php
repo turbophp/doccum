@@ -108,18 +108,10 @@ const DOC_AUDIT_ENV_KEY_EXEMPTIONS = [
     'LOG_STDERR_FORMATTER' => 'Only read by the unused \'stderr\' log channel.',
     'LOG_SYSLOG_FACILITY' => 'Only read by the unused \'syslog\' log channel.',
 
-    'MAIL_EHLO_DOMAIN' => 'MAIL_MAILER defaults to \'log\' (nothing in compose.yaml or .env.example sets an SMTP mailer), so no SMTP-specific setting under this block, including this one, is read at all in a default install; an operator who wires up real mail can already read Laravel\'s own mail documentation for it.',
-    'MAIL_FROM_ADDRESS' => 'Same reasoning as MAIL_EHLO_DOMAIN: only meaningful once a real mailer is configured, which doccum\'s zero-configuration boot never requires -- verification and password-reset emails are the only mail doccum sends, and both work with the stock \'log\' driver during evaluation.',
-    'MAIL_FROM_NAME' => 'Same reasoning as MAIL_FROM_ADDRESS, one entry up.',
-    'MAIL_HOST' => 'Same reasoning as MAIL_EHLO_DOMAIN; SMTP host is meaningless while MAIL_MAILER=log.',
-    'MAIL_LOG_CHANNEL' => 'Only read when MAIL_MAILER=log, and even then only to pick which log channel receives the mail -- the stock default channel is fine for evaluating doccum.',
-    'MAIL_MAILER' => 'The driver selector for the whole MAIL_* block; doccum\'s self-hosting docs do not promise a mail setup story, so this is left at its stock \'log\' default rather than documented as a decision to make.',
-    'MAIL_PASSWORD' => 'SMTP credential, meaningless while MAIL_MAILER=log; same reasoning as MAIL_HOST.',
-    'MAIL_PORT' => 'SMTP port, meaningless while MAIL_MAILER=log; same reasoning as MAIL_HOST.',
-    'MAIL_SCHEME' => 'SMTP scheme, meaningless while MAIL_MAILER=log; same reasoning as MAIL_HOST.',
-    'MAIL_SENDMAIL_PATH' => 'Only read by the unused \'sendmail\' mailer.',
-    'MAIL_URL' => 'A single-string alternative to the discrete MAIL_* fields, same reasoning as DB_URL: not documented because the discrete fields it duplicates are not documented either.',
-    'MAIL_USERNAME' => 'SMTP credential, meaningless while MAIL_MAILER=log; same reasoning as MAIL_HOST.',
+    'MAIL_EHLO_DOMAIN' => 'Overrides the HELO/EHLO hostname the SMTP client announces. Providers that need it say so; nothing in doccum requires it, and a self-hoster who needs it is already reading their provider\'s docs, not this reference.',
+    'MAIL_LOG_CHANNEL' => 'Only consulted when MAIL_MAILER is \'log\', where it picks which logging channel receives the unsent message -- a debugging detail of the default that the Mail section tells you to move off.',
+    'MAIL_SENDMAIL_PATH' => 'Path to a local sendmail binary, for the \'sendmail\' transport. The container ships no MTA, so this transport cannot work in the shipped image.',
+    'MAIL_URL' => 'A single-string alternative encoding the same host/port/credentials the Mail section documents discretely -- the same reason DB_URL is exempt: one decision should not be documented under two spellings.',
     'POSTMARK_MESSAGE_STREAM_ID' => 'Only read by the unused Postmark mailer.',
 
     'MEMCACHED_HOST' => 'Memcached is a stock Laravel cache store doccum never wires up -- CACHE_STORE defaults to \'database\', and no compose service runs Memcached.',
@@ -168,6 +160,7 @@ const DOC_AUDIT_ENV_KEY_EXEMPTIONS = [
     'SESSION_PATH' => 'Cookie path at its stock default (\'/\'); doccum is never mounted under a sub-path.',
     'SESSION_SAME_SITE' => 'Cookie SameSite policy at its stock default; doccum\'s single-origin login flow has no cross-site request to accommodate.',
     'SESSION_SECURE_COOKIE' => 'Cookie Secure flag at its stock default; TRUSTED_PROXIES and the reverse-proxy guidance already in .env.example cover doccum\'s actual TLS-termination story.',
+    'SESSION_COOKIE' => 'Overrides the session cookie NAME, which otherwise derives from APP_NAME (config/session.php:130). Two doccum instances on one hostname would need distinct names to avoid clobbering each other\'s sessions; one instance per host, which is what the compose file describes, never needs it. Found only once the scan stopped reading line by line -- this key is written across two lines.',
     'SESSION_STORE' => 'A Laravel 11+ alias resolving to the same driver SESSION_DRIVER already sets in this reference; documenting both would duplicate one decision under two names.',
     'SESSION_TABLE' => 'Table name for the database session store; doccum never renames it.',
 
@@ -307,13 +300,27 @@ function docAuditScanEnvKeys(string $relativeDirectory): array
         $relativePath = $relativeDirectory.substr($file->getPathname(), strlen($root));
         $relativePath = str_replace('\\', '/', $relativePath);
 
-        $lines = file($file->getPathname(), FILE_IGNORE_NEW_LINES) ?: [];
+        // Scanned as ONE string rather than line by line, which is not a
+        // detail. config/session.php:130 reads
+        //
+        //     'cookie' => env(
+        //         'SESSION_COOKIE',
+        //
+        // and a per-line scan finds nothing there: the line holding `env(`
+        // carries no key, and the line holding the key carries no `env(`.
+        // A key that slips the audit because somebody wrapped an argument
+        // is exactly the accident this test exists to catch, so the pattern
+        // is matched against the whole file and the line number is
+        // recovered from the match offset instead.
+        $contents = file_get_contents($file->getPathname()) ?: '';
 
-        foreach ($lines as $number => $line) {
-            if (preg_match_all($pattern, $line, $matches) > 0) {
-                foreach ($matches[1] as $key) {
-                    $hits[$key][] = $relativePath.':'.($number + 1);
-                }
+        if (preg_match_all($pattern, $contents, $matches, PREG_OFFSET_CAPTURE) > 0) {
+            foreach ($matches[1] as $match) {
+                [$key, $offset] = $match;
+
+                $line = substr_count($contents, "\n", 0, $offset) + 1;
+
+                $hits[$key][] = $relativePath.':'.$line;
             }
         }
     }

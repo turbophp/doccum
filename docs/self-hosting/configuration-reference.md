@@ -61,6 +61,33 @@ Spec §13 calls this out explicitly: **no Redis container is required at
 all**. The `cache` profile exists for when you want the speed, not because
 the defaults are missing something.
 
+## Mail
+
+doccum sends real email: the first-run installer's verification link, the
+email-verification bounce for an unverified account, and password resets. The
+default mailer is `log`, which writes the message to `storage/logs` and
+delivers nothing. **An instance left on the default has users who never
+receive their verification mail and cannot reset a password** — so for any
+instance with more than one person on it, this section is not optional.
+
+Spec §13 names `MAIL_*` alongside `DB_*` and `AWS_*` as one of the boundaries
+every deployment configures.
+
+| Variable | Local (default) | Remote / production |
+|---|---|---|
+| `MAIL_MAILER` | `log` — nothing is sent; read the message in `storage/logs/laravel.log`. | `smtp` for a real server, or `ses`/`postmark`/`resend` if you would rather use an API transport. |
+| `MAIL_HOST` | unset | Your SMTP host. |
+| `MAIL_PORT` | `2525` | `587` for STARTTLS, `465` for implicit TLS — match what your provider documents. |
+| `MAIL_USERNAME` | unset | The SMTP user. |
+| `MAIL_PASSWORD` | unset | The SMTP password. Treat it like any other secret: pass it through the environment, not a committed file. |
+| `MAIL_SCHEME` | unset (STARTTLS is negotiated) | Set `smtps` for implicit TLS on 465. Leave unset for 587. |
+| `MAIL_FROM_ADDRESS` | `hello@example.com` | The address mail arrives from. Several providers reject or spam-file mail whose From domain they do not sign, so set this to a domain you control. |
+| `MAIL_FROM_NAME` | the instance name | What recipients see as the sender. |
+
+To check it works end to end, trigger a password reset for your own account
+and confirm the mail arrives — the reset link is also the quickest way to see
+whether `APP_URL` is right, since the link is built from it.
+
 ## Object storage
 
 | Variable | Local (default) | Remote / production |
