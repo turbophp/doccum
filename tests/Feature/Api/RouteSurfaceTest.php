@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\FileController;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -15,7 +17,7 @@ use Illuminate\Support\Facades\Route;
  * -- never routes/api.php's own text. A route file can say one thing and
  * register another (a stray group, a copy-pasted controller); this cannot.
  */
-function apiV1Routes(): Illuminate\Support\Collection
+function apiV1Routes(): Collection
 {
     // 'api/v1/', not 'v1/': bootstrap/app.php's withRouting(api: ...) call
     // prefixes every route routes/api.php registers with 'api' (Laravel's
@@ -80,7 +82,7 @@ it('exposes property definitions read-only, never a write', function () {
  * group that silently stopped registering).
  */
 it('fails its own no-forbidden-controller assertion when one is actually registered', function () {
-    Route::get('api/v1/__mutation-probe/roles', [App\Http\Controllers\Api\V1\FileController::class, 'show'])
+    Route::get('api/v1/__mutation-probe/roles', [FileController::class, 'show'])
         ->name('__mutation-probe.roles-probe');
 
     $probe = apiV1Routes()->first(fn ($route) => $route->getName() === '__mutation-probe.roles-probe');
