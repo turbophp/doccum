@@ -52,7 +52,12 @@ class GenerateOpenApi extends Command
             return self::SUCCESS;
         }
 
-        $committed = is_file($path) ? file_get_contents($path) : null;
+        // file_get_contents() returns string|false, and printPathDiff()
+        // takes ?string -- an unreadable file and an absent one are the
+        // same thing to a diff, so both become null rather than letting
+        // `false` travel as if it were content.
+        $committedRaw = is_file($path) ? file_get_contents($path) : false;
+        $committed = $committedRaw === false ? null : $committedRaw;
 
         if ($committed === $generated) {
             $this->components->info('docs/api/openapi.json matches the live route table.');
@@ -80,8 +85,13 @@ class GenerateOpenApi extends Command
     {
         $descriptors = [];
 
-        foreach (Route::getRoutes() as $route) {
-            /** @var RoutingRoute $route */
+        // ->getRoutes(), not the collection itself: Route::getRoutes() is
+        // typed RouteCollectionInterface, which is a plain interface -- it
+        // does not extend IteratorAggregate, even though the concrete
+        // RouteCollection does. foreach over the interface type is
+        // therefore unsound, and the interface's own getRoutes() is
+        // declared to return Illuminate\Routing\Route[].
+        foreach (Route::getRoutes()->getRoutes() as $route) {
             if (! str_starts_with($route->uri(), 'api/v1/') || $route->getName() === null) {
                 continue;
             }

@@ -65,8 +65,20 @@ final class OpenApiSpecBuilder
      *   summary: string,
      *   query?: list<array{name: string, required: bool, schema: array<string, mixed>}>,
      *   requestBody?: array<string, mixed>,
-     *   responses: array<string, array<string, mixed>>,
+     *   responses: array<array-key, array<string, mixed>>,
      * }>
+     *
+     * `responses` is keyed array-key, not string, and that is PHP rather
+     * than sloppiness: a numeric-string array key is cast to int on
+     * assignment, so `'200' => [...]` below is stored under int 200 and
+     * the map really is array<int, ...> by the time phpstan reads it --
+     * writing the quotes does not keep them.
+     *
+     * OpenAPI requires those keys to be strings, and they are, but nothing
+     * in this class converts them: json_encode() emits every array key as
+     * a JSON string because a JSON object has no other kind of key. The
+     * committed document reads "200", "401", "403", "429" -- checked
+     * against docs/api/openapi.json rather than assumed.
      */
     private static function operations(): array
     {
