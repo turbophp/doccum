@@ -15,9 +15,20 @@ use Illuminate\Console\Command;
  * Nothing ran the seeder on a fresh install, so a brand new instance crashed at
  * the last step of setup with "There is no role named `admin`".
  *
- * Idempotent by construction -- the seeder uses findOrCreate and
- * syncPermissions -- so it is safe on every boot, and an upgrade that adds a
- * permission picks it up automatically.
+ * This runs on every container boot (docker/entrypoint.d/51-doccum-roles.sh,
+ * gated only by AUTORUN_ENABLED) against a database an operator may have
+ * already edited through Settings -> Roles. "Ensure" therefore means CREATE
+ * WHAT IS ABSENT, never assert what a role's permission set must be --
+ * RolesAndPermissionsSeeder::run()'s docblock is the full statement of that
+ * decision and its trade-off.
+ *
+ * A previous version of this docblock said the seeder's use of findOrCreate
+ * and syncPermissions() made every boot "safe", and that an upgrade adding a
+ * permission "picks it up automatically". That was backwards: syncPermissions()
+ * REPLACES a role's permission set, so it was exactly why every restart
+ * silently discarded an operator's edit (issue #214) -- idempotent against
+ * the seeder's own constants, destructive against the database. The seeder
+ * no longer calls it.
  */
 class EnsureRoles extends Command
 {

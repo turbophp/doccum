@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Actions\Directories\PurgeSubtreeOrphans;
 use App\Support\NameKey;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -62,6 +63,21 @@ class Directory extends Model
         // would outlive the directory they were attached to.
         static::forceDeleted(static function (Directory $directory): void {
             $directory->properties()->delete();
+        });
+
+        // Deliberately forceDeleting, not forceDeleted. files.directory_id
+        // carries an ON DELETE CASCADE foreign key, so by the time
+        // forceDeleted fires the database has already removed every
+        // descendant File row in one SQL statement -- there is nothing left
+        // for PHP to read, and the objects those rows named in the store are
+        // already orphaned. forceDeleting fires first, while the subtree's
+        // rows -- including everything soft-deleted independently, which a
+        // normal query would filter out -- are still there to walk. This is
+        // the guarantee that no caller can force-delete a directory and
+        // bypass DocumentStorage; see App\Actions\Directories\
+        // PurgeSubtreeOrphans for what it actually does.
+        static::forceDeleting(static function (Directory $directory): void {
+            app(PurgeSubtreeOrphans::class)->handle($directory);
         });
     }
 

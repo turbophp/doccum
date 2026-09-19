@@ -36,7 +36,7 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
-          php-version: '8.4'
+          php-version: '8.5'
           coverage: none
 
       - name: Ledger file exists
@@ -68,3 +68,11 @@ jobs:
         env:
           MAIN_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
         run: php .github/scripts/validate-ledger.php docs/ledger docs/superpowers/specs/2026-09-15-doccum-design.md "$MAIN_SHA"
+
+      # item/ledger-rule-witnesses (issue #189): the mutation sweep runs
+      # against disposable copies it makes itself, entirely under /tmp -- it
+      # never touches docs/ledger -- and needs nothing this job has not
+      # already installed above, so it runs here, still ahead of any
+      # `composer install` (this workflow never runs one at all).
+      - name: Run ledger rule-witness sweep
+        run: php .github/scripts/validate-ledger.php --witnesses docs/ledger docs/superpowers/specs/2026-09-15-doccum-design.md

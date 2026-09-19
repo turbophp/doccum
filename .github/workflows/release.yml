@@ -6,27 +6,99 @@ on:
   workflow_dispatch:
 
 jobs:
+  # item/release-gate (issue #32): release.yml fired on workflow_dispatch and
+  # on a tag push with NO `needs:` on any test job, so a dispatch against a
+  # red main built and pushed `latest` to ghcr. This job is the first half of
+  # the fix: refuse to even start verifying/building a commit that was never
+  # merged to main. It has to run before `verify` (below), not just before
+  # `image`, so a stray commit fails in seconds rather than after the whole
+  # test suite has run against it.
+  #
+  # `fetch-depth: 0` rather than a shallow checkout plus a later fetch, and
+  # the distinction matters more than it looks. actions/checkout defaults to
+  # depth 1, which leaves a .git/shallow boundary; a subsequent
+  # `git fetch origin main` inside a shallow repository is negotiated against
+  # that boundary, and `git merge-base --is-ancestor` walking into a grafted
+  # parent can answer "not an ancestor" for a commit that plainly is one.
+  #
+  # That false negative is the ONE failure mode worse than the defect this
+  # job closes: it blocks a legitimate release, at the moment somebody is
+  # trying to ship, with an error that accuses the commit rather than the
+  # checkout. Fetching the full history costs seconds on a release path that
+  # runs at most a few times a year, and removes the question entirely
+  # instead of reasoning about git's shallow negotiation.
+  ancestry-check:
+    name: tagged commit is on main
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main so ancestry can be checked
+        run: git fetch --no-tags origin main
+
+      - name: Refuse to build/publish a commit that is not on main
+        run: |
+          set -e
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_SHA (ref ${{ github.ref }}) is not an ancestor of origin/main -- refusing to verify, build or publish. Only tag or dispatch a commit that has already been merged to main."
+            exit 1
+          fi
+          echo "$GITHUB_SHA is an ancestor of origin/main -- OK to proceed"
+
+  # Runs the exact same suite a push to main runs, against the exact commit
+  # this run is about to publish -- not main's last push run (decision/0016:
+  # that lookup has cancelled-concurrency-run, wrong-ref and pooled-
+  # conclusion pitfalls of its own, and would verify a tree that RESEMBLES
+  # what gets published, not the one that does).
+  #
+  # No `secrets:` passed: tests.yml's `workflow_call` trigger declares none,
+  # and every job in it only ever requests `contents: read` (checked, not
+  # assumed -- see the comment on that trigger in tests.yml). `permissions`
+  # here is the ceiling this call grants the reusable workflow's jobs; it
+  # matches that need exactly rather than inheriting whatever this workflow
+  # might otherwise have.
+  verify:
+    name: verify (tests.yml)
+    needs: ancestry-check
+    uses: ./.github/workflows/tests.yml
+    permissions:
+      contents: read
+
   image:
     runs-on: ubuntu-latest
+    needs: verify
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Both the base image and the pinned MinIO image publish amd64 and
       # arm64, and COPY --from resolves per platform, so the MinIO binary
       # always matches the target architecture.
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      #
+      # Pinned by commit SHA per this repo's convention (see tests.yml and
+      # decision/0082). Resolved with
+      # `git ls-remote --tags <repo> | grep '\^{}'`: none of docker/
+      # setup-qemu-action, docker/login-action or docker/metadata-action
+      # printed a `^{}` peeled line for their v3/v4/v6 tags (checked, not
+      # assumed), so each is a LIGHTWEIGHT tag and the single SHA
+      # `ls-remote` prints for it already IS the commit -- unlike
+      # softprops/action-gh-release@v3.0.3 below, which is annotated.
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
 
-      - uses: docker/login-action@v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/metadata-action@v6
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         id: meta
         with:
           images: ghcr.io/${{ github.repository }}
@@ -35,12 +107,121 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          # steps.meta.outputs.labels already includes
+          # org.opencontainers.image.version, derived from the same pushed
+          # tag as steps.meta.outputs.version below. Passed here as --label
+          # (confirmed empirically: a CLI/BuildKit --label wins over a
+          # same-key Dockerfile LABEL), it is what actually lands in the
+          # pushed image's config, overriding the Dockerfile's own
+          # `LABEL org.opencontainers.image.version="$DOCCUM_VERSION"`. The
+          # two never disagree in practice, because build-args below feeds
+          # the Dockerfile's ARG the identical value metadata-action derived
+          # the label from -- but on a release build it is metadata-action's
+          # label, not the Dockerfile's, that wins. The Dockerfile's LABEL
+          # exists for the case metadata-action is absent entirely: a plain
+          # local `docker build`, or this repo's own tests.yml image job.
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            DOCCUM_VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # item/measure-image-size (issue #30), decision/0087. This job's own
+      # build-push-action run above uses push: true with no `load:`, so the
+      # image it just built was never loaded into this runner's local
+      # docker -- only pushed. `docker image inspect` and `docker save`
+      # (what image-size.sh needs) both require a local image, so one of
+      # the tags actually pushed (steps.meta.outputs.tags, the exact list
+      # handed to build-push-action's `tags:` above -- not a
+      # semver-specific output, so this also works on a workflow_dispatch
+      # run where only the `latest` raw tag applies) is pulled back down.
+      # `docker pull` with no `--platform` resolves to the runner's own
+      # platform (linux/amd64, same as the amd64 leg tests.yml's `image`
+      # job already measured and gated for this exact commit as part of
+      # the `verify` job above), not the multi-platform manifest list that
+      # tag actually names.
+      #
+      # This is the actual place in this workflow that sees a built,
+      # inspectable image -- the `image` job is the only one that builds
+      # anything, and `release` (below) only ever touches CHANGELOG.md.
+      - name: Pull the pushed image back down to measure it
+        run: |
+          set -euo pipefail
+          tag="$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -n1)"
+          echo "PULLED_TAG=${tag}" >> "$GITHUB_ENV"
+          docker pull "$tag"
+
+      - name: Print the image size for the release record
+        run: .github/scripts/image-size.sh --print-only "$PULLED_TAG"
+
+  # item/changelog-release-notes (issue #31): a pushed tag is also supposed
+  # to produce a GitHub Release, body taken verbatim from that version's
+  # CHANGELOG.md section. Split from the `image` job (needs: image) so a
+  # release is never created ahead of -- or on top of a failed -- image
+  # push, but its own failure never blocks the image from having gone out.
+  #
+  # Guarded to the tag-push trigger only: this workflow also fires on
+  # workflow_dispatch, where github.ref is whatever branch was dispatched
+  # from, not a tag -- there is no version to read a changelog section for,
+  # and the job is skipped outright rather than failing confusingly deep
+  # inside changelog-section.sh. release-skipped-notice below exists so a
+  # workflow_dispatch run still says why, instead of a same-named job simply
+  # not appearing.
+  release:
+    runs-on: ubuntu-latest
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # github.ref_name for a tag push is the tag with the refs/tags/
+      # prefix already stripped by GitHub (e.g. "v0.1.0"), matching the
+      # `type=semver,pattern={{version}}` tag the `image` job above just
+      # pushed the container under. changelog-section.sh strips a leading
+      # "v" itself, so it is passed through unchanged here.
+      - name: Extract this version's changelog section
+        run: |
+          set -e
+          .github/scripts/changelog-section.sh "${{ github.ref_name }}" CHANGELOG.md > /tmp/release-notes.md
+          echo "Release notes for ${{ github.ref_name }}:"
+          cat /tmp/release-notes.md
+
+      # Pinned by COMMIT SHA per this repo's convention (see tests.yml).
+      #
+      # efb35369 is the commit; e598afbe -- which `git ls-remote --tags`
+      # prints beside refs/tags/v3.0.3 -- is NOT. This repo's other tags
+      # happen to be lightweight, where the printed SHA IS the commit
+      # (actions/checkout v7.0.1 = 3d3c42e5, no peeled line), but v3.0.3
+      # here is an ANNOTATED tag, so ls-remote prints the tag object first
+      # and the commit only on the `^{}` line:
+      #
+      #   e598afbe...  refs/tags/v3.0.3
+      #   efb35369...  refs/tags/v3.0.3^{}      <- the commit
+      #
+      # Taking the first line gives a tag-object SHA, which is not what
+      # `uses: owner/repo@<sha>` wants. Resolve with
+      # `git ls-remote --tags <repo> | grep '\^{}'` before pinning anything
+      # here, and do not assume the two lines are interchangeable.
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ github.ref_name }}
+          body_path: /tmp/release-notes.md
+
+  release-skipped-notice:
+    runs-on: ubuntu-latest
+    needs: image
+    if: "!startsWith(github.ref, 'refs/tags/')"
+    steps:
+      - name: Explain why no Release was created
+        run: |
+          echo "::notice::This run was not a tag push (ref: ${{ github.ref }}), so no GitHub Release was created. Push a v* tag to publish one."

@@ -474,5 +474,159 @@
     "file": "app/Support/LedgerValidator.php",
     "remove": "                if (! in_array($key, $vocabTerms, true)) {\n                    $errors[] = \"structural: $context ($id) has key '$key', which context.jsonld does not define.\";\n\n                    continue;\n                }\n",
     "expectFailing": "rejects a run key the vocabulary no longer defines"
+  },
+  {
+    "id": "ledger-shape-from-context",
+    "why": "item/ledger-shape-from-context (issue #188): closing the vocabulary says which KEYS a node may carry, but nothing read the SHAPE context.jsonld already declares for each one -- every other rule in this file tolerated a wrong-shaped value by silently skipping it (array_filter(..., 'is_string')) or, for a bare string where a @set was declared, crashed with a TypeError instead of reporting anything (a fatal, not an error, per the issue). decision/0030's own supersedes was exactly this: an array where context.jsonld declares a single @id, validating clean for as long as the ledger existed. Remove this call and shapeErrors() -- which derives idSet/idSingle/integer/dateTime shapes straight from context.jsonld's @container/@type declarations -- never runs at all: a wrong-shaped dependsOn, implements or supersedes goes back to validating clean, exactly as it did before this item, with the rest of validate() unaffected (it is a plain array_merge() call, not a branch anything else depends on, so deleting it degrades rather than breaking the file's syntax -- decision/0063).",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "        $errors = array_merge($errors, self::shapeErrors($ledger, $runs, $context));\n",
+    "expectFailing": "flags a dependsOn containing a non-string element as exactly one shape: error, with no crash"
+  },
+  {
+    "id": "ledger-merge-conclusion-requires-run",
+    "why": "item/ledger-shape-from-context (issue #188), clause 4 as amended by decision/0068 (item/ledger-main-push-record deleted PullRequest.mainConclusion/mainRunUrl and moved the fact onto Run.merges, so the original clause is restated against the fields that inherited its intent). checkMergeEntry() validates mergeSha, pullRequest, the two conclusions and the two run URLs each independently, so nothing before this connected a conclusion to the run that produced it. Remove this block and a merge entry can claim testsConclusion: \"success\" with testsRun: null (or the ledger equivalent) -- a conclusion with no provenance -- and validate clean again, exactly as it did before this item.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                if (($entry['testsConclusion'] ?? null) !== null && ($entry['testsRun'] ?? null) === null) {\n                    $errors[] = \"run: '$expectedId'.merges[$index] has testsConclusion \".self::describe($entry['testsConclusion']).' but testsRun is null -- a conclusion with no run to point at.';\n                }\n                if (($entry['ledgerConclusion'] ?? null) !== null && ($entry['ledgerRun'] ?? null) === null) {\n                    $errors[] = \"run: '$expectedId'.merges[$index] has ledgerConclusion \".self::describe($entry['ledgerConclusion']).' but ledgerRun is null -- a conclusion with no run to point at.';\n                }\n",
+    "expectFailing": "flags a testsConclusion with a null testsRun, and a ledgerConclusion with a null ledgerRun, each as a run: error"
+  },
+  {
+    "id": "ledger-witness-structural-undeclared-key",
+    "why": "item/ledger-rule-witnesses (issue #189): the structural: witness edits a copy of the live ledger by adding a key context.jsonld does not define. Remove this line and collectAndCheckStructure() stops reporting an undeclared key at all -- LedgerRuleWitnesses::run() then finds no structural: error where the witness expects one, which is exactly the dead-rule shape #185 lived in.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                    $errors[] = \"structural: $context ($id) has key '$key', which context.jsonld does not define.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-id-pattern",
+    "why": "item/ledger-rule-witnesses (issue #189): the id: witness corrupts a Decision's own @id so it no longer matches DECISION_ID_PATTERN. Remove this line and idErrors() stops checking the pattern at all.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"id: '$id' ({$entry['type']}) does not match its required pattern $pattern.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-ref-target-missing",
+    "why": "item/ledger-rule-witnesses (issue #189): the ref: witness points a dependsOn entry at an id that does not exist. Remove this line and referenceErrors() stops reporting a reference to nothing.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"ref: $context references '$ref', which does not exist.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-enum-pr-sha",
+    "why": "item/ledger-rule-witnesses (issue #189): the enum: witness overwrites a merged PullRequest's headSha with a non-hex value. Remove this line and checkPullRequest() stops validating headSha/mergeSha's format at all.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"enum: PullRequest '$id'.$shaField = \".self::describe($value).' is not a 40-character hex sha.';\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-canonical",
+    "why": "item/ledger-rule-witnesses (issue #189): the canonical: witness appends one extra byte to ledger.jsonld's raw content, with no semantic change, so the file no longer round-trips through canonicalize(). Remove this line and canonicalSerializationErrors() stops checking ledger.jsonld's own formatting at all (the parallel check for run files is a separate line and keeps firing, so this mutation isolates the ledger.jsonld half).",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "            $errors[] = 'canonical: ledger.jsonld is not canonically formatted (2-space indent, LF, trailing newline, existing key order).';\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-graph-cycle",
+    "why": "item/ledger-rule-witnesses (issue #189): the graph: witness makes an Action depend on itself. Remove this line and acyclicErrors() stops reporting a cycle it has already detected -- the traversal still runs, only the error is gone, which is precisely the kind of guard CLAUDE.md's mutation-check discipline exists to keep visible.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"graph: dependsOn has a cycle: $cycle.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-status-starttime",
+    "why": "item/ledger-rule-witnesses (issue #189): the status: witness nulls startTime on a Completed Action. Remove this line and actionStatusErrors() stops requiring a non-Potential Action to carry one.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"status: Action '$id' has status $status but no startTime.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-pr-implements-empty",
+    "why": "item/ledger-rule-witnesses (issue #189): the pr: witness empties a merged PullRequest's implements. Remove this line and pullRequestErrors() stops requiring a PullRequest to implement at least one item.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"pr: '$id' implements no items.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-decision-supersedes",
+    "why": "item/ledger-rule-witnesses (issue #189): the decision: witness points the lowest-numbered Decision's own supersedes at itself. Remove this line and decisionSupersedesErrors() stops requiring supersedes to name a lower-numbered decision.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"decision: '$id' supersedes '$supersedes', which is not a lower-numbered decision.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-mutation-empty-check",
+    "why": "item/ledger-rule-witnesses (issue #189): the mutation: witness blanks check on a negative-verdict Mutation. Remove this line and mutationErrors() stops requiring a negative verdict to carry a non-empty check -- a failure that names no assertion would validate clean again.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"mutation: '$id' has verdict negative but no non-empty check -- a failure that names no assertion is not evidence.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-run-commit-mismatch",
+    "why": "item/ledger-rule-witnesses (issue #189): the run: witness flips one hex digit of the newest run's own commit field so it no longer matches that run's last recorded mergeSha. Remove this line and runErrors() stops checking Run.commit against merges[] at all.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                    $errors[] = \"run: '$expectedId'.commit = \".self::describe($run['commit'] ?? null).\" but its last merges entry's mergeSha is '$lastMergeSha'.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-shape-non-string",
+    "why": "item/ledger-rule-witnesses (issue #189): the shape: witness appends a non-string element to an Action's dependsOn. Remove this line and checkIdSetShape() stops reporting a non-string element in an @id set at all -- issue #188's own defect, reopened.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"shape: $label.$key contains a non-string element (\".self::describe($element).'), but context.jsonld types every element as an @id reference.';\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-spec-anchor",
+    "why": "item/ledger-rule-witnesses (issue #189): the spec-anchor: witness overwrites an Action's isBasedOn with an anchor no heading produces. Remove this line and specAnchorErrors() stops checking that an anchor actually resolves.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                    $errors[] = \"spec-anchor: $label '$id' has isBasedOn 'spec:$anchor', but no heading in the design spec produces that anchor.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-fatal-not-json",
+    "why": "item/ledger-rule-witnesses (issue #189): the fatal: witness overwrites ledger.jsonld with content that will not parse as JSON. Remove this line and validate() stops reporting that at all -- json_decode's failure would fall through with $ledger left null and no error naming why, rather than a coherent fatal:.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "            $errors[] = 'fatal: ledger.jsonld is not a JSON object.';\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-history-unrecorded",
+    "why": "item/ledger-rule-witnesses (issue #189): the history: witness supplies a fabricated commit ahead of the newest run's own last recorded mergeSha as $mainPushShas -- the one witness that varies validate()'s external git-fact argument rather than editing ledger.jsonld's own content, because that is the only place this specific rule's input comes from. Remove this line and mainPushHistoryErrors() stops reporting an interior commit main recorded that no run's merges ever named -- item/ledger-main-push-record's whole point, per decision/0070's own account of this exact rule missing a real merge in production.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                $errors[] = \"history: commit '$sha' is on main (per git log since the previous completed run) but does not appear in any run's merges, and a LATER commit does -- so this is a merge nobody wrote down, not one not yet recorded.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "ledger-witness-order-duplicate",
+    "why": "item/ledger-rule-witnesses (issue #189): the order: witness sets the second item's order equal to the first's. Remove this line and orderingErrors() stops reporting a duplicate order value at all.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "                    $errors[] = \"order: order $order is used by both '{$orders[$order]}' and '$id'.\";\n",
+    "expectFailing": "witnesses every code LedgerValidator declares, with the shrinking baseline covering the rest"
+  },
+  {
+    "id": "directory-policy-update-refuses-trashed-directory",
+    "why": "item/directory-policy-trashed-update (issue #247): update() must refuse a directory trashed on its own, independently of whether a grant on a live ancestor above it would otherwise resolve Edit. DirectoryAccess::resolve() checks proper ancestors only, deliberately excluding the directory's own trashed state (issue #49), so without this guard a grant sitting on a live ancestor still resolves Edit for a directory trashed on its own, and PropertyPanel::save()'s authorize('update', $subject) lets a metadata edit through on something delete() already hid -- the same reveal FilePolicy::update() already refuses for a file.",
+    "file": "app/Policies/DirectoryPolicy.php",
+    "remove": "        if ($directory->trashed()) {\n            // A directory trashed on its own still resolves Edit from a\n            // grant sitting on a live ancestor above it: DirectoryAccess::\n            // resolve() checks proper ancestors only, deliberately excluding\n            // the directory's own trashed state, because restoring it is a\n            // manage check reachable only while it is trashed (issue #49).\n            // Editing metadata on something delete() already hid is the same\n            // reveal update() must not reopen. See FilePolicy::update()'s\n            // equivalent guard.\n            return false;\n        }\n\n",
+    "expectFailing": "refuses to update a trashed directory, even with access held through a grant above it"
+  },
+  {
+    "id": "directory-policy-move-refuses-trashed-directory",
+    "why": "issue #253: move() must refuse a directory trashed on its own, independently of whether a grant on a live ancestor above it would otherwise resolve Manage. DirectoryAccess::resolve() checks proper ancestors only, deliberately excluding the directory's own trashed state (issue #49), so without this guard a grant sitting on a live ancestor still resolves Manage for a directory trashed on its own -- the same gap update() had (issue #247), worse here because MoveDirectory rewrites `path` and recomputes `depth` across the whole subtree, and hasTrashedProperAncestor() is computed from exactly those columns.",
+    "file": "app/Policies/DirectoryPolicy.php",
+    "remove": "        if ($directory->trashed()) {\n            // A directory trashed on its own still resolves Manage from a\n            // grant sitting on a live ancestor above it: DirectoryAccess::\n            // resolve() checks proper ancestors only, deliberately excluding\n            // the directory's own trashed state, because restoring it is a\n            // manage check reachable only while it is trashed (issue #49).\n            // update()'s equivalent guard covers the same gap for metadata\n            // edits; this one is worse to leave open, because MoveDirectory\n            // rewrites `path` and recomputes `depth` across the whole\n            // subtree, and hasTrashedProperAncestor() -- which decides who\n            // can see what beneath a trashed node -- is computed from\n            // exactly those two columns. Restore first, then move.\n            return false;\n        }\n\n",
+    "expectFailing": "refuses to move a trashed directory, even with access held through a grant above it"
+  },
+  {
+    "id": "directory-policy-move-refuses-trashed-destination",
+    "why": "issue #253: move() must also refuse a trashed $newParent. This is a different bug from the directory-trashed guard above, not the same one twice: DirectoryAccess resolves Edit on a trashed $newParent the same self-trashed-excused way it resolves Manage on a trashed $directory, so nothing is hidden from the mover. The danger is that Directory::syncPath() looks the new parent's path up through the default (non-trashed) query scope, so moving into a trashed destination would rebuild the moved subtree's `path` missing that segment and its leading '/', corrupting the column ancestorIds() and hasTrashedProperAncestor() both trust.",
+    "file": "app/Policies/DirectoryPolicy.php",
+    "remove": "        if ($newParent !== null && $newParent->trashed()) {\n            // Not the same reveal as above -- the destination isn't hidden\n            // from the mover, since DirectoryAccess resolves Edit on it the\n            // same self-trashed-excused way. It is refused because\n            // Directory::syncPath() looks up the new parent's path through\n            // the default (non-trashed) query scope: for a trashed\n            // $newParent that lookup finds nothing, so the moved subtree's\n            // `path` is rebuilt missing the parent's own segment and its\n            // leading '/' -- exactly the column ancestorIds() and\n            // hasTrashedProperAncestor() both trust. Moving out of a\n            // trashed directory is a visibility question; moving into one\n            // is a corruption bug, and this refuses it outright.\n            return false;\n        }\n\n",
+    "expectFailing": "refuses to move a directory into a trashed destination, even with edit access granted on it"
+  },
+  {
+    "id": "personal-access-token-abilities-restricted-to-eight",
+    "why": "item/api-sanctum-tokens (issue #22): spec §11 fixes a personal access token's abilities to eight coarse scopes (App\\Enums\\ApiTokenAbility), and that has to hold for a token minted by ANY path -- App\\Livewire\\Settings\\ApiTokens's own form already limits its checkbox list to the eight, but that is a courtesy to whoever is filling in the form, not a guard: $user->createToken() is public API a future /api/v1 endpoint, a console command, or Tinker can call directly with any abilities array at all, including the '*' wildcard Laravel\\Sanctum\\HasApiTokens::createToken() defaults to when none is given. Remove this throw and App\\Models\\PersonalAccessToken::booted()'s saving hook computes $unknown and does nothing with it, so a token with an ability spec §11 never sanctioned saves without complaint.",
+    "file": "app/Models/PersonalAccessToken.php",
+    "remove": "            if ($unknown !== []) {\n                throw InvalidApiTokenAbility::forAbilities($unknown);\n            }\n",
+    "expectFailing": "rejects an ability outside the eight when a token is created directly, bypassing the settings form"
   }
 ]

@@ -75,6 +75,15 @@ Two independent layers, and **both must pass**:
 `manage` on a directory without the `files.upload` permission still cannot
 upload. There is a test for that; keep it.
 
+## Boot-time code
+
+**Ensure means create what is absent, never assert what a set must be.**
+Code that runs unattended on every boot against a database a human can edit
+may create what is missing and may not replace what is there. The test is not
+the function's name but the diff it would produce against a database somebody
+has touched: `syncPermissions()` produces a deletion, `findOrCreate` plus a
+`wasRecentlyCreated` guard produces nothing (`decision/0073`).
+
 ## Upgrade seam
 
 doccum must stay on stock Laravel's upgrade path.
@@ -86,6 +95,15 @@ doccum must stay on stock Laravel's upgrade path.
   `DoccumServiceProvider`, so an upgrade audit is one file.
 
 ## Testing
+
+- **A citation of evidence is a claim, and is checked like one.** Writing
+  "confirmed by mutation" for a mutation nobody ran is worse than writing
+  nothing: it is self-sealing, because the next reader sees the assertion
+  vouched for and stops looking (`decision/0080`).
+- **Counting readers is not counting sources.** Two readers of one upstream
+  value are one source wearing two hats; a comparison between them agrees
+  with itself at a false value. Trace each back to where the value was
+  originated, not to where it was read (`decision/0080`).
 
 - **Never pass an interface to `toThrow()`.** Pest branches on `class_exists()`,
   which is false for interfaces, so `toThrow(Throwable::class)` silently becomes

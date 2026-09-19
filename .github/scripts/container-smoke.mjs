@@ -19,20 +19,33 @@
 // the workflow -- see the "Install Playwright" step -- and never added to
 // package.json).
 //
-// Run as: node .github/scripts/container-smoke.mjs <setup|verify>
-//   setup  -- complete the installer, check the topbar shell, upload a file,
-//             wait for extraction, confirm it is findable by search. Run
-//             once, against a freshly booted, empty-volume container.
-//   verify -- log in again and confirm the file and its search hit survived
-//             the container being replaced, then log out through the account
-//             menu. Run in a fresh browser context (no cookies carried over),
-//             against a NEW container started from the same image on the same
-//             named volume -- not `docker restart`, which would keep the old
-//             container's writable layer and prove nothing (issue #91).
+// Run as: node .github/scripts/container-smoke.mjs <setup|seed-stale|verify>
+//   setup      -- complete the installer, check the topbar shell, upload a
+//                 file, wait for extraction, confirm it is findable by
+//                 search. Run once, against a freshly booted, empty-volume
+//                 container.
+//   seed-stale -- item/upgrade-smoke (issue #210): writes a user
+//                 row with email_verified_at NULL and a role edited away
+//                 from RolesAndPermissionsSeeder's defaults directly into
+//                 the database, and rolls back the backfill migration's own
+//                 `migrations` row so the next boot genuinely re-runs it --
+//                 making this volume look like it predates the candidate
+//                 image rather than merely holding a static edited row. Run
+//                 against the STILL-RUNNING setup container, before it is
+//                 replaced. See seedStaleRows()'s own docblock.
+//   verify     -- log in again and confirm the file and its search hit
+//                 survived the container being replaced, that the
+//                 seed-stale row and role edit survived it too, then log
+//                 out through the account menu. Run in a fresh browser
+//                 context (no cookies carried over), against a NEW
+//                 container started from the same image on the same named
+//                 volume -- not `docker restart`, which would keep the old
+//                 container's writable layer and prove nothing (issue #91).
 //
 // All credentials and the marker text searched for come from the environment
-// (set by the workflow step that invokes this), so both phases agree on them
-// without this script persisting any state of its own between invocations.
+// (set by the workflow step that invokes this), so all three phases agree on
+// them without this script persisting any state of its own between
+// invocations.
 
 import { chromium } from 'playwright';
 import { execFileSync } from 'node:child_process';
@@ -95,9 +108,43 @@ const REPLACE_TIMEOUT_MS = Number(env('REPLACE_TIMEOUT_MS', '20000'));
 // env()'s "missing required variable" check just by loading this module.
 const SMOKE_FORWARDED_HOST = env('SMOKE_FORWARDED_HOST', '');
 
+// item/upgrade-smoke (issue #210): seedStaleRows() (the
+// 'seed-stale' phase) and checkStaleUserReachesTheApp()/
+// checkStaleRolePermissionStaysRevoked() (called from 'verify') all need to
+// agree on this one account, across two separate `node` invocations in the
+// same job -- so, like ADMIN_* above, it comes from the environment rather
+// than being generated twice. Fallbacks to '' rather than a required read:
+// the 'setup' phase loads this same module but never touches these, and
+// should not have to know they exist.
+const STALE_USER_USERNAME = env('SMOKE_STALE_USER_USERNAME', '');
+const STALE_USER_EMAIL = env('SMOKE_STALE_USER_EMAIL', '');
+const STALE_USER_PASSWORD = env('SMOKE_STALE_USER_PASSWORD', '');
+
+// The role and permission seedStaleRows() edits to look like an operator's
+// change that predates the replacement, and the pair
+// checkStaleRolePermissionStaysRevoked() reads back afterwards. Not
+// threaded through the environment like the credentials above: unlike a
+// per-run email or password, nothing about these two needs to differ
+// between runs or agree with anything outside this file, so a fixed
+// default is enough. 'member'/'files.restore' is deliberately NOT
+// periods.manage -- checkAdminRolesPage() (runSetup()) and
+// checkRolePermissionSurvivesContainerReplacement() (runVerify()) already
+// own that permission for the opposite edit (grant, not revoke); reusing it
+// here would make the two checks step on each other's state.
+const STALE_ROLE_NAME = env('SMOKE_STALE_ROLE_NAME', 'member');
+const STALE_REMOVED_PERMISSION = env('SMOKE_STALE_REMOVED_PERMISSION', 'files.restore');
+
+// database/migrations/2026_09_18_150000_backfill_email_verified_at_for_existing_users.php's
+// own name, exactly as Laravel records it in the `migrations` table (the
+// filename minus `.php`). Identifies a FILE in this repository, not
+// something that varies by run, so it is a literal here rather than an env
+// var -- see seedStaleRows()'s docblock for why this needs to be deleted at
+// all.
+const STALE_BACKFILL_MIGRATION = '2026_09_18_150000_backfill_email_verified_at_for_existing_users';
+
 const phase = process.argv[2];
-if (phase !== 'setup' && phase !== 'verify') {
-  console.error('Usage: node container-smoke.mjs <setup|verify>');
+if (phase !== 'setup' && phase !== 'seed-stale' && phase !== 'verify') {
+  console.error('Usage: node container-smoke.mjs <setup|seed-stale|verify>');
   process.exit(2);
 }
 
@@ -157,6 +204,30 @@ function versionFromContainer() {
   return match[1];
 }
 
+/**
+ * org.opencontainers.image.version off the IMAGE itself, via `docker inspect`
+ * -- a genuinely different source from the PHP process versionFromContainer()
+ * reads. Set by the Dockerfile's `ARG DOCCUM_VERSION` / `LABEL
+ * org.opencontainers.image.version` (item/version-from-tag), and inherited by
+ * every container started from the image, so inspecting the running
+ * container's own config is equivalent to inspecting the image and needs no
+ * separate image name/tag to be threaded through this script.
+ */
+function versionLabelFromContainer() {
+  const output = execFileSync(
+    'docker',
+    ['inspect', '-f', '{{ index .Config.Labels "org.opencontainers.image.version" }}', CONTAINER_NAME],
+    { encoding: 'utf8' },
+  ).trim();
+  if (!output) {
+    throw new Error(
+      `docker inspect reported no org.opencontainers.image.version label on ${CONTAINER_NAME} -- ` +
+        'the image was not built with the Dockerfile\'s DOCCUM_VERSION ARG/LABEL',
+    );
+  }
+  return output;
+}
+
 function dumpContainerState(reason) {
   console.error(`\n::error::${reason}`);
   try {
@@ -177,6 +248,41 @@ function dumpContainerState(reason) {
   } catch (e) {
     console.error(`(could not fetch supervisorctl status: ${e.message})`);
   }
+}
+
+// Fortify's default path for its `verification.notice` route -- see
+// laravel/fortify's routes/routes.php,
+// `RoutePath::for('verification.notice', '/email/verify')` -- and NOT
+// overridden here: config/fortify.php was read before writing this and
+// carries no path override. If that ever changes, the constant is the one
+// place to fix it, not either of the two call sites below.
+const VERIFICATION_NOTICE_PATH = '/email/verify';
+
+/**
+ * item/smoke-installer-names-the-bounce (issue #197). Two places in this
+ * file report a destination the browser was asked to reach, and both used
+ * to be misreadable in the same way: mutation/0019 sent checkAdminUsersPage()
+ * an HTTP 200 from `/admin/users` that read exactly like an authorisation
+ * bypass and was not one. Playwright's goto() and waitForURL() both follow
+ * redirects, so a status code, or a bare "did the URL change", describes
+ * whatever the browser was FINALLY sent to -- not the page that was asked
+ * for. The member in that run held no `users.manage`, was unverified, and
+ * had been redirected to Fortify's own verification notice; the 200 was
+ * that notice rendering, not `/admin/users` answering for real.
+ *
+ * So both sites now go through this one helper instead of each inlining its
+ * own "where did we end up" text: one wording to keep honest, not two that
+ * read alike and can drift. It reports the pathname actually reached, and
+ * names the verification notice explicitly rather than leaving a caller to
+ * rediscover, from a raw path or a raw status, that a bounce happened at
+ * all -- which is the exact rediscovery mutation/0019 had to do by reading
+ * the check's source rather than its output.
+ */
+function describeLanding(page) {
+  const pathname = new URL(page.url()).pathname;
+  return pathname === VERIFICATION_NOTICE_PATH
+    ? `bounced to the email verification notice (${pathname}) instead of the page this was asked for`
+    : `landed on ${pathname}`;
 }
 
 /**
@@ -1000,29 +1106,46 @@ async function checkForgotPasswordSameResponseRegardlessOfAccount(browser, phase
  *     sanity check that the click is what changes the state, and must never
  *     be cited as evidence the page is alive.
  *
- *   - The version pill check is WEAK and is not a cross-source comparison.
- *     tinker reads config('doccum.version') and so does the Blade: same
- *     process, same source. The Dockerfile runs no config:cache, so the
- *     stale-cache scenario an earlier version of this comment described
- *     does not exist. What it does prove is narrow but real: the pill
- *     renders the configured value rather than a literal baked into the
- *     view. It becomes a genuine assertion once item/version-from-tag (36)
- *     gives an external source -- the image's
- *     org.opencontainers.image.version label -- to compare against.
+ *   - The version pill check is now a genuine cross-source comparison
+ *     (item/version-from-tag). tinker reads config('doccum.version') from
+ *     the PHP process; `docker inspect` reads org.opencontainers.image.version
+ *     off the image's own metadata, set by the Dockerfile's DOCCUM_VERSION
+ *     ARG/LABEL entirely independently of anything Laravel resolves at
+ *     runtime. The check requires pill == label == config, so it fails
+ *     whenever any one of those three disagrees with the other two -- not
+ *     just when the Blade renders a hardcoded literal.
+ *
+ *     BE PRECISE ABOUT WHAT THIS DOES AND DOES NOT CATCH, because the phrase
+ *     "cross-source" flatters it. The label and the env var both come from
+ *     the SAME `ARG DOCCUM_VERSION` at build time, so a single wrong
+ *     --build-arg sets both of them wrongly and identically, and this check
+ *     passes. What it does catch is a runtime value that has drifted from
+ *     what the image says it is -- a container started with DOCCUM_VERSION
+ *     overridden, a Blade literal, an ENV that never reaches config() -- and
+ *     that is a real class of defect, but it is NOT "the image was built
+ *     from the tag it claims".
+ *
+ *     Nothing here can prove that half: no tag exists in this job, and the
+ *     only independent witness to it is the git ref the release ran from.
+ *     item/release-v0-1-0 owns it, by cutting a throwaway pre-release tag
+ *     and reading the label off the published image -- release.yml has never
+ *     run at all (decision/0075), so that path is entirely unexercised.
  */
 async function checkTopbar(page, phase) {
   const version = versionFromContainer();
+  const label = versionLabelFromContainer();
 
   const pill = page.locator('[data-test="version-pill"]');
   await pill.waitFor({ state: 'visible', timeout: 10000 });
   const pillText = (await pill.innerText()).trim();
-  if (pillText !== `v${version}`) {
+  if (pillText !== `v${version}` || label !== version) {
     throw new Error(
-      `version pill reads "${pillText}" but the running container reports ` +
-        `config('doccum.version') = "${version}"`,
+      `version mismatch across sources -- pill: "${pillText}", ` +
+        `config('doccum.version'): "${version}", ` +
+        `org.opencontainers.image.version label: "${label}"`,
     );
   }
-  console.log(`[${phase}] version pill renders the configured value: ${pillText}`);
+  console.log(`[${phase}] version pill, config('doccum.version') and the image label all agree: ${pillText}`);
 
   // What is asserted here is that the topbar renders at all outside the test
   // renderer, with Flux's own components resolving in the image.
@@ -1207,61 +1330,6 @@ async function checkHomeDashboardShowsRecentUpload(page, phase) {
   }
 
   console.log(`[${phase}] Home lists ${FILE_NAME} under "Recent files" -- real data, not a placeholder`);
-}
-
-/**
- * item/email-verification-decided (issue #161): User now implements
- * MustVerifyEmail for real, and `dashboard` carries the `verified`
- * middleware -- so if the first administrator were not verified at
- * creation, checkHomeDashboardShowsRecentUpload() below (and everything
- * this smoke does afterwards, all of it as this same logged-in admin) would
- * fail at the very first /dashboard visit. That is real coverage, but it is
- * diffuse: it would show up as an unrelated-looking cascade of failures
- * with no assertion naming the actual cause. This gives that fact a name of
- * its own, right after the installer hands back control and before
- * anything else has a chance to obscure it.
- *
- * Evidence through tinker() first (the column itself), then the DOM as
- * confirmation (the middleware actually letting the request through) --
- * the same order checkAdminInstanceSettingsPage() uses for its own
- * round-trip check.
- */
-async function checkFirstAdminIsVerified(page, phase) {
-  const output = tinker(
-    "$u = \\App\\Models\\User::first(); echo 'VERIFIED:' . ($u && $u->hasVerifiedEmail() ? 'yes' : 'no');",
-  );
-
-  if (!output.includes('VERIFIED:yes')) {
-    dumpContainerState(
-      `[${phase}] the first administrator's email_verified_at is not set right after setup -- raw tinker output: ${output.trim()}`,
-    );
-    throw Object.assign(
-      new Error('the first administrator was not verified at creation'),
-      { dumped: true },
-    );
-  }
-  console.log(`[${phase}] the first administrator's email_verified_at is set -- OK`);
-
-  await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
-
-  try {
-    // data-test="home-recent-files" (resources/views/livewire/home/index.
-    // blade.php) renders unconditionally, with or without any recent files
-    // -- exactly what makes it safe to check here, before this admin has
-    // uploaded anything at all. Its absence means the request never reached
-    // Home\Index, which is what a `verified` redirect to email verification
-    // would look like.
-    await page.locator('[data-test="home-recent-files"]').waitFor({ state: 'visible', timeout: 10000 });
-  } catch {
-    dumpContainerState(
-      `[${phase}] /dashboard did not render Home for the first administrator -- current URL: ${page.url()}. Likely redirected to email verification instead of reaching a 'verified' route.`,
-    );
-    throw Object.assign(
-      new Error("the first administrator could not reach /dashboard, a 'verified' route"),
-      { dumped: true },
-    );
-  }
-  console.log(`[${phase}] the first administrator reaches /dashboard, a 'verified' route -- OK`);
 }
 
 /**
@@ -2648,14 +2716,28 @@ async function checkAdminUsersPage(page, phase) {
       memberPage.getByRole('button', { name: 'Log in' }).click(),
     ]);
 
+    // mutation/0019: goto() follows redirects, so `status` is the FINAL
+    // response, not necessarily /admin/users's own. A 403 straight from
+    // /admin/users and a 200 from a bounce to the verification notice are
+    // both "the status is not 403 for the page this was asked for" in two
+    // different ways, so describeLanding() (above fileRowExists()) is read
+    // alongside the status rather than the status standing alone -- a bare
+    // "HTTP 200, expected 403" is exactly what that mutation's run produced,
+    // and it reads like an authorisation bypass whether or not it is one.
     const response = await memberPage.goto(`${BASE_URL}/admin/users`, { waitUntil: 'domcontentloaded' });
     const status = response ? response.status() : null;
+    const landing = describeLanding(memberPage);
 
     if (status !== 403) {
-      dumpContainerState(`[${phase}] /admin/users answered HTTP ${status} for ${memberUsername}, who holds no users.manage -- expected 403`);
-      throw Object.assign(new Error(`/admin/users did not 403 for ${memberUsername}, answered ${status}`), { dumped: true });
+      dumpContainerState(
+        `[${phase}] /admin/users answered HTTP ${status} for ${memberUsername}, who holds no users.manage -- expected 403. ${landing}.`,
+      );
+      throw Object.assign(
+        new Error(`/admin/users did not 403 for ${memberUsername} (answered ${status}) -- ${landing}`),
+        { dumped: true },
+      );
     }
-    console.log(`[${phase}] /admin/users answered 403 for ${memberUsername} -- OK`);
+    console.log(`[${phase}] /admin/users answered 403 for ${memberUsername}, ${landing} -- OK`);
   } finally {
     await memberContext.close();
   }
@@ -2820,6 +2902,261 @@ async function checkAdminRolesPage(page, phase) {
     throw Object.assign(new Error('roles-last-admin-error never became visible after a refused permission change'), { dumped: true });
   }
   console.log(`[${phase}] the last-administrator refusal is visible on the roles page -- OK`);
+}
+
+/**
+ * issue #214: `AUTORUN_ENABLED=true` (Dockerfile:68) makes
+ * docker/entrypoint.d/51-doccum-roles.sh re-run `doccum:ensure-roles` on
+ * EVERY boot, including the one tests.yml performs between runSetup() and
+ * runVerify() to replace this container. checkAdminRolesPage(), called only
+ * from runSetup(), grants `periods.manage` to the `member` role through the
+ * real /admin/roles form; this function is the other half -- called from
+ * runVerify(), AFTER the replacement, to check that grant is still there.
+ *
+ * Before the fix, RolesAndPermissionsSeeder::run() ended in
+ * syncPermissions() for both roles on every single run of that command,
+ * which REPLACES a role's permission set with the seeder's own constants.
+ * runSetup()'s grant happened, the same container's next request still saw
+ * it (nothing re-ran the seeder in between), and the phase reported green --
+ * exactly why this defect needed a check that survives a replacement to be
+ * seen at all. Uses tinker rather than the UI: this is a database
+ * persistence question, not a rendering one, and re-driving the checkbox
+ * would only prove Livewire still works, not that boot left the row alone.
+ */
+function checkRolePermissionSurvivesContainerReplacement(phase) {
+  const php = [
+    "$r = \\Spatie\\Permission\\Models\\Role::findByName('member');",
+    "echo 'HOLDS:' . ($r && $r->hasPermissionTo('periods.manage') ? 'yes' : 'no');",
+  ].join(' ');
+  const output = tinker(php);
+
+  if (!/HOLDS:yes/.test(output)) {
+    dumpContainerState(
+      `[${phase}] the member role no longer holds periods.manage after the container was replaced -- raw output: ${output}`
+      + ' -- runSetup() granted it through the real /admin/roles form; something on this'
+      + ' boot reset the role\'s permissions back to RolesAndPermissionsSeeder\'s constants (issue #214)',
+    );
+    throw Object.assign(new Error('member role lost periods.manage across a container restart'), { dumped: true });
+  }
+  console.log(`[${phase}] the member role still holds periods.manage after the container replacement -- OK`);
+}
+
+/**
+ * item/upgrade-smoke (issue #210): everything above proves DATA
+ * survives a container REPLACEMENT that happens to reuse the exact same
+ * image on both sides -- which proves a restart, not an upgrade across a
+ * code change. The cheaper substitute to maintaining and pulling an older
+ * published image (whose schema only drifts further from HEAD with every
+ * migration this repository ships) is to make the CURRENT volume look like
+ * it predates the candidate image in the two ways that have actually
+ * locked a real instance out before:
+ *
+ *   - an unverified user (email_verified_at NULL): every account made
+ *     before item/email-verification-decided shipped is in exactly this
+ *     state. database/migrations/2026_09_18_150000_backfill_email_verified_at_for_existing_users.php
+ *     exists to fix that up on upgrade -- see that migration's own
+ *     docblock for the full reasoning.
+ *   - a role whose permissions an operator edited away from
+ *     RolesAndPermissionsSeeder's defaults -- the same class of edit
+ *     checkAdminRolesPage()/checkRolePermissionSurvivesContainerReplacement()
+ *     above already cover for a GRANT made through the real /admin/roles
+ *     form; this covers the opposite direction, a REVOKE made directly
+ *     against the database, the way an older instance's history could
+ *     equally well have produced it.
+ *
+ * Called from a DEDICATED workflow step ("Seed pre-upgrade rows before
+ * replacing the container"), run against the STILL-RUNNING pre-replacement
+ * container, before "Replace the container, keeping only the volume" tears
+ * it down -- this is the one point where a write lands on the named volume
+ * the replacement is about to reuse, from a container that still holds the
+ * live SQLite connection onto it.
+ *
+ * The migrations-table delete is the detail that makes this a genuine
+ * re-run of the migration rather than a restart against a row that merely
+ * happens to be NULL. The backfill migration already ran once, as a no-op,
+ * the moment THIS container first booted (docker/entrypoint.d migrates
+ * before FirstRun has created any user at all -- see 49-doccum-init.sh's
+ * own comment on that ordering), and Laravel records a migration as
+ * applied in `migrations` and never re-runs it. Inserting a NULL row now
+ * and simply restarting would therefore leave that row NULL forever
+ * regardless of whether the backfill code exists at all -- an assertion
+ * that could never observe the fix being absent is not a check,
+ * whatever it asserts. Deleting this ONE migration's own tracking row puts
+ * it back in the "not yet run against this data" state a genuinely
+ * upgraded instance would be in; the migration's own UPDATE is a plain,
+ * idempotent `WHERE email_verified_at IS NULL`, so re-running it is safe.
+ * This is exactly what decision/0067's mutation check needs: reverting the
+ * migration's up() to a no-op must leave this row NULL even after it is
+ * forced to run again -- which is what makes checkStaleUserReachesTheApp()
+ * below fail under that mutation, rather than trivially passing because
+ * nothing here ever gave the migration a reason to run.
+ *
+ * No Playwright here at all -- this is a database seed, not a page
+ * interaction, so it runs synchronously through tinker() the same way
+ * checkRolePermissionSurvivesContainerReplacement() above does.
+ */
+/**
+ * item/upgrade-smoke (issue #210) is the CHECK; item/upgrade-preserves-access,
+ * the already-shipped fix, is what it checks. Both cite issue #210 and they are
+ * easy to confuse: the backfill migration this seeds against belongs to the
+ * second, and this function exists to make the first able to fail.
+ */
+function seedStaleRows() {
+  const php = [
+    "$u = \\App\\Models\\User::create(['name' => 'Stale Smoke User',",
+    `'username' => '${STALE_USER_USERNAME}', 'email' => '${STALE_USER_EMAIL}',`,
+    `'password' => '${STALE_USER_PASSWORD}']);`,
+    // User::create() already leaves this NULL -- nothing on this model
+    // auto-verifies an account it creates -- but setting it explicitly
+    // says outright what "seed a row in the pre-change state" means,
+    // rather than resting on an absence this function never actually
+    // asked for.
+    "$u->forceFill(['email_verified_at' => null])->save();",
+    "$deleted = \\Illuminate\\Support\\Facades\\DB::table('migrations')",
+    `->where('migration', '${STALE_BACKFILL_MIGRATION}')->delete();`,
+    `$role = \\Spatie\\Permission\\Models\\Role::findByName('${STALE_ROLE_NAME}');`,
+    // Read BEFORE revoking, same reason checkAdminRolesPage() above checks
+    // memberPeriodsCheckbox.isChecked() before toggling it: if
+    // RolesAndPermissionsSeeder::MEMBER_PERMISSIONS ever drifted and
+    // ${STALE_ROLE_NAME} never held ${STALE_REMOVED_PERMISSION} to begin
+    // with, revoking it "succeeds" and HOLDS_AFTER_REVOKE:no would look
+    // identical to a real revoke -- proving nothing about survival across
+    // the replacement below.
+    `$heldBefore = $role->hasPermissionTo('${STALE_REMOVED_PERMISSION}');`,
+    `$role->revokePermissionTo('${STALE_REMOVED_PERMISSION}');`,
+    "echo 'SEED:' . ($u->email_verified_at === null ? 'unverified' : 'verified')",
+    "  . ' MIGRATION_ROW_DELETED:' . $deleted",
+    "  . ' HELD_BEFORE_REVOKE:' . ($heldBefore ? 'yes' : 'no')",
+    `  . ' HOLDS_AFTER_REVOKE:' . ($role->hasPermissionTo('${STALE_REMOVED_PERMISSION}') ? 'yes' : 'no');`,
+  ].join(' ');
+
+  const output = tinker(php);
+
+  if (!/SEED:unverified/.test(output)) {
+    dumpContainerState(`seeding the stale user left it verified instead of unverified -- raw output: ${output}`);
+    throw Object.assign(new Error('seeded stale user is not actually unverified'), { dumped: true });
+  }
+
+  if (!/MIGRATION_ROW_DELETED:1/.test(output)) {
+    dumpContainerState(
+      `deleting ${STALE_BACKFILL_MIGRATION}'s own row from \`migrations\` did not affect exactly one row -- raw output: ${output}`
+      + ' -- either that name no longer matches the migration file, or this ran twice against the same volume',
+    );
+    throw Object.assign(new Error('did not delete exactly one migrations row for the backfill migration'), { dumped: true });
+  }
+
+  if (!/HELD_BEFORE_REVOKE:yes/.test(output)) {
+    dumpContainerState(
+      `${STALE_ROLE_NAME} did not hold ${STALE_REMOVED_PERMISSION} before this tried to revoke it -- raw output: ${output}`
+      + ' -- RolesAndPermissionsSeeder::MEMBER_PERMISSIONS no longer includes it, so revoking it here would prove nothing',
+    );
+    throw Object.assign(new Error(`${STALE_ROLE_NAME} never held ${STALE_REMOVED_PERMISSION} to begin with`), { dumped: true });
+  }
+
+  if (!/HOLDS_AFTER_REVOKE:no/.test(output)) {
+    dumpContainerState(`revoking ${STALE_REMOVED_PERMISSION} from ${STALE_ROLE_NAME} did not take -- raw output: ${output}`);
+    throw Object.assign(new Error(`${STALE_ROLE_NAME} still holds ${STALE_REMOVED_PERMISSION} right after revoking it`), { dumped: true });
+  }
+
+  console.log(
+    `[seed-stale] seeded ${STALE_USER_EMAIL} unverified, deleted the backfill migration's own tracking row, `
+    + `and revoked ${STALE_REMOVED_PERMISSION} from ${STALE_ROLE_NAME} -- the volume now looks pre-upgrade`,
+  );
+}
+
+/**
+ * item/upgrade-smoke (issue #210): the counterpart to
+ * seedStaleRows() above, called from runVerify() AFTER the container has
+ * been replaced. Confirms the account seedStaleRows() inserted with
+ * email_verified_at NULL -- and whose backfill migration was forced back
+ * into a "not yet run against this row" state -- reaches an authenticated
+ * page rather than being stranded on Fortify's verification notice.
+ *
+ * Reports through describeLanding() rather than a bare boolean: CLAUDE.md
+ * and this file's own describeLanding() docblock are explicit about why --
+ * mutation/0019 cost checkAdminUsersPage() a run where an HTTP 200 read
+ * exactly like an authorisation bypass and was actually the verification
+ * notice rendering. This check states plainly, on failure, that it is the
+ * SAME bounce, so nobody has to rediscover that by reading the source.
+ *
+ * Logs in and navigates in its own newContext(): this account has no
+ * relationship to the admin session the rest of runVerify() drives, and
+ * reusing that page could carry a cookie that hides a real failure here.
+ */
+async function checkStaleUserReachesTheApp(browser, phase) {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
+    await page.getByLabel('Username or email', { exact: true }).fill(STALE_USER_EMAIL);
+    await page.getByLabel('Password', { exact: true }).fill(STALE_USER_PASSWORD);
+    await Promise.all([
+      page.waitForURL((u) => u.pathname !== '/login', { timeout: 15000 }),
+      page.getByRole('button', { name: 'Log in' }).click(),
+    ]);
+
+    // dashboard, not /files or /search: it is the one route behind
+    // ['auth', 'verified'] that carries no further `can:` permission, so a
+    // bounce here can only be about verification, never about this
+    // freshly-created, role-less account lacking some unrelated capability.
+    await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
+    const pathname = new URL(page.url()).pathname;
+
+    if (pathname !== '/dashboard') {
+      dumpContainerState(
+        // describeLanding() already ends in "instead of the page this was
+        // asked for" on a verification bounce, so naming /dashboard again
+        // after it produced "instead of ... instead of /dashboard" in the
+        // mutation run. The route this asked for is stated up front instead.
+        `[${phase}] the user seeded with email_verified_at NULL before the replacement, `
+        + `asked for /dashboard after logging in and ${describeLanding(page)} -- `
+        + (pathname === VERIFICATION_NOTICE_PATH
+          ? 'the backfill migration did not reach this row across the replacement, so it is stranded exactly the way issue #210 describes'
+          : 'landed somewhere neither this check nor the login flow expected'),
+      );
+      throw Object.assign(new Error(`stale user landed on ${pathname} instead of /dashboard`), { dumped: true });
+    }
+
+    console.log(
+      `[${phase}] the user seeded unverified before the replacement reached ${describeLanding(page)} -- `
+      + 'the backfill migration protected it across the upgrade -- OK',
+    );
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * item/upgrade-smoke (issue #210), the role-permission half.
+ * seedStaleRows() revoked STALE_REMOVED_PERMISSION from STALE_ROLE_NAME
+ * directly against the database, on the pre-replacement container -- the
+ * same class of edit checkRolePermissionSurvivesContainerReplacement()
+ * above already covers for a permission GRANTED through the real
+ * /admin/roles form. This is the mirror case: a permission REVOKED must
+ * not come BACK after the replacement either, which is exactly what issue
+ * #214's fix (RolesAndPermissionsSeeder's createRoleIfMissing() touching
+ * nothing on a role that already exists) is supposed to guarantee
+ * regardless of which direction the edit went.
+ *
+ * Pure tinker, like checkRolePermissionSurvivesContainerReplacement()
+ * above: this is a database persistence question, not a rendering one.
+ */
+function checkStaleRolePermissionStaysRevoked(phase) {
+  const php = [
+    `$r = \\Spatie\\Permission\\Models\\Role::findByName('${STALE_ROLE_NAME}');`,
+    `echo 'HOLDS:' . ($r && $r->hasPermissionTo('${STALE_REMOVED_PERMISSION}') ? 'yes' : 'no');`,
+  ].join(' ');
+  const output = tinker(php);
+
+  if (!/HOLDS:no/.test(output)) {
+    dumpContainerState(
+      `[${phase}] ${STALE_ROLE_NAME} holds ${STALE_REMOVED_PERMISSION} again after the container was replaced -- raw output: ${output}`
+      + ` -- seedStaleRows() revoked it directly against the database before the replacement; something on this boot`
+      + ` reset ${STALE_ROLE_NAME}'s permissions back to RolesAndPermissionsSeeder's defaults (issue #214)`,
+    );
+    throw Object.assign(new Error(`${STALE_ROLE_NAME} regained ${STALE_REMOVED_PERMISSION} across a container restart`), { dumped: true });
+  }
+  console.log(`[${phase}] ${STALE_ROLE_NAME} still lacks ${STALE_REMOVED_PERMISSION} after the container replacement -- the edit survived -- OK`);
 }
 
 /**
@@ -3035,6 +3372,98 @@ async function checkAdminInstanceSettingsPage(page, phase) {
 }
 
 /**
+ * item/api-sanctum-tokens (issue #22): drives /settings/api-tokens the way
+ * an operator would. tests/Feature/Settings/ApiTokensTest.php and its
+ * mutation-proven guard on App\Livewire\Settings\ApiTokens already prove the
+ * component against the test renderer -- what only a real browser against
+ * the built image can see is whether the real form reaches
+ * ApiTokens::createToken() at all (a broken asset build or an unresolved
+ * Flux component leaves every Blade assertion green and the control
+ * unusable, same class of gap every other admin/settings check in this file
+ * exists to catch).
+ *
+ * Two doing-assertions, not resting-state ones (CLAUDE.md's account-menu
+ * lesson): creating a token and reading the plaintext value BACK OFF THE
+ * PAGE (never a fixed placeholder -- an assertion against a hardcoded
+ * string would pass even if $plainTextToken were wired to something else
+ * entirely) requires the form to have submitted, ApiTokens::createToken()
+ * to have run and saved a row, and the component to have re-rendered with a
+ * value that exists only in memory; reloading and finding that SAME string
+ * gone requires a fresh mount() to come back without it
+ * (App\Livewire\Settings\ApiTokens's own docblock: mount() never
+ * repopulates $plainTextToken -- there is nowhere in the database for it to
+ * be read back from).
+ *
+ * /settings/api-tokens sits behind the same `password.confirm` middleware as
+ * /settings/security (routes/settings.php) -- a gate this smoke has never
+ * driven before. Whether it appears depends on how recently this session
+ * confirmed its password (Fortify's password-timeout), so this checks for
+ * the confirm form's own [data-test] rather than assuming either outcome: if
+ * it is there, it fills the ONE password field
+ * (resources/views/livewire/auth/confirm-password.blade.php -- a plain
+ * `<form method="POST">`, not a Livewire component, so a real navigation
+ * follows the click) and waits for the ORIGINAL destination, not a bare
+ * "the URL changed", since Laravel's RequirePassword middleware stores the
+ * intended URL and Fortify's confirmation controller redirects back to it.
+ */
+async function checkApiTokensPage(page, phase) {
+  console.log(`[${phase}] opening /settings/api-tokens as the administrator`);
+  await page.goto(`${BASE_URL}/settings/api-tokens`, { waitUntil: 'domcontentloaded' });
+
+  const confirmButton = page.locator('[data-test="confirm-password-button"]');
+  if (await confirmButton.isVisible().catch(() => false)) {
+    console.log(`[${phase}] /settings/api-tokens bounced to the password-confirm gate -- confirming with the admin's password`);
+    await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD);
+    await Promise.all([
+      page.waitForURL((u) => u.pathname === '/settings/api-tokens', { timeout: 15000 }),
+      confirmButton.click(),
+    ]);
+    console.log(`[${phase}] password-confirm gate cleared, back at /settings/api-tokens -- OK`);
+  } else {
+    console.log(`[${phase}] no password-confirm gate this time -- the session already held a recent confirmation`);
+  }
+
+  await page.locator('[data-test="create-token-form"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  const digits = Date.now().toString().slice(-9);
+  const tokenName = `Smoke Token ${digits}`;
+
+  console.log(`[${phase}] creating a token named "${tokenName}" through the real form`);
+  await page.getByLabel('Name', { exact: true }).fill(tokenName);
+  await page.locator('[data-test="ability-checkbox"]').first().check();
+  await clickAndWaitForLivewire(page, page.locator('[data-test="create-token-button"]'));
+
+  const tokenValueLocator = page.locator('[data-test="new-token-value"]');
+  try {
+    await tokenValueLocator.waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] submitting the create-token form for "${tokenName}" never produced [data-test="new-token-value"]`
+      + ' -- either the submit never reached ApiTokens::createToken(), or the component did not re-render with a plaintext value',
+    );
+    throw Object.assign(new Error('creating a token through the real form produced no plaintext value on the page'), { dumped: true });
+  }
+
+  const plainTextToken = (await tokenValueLocator.textContent())?.trim();
+  if (!plainTextToken) {
+    dumpContainerState(`[${phase}] [data-test="new-token-value"] rendered but held no text after creating "${tokenName}"`);
+    throw Object.assign(new Error('new-token-value rendered empty after creating a token'), { dumped: true });
+  }
+  console.log(`[${phase}] the plaintext token appeared on the page right after creating it -- OK`);
+
+  console.log(`[${phase}] reloading /settings/api-tokens and checking that exact plaintext value is gone`);
+  await page.goto(`${BASE_URL}/settings/api-tokens`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="tokens-list"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  const stillVisible = await page.getByText(plainTextToken, { exact: true }).isVisible().catch(() => false);
+  if (stillVisible) {
+    dumpContainerState(`[${phase}] the plaintext token captured off "${tokenName}"'s creation is still on the page after a reload of /settings/api-tokens`);
+    throw Object.assign(new Error('plaintext token value survived a reload of /settings/api-tokens'), { dumped: true });
+  }
+  console.log(`[${phase}] the plaintext token is gone after reloading -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -3209,24 +3638,52 @@ async function runSetup() {
     await page.getByLabel('Confirm password', { exact: true }).fill(ADMIN_PASSWORD);
 
     console.log('[setup] submitting the administrator form');
-    await Promise.all([
-      // submit() ends in `redirect()->route('files.browse')` (see
-      // FirstRun::submit) -- a real, full-page redirect, not a Livewire
-      // ->navigate() morph, so a plain URL wait is enough.
-      //
-      // This wait is the whole of issue #97's evidence. Put the redirect back
-      // to '/' and it times out here, because '/' is Route::view('/',
-      // 'welcome') -- Laravel's starter page. The page.goto() below cannot
-      // rescue it: this wait runs first.
-      page.waitForURL((u) => u.pathname === '/files', { timeout: 15000 }),
-      page.getByRole('button', { name: 'Create administrator account' }).click(),
-    ]);
-    console.log('[setup] installer complete, admin created and logged in');
+    try {
+      await Promise.all([
+        // submit() ends in `redirect()->route('files.browse')` (see
+        // FirstRun::submit) -- a real, full-page redirect, not a Livewire
+        // ->navigate() morph, so a plain URL wait is enough.
+        //
+        // This wait is the whole of issue #97's evidence. Put the redirect back
+        // to '/' and it times out here, because '/' is Route::view('/',
+        // 'welcome') -- Laravel's starter page. The page.goto() below cannot
+        // rescue it: this wait runs first.
+        //
+        // It is ALSO, since item/email-verification-decided (issue #161),
+        // the whole of mutation/0018's evidence: `files.browse` carries the
+        // `verified` middleware, so any change that leaves the first
+        // administrator unverified fails HERE, by construction, before
+        // control is even handed back to this script -- there used to be a
+        // separate checkFirstAdminIsVerified() function, called right after
+        // this Promise.all, that tried to name that failure on its own
+        // tinker/DOM evidence. item/smoke-installer-names-the-bounce
+        // (issue #197) removed it, because mutation/0018 showed it could
+        // never be the check a red run points at -- this wait always fails
+        // first. The catch block below is
+        // what makes THIS failure legible instead of a bare "Timeout
+        // 15000ms exceeded" -- unverified, the redirect bounces to Fortify's
+        // verification notice, and describeLanding() (mutation/0019, above
+        // fileRowExists()) names that explicitly instead of leaving a bare
+        // timeout, or a raw URL, open to being misread the way an HTTP 200
+        // was misread as a bypass elsewhere in this file.
+        page.waitForURL((u) => u.pathname === '/files', { timeout: 15000 }),
+        page.getByRole('button', { name: 'Create administrator account' }).click(),
+      ]);
+    } catch {
+      dumpContainerState(
+        `[setup] the installer never reached /files after submitting the administrator form -- ${describeLanding(page)}.`
+        + ' A bounce to the verification notice here means the first administrator was not verified at'
+        + ' creation (item/email-verification-decided, issue #161); a bounce anywhere else (e.g. back to'
+        + " '/', Laravel's starter welcome page) is issue #97's original failure mode instead.",
+      );
+      throw Object.assign(
+        new Error(`installer did not redirect to /files -- ${describeLanding(page)}`),
+        { dumped: true },
+      );
+    }
+    console.log(`[setup] installer complete, admin created and logged in -- ${describeLanding(page)}`);
 
     checkEmbeddedSqlitePragmas();
-
-    console.log('[setup] checking the first administrator is verified at creation and reaches a verified route (issue #161)');
-    await checkFirstAdminIsVerified(page, 'setup');
 
     console.log('[setup] opening the home directory');
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
@@ -3310,6 +3767,9 @@ async function runSetup() {
     console.log('[setup] toggling auth.public_signup through /admin/settings and checking /register flips between 404 and 200 for a guest (issue #21)');
     await checkAdminInstanceSettingsPage(page, 'setup');
 
+    console.log('[setup] creating a personal access token through /settings/api-tokens and checking its plaintext value appears once and is gone on reload (issue #22)');
+    await checkApiTokensPage(page, 'setup');
+
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();
 
@@ -3370,6 +3830,15 @@ async function runVerify() {
     }
 
     console.log('[verify] logged in by username -- the admin account persisted');
+
+    console.log('[verify] checking the member role still holds the periods.manage permission granted during setup, across the container replacement (issue #214)');
+    checkRolePermissionSurvivesContainerReplacement('verify');
+
+    console.log('[verify] checking a role permission revoked directly against the database before the replacement stayed revoked (issue #210/#214)');
+    checkStaleRolePermissionStaysRevoked('verify');
+
+    console.log('[verify] checking a user seeded with email_verified_at NULL before the replacement still reaches the app instead of being stranded on the verification notice (issue #210)');
+    await checkStaleUserReachesTheApp(browser, 'verify');
 
     await page.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
     await page.locator('[data-test="directories-list"]').getByRole('link', { name: ADMIN_USERNAME, exact: true }).click();
@@ -3449,6 +3918,8 @@ async function runVerify() {
   try {
     if (phase === 'setup') {
       await runSetup();
+    } else if (phase === 'seed-stale') {
+      seedStaleRows();
     } else {
       await runVerify();
     }

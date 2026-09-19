@@ -1,0 +1,58 @@
+# Changelog
+
+All notable changes to doccum are documented in this file.
+
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project intends to adopt [Semantic Versioning](https://semver.org/)
+from 1.0.0 onward.
+
+`.github/scripts/changelog-section.sh` extracts a single version's section
+from this file verbatim as the body of that version's GitHub Release, so keep
+each entry to what a user of the product would care about, and keep the
+heading format to `## [x.y.z]` or `## [x.y.z] - YYYY-MM-DD`.
+
+## [Unreleased]
+
+## [0.1.0] - 2026-09-18
+
+Initial feature set.
+
+### Added
+
+- Directory tree with a three-pane files view (tree sidebar, list and detail
+  panel) and breadcrumb navigation.
+- File version history and replace-in-place, with each version individually
+  downloadable.
+- Dense file list with column sorting, multi-select and bulk trash.
+- Rename and move actions for directories and files.
+- Legal hold, to stop a file being purged by a retention period.
+- Trash: trashing a directory hides everything beneath it; a Trash page
+  restores items or purges them permanently, one at a time.
+- Home dashboard: recent files, storage by period, and quick search.
+- Search filters by type, MIME type, period and custom properties.
+- Directory access can be granted and revoked from the UI.
+- Settings: users, roles and their permission matrix, retention periods
+  (closing and purge plans), and instance-wide settings (name, signup,
+  retention limits).
+- Login accepts a username as well as an email address.
+- `user:reset-password` console command, so a locked-out admin can regain
+  access without database access.
+- Runs correctly behind a TLS-terminating reverse proxy, serving correct
+  URLs (respects `X-Forwarded-Proto`/`X-Forwarded-Host`).
+
+### Fixed
+
+- Downloads reliably reach the browser instead of failing silently.
+- A missing storage object now returns a clear error instead of a crash, on
+  both the download and text-extraction paths.
+- Uploads that were silently discarded now surface as errors the operator
+  can see and retry.
+- A role's permissions edited in Settings now survive a container restart.
+- Upgrading an existing instance no longer locks out every user.
+- Email verification now consistently enforces what the instance settings
+  say it does.
+
+### Security
+
+- Removed the hard-coded default MinIO password from `compose.yaml`; the
+  storage profile now requires `MINIO_ROOT_PASSWORD` to be set explicitly.

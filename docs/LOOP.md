@@ -73,17 +73,33 @@ Every hour, the loop wakes and runs these steps in order.
    `Completed`. Ties break toward whatever unblocks the most other items.
 5. **Execute.** Hand the item to a Sonnet worker with its plan, the relevant
    spec section and `CLAUDE.md`. One item per branch, one branch per PR.
+
+   The worker's brief is the item's `doneWhen`, and that is the ONLY thing
+   that binds them. A decision can decide that work belongs to an item; only
+   the item's `doneWhen` can require it (`decision/0083`). So when a decision
+   binds an item, write the clause into that item's `doneWhen` carrying the
+   decision id, and leave the reasoning in the decision. Do not assemble a
+   brief out of the graph: `affects` points backwards at where a decision
+   came from, not forwards at who must obey it.
 6. **Verify through CI.** Push, open the PR, let the workflows run. Local
    runs are a convenience; the CI matrix is the verification of record,
    because it covers SQLite, PostgreSQL and MySQL and it boots the container.
 7. **Update the ledger.** Append the run, move the item's status, record any
    decision taken and why.
+
+   A decision that calls for a change somewhere else is not finished until
+   that change is in the same pull request. `decision/0074` adopted a
+   promotion rule for LOOP.md and `CLAUDE.md`, and for two hours nothing in
+   either file changed -- the rule existed only as a node saying it existed,
+   which reads as solved and is worse than no rule (`decision/0084`). If a
+   decision says an item's `doneWhen`, this file or `CLAUDE.md` must change,
+   change it in the same commit or do not record the decision yet.
 8. **Consult.** Every fourth iteration, or whenever the backlog shape changes,
    ask Fable whether the remaining road to v1 and the ledger vocabulary still
    describe reality. Fold the answer back into the ledger.
-9. **Re-arm.** Schedule the next wake-up. The loop stops only when the
-   ledger's release node reaches `Completed` — that is, `v1.0.0` is tagged and
-   the image is published.
+9. **Re-arm.** Schedule the next wake-up. The loop stops only when
+   `item/tag-v1-0-0` reaches `CompletedActionStatus` — that is, `v1.0.0` is
+   tagged and the image is published. See **Stopping**.
 
 ## Rules the loop does not get to bend
 
@@ -104,14 +120,38 @@ Every hour, the loop wakes and runs these steps in order.
 - **Never skip, disable or quarantine a test** to get a PR green.
 - **Every guard gets a mutation check.** Delete the guard, watch the test
   fail, restore it — and say in the PR that you did.
+- **Mutate a branch that is already green, and say beforehand what should
+  fail.** A mutation is a differential measurement, so a differential against
+  an unknown baseline is not a measurement. Get the feature PR to a full green
+  first, then branch the mutant off it. `decision/0088`: the mutation for
+  issue #86 was opened against a branch CI had never seen. It came back red on
+  every test job — which is what a working mutation looks like from a distance
+  — and none of it was the mutant. All three new tests were dying in an
+  unrelated `TypeError` before reaching an assertion, and a fourth failure was
+  an unregistered portability site. Red is not evidence; *which* tests, and
+  only those, is evidence. Write the prediction into the mutation PR before
+  the run, and check the count in the summary line against it: a mutant that
+  reddens more than it should has told you something about your tests, not
+  about the guard.
 - **Scope stays small.** One backlog item per PR. An item that grows past its
   "done when" line gets split in the ledger, not widened in the branch.
 - **The ledger is append-only for history.** Runs and decisions are never
-  rewritten; only item status and the release node are mutable.
+  rewritten; only item status is mutable.
 
 ## Stopping
 
-The loop is finished when the ledger's `v1.0.0` release node is `Completed`:
-every `required` backlog item done, the suite green across the full CI matrix,
-the container smoke test passing, the tag pushed and `ghcr.io` carrying the
-image. At that point the loop unschedules itself and reports.
+The loop is finished when `item/tag-v1-0-0` reaches `CompletedActionStatus`:
+every item whose `release` is `v1.0.0` done, the suite green across the full CI
+matrix, the container smoke test passing, the tag pushed and `ghcr.io` carrying
+the image. At that point the loop unschedules itself and reports.
+
+`item/tag-v1-0-0` is the stopping node because it is the one already enforced
+mechanically: `LedgerValidator` refuses it as `Completed` while any item with
+`release` = `v1.0.0` is not, so the first clause cannot be claimed without
+being true.
+
+This section previously named a `v1.0.0` release node and a `required` field
+on backlog items. Neither exists -- there is no node of `@type` `Release` in
+the graph, and 0 of 89 items carry `required`; the field is `release`, an enum.
+The loop's termination condition was therefore unevaluable as written, for the
+whole project. See `decision/0095`.

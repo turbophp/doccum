@@ -18,7 +18,24 @@ x-app: &app
     SESSION_DRIVER: database
     FILESYSTEM_DISK: documents
     AWS_ACCESS_KEY_ID: doccum
-    AWS_SECRET_ACCESS_KEY: doccum-secret
+    # No known default -- a known secret in a public repo is a known secret in
+    # every install that copies it. `:-` here and NOT `:?`, because the default
+    # stack never reads this value: `app` runs with DOCCUM_EMBEDDED_STORAGE=true,
+    # so 48-doccum-storage.sh generates a random password into /data/minio.env,
+    # and RuntimeConfigServiceProvider::applyEmbeddedStorage() overwrites
+    # documents.key/secret/endpoint from that file at boot -- for all four
+    # services, since they share the db:/data volume. The refusal belongs to the
+    # `storage` profile's own minio service below, which is the only place this
+    # password actually sets anything, and that is where the `:?` lives.
+    #
+    # Be aware, before moving either marker: compose interpolates the WHOLE file
+    # regardless of which profiles are selected (verified on Compose v5.1.1 --
+    # even `--profile nonexistent` fails), so the `:?` below makes
+    # MINIO_ROOT_PASSWORD required for EVERY compose invocation, this stack
+    # included. That is deliberate and is the cost of a refusal CI can prove
+    # without booting anything; the README says so. It is not a per-profile
+    # requirement, because compose has no way to express one.
+    AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}
     AWS_DEFAULT_REGION: us-east-1
     AWS_BUCKET: doccum
   volumes:
@@ -100,7 +117,10 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: doccum
-      MINIO_ROOT_PASSWORD: doccum-secret
+      # Required, not defaulted: this profile is the only place a known
+      # password would otherwise ship in a public repo, so compose refuses
+      # to resolve at all until an operator supplies one.
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD to the password this MinIO should use -- there is no default on purpose, since this profile stores objects outside the app container and a known password here would be a known password for anyone who runs the storage profile.}"
     volumes:
       - minio:/data
     ports:
@@ -114,7 +134,7 @@ services:
     profiles: ["storage"]
     entrypoint: >
       /bin/sh -c "
-      until mc alias set local http://minio:9000 doccum doccum-secret; do sleep 1; done;
+      until mc alias set local http://minio:9000 doccum ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD to the same password given to the minio service above.}; do sleep 1; done;
       mc mb --ignore-existing local/doccum;
       exit 0;
       "

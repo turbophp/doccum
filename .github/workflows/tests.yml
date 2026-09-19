@@ -5,12 +5,35 @@ on:
     branches:
       - main
   pull_request:
+  # item/release-gate (issue #32): release.yml calls this workflow as its
+  # `verify` job, so a tag push or workflow_dispatch runs the exact same
+  # suite a push to main does, rather than trusting whatever main's last
+  # push run happened to say (decision/0016 -- that lookup has its own
+  # pitfalls: cancelled concurrency runs, checks from other refs, pooled
+  # conclusions). No `secrets:` block below: every job in this file only
+  # ever asks for `contents: read` (grep the job-level `permissions:` --
+  # there is no `secrets.` reference anywhere in this workflow), so the
+  # calling job in release.yml grants that alone rather than
+  # `secrets: inherit`.
+  workflow_call:
 
 permissions:
   contents: read
 
 # A push that supersedes an in-flight run (force-push, quick follow-up commit)
 # should not keep burning runner minutes on code nobody will look at.
+#
+# Called via workflow_call (release.yml's `verify` job), github.workflow and
+# github.ref both resolve in the CALLER's context: github.workflow is
+# "release" (not "tests"), and github.ref is whatever ref triggered
+# release.yml (the pushed tag, or the ref workflow_dispatch ran from) --
+# never "refs/heads/main" or a PR merge ref. So a called run's group is
+# always "release-<that ref>", which cannot collide with this workflow's own
+# "tests-refs/heads/main" or "tests-refs/pull/<n>/merge" groups, and two
+# concurrent releases of the *same* ref (e.g. a repeated workflow_dispatch)
+# still get sane cancel-in-progress behaviour. Confirmed against GitHub's
+# documented context-inheritance rules for workflow_call; not something this
+# environment can execute to observe directly.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -314,6 +337,151 @@ jobs:
         if: always()
         run: git diff --exit-code
 
+  # item/compose-secret / decision/0078: `docker compose config` resolves
+  # variables and interpolation WITHOUT starting anything, so this proves the
+  # `storage` profile actually refuses to run without MINIO_ROOT_PASSWORD
+  # rather than quietly falling back to the known password that used to ship
+  # in compose.yaml. No `needs:` on purpose -- this costs seconds and needs
+  # nothing the other jobs build, so it runs immediately rather than waiting
+  # behind `image`, which it has nothing to do with.
+  compose-secret:
+    timeout-minutes: 5
+    name: compose requires MINIO_ROOT_PASSWORD
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Both directions matter, and a grep for the literal string "doccum-secret"
+      # would pass the first one even with a `${MINIO_ROOT_PASSWORD:-doccum-secret}`
+      # default in place, since a default never leaves the unset case failing --
+      # it just quietly keeps the known password. Only actually asking compose
+      # to resolve the variable, unset, catches that.
+      - name: Unset MINIO_ROOT_PASSWORD must fail the storage profile, naming it
+        run: |
+          set +e
+          output="$(env -u MINIO_ROOT_PASSWORD docker compose --profile storage config 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::expected 'docker compose --profile storage config' to exit non-zero with MINIO_ROOT_PASSWORD unset, but it exited 0 -- the storage profile is defaulting the secret instead of requiring it (use \${MINIO_ROOT_PASSWORD:?message}, not :-)"
+            echo "$output"
+            exit 1
+          fi
+
+          if ! printf '%s' "$output" | grep -q "MINIO_ROOT_PASSWORD"; then
+            echo "::error::'docker compose --profile storage config' failed as expected with MINIO_ROOT_PASSWORD unset, but its output never named MINIO_ROOT_PASSWORD -- an operator would not know what to set"
+            echo "$output"
+            exit 1
+          fi
+
+          echo "unset MINIO_ROOT_PASSWORD correctly fails the storage profile and names it:"
+          echo "$output"
+
+      - name: Set MINIO_ROOT_PASSWORD must succeed with no doccum-secret left
+        env:
+          MINIO_ROOT_PASSWORD: ci-compose-secret-check
+        run: |
+          set +e
+          output="$(docker compose --profile storage config 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error::expected 'docker compose --profile storage config' to exit 0 with MINIO_ROOT_PASSWORD set, but it exited $status"
+            echo "$output"
+            exit 1
+          fi
+
+          if printf '%s' "$output" | grep -q "doccum-secret"; then
+            echo "::error::'docker compose --profile storage config' rendered a doccum-secret occurrence with MINIO_ROOT_PASSWORD set -- expected none"
+            echo "$output"
+            exit 1
+          fi
+
+          echo "MINIO_ROOT_PASSWORD set resolves cleanly with no doccum-secret in the rendered config"
+
+  # item/changelog-release-notes (issue #31): exercises
+  # .github/scripts/changelog-section.sh directly against the committed
+  # CHANGELOG.md, on every PR, so a change to either one that breaks the
+  # extractor is caught here rather than on the next real tag push -- which
+  # is the one place release.yml runs where nobody is watching for it.
+  #
+  # No `needs:` on purpose, same reasoning as compose-secret above: this is
+  # a couple of seconds of shell against a checked-out file, unrelated to
+  # anything the other jobs build.
+  changelog-section:
+    timeout-minutes: 5
+    name: changelog-section.sh extracts release notes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: An existing version extracts a correct, non-empty section
+        run: |
+          set +e
+          output="$(.github/scripts/changelog-section.sh 0.1.0 CHANGELOG.md)"
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error::expected 'changelog-section.sh 0.1.0' to exit 0, but it exited $status"
+            echo "$output"
+            exit 1
+          fi
+
+          if [ -z "$output" ]; then
+            echo "::error::expected non-empty output for version 0.1.0, got nothing"
+            exit 1
+          fi
+
+          # A known line from CHANGELOG.md's [0.1.0] section, so this fails
+          # if the section is ever emptied or the extractor starts grabbing
+          # the wrong one, not just if it exits non-zero.
+          known_line='Home dashboard: recent files, storage by period, and quick search.'
+          if ! printf '%s' "$output" | grep -qF "$known_line"; then
+            echo "::error::expected the [0.1.0] section to contain the known line '$known_line', but it did not"
+            echo "$output"
+            exit 1
+          fi
+
+          echo "version 0.1.0 extracted correctly:"
+          echo "$output"
+
+      # This is the load-bearing assertion (see CLAUDE.md and the item's
+      # doneWhen): an extractor that returns empty on a missing section lets
+      # release.yml publish a Release with a blank body, successfully, and
+      # nothing here would ever have caught it.
+      - name: A version that does not exist fails non-zero, naming itself
+        run: |
+          set +e
+          output="$(.github/scripts/changelog-section.sh 99.99.99 CHANGELOG.md 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::expected 'changelog-section.sh 99.99.99' to exit non-zero (no such section exists), but it exited 0 with output: $output"
+            exit 1
+          fi
+
+          if ! printf '%s' "$output" | grep -qF '99.99.99'; then
+            echo "::error::expected the failure message to name the missing version '99.99.99', but got: $output"
+            exit 1
+          fi
+
+          echo "missing version 99.99.99 correctly failed (exit $status), message names it:"
+          echo "$output"
+
   image:
     timeout-minutes: 30
     name: image
@@ -332,6 +500,14 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
 
+      # No DOCCUM_VERSION build-arg on purpose: this job never builds from a
+      # tag, so there is no external version to pass in. The Dockerfile's ARG
+      # default (0.1.0-dev) and config/doccum.php's env() default are the
+      # same literal, so the smoke's version-pill check -- pill == the
+      # image's org.opencontainers.image.version label == config('doccum.version')
+      # -- still compares three independently-sourced reads of that one
+      # value, it just happens to be the dev default rather than a release
+      # tag. See item/version-from-tag and container-smoke.mjs's checkTopbar.
       - name: Build image
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
@@ -342,6 +518,15 @@ jobs:
           tags: doccum:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # item/measure-image-size (issue #30), decision/0087: measures the
+      # image just built and, once .github/image-budget.json holds a
+      # recorded figure (it starts as the sentinel "UNMEASURED"), gates on
+      # it -- so every PR both prints and enforces this, not just the
+      # release build. See .github/scripts/image-size.sh for what "gates"
+      # means precisely and why the two numbers are not registry pull size.
+      - name: Measure and gate image size
+        run: .github/scripts/image-size.sh doccum:ci
 
       # This is the check CLAUDE.md's Docker section is really about: image
       # build runs `composer dump-autoload`, which runs `package:discover`,
@@ -433,6 +618,15 @@ jobs:
             echo "SMOKE_ADMIN_PASSWORD=Doccum-Smoke-${RUN_ID}!Aa9"
             echo "SMOKE_FILE_NAME=smoke-${RUN_ID}.txt"
             echo "SMOKE_FILE_MARKER=smokeword${DIGITS}"
+            # item/upgrade-smoke (issue #210): a second account,
+            # created directly against the database by the "Seed pre-upgrade
+            # rows" step below (never through the installer or /register),
+            # so it needs its own credentials rather than reusing the
+            # admin's. Same username charset constraint as SMOKE_ADMIN_USERNAME
+            # above.
+            echo "SMOKE_STALE_USER_USERNAME=stalesmoke${DIGITS}"
+            echo "SMOKE_STALE_USER_EMAIL=stale-${RUN_ID}@example.test"
+            echo "SMOKE_STALE_USER_PASSWORD=Doccum-Smoke-Stale-${RUN_ID}!Aa9"
             # A host that is obviously not the one curl/tinker actually
             # connect to (127.0.0.1:8080) -- if it shows up in a response
             # or a generated URL, that can only be because X-Forwarded-Host
@@ -502,6 +696,38 @@ jobs:
             exit 1
           fi
           echo "at least one asset URL is https on the forwarded host -- OK"
+
+      # item/upgrade-smoke (issue #210): everything from "Smoke
+      # test the image" onward has driven ONE container up from an
+      # empty volume, so by this point every row in it -- the admin user,
+      # the roles RolesAndPermissionsSeeder created -- was written by the
+      # very code under test. Replacing that container with itself, as the
+      # next step does, therefore only proves a RESTART survives; it cannot
+      # catch a regression that only bites a row an older instance's history
+      # produced, which is exactly how #210 happened (see
+      # database/migrations/2026_09_18_150000_backfill_email_verified_at_for_existing_users.php's
+      # own docblock).
+      #
+      # Rather than maintaining and pulling an older published image -- whose
+      # schema only drifts further from HEAD with every migration this
+      # repository ships -- this makes the CURRENT volume look like it
+      # predates the candidate image in the two ways that have actually
+      # locked a real instance out before: an unverified user
+      # (email_verified_at NULL) and a role whose permissions were edited
+      # away from the seeded default. Run against doccum-smoke while it is
+      # STILL the setup container, one step before it is torn down, so the
+      # write lands on doccum-ci, the named volume the replacement below
+      # reuses. See .github/scripts/container-smoke.mjs's seedStaleRows()
+      # for exactly what this writes, and why it also rolls back the
+      # backfill migration's own `migrations` row rather than only inserting
+      # a NULL user -- that detail is what makes the "verify" phase's later
+      # assertion a genuine re-run of the migration instead of a restart
+      # against a row that merely happens to be NULL (decision/0067).
+      - name: Seed pre-upgrade rows before replacing the container
+        timeout-minutes: 2
+        env:
+          CONTAINER_NAME: doccum-smoke
+        run: node .github/scripts/container-smoke.mjs seed-stale
 
       # `storage/` does not survive this and is not meant to: the SAME image
       # and the SAME named volume are reused, so /data is the only thing that

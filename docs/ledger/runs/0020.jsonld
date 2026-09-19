@@ -11,15 +11,34 @@
     "item/admin-instance-settings",
     "item/admin-periods",
     "item/admin-roles",
+    "item/api-sanctum-tokens",
+    "item/changelog-release-notes",
+    "item/compose-boot-ci",
+    "item/compose-secret",
+    "item/directory-force-delete-orphans",
+    "item/directory-policy-trashed-move",
+    "item/directory-policy-trashed-update",
     "item/email-verification-decided",
     "item/extraction-missing-object",
+    "item/image-size",
     "item/ledger-field-audit",
     "item/ledger-id-uniqueness",
     "item/ledger-main-push-record",
+    "item/ledger-rule-witnesses",
+    "item/ledger-shape-from-context",
     "item/mutation-filter-regex",
-    "item/smoke-livewire-settle"
+    "item/release-gate",
+    "item/role-permissions-survive-restart",
+    "item/search-indexer-null-subject",
+    "item/smoke-installer-names-the-bounce",
+    "item/smoke-livewire-settle",
+    "item/spec-reconcile",
+    "item/spec-section8-reconcile",
+    "item/upgrade-preserves-access",
+    "item/upgrade-smoke",
+    "item/version-from-tag"
   ],
-  "commit": "a30ba6778f74df78e675816aaf613988647737cf",
+  "commit": "e0e99c642eb2794bfe61cd2245c7413a353a3779",
   "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally.",
   "merges": [
     {
@@ -173,6 +192,402 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35357139896",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35357140092",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "c2dac7f9ab6cdf5c354097ab786524509b5c6c80",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T14:43:18Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35357993385",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35357993314",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "60b72e809bd6d1be02f40ca0a26fba1f5571f433",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T14:49:03Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35358638706",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35358638616",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "e6d7eac84f751d87e5692f9bfc4add365f242f41",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/208",
+      "mergedAt": "2026-09-18T15:14:48Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35361236693",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35361236565",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "fa821f0692c8082256af4611dc46d43a70070982",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T15:23:19Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35362112243",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35362112277",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "e6fa193455fa1c6671be17ab0078ef8422e24e6e",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T15:30:57Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35362891112",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35362891206",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "a22a44f1e49c8b3056ab188dc33aa3a785c43ad6",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/212",
+      "mergedAt": "2026-09-18T15:40:03Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35363819389",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35363818822",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "8c006fc5c7dddf4c97c1d98f696fcdb460819c17",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/213",
+      "mergedAt": "2026-09-18T16:01:21Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35365951658",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35365951603",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "f683ba4cccd559a1ab4d5d42967961e578e42235",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T16:12:49Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35367119440",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35367119438",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "e50b0a530362f9f535cdde228d1ed54bed89422b",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T16:28:39Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35368698159",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35368698106",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "739b577af0b1ead0d3b348f260e4f69f2b9af758",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/218",
+      "mergedAt": "2026-09-18T16:54:34Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35371233464",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35371233497",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "7b74dc51ee2a429884a396513eed8d9431944231",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T17:09:19Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35372691176",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35372691317",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "47802ba357e102e1208d38dd1de07d4d63581417",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T17:15:18Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35373236010",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35373235613",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "06f9442c68791d345abc024ffb3ee02d41e74b8c",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/222",
+      "mergedAt": "2026-09-18T17:31:50Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35374885700",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35374885725",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "62ef85c5d229cd832d9d990c57866bf1395483d4",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T17:38:58Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35375587381",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35375587296",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "a2a864a095403043f1a299dc5e9ddcc04a6e61de",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/225",
+      "mergedAt": "2026-09-18T17:53:36Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35376996835",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35376996852",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "9aa839b73a9119b28fe34911c72a888cb9eba157",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T18:04:56Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35378082788",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35378082868",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "9c34ccae777274f63e2a35e878d5224b23e990c8",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T18:10:17Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35378603703",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35378603704",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "3db1faa17cb43e4b41024a3cbefbad09ed444d9d",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/228",
+      "mergedAt": "2026-09-18T18:29:39Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35380502229",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35380502366",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "cd29ad8ef35df835bf97626532a0fa900964a601",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T18:38:14Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35381341335",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35381341470",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "1300208ee7fe77afd5aa09f9a964850a814b002d",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T18:44:20Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35381926963",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35381927004",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "8fdfb5006efea8f27cc5d7f397357e2c5b99e535",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/231",
+      "mergedAt": "2026-09-18T18:56:51Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35383129272",
+      "testsConclusion": "cancelled",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35383129243",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "c15c002d8fa5814b87b3c6684fc0f4b58af00236",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T18:59:51Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35383405938",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35383405716",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "0ca8a436a14eccc94a6d5e99a9953a44a6d91d58",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/233",
+      "mergedAt": "2026-09-18T19:11:06Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35384502906",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35384503115",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "0ddf6808e3498cff245c8783092eda717fc0cf34",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T19:18:35Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35385210020",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35385209991",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "54d7210a795104d584bdf0258c436f4f7a700096",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/236",
+      "mergedAt": "2026-09-18T19:28:24Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35386126318",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35386126223",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "7265fbc49dde05c18906b94774225906735ff343",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T19:36:29Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35386891388",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35386891687",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "936ae10e9177655acb1c34d15268c35de41c9d50",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/239",
+      "mergedAt": "2026-09-18T19:49:28Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35388077816",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35388077897",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "78a14755c73d02b15bdabc3ae5e17e5dcb05cc9e",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T19:57:25Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35388799820",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35388799796",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "97264ee660337e42b9f8f5ecb07df8da4967f6e4",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/243",
+      "mergedAt": "2026-09-18T20:08:30Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35389822172",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35389822166",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "90468055ef3a3543a81faf471b230fdaf96fe81f",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T20:16:27Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35390547618",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35390547654",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "170827a26c6b207786c5acbb61266d115d8129ee",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/244",
+      "mergedAt": "2026-09-18T20:30:35Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35391839986",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35391839995",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "c13f88aacb563e7d2edc535c256de9208dd1d97b",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T20:52:30Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35393801086",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35393801108",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "18c7b6e901b40849f0430b4dd32c66c5530ad09c",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T21:01:36Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35394602886",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35394602981",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "7632a6306459bd83d12afeadaae4cc5929d5f58d",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/250",
+      "mergedAt": "2026-09-18T21:16:53Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35395959819",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35395959837",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "d197c938aef05b573724db56e73d7e6f1a497745",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T21:54:51Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35399106840",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35399106983",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "f41d432b8070c4c12a17ff94e6959238c36d8185",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/254",
+      "mergedAt": "2026-09-18T22:02:38Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35399724603",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35399724579",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "49c0d79cc8b4402186a02c5d8e6d3df46db26be3",
+      "pullRequest": null,
+      "mergedAt": "2026-09-18T22:52:25Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35403413277",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35403413274",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "2390a17f6b4815739f31bc1ae17bb08cdcbb723c",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/256",
+      "mergedAt": "2026-09-18T23:59:51Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35407773988",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35407773957",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "9ad02bd661c02bd436f22d8ce103d4ae749d5bf4",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T00:09:41Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35408384124",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35408384191",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "861abb94866c71ae846cca6e1eb7e20d5fac671e",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T08:00:11Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35430817284",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35430817279",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "6952ac0d514ce7c095be0b95fce100d427ed2810",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T09:08:46Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35433891655",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35433891653",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "97fd22fda74919e2f063835ee4ec5c4e41d79c4f",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T09:16:45Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35434276847",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35434276843",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "105ab95aa0deac8c765e336ce79f26fa1739b22c",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/259",
+      "mergedAt": "2026-09-19T09:31:54Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35434952080",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35434952171",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "e0e99c642eb2794bfe61cd2245c7413a353a3779",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/262",
+      "mergedAt": "2026-09-19T09:47:30Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35435662893",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35435662914",
       "ledgerConclusion": "success"
     }
   ]

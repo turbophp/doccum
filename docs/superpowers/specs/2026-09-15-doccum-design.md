@@ -3,6 +3,45 @@
 Date: 2026-09-15
 Status: Approved (pending final spec review)
 
+**Revisions — 2026-09-18 (`item/spec-reconcile`, see `decision/0077`):**
+reconciled this document against the shipped product without renaming or
+removing any heading. §2's "Search engine" row is marked superseded — Laravel
+Scout was never installed; search runs through the project's own `SearchIndex`
+seam described in §8. The other Scout mentions in §13–§15 (default driver,
+env vars, test doubles, the scaffold list) are corrected to describe that same
+seam rather than Scout, for the same reason. §13's base image is corrected
+from 8.4 to 8.5 to match the Dockerfile. §16's FTS5 entry is marked superseded
+— `Fts5SearchIndex` has shipped as the SQLite default described in §8, not a
+post-v1 optimisation. This is a content-only reconciliation: no claim is made
+that the surrounding prose is otherwise complete or current, only that these
+specific, verified points of drift are corrected or marked.
+
+**Revisions — 2026-09-18 (`item/spec-section8-reconcile`, see `decision/0077`,
+`decision/0084`):** §8 itself still described a system that was never built,
+even after the pass above — verified against the code, not inferred. The
+projection table's columns are corrected from `searchable_type`/`searchable_id`
+to the real `subject_type`/`subject_id` (`database/migrations/..._create_search_documents_table.php`,
+`app/Models/SearchDocument.php` — no migration anywhere names a `searchable_*`
+column). The Scout mechanics in "The projection table" and "Maintenance"
+(`toSearchableArray()`, `qualifyColumn()`, `#[SearchUsingFullText]`, "the Scout
+entry") are replaced with what `App\Services\SearchIndexer` and
+`App\Models\SearchDocument` actually do — there is no Scout `Searchable` trait
+anywhere in `app/`. "Permission filtering" is rewritten: filtering is not a
+Scout `query()` callback intersecting `ancestor_ids`; `Services\Search` resolves
+`DirectoryAccess::viewableDirectoryIds()` (already subtree-expanded) once per
+query and hands it to `SearchIndex::search()`, and each implementation enforces
+it itself, inside its own query, as a predicate against the projection row's own
+`directory_id` column — confirmed by reading `app/Services/Search.php`,
+`app/Search/SearchIndex.php`, `app/Search/Fts5SearchIndex.php` and
+`app/Search/LikeSearchIndex.php` directly. The seam table's `TsvectorSearchIndex`
+row is marked unbuilt, pointing at `item/tsvector-index` (post-v1) — `app/Search/`
+contains only `Fts5SearchIndex`, `LikeSearchIndex`, `PropertyFilter`, `SearchHit`,
+`SearchIndex`, and `Terms`. As before: this is a content-only reconciliation,
+headings unchanged, and no claim is made that the rest of §8's prose is
+otherwise current — only that these specific, verified points are corrected or
+marked. There is no test for prose; `validate-ledger.php` proves only that no
+spec-anchor heading moved.
+
 ## 1. Overview
 
 doccum is a self-hosted, open-source document management system. Users organise
@@ -46,7 +85,7 @@ a remote service through environment variables alone.
 | Decision | Choice | Rationale |
 |---|---|---|
 | Search scope | Metadata + extracted text + OCR | Documents must be findable by content, not just filename. |
-| Search engine | Laravel Scout, engine deferred | Code against Scout's interface; ship on the database driver, adopt Typesense/Meilisearch once there is real data to tune against. |
+| Search engine | ~~Laravel Scout, engine deferred~~ **Superseded, see §8** — the project's own `SearchIndex` seam, engine deferred | Original rationale: code against Scout's interface; ship on the database driver, adopt Typesense/Meilisearch once there is real data to tune against. Superseded because Scout was never installed — the database-driver `LIKE` scan Scout would have shipped on is exactly what §8 identifies as the worst default, so the seam ships FTS5 on SQLite directly instead and keeps the later engine swap. |
 | Properties | Admin-defined definitions, typed values | Validation, consistent filters, working range/date sorting. |
 | Access control | Spatie roles + per-directory ACL with subtree inheritance | Capability and location are separate questions. |
 | File lifecycle | Versions + soft-delete trash | Standard DMS expectation; overwrites recoverable. |
@@ -436,30 +475,31 @@ ranking, which the hybrid ranking in §8a needs regardless. So:
 | Implementation | Where |
 |---|---|
 | `Fts5SearchIndex` | embedded SQLite — BM25, no extra service |
-| `TsvectorSearchIndex` | PostgreSQL |
-| `LikeSearchIndex` | any other driver: correct, unranked, a safety net |
+| ~~`TsvectorSearchIndex`~~ **Unbuilt, see `item/tsvector-index` (post-v1)** | PostgreSQL — `LikeSearchIndex` covers this driver for now |
+| `LikeSearchIndex` | any other driver, including PostgreSQL today: correct, unranked, a safety net |
 | external engines | Typesense, Meilisearch — later, as another implementation |
 
 ### The projection table
 
-Laravel Scout's database engine resolves every key returned by
-`toSearchableArray()` through `qualifyColumn()` — each key must be a real column
-on the model's own table. Extracted text lives in `file_texts` and property
-values live in `properties`, so making `File` directly `Searchable` would
-generate SQL against columns that do not exist, and the zero-config default
-would fail immediately.
+A directory, file, or property cannot be searched in isolation: extracted text
+lives on `file_texts` and property values live on `properties`, columns that do
+not exist on `directories` or `files` themselves, and a document's position in
+the tree is what decides who may see it. Querying those tables directly, per
+entity type, on every search would mean three things to keep in sync and no
+single ranked, cross-entity result set.
 
-All search therefore runs against one projection table, `search_documents`:
+All search therefore runs against one projection table, `search_documents`,
+built by `App\Services\SearchIndexer` and read by the `SearchIndex` seam:
 
 | Column | Type | Notes |
 |---|---|---|
 | id | bigint pk | |
-| searchable_type | string | Directory, File, or Property |
-| searchable_id | bigint | |
+| subject_type | string | the morph class: Directory, File, or Property |
+| subject_id | bigint | |
 | title | string(512) | name, or property label |
 | body | longtext | extracted text + flattened property values |
 | directory_id | bigint null indexed | owning directory |
-| ancestor_ids | json | self + every ancestor directory id |
+| ancestor_ids | json | self + every ancestor directory id, written at index time |
 | period_year | smallint null | |
 | period_month | tinyint null | |
 | mime | string(191) null | |
@@ -467,11 +507,14 @@ All search therefore runs against one projection table, `search_documents`:
 | owner_id | bigint null | |
 | indexed_at | timestamp | |
 
-Unique `(searchable_type, searchable_id)`.
+Unique `(subject_type, subject_id)`.
 
-`SearchDocument` is the model carrying Scout's `Searchable` trait. `title` and
-`body` are real columns, so the database engine works out of the box; on MySQL
-and Postgres they can be marked `#[SearchUsingFullText]` for native full-text.
+`SearchDocument` is a plain Eloquent model — `title` and `body` are ordinary
+columns, read directly by each `SearchIndex` implementation (FTS5's virtual
+table on SQLite, or a `LIKE`/`ILIKE` scan of these two columns elsewhere; see
+below). There is no full-text indexing attribute or trait on the model itself;
+each implementation is responsible for its own index structure, if it keeps
+one at all.
 
 This satisfies the requirement that directories, files, and properties all be
 searchable — each gets its own rows — while keeping **one** index instead of
@@ -483,17 +526,35 @@ rows (so admin can answer "where is this property used?").
 ### Maintenance
 
 Model observers on `Directory`, `File`, and `Property`, plus the `ExtractText`
-job, dispatch `ReindexSearchDocument`. Moving a directory reindexes its subtree's
-`ancestor_ids`. Deleting cascades to the projection and removes the Scout entry.
+job, dispatch `ReindexSearchDocument`, which calls `SearchIndexer::index()`.
+Moving a directory reindexes its subtree's `ancestor_ids`. Deleting a subject
+calls `SearchIndexer::forget()`, which removes it from the index (via
+`SearchIndex::forget()`, a no-op where the projection row is itself the index)
+before deleting the projection row — in that order, so nothing is left
+matchable with no row behind it.
 
 ### Permission filtering
 
-Every document carries `ancestor_ids`. A search intersects that array against
-`DirectoryAccess::viewableDirectoryIds()`. The expression evaluates engine-side
-on Typesense/Meilisearch and through Scout's `query()` callback on the database
-driver, so deferring the engine choice costs nothing and no result can leak a
-document the user cannot reach. `period_year`, `mime`, and `extension` are
-carried for filtering and for the eventual faceted UI.
+`Services\Search::for()` is the only way anything searches: it resolves
+`DirectoryAccess::viewableDirectoryIds()` for the current user — already
+expanded down granted subtrees — once per call, and passes that id list into
+`SearchIndex::search()` alongside the query. There is no Scout `query()`
+callback and no engine-side expression; each `SearchIndex` implementation is
+required, by the seam's own contract, to enforce the restriction itself,
+inside its own query, rather than filtering a result set afterwards. Both
+shipped implementations do this the same way: a predicate against the
+projection row's own `directory_id` column, ANDed into the query alongside the
+match clause (`d.directory_id IN (...)` in `Fts5SearchIndex`,
+`whereIn('directory_id', ...)` in `LikeSearchIndex`) — not, as such, an
+intersection against the `ancestor_ids` column; `ancestor_ids` is written at
+index time for subtree-reindexing (see Maintenance, above) but is not read by
+either implementation's filter. Because `viewableDirectoryIds()` already
+contains every directory the user may reach, an equality check against the
+flat `directory_id` is sufficient without consulting `ancestor_ids` at query
+time. An empty viewable set or an empty parsed query short-circuits to no
+results before either implementation runs a query at all. `period_year`,
+`mime`, and `extension` are carried for filtering and for the eventual
+faceted UI.
 
 ## 7a. OCR providers
 
@@ -1022,7 +1083,7 @@ Plus `README.md` (what it is, screenshot, three-line quick start), `LICENSE`
 
 ## 13. Infrastructure
 
-Base image **`serversideup/php:8.4-frankenphp-bookworm`** for `app`, `worker`,
+Base image **`serversideup/php:8.5-frankenphp-bookworm`** for `app`, `worker`,
 `worker-ingest`, and `scheduler` — one image, different commands. A thin
 `Dockerfile` layers on `poppler-utils`, `tesseract-ocr` plus language data, the
 built Vite assets, and vendor. Debian rather than Alpine because tesseract
@@ -1055,7 +1116,8 @@ mail send or a reindex.
 account:
 
 - **SQLite by default** on a named volume — no database container at all.
-- **Scout on the `database` driver by default** — no search service required.
+- **The `SearchIndex` seam on its embedded default by default** (`Fts5SearchIndex`
+  on SQLite, `LikeSearchIndex` elsewhere; see §8) — no search service required.
   Typesense/Meilisearch arrive behind the `search` profile.
 - **Queue and cache on the `database`/`file` drivers by default** — no Redis
   container is required at all; `cache` profile opts into Redis when wanted.
@@ -1076,10 +1138,12 @@ require editing the compose file rather than the environment.
 
 **No application code ever names a container.** Every boundary is environment
 driven: `DB_*`, `FILESYSTEM_DISK` / `AWS_ENDPOINT` / `AWS_BUCKET`, `REDIS_HOST`,
-`SCOUT_DRIVER` and engine host, `QUEUE_CONNECTION`, `MAIL_*`. Moving to managed
-Postgres, real S3, and hosted search is editing `.env` and removing profiles from
-`COMPOSE_PROFILES` — no code change and no rebuild. `.env.example` documents the
-local and remote columns side by side.
+`QUEUE_CONNECTION`, `MAIL_*`. The `SearchIndex` seam has no driver setting of
+its own — it follows `DB_CONNECTION` (§8) — so a hosted engine arrives as a
+new implementation of the seam, not a new environment variable. Moving to
+managed Postgres, real S3, and hosted search is editing `.env` and removing
+profiles from `COMPOSE_PROFILES` — no code change and no rebuild.
+`.env.example` documents the local and remote columns side by side.
 
 `compose.override.yml` adds development conveniences (source bind-mount, Vite dev
 server) without touching the production-shaped base file.
@@ -1094,7 +1158,8 @@ fixtures; the scanned-PDF fallback threshold; purge guards; period derivation
 and object-key construction.
 
 **Feature** — one suite per Livewire component, with `Storage::fake` for MinIO,
-Scout's `collection` driver, and `Queue::fake`. Policy coverage asserts that a
+the real `SearchIndex` implementation against the test SQLite connection, and
+`Queue::fake`. Policy coverage asserts that a
 user without a grant sees neither the directory, its files, nor any search
 result referencing them.
 
@@ -1114,7 +1179,8 @@ routes, so an API change that outruns its documentation fails CI.
 ## 15. Milestones
 
 1. Scaffold — Laravel 13, Livewire 4 starter kit with Flux free, Pest, Spatie,
-   Scout, MinIO disk, Docker image and compose, MIT LICENSE.
+   MinIO disk, Docker image and compose, MIT LICENSE. (Scout was scaffolded
+   in the original plan; it was dropped before shipping — see §2 and §8.)
 2. Tree and data model — directories, files, migrations, factories, path logic.
 3. Access control — `DirectoryAccess`, policies, Spatie roles and seeded
    permissions, first-run setup screen.
@@ -1132,7 +1198,9 @@ routes, so an API change that outruns its documentation fails CI.
 ## 16. Deferred
 
 - Search engine selection (Typesense vs Meilisearch) once real data exists.
-- SQLite FTS5 virtual table as an optimisation over the LIKE-based default.
+- ~~SQLite FTS5 virtual table as an optimisation over the LIKE-based default.~~
+  Superseded — shipped as `Fts5SearchIndex`, the default `SearchIndex` on
+  SQLite; see §8. No longer deferred.
 - Aggregate statistics rollups (counts and bytes per directory/owner/mime).
 - Version thinning policies and extracted-text pruning for archived files.
 - Multi-tenancy, antivirus scanning, check-out locking, approval workflows.
