@@ -8,6 +8,7 @@ use App\Models\Directory;
 use App\Models\File;
 use App\Models\User;
 use App\Search\SearchHit;
+use App\Search\SearchIndex;
 use App\Services\SearchIndexer;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Livewire\Livewire;
@@ -84,6 +85,41 @@ it('produces no destination for a hit whose subject has gone', function () {
     $palette = Livewire::actingAs($this->user)->test(Palette::class)->instance();
 
     expect($palette->destinationFor(new SearchHit('file', 99999, 'Gone.pdf', '', 0.0, null)))->toBeNull();
+});
+
+it('escapes hostile markup in the palette snippet before swapping the match into a mark element', function () {
+    // A document distinct from any other fixture in this file: its body
+    // carries markup adjacent to the searched term, which is the only way to
+    // tell escape-then-swap (safe) apart from swap-then-escape or no
+    // escaping at all (both dangerous) -- the passage comes from an
+    // uploaded file, so an uploader chooses its bytes.
+    $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'Hostile.pdf']);
+    $doc = app(SearchIndexer::class)->index($file->fresh());
+    $doc->update(['body' => 'the <b>tenant</b> shall & "maintain" the premises']);
+    app(SearchIndex::class)->put($doc->fresh());
+
+    $component = Livewire::actingAs($this->user)->test(Palette::class)
+        ->call('openPalette')
+        ->set('query', 'tenant');
+
+    // Catches "never escapes" (deleting the e() call around the snippet
+    // entirely): with no escaping at all, the document's own <b> tag would
+    // render as a real element and this literal, escaped form would be
+    // absent from the response.
+    $component->assertSee('&lt;b&gt;', false);
+
+    // Same failure mode from the other side: with no escaping, the raw tag
+    // text below WOULD appear verbatim in the response.
+    $component->assertDontSee('<b>', false);
+
+    // Catches "swap-then-escape" (escaping the WHOLE string after the
+    // private-use markers were already swapped for <mark>...</mark>): in
+    // that order the <mark> tags are themselves literal text by the time
+    // escaping runs, so they would come back as "&lt;mark ...&gt;" instead
+    // of a real element. The escaped-<b> checks above would not catch this,
+    // because swap-then-escape still escapes the document's own markup
+    // correctly -- it only breaks the highlight.
+    $component->assertSee('<mark class="rounded-sm bg-attention/20 px-0.5 text-ink">tenant</mark>', false);
 });
 
 it('forgets the query when it closes', function () {
