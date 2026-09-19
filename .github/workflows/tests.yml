@@ -482,6 +482,61 @@ jobs:
           echo "missing version 99.99.99 correctly failed (exit $status), message names it:"
           echo "$output"
 
+      # item/release-v0-1-0 (issue #32): the rc tag that item needs would
+      # otherwise fail HERE, after the image had already been pushed --
+      # publishing a container and creating no Release. Asserting the BODY
+      # rather than only the exit code, because a fallback that resolved to
+      # the wrong section, or to an empty one, would exit 0 just as happily.
+      - name: A pre-release version falls back to its release section
+        run: |
+          set +e
+          output="$(.github/scripts/changelog-section.sh v0.1.0-rc1 CHANGELOG.md)"
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error::expected 'changelog-section.sh v0.1.0-rc1' to exit 0 by falling back to [0.1.0], but it exited $status"
+            echo "$output"
+            exit 1
+          fi
+
+          expected="$(.github/scripts/changelog-section.sh 0.1.0 CHANGELOG.md)"
+          if [ "$output" != "$expected" ]; then
+            echo "::error::expected v0.1.0-rc1 to yield exactly the [0.1.0] section, but the two differ"
+            echo "--- rc1 ---"; echo "$output"
+            echo "--- 0.1.0 ---"; echo "$expected"
+            exit 1
+          fi
+
+          echo "v0.1.0-rc1 fell back to [0.1.0] and produced that section verbatim"
+
+      # The fallback must not become a way for a missing section to pass.
+      # Without this, widening the extractor to accept rc tags would have
+      # quietly re-opened the exact hole the assertion above closes, for
+      # every tag that carries a suffix -- and the suffix case is the one
+      # this repository is about to start using.
+      - name: A pre-release of a version that does not exist still fails, naming both
+        run: |
+          set +e
+          output="$(.github/scripts/changelog-section.sh v99.99.99-rc1 CHANGELOG.md 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::expected 'changelog-section.sh v99.99.99-rc1' to exit non-zero (neither section exists), but it exited 0 with output: $output"
+            exit 1
+          fi
+
+          for named in '99.99.99-rc1' '99.99.99'; do
+            if ! printf '%s' "$output" | grep -qF "$named"; then
+              echo "::error::expected the failure message to name '$named', but got: $output"
+              exit 1
+            fi
+          done
+
+          echo "missing pre-release v99.99.99-rc1 correctly failed (exit $status), naming the tag and its release section:"
+          echo "$output"
+
   image:
     timeout-minutes: 30
     name: image
