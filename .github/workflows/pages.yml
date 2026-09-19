@@ -1,0 +1,102 @@
+name: pages
+
+# item/docs-site (issue #27, spec §12): publishes docs/self-hosting/*.md as
+# a static site via GitHub Pages. Split into two jobs deliberately.
+#
+# `build` generates the site and uploads it as a Pages artifact. It needs
+# nothing from the repository's Pages *setting* -- upload-pages-artifact
+# just stores a build artifact -- so it is green whether or not Pages is
+# enabled for this repository, and runs on every push to main and every
+# pull request so a broken generator is caught before merge.
+#
+# `deploy` actually publishes that artifact to the Pages environment, which
+# DOES require the repository setting "Settings -> Pages -> Source: GitHub
+# Actions" to be turned on. This loop cannot set that (the Pages API 403s
+# through this environment's proxy) or observe whether a human already
+# has. Until it is enabled, this job is expected to fail (no `github-pages`
+# environment configured) or be skipped -- that is the known, deliberate
+# state of this workflow, not a bug to work around with continue-on-error.
+# See this item's report for the exact wording.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Reads .nvmrc for the version rather than hardcoding it a second
+      # time -- CLAUDE.md's Node section is explicit that this project
+      # tracks one Node version in one place.
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+
+      # Zero-dependency by design (see the generator's own docblock): no
+      # `npm ci` here, and nothing here touches package.json or
+      # package-lock.json. Plain `node`, not through package.json's own
+      # `build`/`dev` scripts, which build the app's Vite assets and are an
+      # unrelated concern.
+      - name: Build docs site
+        run: node .github/scripts/build-docs-site.mjs
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
+        with:
+          path: docs/.site
+
+  # Requires the repository's Pages source to be set to "GitHub Actions" --
+  # see the on-`push`/comment above.
+  #
+  # Gated on the repository variable DOCS_SITE_PAGES_ENABLED, and that gate
+  # is load-bearing rather than ceremony. Without it this job would RUN on
+  # every push to main and FAIL -- actions/deploy-pages cannot deploy to a
+  # repository whose Pages source is not set to GitHub Actions -- which
+  # would leave main permanently red for a setting no workflow can turn on.
+  # A skipped job is not a failed one, so the variable keeps main honest:
+  # green means green, not green-except-the-one-we-have-agreed-to-ignore.
+  #
+  # continue-on-error would also have produced a green main, and would have
+  # been the wrong tool: it hides a real deploy failure forever, including
+  # the ones worth knowing about after Pages IS enabled.
+  #
+  # To turn the site on, the repository owner does two things, in order:
+  #   1. Settings -> Pages -> Source: GitHub Actions
+  #   2. Settings -> Secrets and variables -> Actions -> Variables ->
+  #      New repository variable: DOCS_SITE_PAGES_ENABLED = true
+  # The next push to main then publishes, and item/docs-site's remaining
+  # clauses (a green Pages workflow, and the README linking to the
+  # published site) can be closed.
+  deploy:
+    name: deploy
+    needs: build
+    if: github.ref == 'refs/heads/main' && vars.DOCS_SITE_PAGES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
