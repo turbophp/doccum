@@ -555,6 +555,15 @@
       "ledgerConclusion": "success"
     },
     {
+      "mergeSha": "6952ac0d514ce7c095be0b95fce100d427ed2810",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T09:08:46Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35433891655",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35433891653",
+      "ledgerConclusion": "success"
+    },
+    {
       "mergeSha": "97fd22fda74919e2f063835ee4ec5c4e41d79c4f",
       "pullRequest": null,
       "mergedAt": "2026-09-19T09:16:45Z",
