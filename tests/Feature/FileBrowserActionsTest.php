@@ -246,7 +246,28 @@ it('moves a file through the browser', function () {
     expect($file->fresh()->directory_id)->toBe($destination->id);
 });
 
-it('refuses to move a file without edit access on both ends', function () {
+/**
+ * item/api-content (issue #23), the product-wide 404 posture (issue #109):
+ * $viewer holds View on $this->mine and NOTHING AT ALL on $this->theirs --
+ * $this->theirs is wholly outside DirectoryAccess::viewableDirectoryIds()
+ * for this viewer, not merely below the access level a move needs. Before
+ * this item, moveFile() resolved the destination with a bare findOrFail()
+ * and let authorize('move', ...) refuse it, which answered 403 -- the same
+ * status a destination the viewer COULD see but only at View level would
+ * get. That conflated two different facts behind one status code, and is
+ * exactly what issue #109 names.
+ *
+ * moveFile() now scopes that lookup to viewableDirectoryIds() INSIDE the
+ * query, so a destination this invisible to the viewer 404s, indistinguishable
+ * from a nonexistent id -- this is the ONE test this item's doneWhen asks to
+ * flip from 403 to 404 (see this item's own report for why it is one, not
+ * the two the doneWhen's own count anticipated: the other move test in this
+ * file that resolves an actually-DENIED destination --
+ * "offers an edit-reachable move destination and refuses a view-only one"
+ * -- uses a destination the mover CAN see at View level, which still falls
+ * inside the new scope and so still 403s from authorize(), unchanged).
+ */
+it('404s moving a file to a destination the viewer cannot even see', function () {
     $viewer = viewOnlyMember($this->mine);
     $file = File::factory()->for($this->mine, 'directory')->create(['name' => 'a.txt']);
 
@@ -255,7 +276,7 @@ it('refuses to move a file without edit access on both ends', function () {
         ->call('selectFile', $file->id)
         ->set('moveFileDestinationId', $this->theirs->id)
         ->call('moveFile')
-        ->assertForbidden();
+        ->assertNotFound();
 
     expect($file->fresh()->directory_id)->toBe($this->mine->id);
 });
@@ -565,6 +586,48 @@ it('refuses to move a directory without directories.manage, manage access alone 
         ->call('selectDirectory', $child->id)
         ->call('moveDirectory')
         ->assertForbidden();
+
+    expect($child->fresh()->parent_id)->toBe($this->mine->id);
+});
+
+/**
+ * item/api-content (issue #23): moveDirectory()'s own half of the same fix
+ * as moveFile() above -- see "404s moving a file to a destination the
+ * viewer cannot even see" for the full reasoning. No existing test moved a
+ * directory to a destination the mover could not even see (every prior
+ * refusal here is a directories.manage gap with NO destination chosen at
+ * all, which never reaches the destination lookup), so there was nothing to
+ * flip for this half -- this is a NEW test, not a flipped one, written so
+ * the query-level guard this item adds has something mutation-checking it.
+ *
+ * $mover deliberately holds directories.manage directly (bypassing role, the
+ * same shape "offers an edit-reachable move destination..." uses for
+ * per-user grants) rather than via the admin role, which also carries
+ * directories.view-all -- that bypass would make EVERY directory viewable
+ * to $mover unconditionally (DirectoryAccess::resolve()), and there would be
+ * no destination left that could ever be outside their reach to prove this
+ * guard with.
+ */
+it('404s moving a directory to a destination the mover cannot even see', function () {
+    $mover = User::factory()->create();
+    $mover->assignRole('member');
+    $mover->givePermissionTo('directories.manage');
+
+    DirectoryGrant::create([
+        'directory_id' => $this->mine->id,
+        'grantee_type' => 'user',
+        'grantee_id' => $mover->id,
+        'level' => AccessLevel::Manage,
+    ]);
+
+    $child = Directory::factory()->for($this->mine, 'parent')->create();
+
+    Livewire::actingAs($mover)
+        ->test(Browser::class, ['directory' => $this->mine])
+        ->call('selectDirectory', $child->id)
+        ->set('moveDirectoryDestinationId', (string) $this->theirs->id)
+        ->call('moveDirectory')
+        ->assertNotFound();
 
     expect($child->fresh()->parent_id)->toBe($this->mine->id);
 });

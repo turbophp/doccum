@@ -72,6 +72,85 @@ class DocumentStorage
     }
 
     /**
+     * A short-lived signed PUT URL against the staging prefix, so an API
+     * client's upload bytes go straight to the object store and never pass
+     * through PHP. See spec §11's upload flow.
+     *
+     * Only an S3-compatible disk can mint one -- Laravel's
+     * FilesystemAdapter::temporaryUploadUrl() forwards to the underlying S3
+     * client and throws for any driver that has no such client, which is
+     * exactly what a Storage::fake() disk in a test is. That is deliberately
+     * NOT worked around here the way temporaryUrl()'s GET-side callers are
+     * covered by buildTemporaryUrlsUsing() in tests: this method has no
+     * built-in test seam of its own, so a test exercising the upload-url
+     * endpoint must fake DocumentStorage itself (a partial mock) rather than
+     * fake the disk. No such test exists in this item -- see its own report
+     * for that gap, stated rather than left for a reader to discover.
+     *
+     * @return array{url: string, headers: array<string, string>}
+     */
+    public function presignedUploadUrl(string $key, string $contentType, int $minutes = 15): array
+    {
+        $this->ensureBucket();
+
+        /** @var array{url: string, headers: array<string, string>} $signed */
+        $signed = $this->disk()->temporaryUploadUrl(
+            $key,
+            now()->addMinutes($minutes),
+            ['ContentType' => $contentType],
+        );
+
+        return $signed;
+    }
+
+    /**
+     * The size of a staged object, or null if nothing was ever PUT to that
+     * key -- an abandoned upload, or a client that never finished step 2 of
+     * the flow. Callers use this to verify a commit's declared size before
+     * trusting anything else about the object. See spec §11.
+     */
+    public function stagedSize(string $key): ?int
+    {
+        return $this->exists($key) ? $this->size($key) : null;
+    }
+
+    /**
+     * The sha256 of a staged object's bytes, read once to verify a commit's
+     * declared checksum. This is the one place in the upload flow where
+     * bytes DO pass through PHP -- unavoidable if "matches what was
+     * declared" (spec §11) is to mean an actual comparison rather than a
+     * client's unverified claim -- but it happens once per commit, not on
+     * every download, which is the hot path spec §6 protects.
+     */
+    public function stagedChecksum(string $key): string
+    {
+        $tempPath = $this->downloadKeyToTemp($key);
+
+        try {
+            $checksum = @hash_file('sha256', $tempPath);
+
+            if ($checksum === false) {
+                throw new RuntimeException("Cannot read staged object at {$tempPath}.");
+            }
+
+            return $checksum;
+        } finally {
+            @unlink($tempPath);
+        }
+    }
+
+    /**
+     * Moves a staged object to its real, period-prefixed key -- a
+     * storage-side copy-then-delete, so the bytes are never re-read into
+     * PHP to make the move. Used only once verification (stagedSize(),
+     * stagedChecksum()) has already passed.
+     */
+    public function promoteStaging(string $stagingKey, string $finalKey): void
+    {
+        $this->disk()->move($stagingKey, $finalKey);
+    }
+
+    /**
      * Whether a presigned URL issued for this disk is something a BROWSER can
      * actually fetch.
      *
@@ -180,14 +259,27 @@ class DocumentStorage
      */
     public function downloadToTemp(FileVersion $version): string
     {
+        return $this->downloadKeyToTemp($version->object_key);
+    }
+
+    /**
+     * The key-based half of downloadToTemp() above, factored out so
+     * stagedChecksum() can read an arbitrary staging key the same verified
+     * way -- same missing-object handling, same temp-file lifecycle --
+     * without a second copy of either. downloadToTemp(FileVersion) keeps its
+     * own public signature; this is purely an extraction, not a behaviour
+     * change.
+     */
+    private function downloadKeyToTemp(string $key): string
+    {
         try {
-            $stream = $this->disk()->readStream($version->object_key);
+            $stream = $this->disk()->readStream($key);
         } catch (UnableToReadFile) {
-            throw ObjectMissingFromStorage::forKey($version->object_key);
+            throw ObjectMissingFromStorage::forKey($key);
         }
 
         if ($stream === null) {
-            throw ObjectMissingFromStorage::forKey($version->object_key);
+            throw ObjectMissingFromStorage::forKey($key);
         }
 
         $tempPath = tempnam(sys_get_temp_dir(), 'doccum-extract-');

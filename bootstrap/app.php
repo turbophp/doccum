@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsurePublicSignupEnabled;
+use App\Http\Middleware\EnsureTokenAbility;
 use App\Http\Middleware\ForceRootUrlFromRequest;
 use App\Http\Middleware\RequireInstanceSetup;
 use App\Support\TrustedProxies;
@@ -12,10 +13,24 @@ use Illuminate\Http\Request;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        // item/api-content (issue #23), spec §11: everything under
+        // /api/v1, greenfield -- there was no routes/api.php before this.
+        // Passing `api:` here is also what makes Laravel register the
+        // 'api' middleware group at all (throttle:api + SubstituteBindings
+        // by default), which the 'throttle:api' reference below and every
+        // route in routes/api.php depends on.
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // The token-ability gate, spec §11's first of three: `ability:
+        // files:read` etc. in routes/api.php. An alias, not a class
+        // reference inline at every route, for the same reason every other
+        // middleware alias in a Laravel app is one -- readability at the
+        // call site.
+        $middleware->alias(['ability' => EnsureTokenAbility::class]);
+
         // doccum ships as one container (spec §13) that self-hosters put
         // behind their own reverse proxy -- Caddy, nginx, Traefik -- which
         // terminates TLS. FrankenPHP inside the container never sees that
