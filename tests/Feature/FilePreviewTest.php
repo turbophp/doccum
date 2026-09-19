@@ -86,9 +86,37 @@ it('allows a Word document through, for the browser to convert', function () {
         'mime' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     ]);
 
-    $this->actingAs($this->user)
+    $response = $this->actingAs($this->user)
         ->get(route('files.preview', $file->fresh()))
         ->assertOk();
+
+    // The sandbox policy is for markup, and a .docx is not markup -- the
+    // controller's own comment says it "must NOT be sent for anything else".
+    // It was sent anyway: isMarkup() asked str_contains($mime, 'xml'), and
+    // the OOXML type carries "xml" inside "openXMLformats". Nothing rendered
+    // wrong, because these bytes are fetched and converted client-side
+    // rather than loaded as a document -- which is precisely why asserting
+    // only assertOk() here left it invisible.
+    expect($response->headers->get('content-security-policy'))->toBeNull();
+});
+
+it('sandboxes markup by structure, not by a substring of the media type', function () {
+    // The companion to the assertion above, from the other side: a type
+    // whose SUBTYPE really is markup still gets the policy, so the tighter
+    // predicate cannot have bought its precision by under-matching.
+    $file = uploadFor($this->dir, $this->user, 'diagram.svg', '<svg/>', 'image/svg+xml');
+    // uploadFor()'s $mime argument is not what the stored version ends up
+    // carrying -- it only names the fake upload -- so the type under test is
+    // set explicitly here, the same way every other case in this file does it.
+    $file->currentVersion->update(['mime' => 'image/svg+xml']);
+
+    $response = $this->actingAs($this->user)
+        ->get(route('files.preview', $file->fresh()))
+        ->assertOk();
+
+    expect($response->headers->get('content-security-policy'))
+        ->toContain('sandbox')
+        ->not->toContain('allow-scripts');
 });
 
 it('refuses to preview a file the viewer cannot reach', function () {
