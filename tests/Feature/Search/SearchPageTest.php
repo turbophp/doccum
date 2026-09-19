@@ -13,6 +13,7 @@ use App\Models\PropertyDefinition;
 use App\Models\SearchDocument;
 use App\Models\User;
 use App\Search\SearchIndex;
+use App\Search\Terms;
 use App\Services\SearchIndexer;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Livewire\Livewire;
@@ -160,4 +161,43 @@ it('never lets a property filter surface a document outside the viewer reach', f
         ->set('propertyValue', '100')
         ->assertDontSee('Lease.pdf')
         ->assertSee('No results');
+});
+
+// --- partial words ----------------------------------------------------------
+//
+// Terms are prefixes on SQLite now. The gap this closes ran the wrong way
+// round: LikeSearchIndex, which MySQL and PostgreSQL use, has always matched
+// %word%, so a partial word found documents there and nothing on SQLite --
+// the embedded default that every single-container install runs.
+
+it('finds a document from the start of a word', function () {
+    grantView($this->dir, $this->user);
+
+    Livewire::actingAs($this->user)->test(Results::class)
+        ->set('query', 'ten')
+        ->assertSee('Lease.pdf');
+});
+
+it('still finds the whole word, so a complete query is not made worse', function () {
+    grantView($this->dir, $this->user);
+
+    Livewire::actingAs($this->user)->test(Results::class)
+        ->set('query', 'tenant')
+        ->assertSee('Lease.pdf');
+});
+
+it('does not treat one or two letters as the start of a word', function () {
+    // A prefix that short matches most of the vocabulary, which is not a
+    // search: it would return every document containing any word beginning
+    // with those letters, ranked by a score computed over noise.
+    expect(Terms::toFts5('a'))->toBe('"a"')
+        ->and(Terms::toFts5('te'))->toBe('"te"')
+        ->and(Terms::toFts5('ten'))->toBe('"ten"*');
+});
+
+it('makes every word in a phrase a prefix, not just the last', function () {
+    // People type a whole query and press enter here rather than searching as
+    // they type, so the first words are as likely to be abbreviated as the
+    // last one.
+    expect(Terms::toFts5('supply agreement'))->toBe('"supply"* "agreement"*');
 });
