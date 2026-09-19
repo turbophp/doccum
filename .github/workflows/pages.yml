@@ -63,12 +63,31 @@ jobs:
           path: docs/.site
 
   # Requires the repository's Pages source to be set to "GitHub Actions" --
-  # see the on-`push`/comment above. Fails or is skipped until that setting
-  # is turned on; this is expected and does not indicate a broken workflow.
+  # see the on-`push`/comment above.
+  #
+  # Gated on the repository variable DOCS_SITE_PAGES_ENABLED, and that gate
+  # is load-bearing rather than ceremony. Without it this job would RUN on
+  # every push to main and FAIL -- actions/deploy-pages cannot deploy to a
+  # repository whose Pages source is not set to GitHub Actions -- which
+  # would leave main permanently red for a setting no workflow can turn on.
+  # A skipped job is not a failed one, so the variable keeps main honest:
+  # green means green, not green-except-the-one-we-have-agreed-to-ignore.
+  #
+  # continue-on-error would also have produced a green main, and would have
+  # been the wrong tool: it hides a real deploy failure forever, including
+  # the ones worth knowing about after Pages IS enabled.
+  #
+  # To turn the site on, the repository owner does two things, in order:
+  #   1. Settings -> Pages -> Source: GitHub Actions
+  #   2. Settings -> Secrets and variables -> Actions -> Variables ->
+  #      New repository variable: DOCS_SITE_PAGES_ENABLED = true
+  # The next push to main then publishes, and item/docs-site's remaining
+  # clauses (a green Pages workflow, and the README linking to the
+  # published site) can be closed.
   deploy:
     name: deploy
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && vars.DOCS_SITE_PAGES_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
