@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-19T09:25:00Z",
+  "dateModified": "2026-09-19T09:50:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1179,11 +1179,14 @@
       "dependsOn": [
         "item/topbar-shell"
       ],
-      "doneWhen": "Token page test; abilities outside the eight are rejected; the plaintext token never appears in a later render. The clause is well defined: spec section 11 names exactly the eight abilities it refers to (directories:read/write, files:read/write/delete, properties:read/write, search).\n\nThe BLOCKED paragraph that stood here until 2026-09-19 is REMOVED rather than annotated, because it did not describe a limit -- it described a mechanism that was false when written and is quoted in full inside decision/0093 so the correction is not lost with it. laravel/sanctum v4.3.3 is in composer.json and composer.lock, installed and discovered in CI on PR #259.",
-      "actionStatus": "ActiveActionStatus",
+      "doneWhen": "Token page test; abilities outside the eight are rejected; the plaintext token never appears in a later render. The clause is well defined: spec section 11 names exactly the eight abilities it refers to (directories:read/write, files:read/write/delete, properties:read/write, search).\n\nThe BLOCKED paragraph that stood here until 2026-09-19 is REMOVED rather than annotated, because it did not describe a limit -- it described a mechanism that was false when written and is quoted in full inside decision/0093 so the correction is not lost with it. laravel/sanctum v4.3.3 is in composer.json and composer.lock, installed and discovered in CI on PR #259.\n\nCOMPLETED 2026-09-19 across two PRs, and the split is the point. #259 carried the page, the enum, the model guard and the tests; #262 carried the container smoke. The item was NOT marked Completed when #259 merged, although all three written clauses were satisfied and mutation-proven by then, because CLAUDE.md's \"a UI item is not done until the container smoke drives it\" is a fourth clause this item's text never spelled out. grep -c api-tokens .github/scripts/container-smoke.mjs returned 0 at that point. Counting the item done on the strength of the clauses that WERE met is the substitution decision/0087 was written against.\n\nEvidence, each half observed rather than inferred from the other: the ability guard is load-bearing per the guards job (\"All 89 guard(s) are load-bearing\", the registry having gone 88 -> 89 with the added id being exactly personal-access-token-abilities-restricted-to-eight); the smoke's reload assertion is load-bearing per mutation/0031, which left creation working and failed only at the reload. A migration was needed and is included: Sanctum v4.3.3 does not auto-load one -- its provider carries only publishesMigrations() and loadMigrationsFrom appears zero times, read from the pinned source rather than recalled -- and Sanctum::ignoreMigrations() does not exist in v4 either, so it was not added.",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-19T09:05:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-19T09:47:30Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/259",
+        "https://github.com/turbophp/doccum/pull/262"
+      ]
     },
     {
       "@id": "item/api-content",
@@ -3493,6 +3496,38 @@
       "mergedAt": "2026-09-18T23:59:51Z",
       "mergeSha": "2390a17f6b4815739f31bc1ae17bb08cdcbb723c",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/259",
+      "@type": "PullRequest",
+      "identifier": 259,
+      "name": "API tokens: a settings page, the eight abilities, and a guard that holds off-form",
+      "implements": [
+        "item/api-sanctum-tokens"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T08:58:20Z",
+      "headSha": "4e42172f49f6ad3a9e3ff4bbf2e1a36e96b9c0d5",
+      "mergedAt": "2026-09-19T09:31:54Z",
+      "mergeSha": "105ab95aa0deac8c765e336ce79f26fa1739b22c",
+      "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/262",
+      "@type": "PullRequest",
+      "identifier": 262,
+      "name": "Smoke: drive /settings/api-tokens, including the password-confirm gate",
+      "implements": [
+        "item/api-sanctum-tokens"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T09:38:40Z",
+      "headSha": "cb0de315a30448d5cc9c4f470a70d67c9e077132",
+      "mergedAt": "2026-09-19T09:47:30Z",
+      "mergeSha": "e0e99c642eb2794bfe61cd2245c7413a353a3779",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -5497,6 +5532,20 @@
       "headSha": "94138e6f0a13396e3194bb11e3ea246b5a5f276f",
       "mutant": "A commit deliberately NOT on main: branch mutation/0030-release-gate-ancestry, cut from main at 9ad02bd (so it carries release.yml as merged in PR #231, merge 8fdfb50, verified an ancestor of main) plus one commit adding docs/mutations/0030-release-gate-ancestry.md. `git merge-base --is-ancestor HEAD origin/main` was run before pushing and answered no -- measured, not assumed.\n\nNOT A TAG. decision/0085 recorded that pushing a tag returns HTTP 403 here and treated that as blocking this item's mutation entirely. That was too wide: release.yml fires on `workflow_dispatch` as well as `push: tags`, and a dispatch against a branch was accepted (204). The tag wall blocks tags, not this proof. decision/0092 records the reasoning, including why a dispatch is nearer the reported defect than a tag would have been: the defect in issue #32 was that a DISPATCH against a red main built and pushed `latest`.\n\nSafe by construction, checked before firing rather than after: the only job that builds anything and the only job holding `packages: write` is `image`, and it sits two `needs:` edges downstream of `ancestry-check` (release.yml:66, 73). Nothing on this path can publish even if the gate had failed to fire.",
       "check": "Run https://github.com/turbophp/doccum/actions/runs/35430359198 -- run_number 1, the first time release.yml has ever executed (decision/0075 predicted this item would be its first run). Job conclusions, read from the API rather than the summary page:\n\n  tagged commit is on main   FAILURE   at step 'Refuse to build/publish a commit that is not on main'\n  verify (tests.yml)         skipped\n  image                      skipped\n  release                    skipped\n  release-skipped-notice     skipped\n\nThe failing step's log, verbatim:\n\n  ##[error]94138e6f0a13396e3194bb11e3ea246b5a5f276f (ref refs/heads/mutation/0030-release-gate-ancestry) is not an ancestor of origin/main -- refusing to verify, build or publish. Only tag or dispatch a commit that has already been merged to main.\n  ##[error]Process completed with exit code 1.\n\nElapsed: 5 seconds, which is the point of placing ancestry-check before verify rather than only before image.\n\nWHAT THIS PROVES AND WHAT IT DOES NOT, stated separately because decision/0080 exists.\n\nProven by observation: the ancestry-check refusal fires on a real dispatch of release.yml against a real commit that was never merged, and nothing downstream runs. Also observed: the needs-chain propagates a non-success -- verify did not run because ancestry-check did not succeed, and image did not run because verify did not succeed.\n\nNOT proven by observation: the specific state where ancestry-check passes and `verify` RUNS AND FAILS. That needs a commit which is on main, carries the gate, and is red. No such commit exists -- 40 completed tests.yml runs on main were listed and the only non-successes are two `cancelled` concurrency runs (8fdfb50, 60b72e8), zero failures. Creating one would mean pushing a red main, which is the thing this gate exists to make harmless. decision/0090 reached the same conclusion for tags; a dispatch does not change it. That the two cases are the same GitHub `needs:` evaluation is a reading of the documented semantics, not a measurement, and is recorded as a reading.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0031",
+      "@type": "Mutation",
+      "implements": [
+        "item/api-sanctum-tokens"
+      ],
+      "pullRequest": null,
+      "run": "run/0020",
+      "headSha": "15dfc4a600ea58137b0918e6d8b8ed5db8c71a61",
+      "mutant": "Branch mutation/0031-api-tokens-smoke: PR #262's smoke check plus one deliberate regression, shaped like something somebody would actually write -- stash the plaintext token in the session on create, restore it in a new mount(), because \"the operator loses the token when the page reloads\". Never merged; PR #263 closed unmerged. pullRequest is null deliberately: #263 is not a PullRequest node in this ledger and must not become one, because every registered PR here is part of the product's history and this branch is the opposite -- a tree built to be refused. Its run URL is in `check`, which is where the evidence belongs.\n\nThe CHOICE of mutant is the substance here. Breaking creation outright would have proved only that the check runs at all. CLAUDE.md's account-menu lesson is that the obvious half of an assertion is often the worthless one and that reasoning about which half carries weight is unreliable -- the topbar check's hidden-before half was argued load-bearing and mutation proved the reverse. So this mutant leaves creation working and breaks only \"shown exactly once\", isolating the reload assertion, which is the clause this item is actually about.",
+      "check": "Run https://github.com/turbophp/doccum/actions/runs/35435327343, image job. Verbatim, timestamps stripped:\n\n  [setup] opening /settings/api-tokens as the administrator\n  [setup] /settings/api-tokens bounced to the password-confirm gate -- confirming with the admin's password\n  [setup] password-confirm gate cleared, back at /settings/api-tokens -- OK\n  [setup] creating a token named \"Smoke Token 811011512\" through the real form\n  [setup] the plaintext token appeared on the page right after creating it -- OK\n  [setup] reloading /settings/api-tokens and checking that exact plaintext value is gone\n  ##[error][setup] the plaintext token captured off \"Smoke Token 811011512\"'s creation is still on the page after a reload of /settings/api-tokens\n  ##[error]container-smoke (setup) failed: plaintext token value survived a reload of /settings/api-tokens\n  ##[error]Process completed with exit code 1.\n\nTHREE THINGS, established separately rather than pooled.\n\n(1) The mutation was ISOLATED. \"the plaintext token appeared on the page right after creating it -- OK\" is present, so creation still worked and only the reload assertion failed. Had the check died earlier the reload assertion would still be unproven and PR #262 would have gone back for rework rather than the item closing -- which is precisely the outcome this run was built to be able to produce.\n\n(2) The password-confirm path RAN. The gate fired and was cleared; the \"no password-confirm gate this time\" branch never executed. This smoke had never driven a password.confirm interstitial before, so that path is exercised rather than assumed.\n\n(3) The other half. Against the same commit with the feature intact, PR #262 was green on all 16 checks including image. Check passes with the feature, fails without it -- both halves observed, neither inferred from the other.\n\nONE CORRECTION to this session's own framing, recorded rather than quietly dropped: PR #263's body said a dumpContainerState header would precede the error. The literal string appears nowhere in the log, and the container dump (--- docker logs ---) follows the thrown error rather than preceding it. The diagnostic is real and adjacent; its position was described wrongly.",
       "verdict": "negative",
       "supersedes": null
     }

@@ -38,7 +38,7 @@
     "item/upgrade-smoke",
     "item/version-from-tag"
   ],
-  "commit": "861abb94866c71ae846cca6e1eb7e20d5fac671e",
+  "commit": "e0e99c642eb2794bfe61cd2245c7413a353a3779",
   "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally.",
   "merges": [
     {
@@ -552,6 +552,42 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35430817284",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35430817279",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "6952ac0d514ce7c095be0b95fce100d427ed2810",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T09:08:46Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35433891655",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35433891653",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "97fd22fda74919e2f063835ee4ec5c4e41d79c4f",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T09:16:45Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35434276847",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35434276843",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "105ab95aa0deac8c765e336ce79f26fa1739b22c",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/259",
+      "mergedAt": "2026-09-19T09:31:54Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35434952080",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35434952171",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "e0e99c642eb2794bfe61cd2245c7413a353a3779",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/262",
+      "mergedAt": "2026-09-19T09:47:30Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35435662893",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35435662914",
       "ledgerConclusion": "success"
     }
   ]
