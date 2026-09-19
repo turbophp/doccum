@@ -97,9 +97,18 @@
                         class="h-8 w-full rounded-md border border-zinc-200 bg-white pl-8 pr-16 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-select focus:outline-none focus:ring-1 focus:ring-select dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
                     />
 
+                    {{-- data-test, although nothing about the hint is a
+                         feature: the container smoke waits for this text to
+                         change from the server-rendered '⌘K' before it presses
+                         the shortcut, because that rewrite is the cheapest
+                         thing on the page that ONLY evaluated Alpine can
+                         produce. A wait on delivered HTML would not tell a
+                         keystroke lost to a not-yet-booted listener apart from
+                         a binding that never worked. --}}
                     <kbd
                         class="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-sans text-[11px] text-zinc-500 md:block dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400"
                         x-text="hint"
+                        data-test="search-shortcut-hint"
                         aria-hidden="true"
                     >⌘K</kbd>
                 </form>
