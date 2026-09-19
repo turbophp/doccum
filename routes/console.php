@@ -13,3 +13,9 @@ Artisan::command('inspire', function () {
 // see App\Console\Commands\PurgeExpired.
 Schedule::command('doccum:close-periods')->dailyAt('02:10');
 Schedule::command('doccum:purge-expired')->weeklyOn(1, '03:10');
+
+// Hourly, not daily: spec §11's staging prefix is where an abandoned
+// presigned upload sits, and the default --older-than (60 minutes) is
+// meant to be swept within the hour it goes stale, not once a day. See
+// App\Console\Commands\SweepUploads.
+Schedule::command('doccum:sweep-uploads')->hourly();

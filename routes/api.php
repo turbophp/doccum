@@ -5,10 +5,12 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\V1\DirectoryController;
 use App\Http\Controllers\Api\V1\DirectoryFileController;
 use App\Http\Controllers\Api\V1\DirectoryPropertyController;
+use App\Http\Controllers\Api\V1\FileCommitController;
 use App\Http\Controllers\Api\V1\FileController;
 use App\Http\Controllers\Api\V1\FileDownloadUrlController;
 use App\Http\Controllers\Api\V1\FilePropertyController;
 use App\Http\Controllers\Api\V1\FileTextController;
+use App\Http\Controllers\Api\V1\FileUploadUrlController;
 use App\Http\Controllers\Api\V1\FileVersionController;
 use App\Http\Controllers\Api\V1\PropertyDefinitionController;
 use App\Http\Controllers\Api\V1\SearchController;
@@ -54,14 +56,20 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->prefix('v1')->name('api.v1.
         Route::delete('directories/{directory}', [DirectoryController::class, 'destroy'])->name('directories.destroy');
     });
 
-    // item/api-presigned-upload (issue #57, order 57) owns the upload-url
-    // and commit routes -- POST /files/upload-url, POST /files, and
-    // POST /files/{id}/versions/upload-url -- along with the
-    // StoreFileVersion entry point issue #115 asks for. None of that is
-    // built on this branch; this is deliberately just the rename/move
-    // PATCH that already existed as part of THIS item's own surface.
+    // item/api-presigned-upload (issue #24): the upload-url and commit
+    // routes. POST files/upload-url and POST files/{file}/versions/
+    // upload-url are step 1 of spec §11's flow (App\Actions\Files\
+    // CreateUploadUrl); POST files is step 3 (App\Actions\Files\
+    // CommitUpload), which appends through StoreFileVersion::replace() --
+    // the entry point issue #115 asks for, taking the File itself and
+    // unable to create one -- when the commit names a file_id, and through
+    // StoreFileVersion::handle() when it names a directory_id. See
+    // FileCommitController's own docblock for the discriminator.
     Route::middleware('ability:files:write')->group(function (): void {
         Route::patch('files/{file}', [FileController::class, 'update'])->name('files.update');
+        Route::post('files/upload-url', [FileUploadUrlController::class, 'store'])->name('files.upload-url');
+        Route::post('files', [FileCommitController::class, 'store'])->name('files.store');
+        Route::post('files/{file}/versions/upload-url', [FileVersionController::class, 'storeUploadUrl'])->name('files.versions.upload-url');
     });
 
     Route::middleware('ability:files:read')->group(function (): void {

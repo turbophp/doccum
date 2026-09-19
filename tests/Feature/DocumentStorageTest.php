@@ -99,3 +99,57 @@ it('issues a temporary url for a version', function () {
     expect($this->storage->temporaryUrl($version))
         ->toStartWith('https://minio.test/files/2024/03/abc/v1/a.txt?e=');
 });
+
+/**
+ * item/api-presigned-upload (issue #24), the "hard part" flagged in this
+ * item's own brief: Storage::fake() has no built-in test seam for
+ * temporaryUploadUrl() the way it does for temporaryUrl() via
+ * buildTemporaryUrlsUsing() -- or so a prior pass at this item concluded.
+ * It does: Illuminate\Filesystem\FilesystemAdapter::temporaryUploadUrl()
+ * falls back to a `temporaryUploadUrlCallback`, set by
+ * buildTemporaryUploadUrlsUsing(), for exactly the same reason
+ * temporaryUrl() falls back to `temporaryUrlCallback` -- confirmed by
+ * reading Laravel's own source at the pinned framework version
+ * (raw.githubusercontent.com/laravel/framework/v13.17.0/src/Illuminate/
+ * Filesystem/FilesystemAdapter.php), not assumed. This test is the seam:
+ * DocumentStorage::presignedUploadUrl() needs no test-only branch of its
+ * own, it just calls the disk's real temporaryUploadUrl(), and a faked
+ * disk answers it the same way a real S3-compatible one would (see
+ * AwsS3V3Adapter::temporaryUploadUrl(), which returns the identical
+ * ['url' => ..., 'headers' => ...] shape this asserts).
+ */
+it('issues a presigned upload url and headers via the upload seam', function () {
+    Storage::disk('documents')->buildTemporaryUploadUrlsUsing(
+        fn (string $path, DateTimeInterface $expires, array $options = []): array => [
+            'url' => "https://minio.test/{$path}?e={$expires->getTimestamp()}",
+            'headers' => ['Content-Type' => $options['ContentType'] ?? ''],
+        ],
+    );
+
+    $signed = $this->storage->presignedUploadUrl('uploads/abc/report.pdf', 'application/pdf');
+
+    expect($signed['url'])->toStartWith('https://minio.test/uploads/abc/report.pdf?e=')
+        ->and($signed['headers'])->toBe(['Content-Type' => 'application/pdf']);
+});
+
+it('reports the size of a staged object, or null when nothing was ever staged', function () {
+    Storage::disk('documents')->put('uploads/abc/a.txt', 'twelve bytes');
+
+    expect($this->storage->stagedSize('uploads/abc/a.txt'))->toBe(12)
+        ->and($this->storage->stagedSize('uploads/nope/a.txt'))->toBeNull();
+});
+
+it('downloads a staged object to a local temp file', function () {
+    Storage::disk('documents')->put('uploads/abc/a.txt', 'staged bytes');
+
+    $tempPath = $this->storage->downloadStagedToTemp('uploads/abc/a.txt');
+
+    expect(file_get_contents($tempPath))->toBe('staged bytes');
+
+    @unlink($tempPath);
+});
+
+it('throws the typed exception when downloading a staged object that does not exist', function () {
+    expect(fn () => $this->storage->downloadStagedToTemp('uploads/missing/a.txt'))
+        ->toThrow(ObjectMissingFromStorage::class, 'Object [uploads/missing/a.txt] was not found in storage.');
+});

@@ -1731,14 +1731,22 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
  * from the document it replaces. If it instead shared the document's own
  * name, StoreFileVersion would version it anyway (that is what versioning
  * BY NAME means, see StoreFileVersionTest), and this check would pass
- * whether or not Browser::replaceFile() actually threads the selected
- * file's name through to the action -- exactly the bug this item's mutation
+ * whether or not Browser::replaceFile() actually threads the selected file
+ * through to the action correctly -- exactly the bug this item's mutation
  * (browser-replace-file's sibling in spirit, though that entry mutates the
- * authorize() call, not this line) is about: if replaceFile() ever passed
- * $this->replacement's OWN client name to StoreFileVersion instead of
- * $this->selectedFile->name, the call would go through the CREATE path --
- * a second File row named 'DoccumSmokeReplacement.txt' -- and only a
- * differing name makes that observable from the outside.
+ * authorize() call, not this line) is about: if replaceFile() ever went
+ * through StoreFileVersion::handle() with $this->replacement's OWN client
+ * name instead of StoreFileVersion::replace() with $this->selectedFile
+ * itself (item/api-presigned-upload, issue #115 -- replace() is the entry
+ * point that cannot take the create path at all, unlike handle(), which
+ * decided "append" or "create" purely by which name string it was given),
+ * the call would go through the CREATE path -- a second File row named
+ * 'DoccumSmokeReplacement.txt' -- and only a differing name makes that
+ * observable from the outside. The PROOF below is unchanged by which of
+ * the two calls replaceFile() makes: it asserts the OUTCOME (the document's
+ * own current version, version 1 untouched, no row under the replacement's
+ * name), not which method got called, so it still fails identically against
+ * an image reverted to the old handle()-with-client-name shape.
  *
  * The proof is a checksum triple read through tinker(), not DOM text:
  *
@@ -1787,6 +1795,25 @@ async function checkTrashRemovesFileFromListingAndSearch(page, phase) {
  * did time out on [data-test="file-version-row"].nth(1), in BOTH directions,
  * because it selected the uploaded row without re-navigating first; see the
  * comment on that goto.
+ *
+ * item/api-presigned-upload (issue #24) then gave StoreFileVersion a second
+ * entry point, replace(File, ...), and moved Browser::replaceFile() onto it
+ * (issue #115) -- $this->selectedFile->name is no longer an argument
+ * replaceFile() passes at all, because replace() takes the File and derives
+ * its own name internally, structurally unable to create a second row. The
+ * PR #118 measurement above was against handle()-with-a-name and was not
+ * re-run against a build reverted to that shape after this change, because
+ * doing so needs a built image this environment cannot produce (CLAUDE.md:
+ * no vendor/, no docker build here) -- flagged rather than claimed. What
+ * carries the proof forward without a fresh image run is that this check's
+ * three assertions name an OUTCOME (VERSIONS_CHECK_FILE_NAME's own current
+ * checksum, version 1's untouched checksum, no row named
+ * 'DoccumSmokeReplacement.txt'), not a call site, so the exact reverted
+ * mutation PR #118 measured -- replaceFile() calling handle() with the
+ * replacement's client name -- still produces the same observable symptom
+ * (a second File row, VERSIONS_CHECK_FILE_NAME's own version never touched)
+ * and still fails assertions 1 and 3 above for the identical reason it
+ * failed them in that run.
  */
 async function checkReplaceAddsASecondVersion(page, phase) {
   const originalBody = 'Version 1 body, unique to the replace smoke check.\n';
