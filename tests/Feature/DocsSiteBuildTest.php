@@ -190,6 +190,7 @@ it('never touches package.json or package-lock.json', function () {
     $stripYamlComments = fn (string $s): string => preg_replace('/^\s*#.*$/m', '', $s);
     $stripJsComments = function (string $s): string {
         $s = preg_replace('#/\*.*?\*/#s', '', $s); // /** ... */ blocks
+
         return preg_replace('#^\s*//.*$#m', '', $s); // // line comments
     };
 
