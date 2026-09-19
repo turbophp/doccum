@@ -10,6 +10,7 @@ use App\Http\Responses\Fortify\SuccessfulPasswordResetLinkRequestResponse;
 use App\Models\Directory;
 use App\Models\DirectoryGrant;
 use App\Models\File;
+use App\Models\PersonalAccessToken;
 use App\Models\Property;
 use App\Models\PropertyDefinition;
 use App\Models\User;
@@ -33,6 +34,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse as FailedPasswordResetLinkRequestResponseContract;
 use Laravel\Fortify\Contracts\SuccessfulPasswordResetLinkRequestResponse as SuccessfulPasswordResetLinkRequestResponseContract;
+use Laravel\Sanctum\Sanctum;
 use League\Flysystem\Filesystem;
 use Spatie\Permission\Models\Role;
 
@@ -116,6 +118,15 @@ class DoccumServiceProvider extends ServiceProvider
         Directory::observe(SearchProjectionObserver::class);
         File::observe(SearchProjectionObserver::class);
         Property::observe(SearchProjectionObserver::class);
+
+        // Sanctum's own documented extension point for swapping in a
+        // subclass -- not a vendor edit. App\Models\PersonalAccessToken adds
+        // exactly one thing: booted() refuses to save a token whose
+        // abilities include anything outside App\Enums\ApiTokenAbility's
+        // fixed eight (spec §11), a guard that has to live on the model
+        // itself to hold for a token minted by any path other than
+        // App\Livewire\Settings\ApiTokens. See that model's own docblock.
+        Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
 
         $this->registerAzureDriver();
     }

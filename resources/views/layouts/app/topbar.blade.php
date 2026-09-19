@@ -180,6 +180,10 @@
                             {{ __('Password & sessions') }}
                         </flux:menu.item>
 
+                        <flux:menu.item :href="route('api-tokens.edit')" icon="key" wire:navigate>
+                            {{ __('API tokens') }}
+                        </flux:menu.item>
+
                         {{--
                             Spec 10: Settings is a GROUP of sections -- users and
                             role assignment, roles and permissions, property
