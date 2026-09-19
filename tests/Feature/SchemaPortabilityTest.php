@@ -191,6 +191,13 @@ const SCHEMA_AUDIT_DRIVER_DEPENDENT_SITES = [
         'it should be masked as a secret -- pure PHP string matching, nothing stored, compared for '.
         'uniqueness, or touching a database. Registered as a false positive the grep cannot filter '.
         'out on its own.',
+    'app/Http/Controllers/FilePreviewController.php' => 'strtolower() here folds a MEDIA TYPE -- "TEXT/HTML", "image/svg+xml" -- before '.
+        'isMarkup() compares its subtype structurally to decide whether the preview response carries '.
+        'the sandbox CSP. Media types are case-insensitive by RFC 9110, and the value comes from the '.
+        'stored version row\'s mime column into a PHP string comparison; no database function, no '.
+        'column, no collation is involved. False positive, registered rather than filtered, per '.
+        'decision/0098 -- narrowing the grep to miss strtolower() would silently disarm the six other '.
+        'registered sites caught by that same substring.',
     'app/Support/OpenApi/OpenApiSpecBuilder.php' => 'strtolower() here folds an HTTP METHOD NAME -- "GET", "POST" -- into the lowercase key '.
         'OpenAPI requires for a path item\'s operations. The value comes from the router\'s own '.
         'methods() array, never from user input, and is written into docs/api/openapi.json; no '.
