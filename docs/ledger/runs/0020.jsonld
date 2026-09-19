@@ -42,8 +42,8 @@
     "item/upgrade-smoke",
     "item/version-from-tag"
   ],
-  "commit": "6dfc948fcf40366c048a9d4c836f9e59c0f3d99d",
-  "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally.",
+  "commit": "e702176b5f30629c36d1ca7e0be4490ab21da35f",
+  "description": "Opens on a main that two sessions are now writing to. PR #163, a design system and a rebuilt file browser, merged from elsewhere while run/0019's last item was in CI, and the collision was not theoretical: it moved the Settings entry out of the navbar into the account dropdown, so resolving the conflict by taking main's side wholesale would have silently dropped item/admin-users's own fix and the PR would still have looked correct. Recorded in decision/0047. tests and assertions are -1 rather than copied from run/0019, per decision/0044: a number carried forward reads as a measurement. item/ledger-field-audit decides whether -1 gains that meaning formally.\n\nTHREE MAIN PUSHES RECORDED LATE, and two of them carry pullRequest: null for a reason worth stating. 95b49d2 is this run's own previous ledger merge, null by the convention every ledger PR follows. c930b60 is PR #176 -- file preview, a command palette and search snippets -- authored in the owner's own session and merged by someone other than this loop; e702176 is PR #272, this loop's fix to a defect in that code. NEITHER CAN CARRY A PR NODE, because a node's implements must name an item and no item covers the preview surface at all. That is not a recording problem to work around by inventing an item: it is the ledger saying plainly that main receives work the item model does not describe, so \"66 of 89\" counts a plan narrower than the product, and item/v1-audit would audit the narrower thing. Raised with the owner rather than resolved here, because the choice -- retroactive items, a decision bounding what the ledger tracks, or a forward item bringing the surface under audit -- changes what the count means.",
   "merges": [
     {
       "mergeSha": "dbb8374929ed87bcd22932995b3a91252a832734",
@@ -655,6 +655,33 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35442539345",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35442539261",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "95b49d2f939da456fb5bb4f45828cf7b83932822",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T12:31:23Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35443104142",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35443104117",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "c930b60a36ab0e9c6c6ea2272513afdabada7cef",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T12:45:46Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35443792653",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35443792665",
+      "ledgerConclusion": "success"
+    },
+    {
+      "mergeSha": "e702176b5f30629c36d1ca7e0be4490ab21da35f",
+      "pullRequest": null,
+      "mergedAt": "2026-09-19T13:08:53Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35444906294",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35444903759",
       "ledgerConclusion": "success"
     }
   ]
