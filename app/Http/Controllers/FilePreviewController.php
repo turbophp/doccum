@@ -36,12 +36,32 @@ class FilePreviewController extends Controller
 
     public function __construct(private readonly DocumentStorage $storage) {}
 
-    /** Types a browser will execute if it is allowed to. */
+    /**
+     * Types a browser will execute if it is allowed to.
+     *
+     * Matched on the media type's STRUCTURE, never as a substring anywhere
+     * inside it. `str_contains($mime, 'xml')` was true of
+     * application/vnd.openxmlformats-officedocument.wordprocessingml.document
+     * -- the "xml" inside "openXMLformats" -- so a Word document was handed
+     * the sandbox policy the comment below says must not be sent for
+     * anything but markup. Nothing rendered wrong, because a .docx is
+     * fetched and converted client-side rather than loaded as a document,
+     * which is exactly why nothing caught it.
+     *
+     * A subtype is markup when it IS html/xml/svg or carries one as its
+     * structured suffix (RFC 6838's `+xml`), so image/svg+xml and
+     * application/xhtml+xml match and ...wordprocessingml.document does not.
+     */
     private static function isMarkup(string $mime): bool
     {
-        return str_contains($mime, 'html')
-            || str_contains($mime, 'xml')
-            || str_contains($mime, 'svg');
+        $type = strtolower(trim(explode(';', $mime, 2)[0]));
+        $slash = strpos($type, '/');
+        $subtype = $slash === false ? $type : substr($type, $slash + 1);
+
+        return in_array($subtype, ['html', 'xml', 'svg', 'xhtml'], true)
+            || str_ends_with($subtype, '+html')
+            || str_ends_with($subtype, '+xml')
+            || str_ends_with($subtype, '+svg');
     }
 
     /**
