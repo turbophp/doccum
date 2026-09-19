@@ -642,5 +642,19 @@
     "file": "app/Models/PersonalAccessToken.php",
     "remove": "            if ($unknown !== []) {\n                throw InvalidApiTokenAbility::forAbilities($unknown);\n            }\n",
     "expectFailing": "rejects an ability outside the eight when a token is created directly, bypassing the settings form"
+  },
+  {
+    "id": "search-results-snippet-escaped-before-mark-swap",
+    "why": "issue #279: the results page snippet must be escaped BEFORE the two private-use markers Fts5SearchIndex wraps each match in are swapped for real <mark>...</mark> tags -- escape-then-swap is what makes a passage pulled straight from an uploaded file's own bytes safe to render, since by the time any markup is introduced every angle bracket the document itself contained is already an entity. The 'remove' text deletes only the bare 'e' of the e(...) call around Str::limit($hit->snippet, 260), turning it into a no-op parenthesised group -- (Str::limit($hit->snippet, 260)) -- so the call still parses and the marker swap still runs unchanged (proved by hand: with this exact edit applied, str_replace() still turns the matched term's markers into a real <mark> element), but the snippet's own bytes now reach {!! !!} unescaped. That is precisely 'swap-then-render-raw': a document choosing to contain '<b>' would render it as a live tag rather than literal text. Deleting the whole e(...) call instead (rather than just the letter) was tried and rejected -- it leaves str_replace() called with only two arguments, an ArgumentCountError that crashes the render instead of demonstrating the escaping order, which is a broader and less precise failure than this one.",
+    "file": "resources/views/livewire/search/results.blade.php",
+    "remove": "\n                                e",
+    "expectFailing": "escapes hostile markup in the results page snippet before swapping the match into a mark element"
+  },
+  {
+    "id": "search-palette-snippet-escaped-before-mark-swap",
+    "why": "issue #279: the same guard as search-results-snippet-escaped-before-mark-swap, for the search palette's own copy of the escape-then-swap snippet logic. The 'remove' text deletes only the bare 'e' of the e(...) call around Str::limit($hit->snippet, 160), turning it into a no-op parenthesised group so the call still parses and the marker swap still runs, but the snippet's own bytes reach {!! !!} unescaped -- the same 'swap-then-render-raw' bug, reachable through the second search surface rather than the first.",
+    "file": "resources/views/livewire/search/palette.blade.php",
+    "remove": "\n                                                e",
+    "expectFailing": "escapes hostile markup in the palette snippet before swapping the match into a mark element"
   }
 ]
