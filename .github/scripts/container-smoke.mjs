@@ -3299,6 +3299,98 @@ async function checkAdminInstanceSettingsPage(page, phase) {
 }
 
 /**
+ * item/api-sanctum-tokens (issue #22): drives /settings/api-tokens the way
+ * an operator would. tests/Feature/Settings/ApiTokensTest.php and its
+ * mutation-proven guard on App\Livewire\Settings\ApiTokens already prove the
+ * component against the test renderer -- what only a real browser against
+ * the built image can see is whether the real form reaches
+ * ApiTokens::createToken() at all (a broken asset build or an unresolved
+ * Flux component leaves every Blade assertion green and the control
+ * unusable, same class of gap every other admin/settings check in this file
+ * exists to catch).
+ *
+ * Two doing-assertions, not resting-state ones (CLAUDE.md's account-menu
+ * lesson): creating a token and reading the plaintext value BACK OFF THE
+ * PAGE (never a fixed placeholder -- an assertion against a hardcoded
+ * string would pass even if $plainTextToken were wired to something else
+ * entirely) requires the form to have submitted, ApiTokens::createToken()
+ * to have run and saved a row, and the component to have re-rendered with a
+ * value that exists only in memory; reloading and finding that SAME string
+ * gone requires a fresh mount() to come back without it
+ * (App\Livewire\Settings\ApiTokens's own docblock: mount() never
+ * repopulates $plainTextToken -- there is nowhere in the database for it to
+ * be read back from).
+ *
+ * /settings/api-tokens sits behind the same `password.confirm` middleware as
+ * /settings/security (routes/settings.php) -- a gate this smoke has never
+ * driven before. Whether it appears depends on how recently this session
+ * confirmed its password (Fortify's password-timeout), so this checks for
+ * the confirm form's own [data-test] rather than assuming either outcome: if
+ * it is there, it fills the ONE password field
+ * (resources/views/livewire/auth/confirm-password.blade.php -- a plain
+ * `<form method="POST">`, not a Livewire component, so a real navigation
+ * follows the click) and waits for the ORIGINAL destination, not a bare
+ * "the URL changed", since Laravel's RequirePassword middleware stores the
+ * intended URL and Fortify's confirmation controller redirects back to it.
+ */
+async function checkApiTokensPage(page, phase) {
+  console.log(`[${phase}] opening /settings/api-tokens as the administrator`);
+  await page.goto(`${BASE_URL}/settings/api-tokens`, { waitUntil: 'domcontentloaded' });
+
+  const confirmButton = page.locator('[data-test="confirm-password-button"]');
+  if (await confirmButton.isVisible().catch(() => false)) {
+    console.log(`[${phase}] /settings/api-tokens bounced to the password-confirm gate -- confirming with the admin's password`);
+    await page.getByLabel('Password', { exact: true }).fill(ADMIN_PASSWORD);
+    await Promise.all([
+      page.waitForURL((u) => u.pathname === '/settings/api-tokens', { timeout: 15000 }),
+      confirmButton.click(),
+    ]);
+    console.log(`[${phase}] password-confirm gate cleared, back at /settings/api-tokens -- OK`);
+  } else {
+    console.log(`[${phase}] no password-confirm gate this time -- the session already held a recent confirmation`);
+  }
+
+  await page.locator('[data-test="create-token-form"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  const digits = Date.now().toString().slice(-9);
+  const tokenName = `Smoke Token ${digits}`;
+
+  console.log(`[${phase}] creating a token named "${tokenName}" through the real form`);
+  await page.getByLabel('Name', { exact: true }).fill(tokenName);
+  await page.locator('[data-test="ability-checkbox"]').first().check();
+  await clickAndWaitForLivewire(page, page.locator('[data-test="create-token-button"]'));
+
+  const tokenValueLocator = page.locator('[data-test="new-token-value"]');
+  try {
+    await tokenValueLocator.waitFor({ state: 'visible', timeout: 10000 });
+  } catch {
+    dumpContainerState(
+      `[${phase}] submitting the create-token form for "${tokenName}" never produced [data-test="new-token-value"]`
+      + ' -- either the submit never reached ApiTokens::createToken(), or the component did not re-render with a plaintext value',
+    );
+    throw Object.assign(new Error('creating a token through the real form produced no plaintext value on the page'), { dumped: true });
+  }
+
+  const plainTextToken = (await tokenValueLocator.textContent())?.trim();
+  if (!plainTextToken) {
+    dumpContainerState(`[${phase}] [data-test="new-token-value"] rendered but held no text after creating "${tokenName}"`);
+    throw Object.assign(new Error('new-token-value rendered empty after creating a token'), { dumped: true });
+  }
+  console.log(`[${phase}] the plaintext token appeared on the page right after creating it -- OK`);
+
+  console.log(`[${phase}] reloading /settings/api-tokens and checking that exact plaintext value is gone`);
+  await page.goto(`${BASE_URL}/settings/api-tokens`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="tokens-list"]').waitFor({ state: 'visible', timeout: 10000 });
+
+  const stillVisible = await page.getByText(plainTextToken, { exact: true }).isVisible().catch(() => false);
+  if (stillVisible) {
+    dumpContainerState(`[${phase}] the plaintext token captured off "${tokenName}"'s creation is still on the page after a reload of /settings/api-tokens`);
+    throw Object.assign(new Error('plaintext token value survived a reload of /settings/api-tokens'), { dumped: true });
+  }
+  console.log(`[${phase}] the plaintext token is gone after reloading -- OK`);
+}
+
+/**
  * Polls the search page for an exact name, the way searchUntilFound() above
  * polls for FILE_MARKER -- kept as its own function, rather than a shared
  * helper, so as not to touch searchUntilFound() itself (see the note at the
@@ -3598,6 +3690,9 @@ async function runSetup() {
 
     console.log('[setup] toggling auth.public_signup through /admin/settings and checking /register flips between 404 and 200 for a guest (issue #21)');
     await checkAdminInstanceSettingsPage(page, 'setup');
+
+    console.log('[setup] creating a personal access token through /settings/api-tokens and checking its plaintext value appears once and is gone on reload (issue #22)');
+    await checkApiTokensPage(page, 'setup');
 
     console.log('[setup] checking the password-reset URL honours a forwarded proto/host');
     checkForwardedPasswordResetUrl();
