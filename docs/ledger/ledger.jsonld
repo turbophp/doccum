@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-18T22:47:00Z",
+  "dateModified": "2026-09-19T00:05:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1452,6 +1452,7 @@
         "item/container-smoke-ci",
         "item/directory-access-ui",
         "item/directory-force-delete-orphans",
+        "item/directory-policy-trashed-move",
         "item/directory-policy-trashed-update",
         "item/home-dashboard",
         "item/image-size",
@@ -1529,6 +1530,26 @@
       "endTime": "2026-09-18T22:02:38Z",
       "result": [
         "https://github.com/turbophp/doccum/pull/254"
+      ]
+    },
+    {
+      "@id": "item/directory-policy-trashed-move",
+      "@type": "Action",
+      "order": 72,
+      "name": "DirectoryPolicy::move() has no trashed guard either, and moving INTO the trash corrupts path",
+      "url": "https://github.com/turbophp/doccum/issues/253",
+      "isBasedOn": [
+        "spec:5-access-control"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Created and Completed in one pass, which is unusual and is explained rather than hidden: this is the THIRD instance of one defect class already carrying two ledger items (70 and 71), it was found while fixing the second, and the previous iteration had wrongly reported the reachable v1 queue as empty. Filing it as Potential and completing it an hour later would have recorded a plan that never existed.\n\nmove() had no trashed() check on $directory. DirectoryAccess::resolve() checks proper ancestors only, deliberately excluding a directory's own trashed state so restore stays reachable (issue #49), so a directory trashed on its own still resolved Manage from a grant above it -- item 71's gap on a different verb, and worse to leave open, because MoveDirectory rewrites path and recomputes depth across the subtree and hasTrashedProperAncestor() is computed from those columns.\n\nA SECOND defect, of a different kind, surfaced while deciding whether a trashed $newParent should also refuse. Not a reveal but CORRUPTION: Directory::syncPath() resolves the parent through self::query() -- the default scope, which on a SoftDeletes model excludes trashed rows -- so a trashed $newParent makes that lookup return null, (string) null is '', and the moved subtree's path rebuilds as \"5/\" instead of \"/3/5/\", missing the parent's segment and the leading slash, in exactly the column ancestorIds() and hasTrashedProperAncestor() both read for every later access decision. Verified at Directory.php:113-117 with SoftDeletes at line 42, not inferred.\n\nDone when move() refuses both, each mutation-checked through .github/mutations.json, which the guards job executes. Unreachable through today's UI -- all four authorize('move', ...) sites in Browser.php resolve their destination via Directory::query()->findOrFail(), excluding trashed rows -- and guarded anyway on item 71's reasoning: in a two-layer model the policy is the guard of record, and 'no current screen reaches it' is the state in which a guard quietly stops existing.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-18T23:45:00Z",
+      "endTime": "2026-09-18T23:59:51Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/256"
       ]
     },
     {
@@ -3455,6 +3476,22 @@
       "mergedAt": "2026-09-18T22:02:38Z",
       "mergeSha": "f41d432b8070c4c12a17ff94e6959238c36d8185",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/256",
+      "@type": "PullRequest",
+      "identifier": 256,
+      "name": "move() refuses a trashed directory, and refuses moving into a trashed one",
+      "implements": [
+        "item/directory-policy-trashed-move"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-18T23:52:41Z",
+      "headSha": "68862569c405b14228f9395d2917a04ce4f890db",
+      "mergedAt": "2026-09-18T23:59:51Z",
+      "mergeSha": "2390a17f6b4815739f31bc1ae17bb08cdcbb723c",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -5359,6 +5396,20 @@
       "headSha": "66befe0d34bd8a0d5d1fbdc9b3d5d1384c3a7231",
       "mutant": "DirectoryPolicy::update()'s trashed guard deleted -- BY CI, not by a branch. This is the first mutation in this ledger with no mutation PR, and the absence is the finding: .github/mutations.json entry directory-policy-update-refuses-trashed-directory names the guard text and the test, and the guards job runs mutation-check.php, which removes the text, runs the named test, requires it to FAIL, and restores it. Registering a guard IS the mutation here.",
       "check": "The guards job on PR #254's own green run, quoted from its log:\n  guard present  -> \"refuses to update a trashed directory, even with access held through a grant above it\" passes\n  guard deleted  -> \"refuses to update a trashed directory, even with access held through a grant above it\" fails, as it must\n\nWHAT NEARLY HAPPENED, recorded because it is the reusable part. I had the mutation branch cut and the guard removed via the registry's own remove string before checking what the guards job actually runs. That branch would have proven nothing already proven, and would have turned guards RED for a structural reason: mutation-check.php requires the remove text to match exactly once, and with the guard already deleted it matches zero times. A mutation PR that fails on the registry rather than on the assertion is the same worthless red as one that fails on pint.\n\nSo the cost of mutation-checking a guard expressible as a contiguous block of code is one mutations.json entry, not a PR and a CI cycle. The mutation-PR workflow remains necessary for what the registry cannot express: smoke assertions (the guard is a container behaviour, not a line to delete) and anything whose removal must be observed in the image job.\n\nThe test itself is discriminating rather than merely passing: the grant sits on the PARENT and it asserts can('update', $child) true BEFORE trashing and false after, so a refusal cannot be explained by the user never having had access.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0029",
+      "@type": "Mutation",
+      "implements": [
+        "item/directory-policy-trashed-move"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/256",
+      "run": "run/0020",
+      "headSha": "68862569c405b14228f9395d2917a04ce4f890db",
+      "mutant": "Both move() guards, each removed by the guards job from its own .github/mutations.json entry -- directory-policy-move-refuses-trashed-directory and directory-policy-move-refuses-trashed-destination. Second use of the registry-as-mutation mechanism recorded in mutation/0028, and the first with TWO independent guards in one file: each entry's remove string was verified to match app/Policies/DirectoryPolicy.php exactly once, so removing either leaves the other intact and the two verdicts are separate.",
+      "check": "PR #256's own green guards job, quoted:\n  move-refuses-trashed-directory   guard present -> \"refuses to move a trashed directory, even with access held through a grant above it\" passes; guard deleted -> fails, as it must\n  move-refuses-trashed-destination guard present -> \"refuses to move a directory into a trashed destination, even with edit access granted on it\" passes; guard deleted -> fails, as it must\n\nBoth tests assert access TRUE before trashing and false after, with the grant above the subject: without the before-assertion a refusal is consistent with the user never having had access.\n\nWhat these prove and what they do not. They prove each guard is load-bearing for its own test. They do NOT prove the $newParent guard prevents the corruption it was written against -- no test asserts on the path column after a move into a trashed parent, because the guard now refuses that move before syncPath() ever runs. The corruption claim rests on reading Directory.php:113-117 against SoftDeletes at line 42, and is recorded as a reading, not a measurement.",
       "verdict": "negative",
       "supersedes": null
     }
