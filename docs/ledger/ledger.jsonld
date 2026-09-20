@@ -4,7 +4,7 @@
   "@type": "Ledger",
   "version": "1",
   "dateModified": "2026-09-20T00:12:00Z",
-  "latestRun": "run/0021",
+  "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
