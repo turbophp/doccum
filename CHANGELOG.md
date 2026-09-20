@@ -13,9 +13,11 @@ heading format to `## [x.y.z]` or `## [x.y.z] - YYYY-MM-DD`.
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-09-18
+## [0.1.0]
 
-Initial feature set.
+Initial feature set. Undated because it has not been released: no tag and no
+GitHub Release exist yet, and under Keep a Changelog a dated heading means
+shipped. The date is set when the tag is cut.
 
 ### Added
 
@@ -39,6 +41,20 @@ Initial feature set.
   access without database access.
 - Runs correctly behind a TLS-terminating reverse proxy, serving correct
   URLs (respects `X-Forwarded-Proto`/`X-Forwarded-Host`).
+- Preview a file in the browser without downloading it.
+- Command palette: press Ctrl-K (Cmd-K on a Mac) anywhere to search and jump
+  straight to a result.
+- Search matches partial words, so a query finds a term it only begins.
+- Download a whole directory as a zip. The archive is built in the
+  background and a notification appears when it is ready, so a large
+  directory does not tie up the page.
+- REST API under `/api/v1`: browse directories, read and upload files
+  (presigned upload plus commit), list versions, read extracted text, and
+  set properties. A generated OpenAPI reference is committed at
+  `docs/api/openapi.json`.
+- Settings: personal API tokens, each limited to a fixed set of eight
+  coarse abilities.
+- Self-hosting documentation covering install, configuration and upgrade.
 
 ### Fixed
 
