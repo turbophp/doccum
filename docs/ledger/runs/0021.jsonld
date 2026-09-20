@@ -1,0 +1,17 @@
+{
+  "@context": "../context.jsonld",
+  "@id": "run/0021",
+  "@type": "Run",
+  "identifier": 21,
+  "agent": "https://claude.ai/code/session_01ADCn2xmXjiP4pnatPFyF5r",
+  "startTime": "2026-09-20T00:12:30Z",
+  "endTime": null,
+  "outcome": "active",
+  "touched": [
+    "item/release-v0-1-0",
+    "item/tag-v1-0-0"
+  ],
+  "commit": "aeccb3060d6546b294c92b063434b17ddf07064d",
+  "description": "Opens on a closed predecessor, which is the point. run/0020 ran 38 hours and 82 merges under a vocabulary whose other twenty runs ran twenty minutes to four hours; its closing note records what that cost and why it is not merely untidy. This run restores the grain LOOP.md already prescribes -- one run per iteration -- rather than redefining it, because nothing about the work changed, only the discipline of writing it down.\n\nOPENING STATE, so that a later reader can check drift against something: main is aeccb30, no tags exist, no PRs are open, and the v1 GAP is SIX -- item/release-v0-1-0, item/docs-site, item/image-size, item/readme-owner, item/v1-audit, item/tag-v1-0-0. The gap is the number this run reports, per decision/0105; the ratio, currently 68 of 74, may accompany it and never replaces it.\n\nTHREE DECISIONS WAIT ON THE OWNER and no v1 item can advance without one of them: enabling GitHub Pages (two settings), authorising a v0.1.0-rc1 tag, and decision/0102's question about the four groups of shipped surfaces the ledger does not track. A fourth was added by PR #287 and is smaller: whether `release` should be gated on the new boot jobs, so that a GitHub Release is not created announcing a version whose arm64 image did not start.\n\nWHAT THE PREVIOUS RUN LEFT UNOWNED, carried forward rather than dropped: decision/0095 flagged that `about.version` has no definition in context.jsonld and called it a vocabulary change; it has had no item since. item/tag-v1-0-0 clause (4) -- who updates the ledger's release node after the tag -- cannot be answered until it does. And decision/0105 names a vocabulary defect it deliberately does not fix: LedgerValidator requires a Mutation's and a PullRequest's implements to resolve to an Action, so every recorded defect fix becomes an Action carrying a release, and filing one as v1.0.0 inflates the v1 denominator. Both remedies are schema changes, which are the owner's.",
+  "merges": []
+}
