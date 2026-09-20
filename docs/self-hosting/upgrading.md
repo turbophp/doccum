@@ -3,9 +3,9 @@
 ## The steady-state case: pull a new tag
 
 ```bash
-docker pull ghcr.io/OWNER/doccum:X.Y.Z
+docker pull ghcr.io/turbophp/doccum:X.Y.Z
 docker stop doccum && docker rm doccum
-docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/OWNER/doccum:X.Y.Z
+docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/turbophp/doccum:X.Y.Z
 ```
 
 Or, for the compose stack, update the image reference/tag in `compose.yaml`

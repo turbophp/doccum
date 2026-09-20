@@ -7,13 +7,11 @@ OCR of scanned pages.
 ## Run it
 
 ```bash
-docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/OWNER/doccum
+docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/turbophp/doccum
 ```
 
-Replace `OWNER` with the GitHub owner this image is published under. (Angle
-brackets are deliberately not used here: `<owner>` in a shell is input
-redirection, not a placeholder, and the command fails with a confusing
-`No such file or directory`.)
+The image is published from tagged releases. If none has been cut yet, that
+pull will not resolve — build from a checkout instead, as below.
 
 Open <http://localhost:8080> and complete the setup screen.
 
