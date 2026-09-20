@@ -470,30 +470,54 @@ it('does not apply the outcome rule AT the effective threshold run, where real h
 });
 
 /**
- * The shas the ledger actually records for its newest run, oldest first.
+ * The shas the ledger actually records for its newest run that HAS an
+ * interior -- that is, two or more merges -- oldest first.
  *
  * Derived from the real ledger rather than a fixture on purpose: the check
  * under test compares the ledger against an EXTERNAL list, so feeding it a
  * list built from the same fixture it validates would prove nothing about
- * the comparison.
+ * the comparison. Any run serves for that, because the validator collects
+ * the recorded shas across ALL runs, not just the newest one.
+ *
+ * Reading the newest run unconditionally is what this used to do, on the
+ * stated assumption that "the newest run always has more" than one merge.
+ * That assumption was never true; it was merely never tested at a run
+ * boundary, because runs used to be created with an empty merges list and
+ * the test was written mid-run. A run is now WRITTEN for an iteration
+ * rather than opened before one, so the newest run is born holding exactly
+ * its first merge -- and a one-element list has no interior for a hole to
+ * be interior TO. The assumption had to give way, not the practice: a run
+ * cannot be written before it has a merge to anchor on, so requiring two
+ * would mean it could never be written at all.
  */
-function recordedShasOfNewestRun(): array
+function recordedShasOfNewestRunWithAnInterior(): array
 {
     $files = glob(base_path('docs/ledger/runs/*.jsonld'));
     sort($files);
-    $run = json_decode((string) file_get_contents((string) end($files)), true);
 
-    return array_map(
-        static fn (array $entry): string => (string) $entry['mergeSha'],
-        array_values(array_filter($run['merges'] ?? [], 'is_array')),
-    );
+    foreach (array_reverse($files) as $file) {
+        $run = json_decode((string) file_get_contents($file), true);
+
+        $shas = array_map(
+            static fn (array $entry): string => (string) $entry['mergeSha'],
+            array_values(array_filter($run['merges'] ?? [], 'is_array')),
+        );
+
+        if (count($shas) > 1) {
+            return $shas;
+        }
+    }
+
+    return [];
 }
 
 it('reports a commit on main that no run records, when a later commit is recorded', function () {
-    $shas = recordedShasOfNewestRun();
+    $shas = recordedShasOfNewestRunWithAnInterior();
 
-    // Fewer than two recorded merges and "interior" has no meaning; the
-    // newest run always has more, but say so rather than assert nothing.
+    // Fewer than two recorded merges and "interior" has no meaning. The
+    // helper searches back for a run that has them, so an empty result
+    // means the ledger holds none at all -- say so rather than pass on a
+    // list that cannot exercise the check.
     expect(count($shas))->toBeGreaterThan(1);
 
     $hole = str_repeat('a', 40);
@@ -521,7 +545,7 @@ it('does not report a commit newer than everything the ledger records', function
     // after the very ledger pass that recorded the previous merges -- a
     // deadlock, not a strict rule. Such a commit becomes interior, and so
     // caught by the test above, as soon as a later merge is recorded.
-    $shas = recordedShasOfNewestRun();
+    $shas = recordedShasOfNewestRunWithAnInterior();
     $freshMerge = str_repeat('b', 40);
 
     $errors = LedgerValidator::validate(
