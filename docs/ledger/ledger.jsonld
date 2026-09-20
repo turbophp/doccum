@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-19T23:10:00Z",
+  "dateModified": "2026-09-20T00:12:00Z",
   "latestRun": "run/0020",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1580,7 +1580,7 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [],
-      "doneWhen": "container-smoke.mjs opens the palette with Ctrl-K from a page that is NOT /search, searches in it, and opens a hit -- and at least one of those assertions has been SHOWN to fail against a deliberately broken image, with the run recorded as a Mutation here.\n\nWHY THIS ITEM EXISTS AT ALL, stated plainly rather than left to be inferred from its order. `grep -n palette .github/scripts/container-smoke.mjs` returned nothing: the surface people reach search through most often had never been executed in a browser by anything in this repository. tests/Feature/Search/PaletteTest.php covers the component thoroughly and every clause it can reach is server side -- openPalette() sets a flag, hits() honours the viewer's reach, destinationFor() resolves a route. Everything that makes the palette a palette rather than a Livewire property is browser side: the window Ctrl-K binding, the open-search-palette CustomEvent and its listener, wire:model.live on an input the opening round trip creates, Alpine's selected/openSelected navigation, and the swap of the index's private-use markers into <mark>. CLAUDE.md says a Blade assertion renders the markup for all of that and cannot see that none of it booted.\n\nWHAT THIS ITEM IS NOT. It is TESTING DEBT under spec:14-testing, and its clause is bounded to \"the palette is driven by the smoke\". It is deliberately NOT an item that brings \"the palette surface\" under audit, and filing it does not answer the accounting question decision/0102 puts to the owner. It is one of the three options offered there, taken for one surface only -- and partly forced: LedgerValidator requires Mutation.implements and PullRequest.implements to resolve to an Action, so mutation/0032 and the PR nodes for #277 and #280 could not exist in this file without an item to name. Recording that here rather than presenting the item as a neutral bookkeeping choice.\n\nWHAT IT LEAVES OPEN, so that Completed is not read as coverage. One of the check's four assertions is mutation-proven; see mutation/0032. The escape-before-swap ORDER is unproven and is issue #279. move() is not driven at all. /search's own results page still carries no data-test hooks, so snippet rendering there remains browser-unproven.",
+      "doneWhen": "container-smoke.mjs opens the palette with Ctrl-K from a page that is NOT /search, searches in it, and opens a hit -- and at least one of those assertions has been SHOWN to fail against a deliberately broken image, with the run recorded as a Mutation here.\n\nWHY THIS ITEM EXISTS AT ALL, stated plainly rather than left to be inferred from its order. `grep -n palette .github/scripts/container-smoke.mjs` returned nothing: the surface people reach search through most often had never been executed in a browser by anything in this repository. tests/Feature/Search/PaletteTest.php covers the component thoroughly and every clause it can reach is server side -- openPalette() sets a flag, hits() honours the viewer's reach, destinationFor() resolves a route. Everything that makes the palette a palette rather than a Livewire property is browser side: the window Ctrl-K binding, the open-search-palette CustomEvent and its listener, wire:model.live on an input the opening round trip creates, Alpine's selected/openSelected navigation, and the swap of the index's private-use markers into <mark>. CLAUDE.md says a Blade assertion renders the markup for all of that and cannot see that none of it booted.\n\nWHAT THIS ITEM IS NOT. It is TESTING DEBT under spec:14-testing, and its clause is bounded to \"the palette is driven by the smoke\". It is deliberately NOT an item that brings \"the palette surface\" under audit, and filing it does not answer the accounting question decision/0102 puts to the owner. It is one of the three options offered there, taken for one surface only -- and partly forced: LedgerValidator requires Mutation.implements and PullRequest.implements to resolve to an Action, so mutation/0032 and the PR nodes for #277 and #280 could not exist in this file without an item to name. Recording that here rather than presenting the item as a neutral bookkeeping choice.\n\nWHAT IT LEAVES OPEN, so that Completed is not read as coverage. One of the check's four assertions is mutation-proven; see mutation/0032. The escape-before-swap ORDER is unproven and is issue #279. move() is not driven at all. /search's own results page still carries no data-test hooks, so snippet rendering there remains browser-unproven.\nBORN COMPLETED, and saying so on item/directory-policy-trashed-move's model rather than leaving a reader of the ledger to discover it from git. This item first entered ledger.jsonld at 59dae8f already CompletedActionStatus: it was filed and closed inside the hour it was built, and the doneWhen above was written knowing what had been built. What stood in for a prior clause is issue #276, opened before the PR and holding the requirement in its own words; that is better than nothing and it is not the same as a plan the ledger recorded in advance. See decision/0105, and decision/0068 on why a clause written afterwards is indistinguishable from one that was met.\n\nIt also did not move the gap. v1 went 66 of 72 to 67 of 73 when this item landed; six items remained before and after. An item that enters Completed cannot change the number remaining.",
       "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-19T20:30:00Z",
       "endTime": "2026-09-19T21:19:00Z",
@@ -1601,7 +1601,7 @@
       "size": "S",
       "release": "v1.0.0",
       "dependsOn": [],
-      "doneWhen": "A document whose TEXT contains markup next to the searched word is uploaded, searched, and the snippet asserted to carry that markup as literal characters -- not as an element -- on both the palette hit and the /search results row; and the guard is mutation-checked, per CLAUDE.md.\n\nWHAT WAS WRONG. Both surfaces render document text through {!! !!}. Fts5SearchIndex deliberately wraps matched terms in two PRIVATE-USE codepoints rather than in HTML, so the view can escape the whole passage first and only then swap those two for real <mark> tags. Escape-then-swap is safe; swap-then-escape renders the tags as text; never escaping renders the document's own bytes as markup -- and the passage comes from an uploaded file, so an uploader chooses them. Both views say exactly this in their own comments.\n\nNOTHING PROVED IT. SearchPageTest's fixture body was \"the tenant shall maintain the premises in good repair\" -- no '<', '&' or quote anywhere -- so the e() call could be deleted from either view and every test stayed green. The existing snippet test asserts the <mark> element, which survives that deletion untouched. A guard whose test passes without it is the state CLAUDE.md calls worse than none, because it looks protected.\n\nHOW IT IS PROVEN NOW. One test per surface, each with its own document bodied 'the <b>tenant</b> shall & \"maintain\" the premises', and three assertions that PARTITION the failure modes rather than pooling them: assertSee('&lt;b&gt;') catches \"never escapes\", assertDontSee('<b>') catches the same mode from the other side, and assertSee('<mark ...>tenant</mark>') catches \"swap-then-escape\" -- which escapes the document's markup correctly and breaks only the highlight, so neither of the first two can see it. Both fixtures are created INSIDE their own test rather than in beforeEach, so no sibling assertion changes.\n\nThe mutation is TWO .github/mutations.json entries rather than a hand-run branch, so `guards` asserts both directions on every push and the guard cannot quietly rot. See mutation/0036 and mutation/0037.\n\nWHAT THIS ITEM IS NOT, on the same footing as item/palette-smoke. Testing debt under spec:14-testing, bounded to this one ordering property. It is not a claim about what the ledger tracks and does not answer decision/0102's question; it exists as an item partly because LedgerValidator requires a Mutation's and a PullRequest's implements to resolve to an Action.\n\nWHAT REMAINS UNPROVEN, recorded so Completed is not read as coverage. resources/views/livewire/search/results.blade.php still carries no data-test hooks, and the container smoke still does not drive /search's snippet in a BROWSER -- these are Livewire component tests asserting rendered HTML, which is a different thing. The issue's original clause guessed that a data-test hook would be needed first; it was not, and that guess is recorded here rather than silently dropped.",
+      "doneWhen": "A document whose TEXT contains markup next to the searched word is uploaded, searched, and the snippet asserted to carry that markup as literal characters -- not as an element -- on both the palette hit and the /search results row; and the guard is mutation-checked, per CLAUDE.md.\n\nWHAT WAS WRONG. Both surfaces render document text through {!! !!}. Fts5SearchIndex deliberately wraps matched terms in two PRIVATE-USE codepoints rather than in HTML, so the view can escape the whole passage first and only then swap those two for real <mark> tags. Escape-then-swap is safe; swap-then-escape renders the tags as text; never escaping renders the document's own bytes as markup -- and the passage comes from an uploaded file, so an uploader chooses them. Both views say exactly this in their own comments.\n\nNOTHING PROVED IT. SearchPageTest's fixture body was \"the tenant shall maintain the premises in good repair\" -- no '<', '&' or quote anywhere -- so the e() call could be deleted from either view and every test stayed green. The existing snippet test asserts the <mark> element, which survives that deletion untouched. A guard whose test passes without it is the state CLAUDE.md calls worse than none, because it looks protected.\n\nHOW IT IS PROVEN NOW. One test per surface, each with its own document bodied 'the <b>tenant</b> shall & \"maintain\" the premises', and three assertions that PARTITION the failure modes rather than pooling them: assertSee('&lt;b&gt;') catches \"never escapes\", assertDontSee('<b>') catches the same mode from the other side, and assertSee('<mark ...>tenant</mark>') catches \"swap-then-escape\" -- which escapes the document's markup correctly and breaks only the highlight, so neither of the first two can see it. Both fixtures are created INSIDE their own test rather than in beforeEach, so no sibling assertion changes.\n\nThe mutation is TWO .github/mutations.json entries rather than a hand-run branch, so `guards` asserts both directions on every push and the guard cannot quietly rot. See mutation/0036 and mutation/0037.\n\nWHAT THIS ITEM IS NOT, on the same footing as item/palette-smoke. Testing debt under spec:14-testing, bounded to this one ordering property. It is not a claim about what the ledger tracks and does not answer decision/0102's question; it exists as an item partly because LedgerValidator requires a Mutation's and a PullRequest's implements to resolve to an Action.\n\nWHAT REMAINS UNPROVEN, recorded so Completed is not read as coverage. resources/views/livewire/search/results.blade.php still carries no data-test hooks, and the container smoke still does not drive /search's snippet in a BROWSER -- these are Livewire component tests asserting rendered HTML, which is a different thing. The issue's original clause guessed that a data-test hook would be needed first; it was not, and that guess is recorded here rather than silently dropped.\nBORN COMPLETED, same as item/palette-smoke and for the same reasons, recorded here rather than left to git. This item first entered ledger.jsonld at 23f3d41 already CompletedActionStatus. Issue #279 held the prior statement -- and, as the clause above already notes, got one thing wrong about what the work would need, which is exactly why an issue is not a substitute for a ledger clause. See decision/0105.\n\nIt did not move the gap either: 67 of 73 to 68 of 74, six remaining on both sides.\n\nONE MORE BOUND WORTH STATING, since \"bounded to this one ordering property\" invites the question of how large the class is. `grep -rn '{!!' resources/views` returns THREE sites: the two snippet renderers this item covers, and resources/views/livewire/settings/security.blade.php line 167, which renders a QR code SVG produced by the application itself rather than text from an uploaded file. That third site is a different concern -- not an ordering, and not attacker-chosen input -- so it is outside this item on purpose. Naming it, and the count, is what lets a reader see the class is closed at three rather than assume it.",
       "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-19T22:45:00Z",
       "endTime": "2026-09-19T23:06:10Z",
@@ -3725,6 +3725,38 @@
       "mergedAt": "2026-09-19T23:06:10Z",
       "mergeSha": "61ff5622b256cffe0cf0d75321ac9d92e7b14cdb",
       "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/286",
+      "@type": "PullRequest",
+      "identifier": 286,
+      "name": "Publish `latest` on a non-pre-release tag",
+      "implements": [
+        "item/tag-v1-0-0"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-19T23:55:14Z",
+      "headSha": "6a884078c2ca34d9063ddf092677d7133e252aa3",
+      "mergedAt": "2026-09-20T00:01:52Z",
+      "mergeSha": "d1a317095bafe0dca56acd0e113d19cecdae9601",
+      "mergedIn": "run/0020"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/287",
+      "@type": "PullRequest",
+      "identifier": 287,
+      "name": "Boot the published image on both architectures, and prove the tag reached it",
+      "implements": [
+        "item/release-v0-1-0"
+      ],
+      "run": "run/0020",
+      "state": "merged",
+      "dateCreated": "2026-09-20T00:01:33Z",
+      "headSha": "e9c98e51c500829381f7612b35f9b5b433fb237b",
+      "mergedAt": "2026-09-20T00:08:31Z",
+      "mergeSha": "aeccb3060d6546b294c92b063434b17ddf07064d",
+      "mergedIn": "run/0020"
     }
   ],
   "decisions": [
@@ -5435,6 +5467,39 @@
       "affects": [
         "item/release-v0-1-0",
         "item/tag-v1-0-0"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0104",
+      "@type": "Decision",
+      "dateCreated": "2026-09-20T00:12:00Z",
+      "run": "run/0020",
+      "name": "Checking what a rule prevents is not checking what it permits",
+      "rationale": "Checking what a rule PREVENTS is not checking what it PERMITS.\n\ndecision/0103, written two hours before this one, read release.yml's tag configuration at the SHA the workflow pins and established two facts about docker/metadata-action: `latest` here is `type=raw,value=latest,enable={{is_default_branch}}`, false for every tag push; and a pre-release degrades `{{major}}.{{minor}}` to `{{version}}`. It drew one conclusion -- an rc cannot move a stable container tag -- and stopped.\n\nThe other conclusion was in the same two facts and was not drawn: if no tag push sets `latest`, then NO tag sets it, including v1.0.0. item/tag-v1-0-0 clause (3) requires `docker pull ghcr.io/turbophp/doccum` with no tag to resolve to 1.0.0. README.md line 10, docs/self-hosting/quick-start.md line 11 and docs/self-hosting/backup-and-restore.md line 67 all run the image untagged. So the v1.0.0 tag would have published 1.0.0 and 1.0 and no `latest` whatever: the clause unsatisfiable, and every documented quick start pulling a tag nobody had published. `latest` was reachable only from a workflow_dispatch on main -- the unversioned publish decision/0090 warned against. Exactly backwards from what the documentation assumes.\n\nTHE SHAPE. 0103 was investigating a SAFETY question -- can the throwaway rc damage anything? -- and the configuration answered it reassuringly. A reassuring answer ends an investigation early, because nothing in it demands another look. Had the same line been read while asking \"what DOES set `latest`\", the gap would have been unmissable. The facts were identical; only the question differed.\n\nThis is decision/0101's form -- a single observation of a check passing says nothing about what it would refuse -- arriving in a workflow rather than an assertion, which is why it is worth its own record: 0101 is phrased about test assertions and a reader looking for its lesson in a YAML file would not find it.\n\nWHAT CHANGES. When a rule is read to answer whether something is forbidden, read it again for what it allows before recording the answer. Concretely: any `enable=` or `if:` gate examined for one trigger is examined for every trigger the workflow has, and the answer records all of them. Fixed in PR #286, which adds `latest` on a tag whose name carries no SemVer pre-release separator; the exclusion keeps the rc from moving the tag the quick starts pull, which is the property 0103 was right about.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/tag-v1-0-0",
+        "item/release-v0-1-0"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0105",
+      "@type": "Decision",
+      "dateCreated": "2026-09-20T00:12:00Z",
+      "run": "run/0020",
+      "name": "An item created Completed cannot change the gap, so the ratio is not a progress report",
+      "rationale": "An item created Completed cannot change the gap, so the ratio is not a progress report.\n\nTHE FACTS, from the ledger's own history. `git log -S` on each id finds item/palette-smoke first appearing at 59dae8f already CompletedActionStatus, and item/snippet-escape-order first appearing at 23f3d41 already Completed. Both were filed and closed inside the same hour they were built. Both are genuine defects under rules that predate them -- CLAUDE.md's container-smoke rule and its mutation rule were in force before either item existed -- and both are mutation-proven. Neither is busywork. That is not the question.\n\nThe question is what they did to the count. v1 went 66 of 72, to 67 of 73, to 68 of 74. The GAP -- items remaining -- was 6 before and 6 after. An item that enters the ledger already Completed cannot move it by construction. Reporting \"68 of 74\" after such an addition is not false, but it is progress-shaped without being progress, and it was reported that way three times.\n\nITEM 72 ALREADY SET THE PRECEDENT and items 73 and 74 did not follow it. item/directory-policy-trashed-move's doneWhen opens: \"Created and Completed in one pass, which is unusual and is explained rather than hidden.\" 73 and 74 say nothing of the kind. Their doneWhen text was first committed knowing what had been built, which is the shape decision/0068 warns is \"indistinguishable, afterwards, from having met the original clause\". The GitHub issues (#276, #279) do hold a prior statement and predate the PRs, which is better than nothing -- but the ledger does not say the doneWhen is a restatement of the issue, and item 74's own text records that the issue's clause was wrong about what would be needed. A reader of the ledger alone cannot tell.\n\nWHAT CHANGES, three things.\n\n(1) REPORT THE GAP, not the ratio. \"Six v1 items remain\" is the sentence; the ratio may follow it but never replaces it.\n\n(2) AN ITEM BORN COMPLETED SAYS SO, in its own doneWhen, on item 72's model, with what stood in for a prior clause. Amended into items 73 and 74 by the commit carrying this decision.\n\n(3) A VOCABULARY DEFECT IS NAMED, not worked around. Both items record that they exist \"partly because LedgerValidator requires a Mutation's and a PullRequest's implements to resolve to an Action\". That is true, and its consequence is that every recorded defect fix must become an Action, and every Action carries a `release` -- so filing one as v1.0.0 raises the v1 denominator whether or not the work was ever part of the road to v1. The vocabulary makes the denominator grow each time a mutation is recorded. Two remedies exist and neither is taken here, because a schema change is the owner's: let implements resolve to a Decision or carry an issue URL when there is no plan node, or add a release value the validator excludes from the v1 count and from item/tag-v1-0-0's gate. Recorded as the open question it is.\n\nWHAT THIS DECISION DOES NOT SAY. It does not say the two items should not have been built. A defect that CLAUDE.md's own rules name is worth fixing whether or not the ledger has a place to put it, and both fixes stand on evidence that CI re-runs. It says the accounting was wrong, and that the accounting is fixable without touching the work.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/palette-smoke",
+        "item/snippet-escape-order",
+        "item/v1-audit"
       ],
       "supersedes": null
     }
