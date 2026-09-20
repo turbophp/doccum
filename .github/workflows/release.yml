@@ -331,6 +331,73 @@ jobs:
 
           echo "published image's version label ('${LABEL_VERSION}') matches the triggering tag ('${EXPECTED_VERSION}')"
 
+  # item/tag-v1-0-0 clause (3): "`docker pull ghcr.io/turbophp/doccum` with
+  # no tag resolves to 1.0.0". The README quick start pulls the bare ref and
+  # LOOP.md's stopping condition says ghcr carries the image; nothing
+  # asserted that the two agree, and the clause said so without building it.
+  #
+  # The check is a DIGEST comparison, deliberately, not a label or version
+  # comparison. `latest` and `{{version}}` are two tags this same workflow
+  # pushes from one build, so any value read out of both images is one
+  # source wearing two hats -- decision/0080, the mistake verify-version-
+  # label above exists to avoid. Two tags resolving to the same manifest
+  # digest is a fact about the registry, not about the image's contents, and
+  # it is the only thing that actually answers "does a bare pull get 1.0.0".
+  #
+  # It performs the user's action rather than modelling it: `docker pull`
+  # with no tag is exactly what the README tells a self-hoster to run, and
+  # `docker pull` prints the manifest digest it resolved, so each ref is
+  # measured by its own pull rather than by inspecting a shared local image
+  # (which would carry BOTH RepoDigests once the second pull is a cache hit,
+  # and so could never disagree).
+  #
+  # Guarded more narrowly than its siblings: `latest` is published only on a
+  # non-pre-release tag (the type=raw rule in the image job above), so on an
+  # rc there is no `latest` for this run to check and a bare pull would
+  # resolve to whatever was published before it -- a stale image this run
+  # did not build. Skipped rather than failing, which is the honest answer.
+  verify-latest-resolves-to-the-tag:
+    name: a bare docker pull resolves to this tag
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    steps:
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve the two refs this run published
+        run: |
+          set -euo pipefail
+          echo "BARE_REF=ghcr.io/${{ github.repository }}" >> "$GITHUB_ENV"
+          echo "VERSION_REF=ghcr.io/${{ github.repository }}:${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Assert the bare ref and this tag resolve to the same manifest
+        run: |
+          set -euo pipefail
+
+          # `docker pull` prints "Digest: sha256:..." for the manifest it
+          # resolved. Captured per pull, so the two values have independent
+          # origins even when the second pull is entirely a cache hit.
+          BARE_DIGEST="$(docker pull "$BARE_REF" | awk '/^Digest: /{ print $2 }')"
+          VERSION_DIGEST="$(docker pull "$VERSION_REF" | awk '/^Digest: /{ print $2 }')"
+
+          if [ -z "$BARE_DIGEST" ] || [ -z "$VERSION_DIGEST" ]; then
+            echo "::error::could not read a manifest digest from docker pull -- bare='${BARE_DIGEST}', ${GITHUB_REF_NAME#v}='${VERSION_DIGEST}'. The pull output format changed, so this check proved nothing; fix the check before trusting a green result."
+            exit 1
+          fi
+
+          if [ "$BARE_DIGEST" != "$VERSION_DIGEST" ]; then
+            echo "::error::a bare 'docker pull ${BARE_REF}' resolves to ${BARE_DIGEST}, but '${VERSION_REF}' is ${VERSION_DIGEST} -- the README quick start would hand a self-hoster a different image from the one this tag published"
+            exit 1
+          fi
+
+          echo "bare pull of ${BARE_REF} and ${VERSION_REF} both resolve to ${BARE_DIGEST}"
+
   # item/changelog-release-notes (issue #31): a pushed tag is also supposed
   # to produce a GitHub Release, body taken verbatim from that version's
   # CHANGELOG.md section. Split from the `image` job (needs: image) so a
