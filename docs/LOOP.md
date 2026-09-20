@@ -69,8 +69,22 @@ Every hour, the loop wakes and runs these steps in order.
    that never runs on `main` at all. A threshold like "at least eleven" can
    therefore be satisfied entirely by another ref's checks while `main`'s own
    `tests` run is still going.
-4. **Pick the next item.** The first backlog item whose dependencies are all
-   `Completed`. Ties break toward whatever unblocks the most other items.
+4. **Pick the next item, and read it CLAUSE BY CLAUSE.** The first backlog
+   item whose dependencies are all `Completed`. Ties break toward whatever
+   unblocks the most other items.
+
+   Then, before recording anything as blocked: `dependsOn` is declared per
+   ITEM, but blockers are per CLAUSE, so an item can be genuinely blocked
+   while one of its clauses is not. Three times in one session an item
+   reported as waiting on the owner had a clause that was buildable that
+   day, and every instance was invisible at item granularity
+   (`decision/0107`). An item whose dependencies are unmet is therefore not
+   evidence that nothing in it can be built -- that reading is
+   `decision/0099`'s error, and it has now cost four days across three
+   items. Read every clause of every eligible item, the open issues and
+   `CLAUDE.md`'s defect rules; a ledger-only pull request is permitted only
+   when that sweep comes back empty, and it says in its body what it
+   checked.
 5. **Execute.** Hand the item to a Sonnet worker with its plan, the relevant
    spec section and `CLAUDE.md`. One item per branch, one branch per PR.
 
