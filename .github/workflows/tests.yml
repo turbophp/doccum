@@ -415,6 +415,90 @@ jobs:
   # No `needs:` on purpose, same reasoning as compose-secret above: this is
   # a couple of seconds of shell against a checked-out file, unrelated to
   # anything the other jobs build.
+  # item/readme-owner (issue #33), clause 1: "README contains no OWNER
+  # placeholder". The placeholder was in five places, not one -- the README
+  # and three pages the docs site publishes -- while release.yml has always
+  # pushed to ghcr.io/${{ github.repository }} and two of its own comments
+  # already spelled the ref out. So the project knew the owner and asked its
+  # readers to supply it anyway.
+  #
+  # This job is the ratchet, because item/image-size's clause already made
+  # the general argument: "a README sentence alone is documentation of an
+  # intention, not a gate". Removing the placeholder once does not stop the
+  # next doc page being written with it; failing the build does.
+  #
+  # Deliberately greps for the placeholder rather than asserting the real ref
+  # is present. Asserting presence would pass a page that names the ref in a
+  # sentence and still tells the reader to substitute something in the
+  # command, which is the state this fixes. Absence of the placeholder is the
+  # property that actually matters.
+  #
+  # This file is excluded from its own pathspec, and that exclusion is load-
+  # bearing rather than tidiness: the search string and the error message
+  # below both contain the literal placeholder, so without it this job
+  # matches itself and fails on every run forever -- red for a reason that
+  # has nothing to do with the docs. Caught locally by running the grep
+  # before pushing. The cost of the exclusion is stated plainly: a
+  # placeholder introduced INSIDE tests.yml is the one place this cannot
+  # see.
+  #
+  # No `needs:` on purpose, same reasoning as the two jobs below: a grep over
+  # checked-out files, unrelated to anything the other jobs build.
+  docs-name-the-real-image:
+    timeout-minutes: 5
+    name: docs name the real image, not a placeholder
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: No OWNER placeholder in any tracked file
+        run: |
+          set +e
+          hits="$(git grep -n -F 'ghcr.io/OWNER' -- '*.md' '*.yml' '*.yaml' ':(exclude).github/workflows/tests.yml' 2>/dev/null)"
+          set -e
+
+          if [ -n "$hits" ]; then
+            echo "::error::a 'ghcr.io/OWNER' placeholder is back. The image ref is ghcr.io/turbophp/doccum -- release.yml publishes to ghcr.io/\${{ github.repository }}, so the owner is never something a reader has to supply. See item/readme-owner clause 1."
+            echo "$hits"
+            exit 1
+          fi
+
+          echo "no ghcr.io/OWNER placeholder in any tracked .md or workflow file"
+
+      # The check above can only fail on a real regression if it is looking at
+      # files that exist and can match. A grep that silently searches nothing
+      # -- wrong pathspec, renamed directory -- passes forever and proves
+      # nothing, which is this repository's recurring failure mode. So assert
+      # the corpus is non-empty and contains the pages this item is about.
+      - name: The grep is actually looking at the docs it claims to check
+        run: |
+          set -euo pipefail
+
+          for f in README.md docs/self-hosting/quick-start.md \
+                   docs/self-hosting/upgrading.md \
+                   docs/self-hosting/backup-and-restore.md; do
+            if [ ! -f "$f" ]; then
+              echo "::error::${f} is missing, so the placeholder check above searched a corpus that no longer includes it -- the check would pass whatever that file now says"
+              exit 1
+            fi
+          done
+
+          # Same pathspec as the check above, so a pathspec that matches
+          # nothing fails here rather than passing silently there.
+          count="$(git grep -l -F 'ghcr.io/turbophp/doccum' -- '*.md' | wc -l)"
+          if [ "$count" -lt 4 ]; then
+            echo "::error::expected at least 4 markdown files naming ghcr.io/turbophp/doccum (README plus the three self-hosting pages), found ${count} -- either a page stopped naming the image or the pathspec stopped matching"
+            git grep -l -F 'ghcr.io/turbophp/doccum' -- '*.md' || true
+            exit 1
+          fi
+
+          echo "${count} markdown files name ghcr.io/turbophp/doccum"
+
   changelog-section:
     timeout-minutes: 5
     name: changelog-section.sh extracts release notes

@@ -64,7 +64,7 @@ Point a fresh container at a restored `/data` (and, if applicable, a
 restored external database):
 
 ```bash
-docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/OWNER/doccum
+docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/turbophp/doccum
 ```
 
 Because everything except the *initial* database connection lives inside

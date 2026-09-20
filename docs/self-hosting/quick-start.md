@@ -8,13 +8,14 @@ account created before it starts.
 ## The single container
 
 ```bash
-docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/OWNER/doccum
+docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/turbophp/doccum
 ```
 
-Replace `OWNER` with the GitHub owner the image is published under, or build
-your own from a checkout with `docker build -t doccum:local .` and run that
-tag instead. This one container runs the web application, both queue
-workers, the scheduler, and embedded MinIO — see `docker/supervisor/doccum.conf`.
+The image is published from tagged releases; if none has been cut yet, that
+pull will not resolve. Build your own from a checkout with `docker build -t
+doccum:local .` and run that tag instead. This one container runs the web
+application, both queue workers, the scheduler, and embedded MinIO — see
+`docker/supervisor/doccum.conf`.
 The `doccum` volume, mounted at `/data`, is the only thing that has to
 survive a restart: SQLite, uploaded objects, `runtime.json`, and MinIO's
 generated credentials all live there.

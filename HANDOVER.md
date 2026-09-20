@@ -130,8 +130,9 @@ than half-booting.
    one profile. That cost was accepted deliberately in exchange for a refusal
    CI can prove without booting anything; see decision/0079.
 2. **Tag `v0.1.0`.** `.github/workflows/release.yml` builds multi-arch
-   (amd64/arm64) and pushes to `ghcr.io/turbophp/doccum`. Update the README's
-   `OWNER` placeholder once that exists.
+   (amd64/arm64) and pushes to `ghcr.io/turbophp/doccum`. The README and the
+   self-hosting docs already name that ref; the `OWNER` placeholder is gone
+   and a CI check keeps it gone.
 3. **Finish purging**, or document that retention is manual.
 4. Consider image size: ~1.34 GB, mostly Debian, PHP extensions, tesseract and
    vendor. Alpine and fewer OCR languages are the levers, both trade-offs.
