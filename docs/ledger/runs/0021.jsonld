@@ -1,0 +1,24 @@
+{
+  "@context": "../context.jsonld",
+  "@id": "run/0021",
+  "@type": "Run",
+  "identifier": 21,
+  "agent": "https://claude.ai/code/session_01ADCn2xmXjiP4pnatPFyF5r",
+  "startTime": "2026-09-20T00:12:30Z",
+  "endTime": null,
+  "outcome": "active",
+  "touched": [],
+  "commit": "9939c6bc0db024ec24c5843a7e23f9db727a5a96",
+  "description": "Written after its first merge rather than opened before it, which is the practice run/0020's closing note recovered: the history witness anchors on the newest run's last mergeSha, so an empty run is unrepresentable, and LOOP.md step 8 already said \"write docs/ledger/runs/NNNN.jsonld for the iteration\" -- a file that DESCRIBES an iteration, merges included.\n\nOPENING STATE, recorded so a later reader can check drift against something rather than against memory. main is 9939c6b, verified green per check name (tests 537, ledger 533, pages 27). No tags exist. No pull requests are open. The v1 GAP IS SIX: item/release-v0-1-0, item/docs-site, item/image-size, item/readme-owner, item/v1-audit, item/tag-v1-0-0. The gap is what this run reports, per decision/0105; the ratio may accompany it and never replaces it.\n\nNOTHING THE LOOP CAN ADVANCE. All three eligible items end at a decision only the owner can make, and each edge was probed rather than assumed: item/docs-site and item/release-v0-1-0 both turned out to have buildable halves, which shipped (PRs #274, #282, #286, #287); item/image-size was probed and has none -- image-size.sh's --print-only shares every measurement line with the gating call tests.yml already runs on every push, and release.yml's PULLED_TAG handoff between its two steps is correct as written. That third result is a finding, not a shrug: it is the first edge in this project that came back empty.\n\nFIVE DECISIONS WAIT ON THE OWNER.\n  1. Enable GitHub Pages (Settings -> Pages -> Source: GitHub Actions, then the DOCS_SITE_PAGES_ENABLED repository variable). Closes most of item/docs-site.\n  2. Authorise a v0.1.0-rc1 tag. Worth cutting now in a way it was not this morning: #282 made changelog-section.sh find a pre-release's notes, #286 made `latest` publish on a non-pre-release tag, and #287 built the three proofs the rc exists to produce. One rc would now count.\n  3. decision/0102's accounting question -- four groups of shipped surfaces the ledger does not track.\n  4. Whether `release` should be gated on the new boot jobs. A GitHub Release is the user-visible announcement, and announcing a version whose arm64 image did not start is worse than the image merely having been pushed; but the existing split was chosen deliberately, so changing it is the owner's.\n  5. Issue #289 -- about.version has no definition in context.jsonld, which blocks item/tag-v1-0-0 clause (4). Carried here because it was briefly held in a run/0021 description that then had to be deleted, and a note that lives only in a deleted file is a note that is gone.\n\nWHAT THIS RUN INHERITS AS METHOD, from the four corrections run/0020 closed on: report the gap rather than the ratio; an item born Completed says so in its own clause; both forms of validate-ledger run locally before any push, because only running the one with MAIN_SHA is how a tree CI refused was called sound; and a reassuring answer to a narrow question does not end an investigation (decision/0104).\n\nTOUCHED IS EMPTY ON PURPOSE, not by omission. This run's one merge is its own ledger PR; no v1 item moved. Listing item/release-v0-1-0 and item/tag-v1-0-0 there because the owner decisions below name them would have been the ratio mistake wearing a different field: a run that touched nothing reporting two items touched. If the owner unblocks one, it gets added when the work lands, not before.",
+  "merges": [
+    {
+      "mergeSha": "9939c6bc0db024ec24c5843a7e23f9db727a5a96",
+      "pullRequest": null,
+      "mergedAt": "2026-09-20T00:20:08Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/35478503059",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35478503033",
+      "ledgerConclusion": "success"
+    }
+  ]
+}
