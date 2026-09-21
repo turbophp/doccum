@@ -185,13 +185,25 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 8.4 is what the image ships today. 8.5 is here because Dependabot
-        # wants to bump the base image to it (#40), and merging that without
-        # a leg would ship a PHP version nothing runs the suite on -- which
-        # is exactly how composer.json came to advertise 8.3 support that its
-        # own lock file made impossible. 8.3 is absent for that same reason,
-        # the other way round: symfony/* 8.1.x needs >= 8.4.1, so
-        # `composer install` cannot complete there at all.
+        # 8.5 is what the image ships -- Dockerfile's base stage is
+        # `serversideup/php:8.5-frankenphp-bookworm` -- so it is the version
+        # a self-hoster actually runs, and PRIMARY_PHP above is 8.5 for that
+        # reason. 8.4 stays as the second leg rather than the primary one,
+        # because composer.json still advertises it and a version nothing
+        # runs the suite on is exactly how composer.json came to advertise
+        # 8.3 support that its own lock file made impossible.
+        #
+        # This comment said "8.4 is what the image ships today. 8.5 is here
+        # because Dependabot wants to bump the base image to it (#40)" for as
+        # long as it took that bump to land, contradicting both the Dockerfile
+        # and PRIMARY_PHP's own comment four screens up ("It drifted to 8.4
+        # the moment the base image moved to 8.5"). The bump is done; the
+        # comment describing the before is not evidence of anything except
+        # decision/0129.
+        #
+        # 8.3 is absent for the other half of the same reason: symfony/*
+        # 8.1.x needs >= 8.4.1, so `composer install` cannot complete there
+        # at all.
         php: ['8.4', '8.5']
         database: [sqlite, pgsql, mysql]
         include:

@@ -151,10 +151,15 @@ Pest, under `tests/`. A few rules that are not guessable:
 Pull requests get, from `tests.yml`: `lint` (pint check plus phpstan against
 the baseline), `assets`, `test` across a six-way matrix (PHP 8.4 and 8.5 ×
 SQLite, PostgreSQL, MySQL), `guards` (the registered mutations),
-`compose-secret`, `docs-name-the-real-image`, `changelog-section`, and `image`
+`compose-secret`, `docs-name-the-real-image`, `changelog-section`,
+`release-gate`, `published-smoke-gate`, `image-size-docs-agree`, and `image`
 (builds the container and runs the smoke). Plus `ledger` (`validate`,
 `invocation`), `pages` (`build`, `deploy`) and `security` (`composer-audit`,
 `dependency-review`).
+
+`tests.yml` is the authority, not this paragraph: the last three above were
+added after it was written and it went three jobs stale without anything
+noticing. If the two disagree, the workflow is right.
 
 CI is the verification of record, not a formality: it covers three databases
 and it boots the container, and your laptop does neither.
