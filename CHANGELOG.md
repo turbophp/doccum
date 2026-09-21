@@ -72,3 +72,8 @@ shipped. The date is set when the tag is cut.
 
 - Removed the hard-coded default MinIO password from `compose.yaml`; the
   storage profile now requires `MINIO_ROOT_PASSWORD` to be set explicitly.
+- A document you cannot reach is no longer distinguishable from one that does
+  not exist. Across the files view and the preview, download, version-download
+  and directory-archive routes, an id outside your reach and an id that exists
+  nowhere now answer identically, so working through ids no longer discloses
+  what an instance holds. The `/api/v1` surface already behaved this way.
