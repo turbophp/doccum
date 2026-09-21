@@ -444,6 +444,32 @@ final class LedgerRuleWitnesses
                 },
             ],
             [
+                'id' => 'vocab-term-with-no-definition',
+                'code' => 'vocab',
+                'select' => 'adding a term to context.jsonld that falls through @vocab and has no heading in vocab.md',
+                /** @return list<string>|null */
+                'mutate' => static function (string $dir): ?array {
+                    $path = $dir.'/context.jsonld';
+                    $raw = file_get_contents($path);
+                    if ($raw === false) {
+                        throw new RuntimeException('witness setup: context.jsonld could not be read.');
+                    }
+                    $context = json_decode($raw, true);
+                    if (! is_array($context) || ! is_array($context['@context'] ?? null)) {
+                        throw new RuntimeException('witness setup: context.jsonld has no @context object.');
+                    }
+
+                    // A bare IRI with no CURIE prefix is what makes a term fall
+                    // through to @vocab. Naming it something vocab.md will never
+                    // document keeps the witness from passing for the wrong
+                    // reason if a real term is added or renamed later.
+                    $context['@context']['totallyBogusTermThatVocabDoesNotDefine'] = 'totallyBogusTermThatVocabDoesNotDefine';
+                    file_put_contents($path, json_encode($context, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n");
+
+                    return null;
+                },
+            ],
+            [
                 'id' => 'fatal-ledger-not-json',
                 'code' => 'fatal',
                 'select' => 'overwriting ledger.jsonld with content that is not valid JSON',

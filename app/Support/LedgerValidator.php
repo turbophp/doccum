@@ -60,7 +60,7 @@ final class LedgerValidator
     public const CODES = [
         'canonical', 'decision', 'enum', 'fatal', 'graph', 'history', 'id',
         'mutation', 'order', 'pr', 'ref', 'run', 'shape', 'spec-anchor',
-        'status', 'structural',
+        'status', 'structural', 'vocab',
     ];
 
     /** JSON-LD keywords and CURIE namespace prefixes in context.jsonld -- infrastructure, not data terms. */
@@ -399,6 +399,7 @@ final class LedgerValidator
         $errors = array_merge($errors, self::mutationErrors($ledger));
         $errors = array_merge($errors, self::runErrors($ledger, $runs));
         $errors = array_merge($errors, self::specAnchorErrors($ledger, $specPath));
+        $errors = array_merge($errors, self::vocabTermErrors($context, $ledgerDir));
 
         if ($mainPushShas !== null) {
             $errors = array_merge($errors, self::mainPushHistoryErrors($runs, $mainPushShas));
@@ -1949,6 +1950,91 @@ final class LedgerValidator
         foreach ($mainPushShas as $index => $sha) {
             if ($index < $lastKnownIndex && ! isset($known[$sha])) {
                 $errors[] = "history: commit '$sha' is on main (per git log since the previous completed run) but does not appear in any run's merges, and a LATER commit does -- so this is a merge nobody wrote down, not one not yet recorded.";
+            }
+        }
+
+        return $errors;
+    }
+
+    // -- @vocab term definitions -------------------------------------------
+
+    /**
+     * item/vocab-resolves (issue #294). context.jsonld declares an @vocab, and
+     * every term it does NOT map through a CURIE prefix falls through to it.
+     * Before this rule there were 37 such terms -- doneWhen, touched, outcome,
+     * size, release, order, mergeSha, verdict and the rest, which is to say
+     * every term carrying this project's actual meaning -- and @vocab pointed
+     * at a docs/ledger/vocab path that did not exist. A reader following the
+     * IRI to find out what `touched` means arrived nowhere.
+     *
+     * An @vocab IRI is a CITATION: it says the definitions are over there.
+     * Nothing had ever checked that claim and it was false, which is this
+     * repository's own standard (CLAUDE.md: "a citation of evidence is a
+     * claim, and is checked like one") applied one level up, to the context
+     * file, where it is mechanically checkable rather than prose.
+     *
+     * The check is deliberately one-directional: every fall-through term needs
+     * a heading, a heading needs no term. A section documenting something that
+     * is not a @vocab target -- `version on the about node`, which is mapped to
+     * schema:version and documented because its MEANING here is contested
+     * (issue #289) -- is legitimate and must not be reported.
+     *
+     * Skipping the file entirely when it is absent would make this rule
+     * vacuous exactly when it matters most, so a missing vocab.md with
+     * fall-through terms present is itself the error.
+     *
+     * @param  array<string, mixed>  $context
+     * @return list<string>
+     */
+    private static function vocabTermErrors(array $context, string $ledgerDir): array
+    {
+        $terms = $context['@context'] ?? null;
+        if (! is_array($terms)) {
+            return [];
+        }
+
+        // A term falls through to @vocab when its IRI carries no CURIE prefix.
+        $fallThrough = [];
+        foreach ($terms as $term => $definition) {
+            if (in_array($term, self::CONTEXT_INFRASTRUCTURE_KEYS, true)) {
+                continue;
+            }
+            $iri = is_string($definition)
+                ? $definition
+                : (is_array($definition) && is_string($definition['@id'] ?? null) ? $definition['@id'] : null);
+            if ($iri === null || str_contains($iri, ':')) {
+                continue;
+            }
+            $fallThrough[] = $term;
+        }
+
+        if ($fallThrough === []) {
+            return [];
+        }
+
+        $vocabPath = $ledgerDir.'/vocab.md';
+        if (! is_file($vocabPath)) {
+            return ["vocab: context.jsonld declares an @vocab and ".count($fallThrough).
+                ' term(s) resolve through it, but there is no vocab.md at '.$vocabPath.
+                ' -- every one of them resolves to nothing.'];
+        }
+
+        $markdown = file_get_contents($vocabPath);
+        if ($markdown === false) {
+            return ["fatal: vocabulary file at $vocabPath could not be read."];
+        }
+
+        $anchors = [];
+        foreach (explode("\n", $markdown) as $line) {
+            if (preg_match('/^#{1,6}\s+(.+?)\s*$/', $line, $m)) {
+                $anchors[self::githubHeadingAnchor($m[1])] = true;
+            }
+        }
+
+        $errors = [];
+        foreach ($fallThrough as $term) {
+            if (! isset($anchors[self::githubHeadingAnchor($term)])) {
+                $errors[] = "vocab: context.jsonld term '$term' resolves through @vocab, but docs/ledger/vocab.md has no heading producing that anchor.";
             }
         }
 
