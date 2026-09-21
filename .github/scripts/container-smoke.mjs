@@ -97,6 +97,15 @@ const VERSIONS_CHECK_FILE_NAME = 'DoccumSmokeVersionTarget.txt';
 const TRASH_VIEW_RESTORE_FILE_NAME = 'DoccumSmokeTrashViewRestore.txt';
 const TRASH_VIEW_PURGE_FILE_NAME = 'DoccumSmokeTrashViewPurge.txt';
 
+// item/v1-audit (issue #340, part 1): checkPurgePeriodDryRunLeavesFileInPlace()
+// below's own scratch document, dated into its own period (2019-03) rather
+// than reusing checkAdminPeriodsPage()'s 2020-01 -- that check already closes
+// 2020-01 and reads its blockers back; running doccum:purge-period against
+// the same period would make this check's result depend on that one having
+// run first and left the period in the state this expects, exactly the
+// coupling the other dedicated fixtures above avoid.
+const PURGE_DRY_RUN_FILE_NAME = 'DoccumSmokePurgeDryRunTarget.txt';
+
 const EXTRACTION_TIMEOUT_MS = Number(env('EXTRACTION_TIMEOUT_MS', '60000'));
 const POLL_INTERVAL_MS = Number(env('POLL_INTERVAL_MS', '2000'));
 const SEARCH_TIMEOUT_MS = Number(env('SEARCH_TIMEOUT_MS', '20000'));
@@ -3612,6 +3621,165 @@ async function checkAdminPeriodsPage(page, phase) {
 }
 
 /**
+ * item/v1-audit (issue #340, part 1): the sixth leg of the "manual run of the
+ * published image" clause -- install, upload, share, search, trash and a
+ * purge DRY RUN. Every other leg already had a check; the only "purge" this
+ * file drove before this function was checkTrashViewRestoreAndPurge()'s
+ * trash purge, which is a different command over a different table entirely
+ * (soft-deleted files, not archived periods) and proves nothing about
+ * `doccum:purge-period`.
+ *
+ * Same setup shape as checkAdminPeriodsPage() just above -- a scratch File
+ * row built directly through tinker (fakerphp/faker is a require-dev
+ * dependency and is not autoloadable in this --no-dev image, so ::factory()
+ * is not available here either), dated into a period, closed through the
+ * real /admin/periods form -- but its OWN period (2019-03, not 2020-01), for
+ * the reason PURGE_DRY_RUN_FILE_NAME's own comment gives: this check must not
+ * depend on checkAdminPeriodsPage() having already run and left 2020-01 in a
+ * particular state.
+ *
+ * `doccum:purge-period` is run for real here -- via `docker exec ... php
+ * artisan doccum:purge-period 2019 3`, the same way
+ * checkResetPasswordCommandPrintsAWorkingLink() above runs a real artisan
+ * command rather than going through tinker -- WITHOUT --force, which is the
+ * whole point: PurgePeriod::handle() only reaches the delete branch when
+ * that flag is set, so this drives the command an operator runs first, to
+ * find out what a purge would do before committing to it.
+ *
+ * THE LOAD-BEARING ASSERTION, per CLAUDE.md's own instruction for this task:
+ * not the command's stdout, which a command that quietly purged for real
+ * could print identically if nothing downstream of the print statements
+ * changed. It is PURGE_DRY_RUN_FILE_NAME's row, read back from the database
+ * through tinker AFTER the command has run and exited. A regression that
+ * dropped the `if (! $this->option('force'))` guard (or inverted it) would
+ * still print "Dry run. Nothing was deleted." -- the string is a literal in
+ * PurgePeriod::handle(), reached or not, so it proves nothing about which
+ * branch actually ran -- and would still exit 0, so this only catches that
+ * regression because it looks at the row afterwards rather than trusting the
+ * command's own claim about itself.
+ *
+ * What this does NOT check, stated plainly rather than implied: the scratch
+ * file here is built the same way checkAdminPeriodsPage()'s is, straight
+ * through File::create() with no FileVersion and so no object_key -- nothing
+ * was ever PUT to the object store for it. uploadAndProveStored()'s own
+ * "proof of storage" is the identical shape (a database row read back
+ * through tinker, not a byte read off the disk -- see its docblock's "Poll
+ * the DATABASE, not the DOM"), so the database-row check below is that same
+ * proof and not a lesser one. But there genuinely is no object in MinIO
+ * behind this file for a check here to confirm survived, and manufacturing
+ * one would mean writing a real object to storage by hand through tinker --
+ * a path nothing else in this file takes and the task's own instruction says
+ * to prefer the existing mechanism over inventing a new one. So: the row
+ * survives, provably; whether a real uploaded file's OBJECT would too is
+ * exercised by PeriodPurger's own unit tests, not by this check.
+ *
+ * Not mutation-tested: there is no docker in this environment to run the
+ * smoke against a deliberately broken image, so unlike checkAdminPeriodsPage()
+ * (whose "predicted, not proven" note above already flags the same gap for
+ * ARCHIVED:yes) this check's own guard is unverified by mutation. Stated here
+ * rather than left silent, per CLAUDE.md's rule that a citation of evidence
+ * nobody ran is worse than none.
+ */
+async function checkPurgePeriodDryRunLeavesFileInPlace(page, phase) {
+  console.log(`[${phase}] creating a file dated into the 2019-03 period through tinker, for the purge dry run`);
+
+  const createPhp = [
+    `$admin = \\App\\Models\\User::where('username', '${ADMIN_USERNAME}')->first();`,
+    "$dir = \\App\\Models\\Directory::where('home_user_id', $admin->id)->first();",
+    '$f = \\App\\Models\\File::create([',
+    `'directory_id' => $dir->id, 'name' => '${PURGE_DRY_RUN_FILE_NAME}',`,
+    "'mime' => 'text/plain', 'size' => 42, 'checksum' => hash('sha256', 'doccum-smoke-purge-dry-run-target'),",
+    "'created_by' => $admin->id, 'period_year' => 2019, 'period_month' => 3,",
+    ']);',
+    "echo 'CREATED:' . ($f ? 'yes' : 'no');",
+  ].join(' ');
+
+  const createOutput = tinker(createPhp);
+  if (!createOutput.includes('CREATED:yes')) {
+    dumpContainerState(`[${phase}] could not create the scratch 2019-03 file for the purge dry-run check -- raw output: ${createOutput}`);
+    throw Object.assign(new Error('scratch 2019-03 file creation for the purge dry-run check failed'), { dumped: true });
+  }
+
+  function fileRowState() {
+    const php = [
+      `$f = \\App\\Models\\File::where('name', '${PURGE_DRY_RUN_FILE_NAME}')->first();`,
+      "echo 'EXISTS:' . ($f ? 'yes' : 'no');",
+      `echo ' WITH_TRASHED_COUNT:' . \\App\\Models\\File::withTrashed()->where('name', '${PURGE_DRY_RUN_FILE_NAME}')->count();`,
+    ].join(' ');
+    return tinker(php);
+  }
+
+  console.log(`[${phase}] closing 2019-03 through the real close-period form, the same door checkAdminPeriodsPage() uses for 2020-01`);
+  await page.goto(`${BASE_URL}/admin/periods`, { waitUntil: 'domcontentloaded' });
+  await page.locator('[data-test="close-period-form"]').waitFor({ state: 'visible', timeout: 10000 });
+  await page.locator('[data-test="close-period-form"]').getByLabel('Year', { exact: true }).fill('2019');
+  await page.locator('[data-test="close-period-form"]').getByLabel('Month (optional -- leave blank for the whole year)', { exact: true }).fill('3');
+  await clickAndWaitForLivewire(page, page.locator('[data-test="close-period-button"]'));
+
+  const archivedPhp = [
+    "$p = \\App\\Models\\ArchivePeriod::where('year', 2019)->where('month', 3)->first();",
+    "echo 'ARCHIVED:' . ($p && $p->isArchived() ? 'yes' : 'no');",
+  ].join(' ');
+  const archived = tinker(archivedPhp);
+  if (!/ARCHIVED:yes/.test(archived)) {
+    dumpContainerState(`[${phase}] closing 2019-03 through /admin/periods never archived it -- raw output: ${archived}`);
+    throw Object.assign(new Error('2019-03 was not archived, so the purge dry run below would have nothing archived to report on'), { dumped: true });
+  }
+  console.log(`[${phase}] 2019-03 is archived -- OK`);
+
+  console.log(`[${phase}] running doccum:purge-period 2019 3 WITHOUT --force, the real CLI entrypoint an operator would run first`);
+  let commandOutput;
+  try {
+    commandOutput = execFileSync(
+      'docker',
+      ['exec', CONTAINER_NAME, 'php', 'artisan', 'doccum:purge-period', '2019', '3'],
+      { encoding: 'utf8', timeout: 20000 },
+    );
+  } catch (e) {
+    dumpContainerState(`[${phase}] doccum:purge-period 2019 3 (dry run) failed -- ${e.message}`);
+    throw Object.assign(new Error('doccum:purge-period dry run failed'), { dumped: true });
+  }
+
+  // "Names what would be purged": the period label and the file/byte counts
+  // PeriodPurger::plan() computed, not merely a bare "dry run" string with no
+  // numbers behind it -- a command that printed the fixed sentence unconditionally,
+  // having skipped plan() entirely, would still say "Dry run" and tell an
+  // operator nothing.
+  if (!commandOutput.includes('2019-03')) {
+    dumpContainerState(`[${phase}] doccum:purge-period's dry-run output did not name the 2019-03 period -- raw output: ${commandOutput}`);
+    throw Object.assign(new Error('purge-period dry run did not name the period'), { dumped: true });
+  }
+
+  const filesMatch = /Files\D*(\d+)/.exec(commandOutput);
+  if (!filesMatch || filesMatch[1] !== '1') {
+    dumpContainerState(`[${phase}] doccum:purge-period's dry-run output did not report 1 file for 2019-03 -- raw output: ${commandOutput}`);
+    throw Object.assign(new Error('purge-period dry run did not report the file it would purge'), { dumped: true });
+  }
+
+  if (!commandOutput.includes('Dry run. Nothing was deleted. Pass --force to purge.')) {
+    dumpContainerState(`[${phase}] doccum:purge-period's dry-run output never said it deleted nothing -- raw output: ${commandOutput}`);
+    throw Object.assign(new Error('purge-period dry run did not print its own dry-run notice'), { dumped: true });
+  }
+
+  console.log(`[${phase}] the dry run named 2019-03 and its one file, and said nothing was deleted -- checking the database agrees`);
+
+  // THE assertion, per this check's own docblock: read the row back rather
+  // than trust the print statements above. A dry run that silently purged
+  // for real -- the guard dropped or inverted -- would still have printed
+  // everything checked above, and would only be caught here.
+  const afterState = fileRowState();
+  if (!/EXISTS:yes/.test(afterState) || !/WITH_TRASHED_COUNT:1/.test(afterState)) {
+    dumpContainerState(
+      `[${phase}] ${PURGE_DRY_RUN_FILE_NAME} is gone after a purge-period run WITHOUT --force -- the dry run purged for`
+      + ` real -- raw output: ${afterState}`,
+    );
+    throw Object.assign(new Error('purge-period dry run deleted the file it was only supposed to report on'), { dumped: true });
+  }
+
+  console.log(`[${phase}] ${PURGE_DRY_RUN_FILE_NAME}'s row survived the dry run untouched -- OK`);
+}
+
+/**
  * item/admin-instance-settings (issue #21). Follows checkAdminPeriodsPage()
  * above exactly: failures dump container state naming what was being
  * proved and throw with { dumped: true }; database/HTTP evidence is the
@@ -4103,6 +4271,9 @@ async function runSetup() {
 
     console.log('[setup] closing a period through /admin/periods and checking the purge control is disabled and lists its blockers (issue #20)');
     await checkAdminPeriodsPage(page, 'setup');
+
+    console.log('[setup] running doccum:purge-period without --force on a closed period and confirming the file it would purge is still there (issue #340)');
+    await checkPurgePeriodDryRunLeavesFileInPlace(page, 'setup');
 
     console.log('[setup] toggling auth.public_signup through /admin/settings and checking /register flips between 404 and 200 for a guest (issue #21)');
     await checkAdminInstanceSettingsPage(page, 'setup');
