@@ -107,21 +107,47 @@ it('404s a cross-file version id even when the caller can view both files', func
         ->assertNotFound();
 });
 
-it('403s an unauthorised caller regardless of whether the version id exists', function () {
+it('answers an unauthorised caller the same whatever the version id', function () {
     $stranger = User::factory()->create();
 
-    // A version id that genuinely exists (on a file the caller cannot view)
-    // and one that does not exist at all must answer identically: 403 either
-    // way. Route model binding resolves {file} before the controller runs,
-    // so a caller who cannot view $fileA never even reaches the version
-    // lookup -- there is no existence oracle here.
+    // THE PROPERTY IS UNCHANGED AND THE STATUS IS NOT. A version id that
+    // genuinely exists on a file the caller cannot view, and one that does
+    // not exist at all, must answer IDENTICALLY -- that is what closes the
+    // oracle, and which status the two share is local (item's own wording).
+    //
+    // It used to be 403 for both, and the comment here explained why: the
+    // caller could not view $fileA, so authorize() refused before the
+    // version lookup was ever reached. That reasoning was correct about the
+    // VERSION id and hid a second oracle over the FILE id -- implicit
+    // binding resolved {file} before authorize(), so an unreachable file
+    // 403'd where a nonexistent one 404'd (decision/0112, which records
+    // that this very claim was half true and load-bearing).
+    //
+    // {file} is now an int resolved through viewableFileOrFail(), so the
+    // refusal for an unreachable file happens at the lookup and the shared
+    // answer is 404. Both halves still agree, which is the requirement.
     $this->actingAs($stranger)
         ->get(route('files.versions.download', [$this->fileA, $this->versionA1]))
-        ->assertForbidden();
+        ->assertNotFound();
 
     $this->actingAs($stranger)
         ->get(route('files.versions.download', [$this->fileA, 999999]))
-        ->assertForbidden();
+        ->assertNotFound();
+});
+
+it('answers an unreachable file the same as a nonexistent one, for a version download', function () {
+    // item/reach-oracle-route-binding, on the {file} parameter specifically.
+    // The pair above varies the VERSION id against one unreachable file;
+    // this one varies the FILE id, which is the parameter this item closes.
+    $stranger = User::factory()->create();
+
+    $this->actingAs($stranger)
+        ->get(route('files.versions.download', [$this->fileA, $this->versionA1]))
+        ->assertNotFound();
+
+    $this->actingAs($stranger)
+        ->get(route('files.versions.download', [((int) File::query()->max('id')) + 1, $this->versionA1]))
+        ->assertNotFound();
 });
 
 it('redirects a guest to login', function () {

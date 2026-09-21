@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Exceptions\ObjectMissingFromStorage;
-use App\Models\File;
 use App\Services\DocumentStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response;
@@ -21,14 +20,24 @@ class FileDownloadController extends Controller
      *
      * The bytes never pass through PHP, so a large document does not occupy a
      * worker or run into a memory limit. See spec §6.
+     *
+     * {$file} is an INT, not an implicit model binding, and it is resolved
+     * through viewableFileOrFail() -- item/reach-oracle-route-binding. With
+     * implicit binding a file outside the viewer's reach was bound and then
+     * 403'd by authorize() while a nonexistent id 404'd from the binding,
+     * which told the caller which file ids exist. Scoped here, both answer
+     * 404. A trashed file still 404s exactly as before: File::query()
+     * carries the same SoftDeletes scope the binding did.
      */
-    public function __invoke(File $file): RedirectResponse|Response|StreamedResponse
+    public function __invoke(int $file): RedirectResponse|Response|StreamedResponse
     {
-        $this->authorize('download', $file);
+        $model = $this->viewableFileOrFail($file);
 
-        abort_if($file->currentVersion === null, 404);
+        $this->authorize('download', $model);
 
-        $version = $file->currentVersion;
+        abort_if($model->currentVersion === null, 404);
+
+        $version = $model->currentVersion;
 
         if ($this->storage->servesPresignedUrls()) {
             return redirect()->away($this->storage->temporaryUrl($version));
@@ -54,7 +63,7 @@ class FileDownloadController extends Controller
         } catch (ObjectMissingFromStorage) {
             Log::error(
                 'Download failed: object missing from storage.',
-                ['file_id' => $file->id, 'file_version_id' => $version->id, 'object_key' => $version->object_key],
+                ['file_id' => $model->id, 'file_version_id' => $version->id, 'object_key' => $version->object_key],
             );
 
             // 502: object storage is genuinely upstream of PHP for the
@@ -78,7 +87,7 @@ class FileDownloadController extends Controller
                 fpassthru($stream);
                 fclose($stream);
             },
-            $file->name,
+            $model->name,
             ['Content-Type' => $version->mime ?? 'application/octet-stream'],
         );
     }
