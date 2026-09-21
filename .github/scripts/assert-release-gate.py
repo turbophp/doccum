@@ -28,8 +28,33 @@ import sys
 import yaml
 
 WORKFLOW = '.github/workflows/release.yml'
-GATED_JOB = 'release'
-REQUIRED_DEPENDENCY = 'boot-published-image'
+# Each entry is one `needs:` edge this workflow must not lose, with the
+# sentence explaining what goes wrong if it does. A LIST rather than the
+# single pair this started as (issue #358): the first edge keeps the Release
+# from being announced before the image is known to boot, the second keeps
+# anything from reaching the registry before the tag's changelog section is
+# known to exist. Both are edges nobody can test here, because release.yml
+# runs only on a tag push or a dispatch.
+REQUIRED_EDGES = [
+    (
+        'release',
+        'boot-published-image',
+        'The GitHub Release would be published in parallel with the job proving '
+        'the image boots, so a failing arm64 leg would arrive after the '
+        'announcement was already public. See issue #303, and item/release-v0-1-0, '
+        'which says to drop linux/arm64 rather than ship a manifest nobody has '
+        'booted.',
+    ),
+    (
+        'image',
+        'changelog-section',
+        'A tag whose CHANGELOG.md section is missing would push the image and '
+        'latest to ghcr and only then fail at `release`, leaving an image '
+        'published with no Release -- the half-published state '
+        'item/changelog-release-notes exists to prevent, on the one tag that '
+        'cannot be retried. See issue #358.',
+    ),
+]
 
 # release.yml has had at least this many jobs since the boot jobs landed in
 # PR #287. The floor is a guard on the PARSE, not on the workflow's shape: a
@@ -58,34 +83,35 @@ def main() -> int:
     if verbose:
         print(f'{WORKFLOW} parsed to {len(jobs)} jobs: {", ".join(sorted(jobs))}')
 
-    for name in (GATED_JOB, REQUIRED_DEPENDENCY):
-        if name not in jobs:
+    for gated, dependency, why in REQUIRED_EDGES:
+        for name in (gated, dependency):
+            if name not in jobs:
+                print(
+                    f'::error::{WORKFLOW} has no `{name}` job. This check asserts '
+                    f'that `{gated}` waits for `{dependency}`; if a job was '
+                    f'renamed, rename it here too rather than leaving a check '
+                    f'that passes because it can no longer find what it watched.'
+                )
+                return 1
+
+        needs = jobs[gated].get('needs') or []
+        if isinstance(needs, str):
+            needs = [needs]
+
+        if dependency not in needs:
             print(
-                f'::error::{WORKFLOW} has no `{name}` job. This check asserts '
-                f'that `{GATED_JOB}` waits for `{REQUIRED_DEPENDENCY}`; if a job '
-                f'was renamed, rename it here too rather than leaving a check '
-                f'that passes because it can no longer find what it watched. '
-                f'See issue #303.'
+                f'::error::{WORKFLOW}\'s `{gated}` job does not depend on '
+                f'`{dependency}` (needs: {needs}). {why}'
             )
             return 1
 
-    needs = jobs[GATED_JOB].get('needs') or []
-    if isinstance(needs, str):
-        needs = [needs]
+        if verbose:
+            print(f'{gated}.needs = {needs} -- includes {dependency}')
 
-    if REQUIRED_DEPENDENCY not in needs:
-        print(
-            f'::error::{WORKFLOW}\'s `{GATED_JOB}` job does not depend on '
-            f'`{REQUIRED_DEPENDENCY}` (needs: {needs}). The GitHub Release would '
-            f'be published in parallel with the job proving the image boots, so '
-            f'a failing arm64 leg would arrive after the announcement was '
-            f'already public. See issue #303, and item/release-v0-1-0, which '
-            f'says to drop linux/arm64 rather than ship a manifest nobody has '
-            f'booted.'
-        )
-        return 1
-
-    print(f'{GATED_JOB}.needs = {needs} -- the Release waits for the boot check')
+    print(
+        f'{WORKFLOW}: all {len(REQUIRED_EDGES)} required needs-edges present '
+        f'-- ' + '; '.join(f'{g} waits for {d}' for g, d, _ in REQUIRED_EDGES)
+    )
     return 0
 
 
