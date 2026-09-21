@@ -1,0 +1,41 @@
+name: zz-probe
+
+on:
+  push:
+    branches:
+      - mutation/needs-skip-propagation
+
+permissions:
+  contents: read
+
+jobs:
+  # Stands in for `image`: always runs.
+  always-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo always
+
+  # Stands in for verify-latest-resolves-to-the-tag on an rc tag: gated off.
+  skipped-dependency:
+    needs: always-runs
+    if: false
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo never
+
+  # Stands in for `release` with a plain `if:` that does not mention the
+  # skipped job. Does a skipped need propagate the skip?
+  dependent-plain-if:
+    needs: [always-runs, skipped-dependency]
+    if: github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "dependent-plain-if RAN"
+
+  # The candidate workaround.
+  dependent-not-failed:
+    needs: [always-runs, skipped-dependency]
+    if: "!failure() && !cancelled() && github.ref_type == 'branch'"
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "dependent-not-failed RAN"
