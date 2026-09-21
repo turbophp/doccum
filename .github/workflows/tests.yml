@@ -459,6 +459,56 @@ jobs:
       - name: Show what was parsed
         run: python3 .github/scripts/assert-release-gate.py --verbose
 
+  # issue #340 (second box). release.yml's `boot-published-image` job pulls
+  # the PUBLISHED image and, before this issue, asserted exactly one string
+  # against it -- proving the container starts, and nothing about upload,
+  # search, trash or purge on the artifact a self-hoster actually pulls.
+  # That job now runs the full container-smoke.mjs suite too, but only on
+  # the amd64 leg, only on a tag push, and it duplicates rather than shares
+  # the seven SMOKE_* fixtures tests.yml's own `image` job generates.
+  #
+  # SAME REASONING AS release-gate ABOVE: release.yml fires only on a tag
+  # push or workflow_dispatch, this project has no tag, and
+  # boot-published-image is itself guarded to the tag-push trigger, so no
+  # run available here ever executes it. A comment describing what that job
+  # does is a claim nothing checks (decision/0113) -- so this asserts the
+  # wiring statically instead: that a container-smoke.mjs step exists, that
+  # its CONTAINER_NAME/BASE_URL agree with the container release.yml's own
+  # `docker run` step actually boots (not a name this script invented), and
+  # that every SMOKE_* variable container-smoke.mjs requires with no default
+  # is one release.yml's job actually supplies. That last check is what
+  # makes the duplicated fixtures safe to leave duplicated: add an eighth
+  # required variable to container-smoke.mjs and this goes red on the same
+  # PR, rather than silently on the next tag push.
+  published-smoke-gate:
+    timeout-minutes: 5
+    name: published image boot runs the full container smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Pinned the same way release-gate above pins it, for the same reason:
+      # a runner image change should not turn this into a mysterious
+      # ImportError that reads like a real regression.
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet 'PyYAML==6.0.2'
+
+      - name: boot-published-image runs container-smoke.mjs against the container it boots
+        run: python3 .github/scripts/assert-published-smoke.py
+
+      # Same purpose as release-gate's own "Show what was parsed" step: the
+      # assertion above can only fail on a real regression while it is
+      # reading files whose shape it understands, and this re-runs it with
+      # that understanding printed, so a reader sees what was parsed rather
+      # than only a verdict.
+      - name: Show what was parsed
+        run: python3 .github/scripts/assert-published-smoke.py --verbose
+
   # item/changelog-release-notes (issue #31): exercises
   # .github/scripts/changelog-section.sh directly against the committed
   # CHANGELOG.md, on every PR, so a change to either one that breaks the

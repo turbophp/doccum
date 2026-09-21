@@ -303,6 +303,81 @@ jobs:
             exit 1
           fi
 
+      # issue #340. Everything above this line proves the published image
+      # answers with one string; everything below drives it the way
+      # container-smoke.mjs drives tests.yml's LOCALLY BUILT image --
+      # installer, upload, extraction, search -- so upload/search/trash/
+      # purge are exercised on the artifact a self-hoster actually pulls, at
+      # least once, rather than only on an image this repository built
+      # itself and never published anywhere. This is the ONLY place in the
+      # project that happens; tests.yml's own `image` job runs the same
+      # script against `docker build`'s output, which proves the Dockerfile
+      # but not the registry push, the multi-arch manifest, or anything
+      # `docker/build-push-action` could get wrong between building and
+      # publishing.
+      #
+      # amd64 ONLY (`if:` on every step below), per issue #340: "the amd64
+      # leg at minimum". arm64 is a GitHub-hosted runner with no local
+      # Playwright/Chromium apt mirror guarantees this project has verified,
+      # and extending the full smoke there is out of scope for this pass --
+      # the single-string boot check above still runs on both legs
+      # unchanged.
+      #
+      # The seven SMOKE_* fixtures below are copied from tests.yml's
+      # "Generate smoke test fixtures" step (same RUN_ID/DIGITS derivation),
+      # not extracted into something shared -- a reusable workflow input or
+      # a composite action would need its own review and is a bigger change
+      # than this issue asks for. Copy-paste normally rots the moment one
+      # side changes and the other doesn't; what makes THIS copy safe is not
+      # a comment asking the next editor to keep them in sync, but
+      # `.github/scripts/assert-published-smoke.py` (wired into tests.yml as
+      # a PR check), which parses container-smoke.mjs's own `env(...)` calls
+      # and fails the build the moment a required variable exists there
+      # without existing here. Only the SEVEN variables container-smoke.mjs
+      # requires with no default are reproduced -- the rest (trash/version/
+      # stale-user fixtures) are for `seed-stale`/`verify`, which this job
+      # never runs.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: matrix.arch == 'amd64'
+        with:
+          node-version: '22'
+
+      - name: Generate smoke test fixtures
+        if: matrix.arch == 'amd64'
+        run: |
+          RUN_ID="${{ github.run_id }}-${{ github.run_attempt }}"
+          DIGITS="$(echo "$RUN_ID" | tr -cd '0-9')"
+          {
+            echo "SMOKE_INSTANCE_NAME=doccum release boot smoke"
+            echo "SMOKE_ADMIN_NAME=Smoke Admin"
+            # Username charset is constrained (app/Concerns/ProfileValidationRules.php:
+            # ^[a-z0-9._-]+$) because it names the admin's home directory.
+            echo "SMOKE_ADMIN_USERNAME=smokeadmin${DIGITS}"
+            echo "SMOKE_ADMIN_EMAIL=smoke+${RUN_ID}@example.test"
+            # config/app.php defaults APP_ENV to "production" when unset, and
+            # the image's own `docker run` sets no APP_ENV -- so this is the
+            # real production rule (app/Providers/AppServiceProvider.php):
+            # min 12, mixed case, letters, numbers, symbols, uncompromised().
+            echo "SMOKE_ADMIN_PASSWORD=Doccum-Smoke-${RUN_ID}!Aa9"
+            echo "SMOKE_FILE_NAME=smoke-${RUN_ID}.txt"
+            echo "SMOKE_FILE_MARKER=smokeword${DIGITS}"
+          } >> "$GITHUB_ENV"
+
+      - name: Install Playwright (smoke-test driver only, not a project dependency)
+        if: matrix.arch == 'amd64'
+        timeout-minutes: 5
+        run: |
+          npm install --no-save --prefix .github/scripts playwright@1.49.1
+          .github/scripts/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Complete the installer, upload a file, wait for extraction, search
+        if: matrix.arch == 'amd64'
+        timeout-minutes: 8
+        env:
+          BASE_URL: http://127.0.0.1:8080
+          CONTAINER_NAME: doccum-boot-${{ matrix.arch }}
+        run: node .github/scripts/container-smoke.mjs setup
+
       - name: Container logs
         if: failure()
         run: docker logs doccum-boot-${{ matrix.arch }} || true
