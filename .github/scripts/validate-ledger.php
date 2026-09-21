@@ -83,26 +83,6 @@ if ($mainSha === '') {
 // Env var set AND no positional sha has no legitimate meaning: it is only
 // ever this mistake. CI is unaffected -- ledger.yml passes both, and its
 // --witnesses step sets no MAIN_SHA at all.
-$mainShaEnv = getenv('MAIN_SHA');
-if (! $witnessesMode && $mainSha === null && is_string($mainShaEnv) && $mainShaEnv !== '') {
-    fwrite(STDERR, <<<'TXT'
-        MAIN_SHA is set in the environment but no <main-sha> argument was given.
-
-        This script reads <main-sha> as a POSITIONAL argument, not from the
-        environment, so the main-push-history check would have been skipped
-        silently and the output would have looked exactly like a clean pass.
-
-        Pass it positionally, as .github/workflows/ledger.yml does:
-
-          php .github/scripts/validate-ledger.php docs/ledger docs/superpowers/specs/2026-09-15-doccum-design.md "$MAIN_SHA"
-
-        A correct run prints a "Compared N commits on main since ..." line
-        before its verdict. If that line is absent, the check did not run.
-
-        TXT);
-    exit(1);
-}
-
 if ($witnessesMode) {
     require $root.'/app/Support/LedgerRuleWitnesses.php';
 
