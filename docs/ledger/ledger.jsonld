@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-21T13:20:00Z",
+  "dateModified": "2026-09-21T13:24:00Z",
   "latestRun": "run/0021",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1665,10 +1665,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "Spec section 12 names four root files -- README.md, LICENSE, CONTRIBUTING.md and SECURITY.md -- and milestone 11 names them again. Two of the four were absent from the tree, and NO backlog item covered either, so nothing in this loop was going to produce them; item/v1-audit found them, and issues #321 and #322 record them. One item rather than two because section 12 names them in one sentence and the first must reference the second. Done when CONTRIBUTING.md exists at the repository root and condenses CLAUDE.md for a human audience -- Node 22 and why, the conventions, the six seams, both authorisation layers, the upgrade-path rules, the testing rules that are not guessable, and the exact set of CI jobs a pull request will get; and when SECURITY.md exists where GitHub reads it, naming a private reporting channel, supported versions, expected response times stated honestly for a small project, and a scope section written from doccum's own threat model -- bypass of either authorisation layer independently, reach leaks through response differences, presigned-URL problems, the first-run installer on a populated instance, and a token reaching purge -- rather than from a template. Every operator-facing claim in SECURITY.md is checked against the CODE, not against the spec, because the file is a promise to a reader who cannot check it.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-21T13:15:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-21T13:17:48Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/325"
+      ]
     },
     {
       "@id": "item/openapi-spec-reconcile",
@@ -4001,6 +4003,38 @@
       "headSha": "d3eaf073b72636d5377baa5606ca7bfe18b08f3f",
       "mergedAt": "2026-09-21T10:57:32Z",
       "mergeSha": "2867ebf3bb8a9f37b92c93e9438cbdf8de08b75d",
+      "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/324",
+      "@type": "PullRequest",
+      "identifier": 324,
+      "name": "The v1 audit walks milestones 1 to 11 and the backlog",
+      "implements": [
+        "item/v1-audit"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T13:08:22Z",
+      "headSha": "f754a55a25f316f8c5f03cdc4de4fccea8ff9395",
+      "mergedAt": "2026-09-21T13:15:55Z",
+      "mergeSha": "f7fa71164e2f8a3708013bd78222afae1e37ec6a",
+      "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/325",
+      "@type": "PullRequest",
+      "identifier": 325,
+      "name": "CONTRIBUTING.md and SECURITY.md",
+      "implements": [
+        "item/root-docs"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T13:12:00Z",
+      "headSha": "8e88a3f6a87bba7b3e27bd903728e82247681603",
+      "mergedAt": "2026-09-21T13:17:48Z",
+      "mergeSha": "af51039c207ef4c05ce30469ef35f850e9e0716c",
       "mergedIn": "run/0021"
     }
   ],
