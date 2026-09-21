@@ -234,13 +234,6 @@ function firstParentShasSince(string $root, string $since, string $upTo): ?array
 }
 
 $mainPushShas = null;
-if ($mainSha === null && ! $witnessesMode) {
-    // issue #311: the two skip paths below each say so on STDERR; this one
-    // said nothing at all, so "shape checked, history not checked" and
-    // "everything checked" printed identically. Checking shape alone is a
-    // legitimate use, so this is a notice and not a failure.
-    fwrite(STDERR, "Note: no <main-sha> argument; the main-push-history check did NOT run.\n");
-}
 if ($mainSha !== null) {
     $previousCommit = previousCompletedRunCommit($ledgerDir);
     if ($previousCommit === null) {
