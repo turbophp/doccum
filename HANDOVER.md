@@ -1,7 +1,10 @@
 # doccum — handover
 
-**Status:** installable and usable. 99 commits, 386 tests / 818 assertions
-green. Published at https://github.com/turbophp/doccum.
+**Status:** installable and usable, and considerably further along than the
+counts that used to sit here claimed -- they said 99 commits and 386 tests when
+the tree held 795 and 898. Deliberately not restated: a number copied out of the
+repository into prose is a number that rots. `git rev-list --count main` and the
+`tests` workflow are the sources. Published at https://github.com/turbophp/doccum.
 
 ```bash
 docker build -t doccum:local .
@@ -34,11 +37,23 @@ no database to create, no bucket to provision, no default password.
 
 | Remaining | Plan |
 |---|---|
-| Three-pane shell, admin surface | not yet planned |
-| REST API with Sanctum | spec §11 |
-| Documentation site | spec §12 |
 | Semantic search | spec §8a — designed, additive |
 | Vision-model OCR | spec §7a — designed, optional dependency |
+
+**Four rows left this table because they shipped**, and they are named rather
+than silently dropped, because this section said they were unbuilt for long
+enough to mislead:
+
+- **Three-pane shell** — `app/Livewire/Files/Browser.php`; it is the view in the
+  README screenshot.
+- **Admin surface** — five screens under `app/Livewire/Admin/`, all five §10
+  Settings sections routed.
+- **REST API with Sanctum** — `app/Http/Controllers/Api/V1/`, 16 paths described
+  by `docs/api/openapi.json` and held to the live route set in both directions by
+  `tests/Feature/Api/OpenApiContractTest.php`.
+- **Documentation site** — `docs/self-hosting/` (nine pages) and
+  `.github/workflows/pages.yml`; the build job is green and `deploy` skips until
+  two repository settings are made (issue #27).
 
 Everything above is specified in `docs/superpowers/specs/2026-09-15-doccum-design.md`.
 Plans live in `docs/superpowers/plans/`. Each is task-by-task with literal code
@@ -158,6 +173,15 @@ than half-booting.
    repository's Packages → `doccum` → the version → Delete. Do it after the
    real release, not before, so the rehearsal stays inspectable while it is
    still the only thing that has run the pipeline.
-3. **Finish purging**, or document that retention is manual.
-4. Consider image size: ~1.34 GB, mostly Debian, PHP extensions, tesseract and
-   vendor. Alpine and fewer OCR languages are the levers, both trade-offs.
+3. Consider image size. The numbers live in `README.md`'s "Image size" table and
+   are ratcheted in CI against `.github/image-budget.json`, so they are not
+   restated here -- the figure this step used to carry (~1.34 GB) had drifted far
+   from the measured one. Alpine and fewer OCR languages remain the levers, both
+   trade-offs.
+
+**A step was removed rather than corrected, and image size took its number:
+"Finish purging, or document that retention is manual."** Purging was already
+finished when that line was written --
+this same file says so two sections up, in full detail, under **Purging is
+built.** A checklist item that the document itself refutes is worse than none,
+because a reader who trusts the checklist stops to do work that does not exist.
