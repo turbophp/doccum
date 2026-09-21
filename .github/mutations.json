@@ -344,10 +344,10 @@
   },
   {
     "id": "a-dropped-row-is-re-authorised-at-both-ends",
-    "why": "A drop arrives as three integers from the client and the DOM they came from proves nothing, so dropMove() re-resolves the subject and the destination and asks the same policy the Move select asks. The test that proves it uses a MEMBER rather than an admin on purpose: an admin holds directories.view-all, which DirectoryAccess::resolve() answers with Manage on every directory in the instance, so an admin can never demonstrate a refusal for being out of reach. Remove the authorize on the file branch and a viewer drags a file into a directory they cannot open.",
+    "why": "A drop arrives as three integers from the client and the DOM they came from proves nothing, so dropMove() re-resolves the subject and the destination and asks the same policy the Move select asks. The test that proves it uses a MEMBER rather than an admin on purpose: an admin holds directories.view-all, which DirectoryAccess::resolve() answers with Manage on every directory in the instance, so an admin can never demonstrate a refusal for being out of reach. Remove the authorize on the file branch and a viewer drags a file into a directory they cannot open. WITNESS CHANGED 2026-09-21, and the reason is worth recording rather than silently swapping a test name. This entry used to name 'refuses a drop into a directory the viewer cannot reach', and CI caught that it had stopped being load-bearing the moment item/reach-existence-oracle clause 1 scoped the destination lookup: an out-of-reach destination now aborts 404 from abort_if() BEFORE authorize() is reached, so deleting the authorize no longer changes that test's outcome and it kept passing. The guard was still real; its witness was not. The replacement uses a destination the viewer CAN reach at View level -- inside viewableDirectoryIds(), so the scoped lookup finds it and the 404 does not fire -- where FilePolicy::move() requires Edit on the destination and the refusal therefore comes from this authorize() and nothing else. This is what a registered mutation is for: a change elsewhere quietly took the teeth out of an existing test, and the guards job said so on the first push rather than a reviewer noticing months later.",
     "file": "app/Livewire/Files/Browser.php",
     "remove": "            $this->authorize('move', [$file, $destination]);\n",
-    "expectFailing": "refuses a drop into a directory the viewer cannot reach"
+    "expectFailing": "refuses a file drop into a directory the viewer may see but not write to"
   },
   {
     "id": "user-model-refuses-to-delete-last-administrator",
@@ -656,5 +656,12 @@
     "file": "resources/views/livewire/search/palette.blade.php",
     "remove": "\n                                                e",
     "expectFailing": "escapes hostile markup in the palette snippet before swapping the match into a mark element"
+  },
+  {
+    "id": "drop-move-destination-scoped-to-reach",
+    "why": "issue #109 / item/reach-existence-oracle clause 1: dropMove()'s destination lookup must be scoped to DirectoryAccess::viewableDirectoryIds() INSIDE the query, the same shape moveFile() and moveDirectory() use. Removing the whereIn leaves Directory::query()->find($targetDirectoryId), which still parses and still runs -- but a destination that EXISTS outside the viewer's reach is now found, so abort_if($destination === null, 404) does not fire and authorize('move', ...) refuses with 403 instead. That is the existence oracle this clause closes: 403 for a directory that exists and 404 for an id that does not, so the status code tells the caller which ids exist. NOTE WHICH HALF OF THE PAIR THIS PROVES, because reasoning about that is unreliable (CLAUDE.md's account-menu lesson): only the OUT-OF-REACH test flips. The companion test 'answers a destination that does not exist the same way as one out of reach' still passes with the whereIn removed, because find() returns null for a nonexistent id either way and abort_if still fires -- it documents that the two answers agree and is not itself the guard's witness. expectFailing therefore names the out-of-reach test, which is the one this scoping is load-bearing for.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "\n            ->whereIn('id', $reachableForDrop)",
+    "expectFailing": "refuses a drop into a directory the viewer cannot reach, and moves nothing"
   }
 ]
