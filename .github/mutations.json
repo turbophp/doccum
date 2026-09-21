@@ -691,5 +691,12 @@
     "file": "app/Livewire/Files/Browser.php",
     "remove": "\n            ->whereIn('directory_id', $reachableForPreview)",
     "expectFailing": "refuses to preview a file the viewer cannot reach"
+  },
+  {
+    "id": "select-directory-root-scoped-to-reach",
+    "why": "issue #109 / item/reach-existence-oracle, the last site in Browser.php and the only one that carried an argument against being scoped. selectDirectory()'s root branch used to union whereNull('parent_id') with reachRootIds(); removing this whereIn leaves Directory::query()->find($directoryId) unscoped, which still parses and runs but finds ANY directory, so an unviewable one reaches authorize('view', ...) and answers 403 while a nonexistent id answers 404 -- the existence oracle, reopened. WHAT THE OLD UNION CONTRIBUTED, established rather than assumed: reachRootIds() is derived from viewableDirectoryIds() and returns the viewable directories whose parent is null or not viewable, so every root the viewer may legitimately see is already in it, including every root for an admin holding directories.view-all. The whereNull('parent_id') disjunct therefore added exactly one class of row and no other -- true roots the viewer CANNOT view -- so dropping it removes no legitimate access and closes the oracle. WHICH HALF OF THE PAIR THIS PROVES: only the out-of-reach test flips. Its companion, 'answers a directory id that does not exist the same way as one out of reach', still passes with the whereIn removed, because find() returns null for an id no row carries either way and abort_if still fires (decision/0111). NOT REGISTERED AND DELIBERATELY SO: the authorize('view', $subdirectory) below this lookup, whose own comment explains that removing it changes no observable outcome because PropertyPanel::mount() authorises the same subject -- that reasoning is unaffected by this change, and no existing entry names selectDirectory (checked).",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "\n            ->whereIn('id', $access->reachRootIds(auth()->user()))",
+    "expectFailing": "refuses to select a directory the viewer cannot view"
   }
 ]

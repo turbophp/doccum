@@ -254,28 +254,48 @@ class Browser extends Component
         // item/files-three-pane's nested case, whose parent_id is not null and
         // which the landing pane now lists, so it must be selectable from it.
         //
-        // Deliberately a UNION of the two, never reachRootIds() alone. Scoping
-        // the lookup to reachRootIds() would make an id the viewer cannot view
-        // fail to RESOLVE, so an unviewable directory would answer 404 from
-        // findOrFail() instead of 403 from the authorize() below -- swapping a
-        // policy decision for an existence check. 'refuses to select a
-        // directory the viewer cannot view' caught exactly that, across all
-        // six test jobs: ModelNotFoundException where it asserts 403.
+        // SETTLED, and the union is gone. The comment here used to argue for
+        // a UNION of whereNull('parent_id') and reachRootIds(), on the
+        // grounds that scoping to reachRootIds() alone would swap "a policy
+        // decision for an existence check" -- an unviewable directory
+        // answering 404 from the lookup instead of 403 from the authorize()
+        // below. It deferred the choice to issue #109 as a question for the
+        // whole surface, which was right at the time.
         //
-        // Which way that SHOULD answer is issue #109's question for the whole
-        // surface, and it is not this item's to settle in one method. What
-        // matters here is that the answer does not change silently as a side
-        // effect of a UI item: authorisation stays the gate, and the lookup
-        // only ever widens what can be found.
+        // #109 is settled, and not as "404 or 403". The property is whether
+        // this method hands the caller an EXISTENCE ORACLE: whether a
+        // directory that exists outside the viewer's reach answers
+        // DIFFERENTLY from an id that does not exist. It did -- 403 and 404
+        // respectively -- and that difference tells a caller which directory
+        // ids exist. Which status the two SHARE is local; that they agree is
+        // the requirement (item/reach-existence-oracle).
+        //
+        // WHAT THE UNION'S FIRST DISJUNCT ACTUALLY CONTRIBUTED, checked
+        // rather than assumed, because "the lookup only ever widens what can
+        // be found" was true and told nobody what the widening WAS.
+        // reachRootIds() is derived from viewableDirectoryIds(): it returns
+        // the viewable directories whose parent is null or not itself
+        // viewable. So every root the viewer can legitimately see is ALREADY
+        // in reachRootIds(), including every root for an admin holding
+        // directories.view-all, whose viewable set is everything. The
+        // whereNull('parent_id') disjunct therefore added exactly one class
+        // of row and no other: true filesystem roots the viewer CANNOT view.
+        // It widened the lookup by precisely the set that must be refused,
+        // which is what made the refusal legible as 403 and the oracle open.
+        //
+        // The nested branch below needs no change and never did: it is
+        // already scoped to children of the directory being browsed, and
+        // access is inherited down the subtree, so a child of a directory the
+        // viewer can see is viewable too. An id that is not a child answers
+        // 404 whether it exists or not.
         $rootCandidates = Directory::query()
-            ->where(function (Builder $query) use ($access): void {
-                $query->whereNull('parent_id')
-                    ->orWhereIn('id', $access->reachRootIds(auth()->user()));
-            });
+            ->whereIn('id', $access->reachRootIds(auth()->user()));
 
         $subdirectory = $this->directory === null
-            ? $rootCandidates->findOrFail($directoryId)
-            : Directory::query()->where('parent_id', $this->directory->getKey())->findOrFail($directoryId);
+            ? $rootCandidates->find($directoryId)
+            : Directory::query()->where('parent_id', $this->directory->getKey())->find($directoryId);
+
+        abort_if($subdirectory === null, 404);
 
         // Deliberately NOT in .github/mutations.json, and the reason is worth
         // stating rather than leaving as an omission someone later "fixes".
