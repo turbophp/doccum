@@ -406,6 +406,59 @@ jobs:
 
           echo "MINIO_ROOT_PASSWORD set resolves cleanly with no doccum-secret in the rendered config"
 
+  # issue #303. release.yml's `release` job used to be `needs: image` while
+  # `boot-published-image` was ALSO `needs: image`, so the GitHub Release --
+  # the user-visible announcement -- was created in parallel with the job
+  # proving the image starts. A red arm64 leg arrived after the Release was
+  # already public.
+  #
+  # THIS JOB EXISTS BECAUSE THE GATE CANNOT BE PROVEN BY RUNNING IT.
+  # release.yml fires only on a tag push or a workflow_dispatch. There is no
+  # tag, and a dispatch on main would publish ghcr `latest` with
+  # DOCCUM_VERSION=latest -- the unversioned publish decision/0090 warned
+  # against -- so no run available to this project exercises the dependency.
+  # A comment saying "release waits for the boot" would then be a claim
+  # nothing checks, which is the shape decision/0113 is about: when a guard
+  # cannot be exercised, assert it statically and REFUSE, rather than
+  # describe it and hope.
+  #
+  # It parses the workflow rather than grepping it, so reordering the list,
+  # reflowing it to one entry per line, or switching between the flow and
+  # block YAML forms all still pass -- and removing the dependency fails
+  # however it is spelled. A grep for a literal string would be defeated by
+  # a line break.
+  release-gate:
+    timeout-minutes: 5
+    name: release waits for the published image to boot
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # PyYAML is present on ubuntu-latest today, and "today" is not a thing
+      # this project accepts as a dependency -- a runner image change would
+      # turn this check into an ImportError that reads like a real failure.
+      # Installed explicitly, and pinned, so the parse this job depends on is
+      # the one it was written against.
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet 'PyYAML==6.0.2'
+
+      - name: release.needs includes boot-published-image
+        run: python3 .github/scripts/assert-release-gate.py
+
+      # The assertion above can only fail on a real regression while it is
+      # reading a file whose shape it understands -- a document that parsed
+      # to nothing would make every lookup miss and report a rename rather
+      # than the truth. The script proves the parse reached real content
+      # before it asserts anything, and this step re-runs it with the proof
+      # printed, so a reader sees WHAT was parsed rather than only a verdict.
+      - name: Show what was parsed
+        run: python3 .github/scripts/assert-release-gate.py --verbose
+
   # item/changelog-release-notes (issue #31): exercises
   # .github/scripts/changelog-section.sh directly against the committed
   # CHANGELOG.md, on every PR, so a change to either one that breaks the
