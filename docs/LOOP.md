@@ -51,6 +51,16 @@ Every hour, the loop wakes and runs these steps in order.
    **Never close an issue with an edit that replaces its body.** The close
    that got #109 wrong also overwrote the text, and GitHub's edit history was
    not reachable from the tooling available here.
+
+   **A close keyword cannot be qualified, so never write one for a partial
+   fix.** GitHub's linked-issue parser reads `Closes #N` and discards the
+   prose around it: `Closes #311 in part` closed #311 outright when PR #312
+   merged, although that PR's body, its commit message and the merge commit
+   each said the issue stays open for the half it could not discharge. Three
+   statements addressed to a human reader, in a field read by a machine.
+   Where a PR discharges part of an issue, reference it with no keyword --
+   plain `#311`, or "relates to #311" -- and say what remains in prose
+   (`decision/0115`).
 2. **Review and merge.** Look at every open PR this loop opened. CI is the
    gate — a PR is mergeable only when every required check is green. Review
    the diff, then merge to `main`. Record the merge in the ledger.
