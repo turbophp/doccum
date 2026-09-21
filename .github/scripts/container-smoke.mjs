@@ -4245,7 +4245,7 @@ async function captureReadmeScreenshot(page, phase) {
       try {
         await locator.first().waitFor({ state: 'visible', timeout: 15000 });
       } catch (e) {
-        dumpContainerState(`[${phase}] ${label} was not visible on /files, so the README screenshot would have shown a broken or empty UI -- ${e.message}`);
+        dumpContainerState(`[${phase}] ${label} was not visible in the ${ADMIN_USERNAME} directory, so the README screenshot would have shown a broken or empty UI -- ${e.message}`);
         throw Object.assign(new Error(`README screenshot aborted: ${label} was not visible`), { dumped: true });
       }
     }
