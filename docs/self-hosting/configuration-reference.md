@@ -148,8 +148,10 @@ container per role":
 
 ## Everything else
 
-Every other environment variable this codebase can read — the `MAIL_*`
-block, every queue/cache/log driver doccum doesn't ship a service for
+Every other environment variable this codebase can read — the four `MAIL_*`
+stragglers the Mail section above does not cover (`MAIL_EHLO_DOMAIN`,
+`MAIL_LOG_CHANNEL`, `MAIL_SENDMAIL_PATH`, `MAIL_URL`), every queue/cache/log
+driver doccum doesn't ship a service for
 (Beanstalkd, SQS, DynamoDB, Memcached), Fortify's passkey secret, and the
 rest of stock Laravel's surface — is a framework default doccum's zero-
 configuration boot never asks you to set. Each one is named, individually,

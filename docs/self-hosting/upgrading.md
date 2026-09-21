@@ -49,11 +49,30 @@ assuming is normal.
 
 ## Downgrading
 
-Not a supported path. Migrations are one-directional in this project (no
-migration in `database/migrations/` is written with a working `down()`
-beyond what Laravel generates by default), and a downgrade after a schema
-change has run against real data is a restore-from-backup situation, not an
-image swap — see [Backup and restore](backup-and-restore.md).
+Not a supported path, and the reason is data rather than tooling.
+
+**Most migrations here do reverse.** 24 of the 25 in `database/migrations/`
+have a `down()` with a body, several hand-written — the one that adds
+`name_key` reverses its own index ordering on the way back out. So
+`migrate:rollback` will usually *run*. That is not the same as being safe.
+
+What makes it unsupported:
+
+- **One migration cannot reverse at all.** The backfill that sets
+  `email_verified_at` for accounts created before verification existed has an
+  empty `down()`, because there is no record of which rows it touched.
+- **A `down()` that works still destroys data.** Rolling back a column drop
+  recreates the column empty; rolling back a table drop recreates it empty.
+  The migration reverses; what was in it does not come back.
+
+So a downgrade after a schema change has run against real data is a
+restore-from-backup situation, not an image swap — see
+[Backup and restore](backup-and-restore.md).
+
+This section used to say that no migration has a working `down()` beyond
+Laravel's default. That was false of 24 of them, and worth correcting rather
+than deleting: a reader who checks a stated reason and finds it untrue has
+learned something about the rest of the page too.
 
 ## Before a major version
 
