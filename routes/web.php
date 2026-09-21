@@ -58,10 +58,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // from a browser: download answers Content-Disposition: attachment and may
     // redirect to a presigned URL, neither of which a preview frame can use.
     // See FilePreviewController.
+    // whereNumber('file') for the reason the {version} comment below gives,
+    // now that {file} is an int rather than an implicit model binding
+    // (item/reach-oracle-route-binding): without it a non-numeric segment
+    // reaches an int parameter and raises a TypeError -- a 500 where the
+    // caller should get a 404, and a differently-shaped response for a
+    // malformed id than for a well-formed one that does not exist. That
+    // shape difference is the same class of leak the item exists to close.
     Route::get('/files/{file}/preview', FilePreviewController::class)
+        ->whereNumber('file')
         ->name('files.preview');
 
     Route::get('/files/{file}/download', FileDownloadController::class)
+        ->whereNumber('file')
         ->name('files.download');
 
     // whereNumber('version') is load-bearing, not decoration. The controller
@@ -72,6 +81,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // get a 404, and a differently-shaped response for a malformed id than for
     // a well-formed one that does not exist.
     Route::get('/files/{file}/versions/{version}/download', FileVersionDownloadController::class)
+        ->whereNumber('file')
         ->whereNumber('version')
         ->name('files.versions.download');
 

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Exceptions\ObjectMissingFromStorage;
-use App\Models\File;
 use App\Services\DocumentStorage;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -79,16 +78,27 @@ class FilePreviewController extends Controller
      * works on a dev machine and is blank in the shipped image.
      *
      * So this always streams, and always inline.
+     *
+     * {$file} is an INT, not an implicit model binding, and it is resolved
+     * through viewableFileOrFail() -- item/reach-oracle-route-binding. With
+     * implicit binding SubstituteBindings resolves the id before this method
+     * runs, so a file outside the viewer's reach was bound and then 403'd by
+     * authorize() while a nonexistent id 404'd from the binding: an existence
+     * oracle over every file id in the instance. Scoped here, both answer
+     * 404. This is the same shape FileVersionDownloadController already used
+     * for its {version} parameter, and for the same reason.
      */
-    public function __invoke(File $file): Response|StreamedResponse
+    public function __invoke(int $file): Response|StreamedResponse
     {
-        $this->authorize('view', $file);
+        $model = $this->viewableFileOrFail($file);
 
-        $version = $file->currentVersion;
+        $this->authorize('view', $model);
+
+        $version = $model->currentVersion;
 
         abort_if($version === null, 404);
 
-        $mime = $version->mime ?? $file->mime ?? 'application/octet-stream';
+        $mime = $version->mime ?? $model->mime ?? 'application/octet-stream';
 
         abort_unless(
             array_filter(self::INLINE_PREFIXES, fn (string $p): bool => str_starts_with($mime, $p))
@@ -104,7 +114,7 @@ class FilePreviewController extends Controller
 
         $headers = [
             'Content-Type' => $mime,
-            'Content-Disposition' => 'inline; filename="'.addslashes($file->name).'"',
+            'Content-Disposition' => 'inline; filename="'.addslashes($model->name).'"',
             // The type above is a decision, not a hint: without this a
             // browser may sniff the bytes and render as HTML something
             // served as something else.

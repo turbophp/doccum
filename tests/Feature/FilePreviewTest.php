@@ -119,7 +119,12 @@ it('sandboxes markup by structure, not by a substring of the media type', functi
         ->not->toContain('allow-scripts');
 });
 
-it('refuses to preview a file the viewer cannot reach', function () {
+it('answers an unreachable file the same as a nonexistent one, for preview', function () {
+    // item/reach-oracle-route-binding. This used to assertForbidden(): {file}
+    // was an implicit model binding, so a file in someone else's directory
+    // was resolved and then 403'd, while a nonexistent id 404'd from the
+    // binding. The pair is what states the property -- the out-of-reach half
+    // alone cannot show that two answers agree.
     $elsewhere = Directory::factory()->create(['name' => 'Theirs']);
     $stranger = User::factory()->create();
     $stranger->assignRole('member');
@@ -129,7 +134,11 @@ it('refuses to preview a file the viewer cannot reach', function () {
 
     $this->actingAs($this->user)
         ->get(route('files.preview', $file))
-        ->assertForbidden();
+        ->assertNotFound();
+
+    $this->actingAs($this->user)
+        ->get(route('files.preview', ((int) File::query()->max('id')) + 1))
+        ->assertNotFound();
 });
 
 it('answers 404 for a file with no stored version', function () {
