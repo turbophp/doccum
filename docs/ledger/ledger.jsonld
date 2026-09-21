@@ -5799,6 +5799,19 @@
         "item/reach-oracle-route-binding"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0115",
+      "@type": "Decision",
+      "dateCreated": "2026-09-21T11:50:00Z",
+      "run": "run/0021",
+      "name": "A close keyword cannot be qualified",
+      "rationale": "A qualifier written into a field a machine parses is not read by the machine,\nand the qualifier is exactly the part that mattered.\n\nPR #312's body opened with `Closes #311 in part`. GitHub's linked-issue parser\nreads the keyword and the number and discards everything around them, so the\nissue closed outright when the PR merged. This issue's `closed_by_pull_requests`\nnames #312.\n\nWHAT MAKES IT WORTH A NODE rather than a shrug is the redundancy that failed.\nThe intention was not implicit or assumed: the PR body has a \"What remains\"\nsection ending \"#311 stays open for that half\"; the commit message says \"#311\nSTAYS OPEN for the half this cannot discharge\"; the merge commit repeats it.\nThree independent statements, all correct, all addressed to a human reader --\nand the one field a machine acts on carried a keyword that says the opposite.\nRestating an intention more times does not help when the thing that acts on it\nreads only two tokens.\n\nTHE FAMILY THIS BELONGS TO. decision/0113 is about a tool that reports in prose\nand trusts a reader to notice; this is the mirror -- a human writing prose into\na slot a tool parses, and the tool ignoring it. Both fail at the seam between\nsomething written to be read and something written to be executed, and in both\nthe failure is silent: nothing warns that \"in part\" was dropped, exactly as\nnothing warned that a scope line was never printed.\n\nTHE RULE. Where a PR discharges only part of an issue, reference it with NO\nkeyword -- plain `#311`, or \"relates to #311\" -- and say what remains in prose.\nThe keyword is a command, not a description, and it has no partial form.\n\nCAUGHT BY A SWEEP, NOT BY A CHECK, which is worth recording as the limit here.\nNothing in CI can notice this: the close is a GitHub action on a correctly\nmerged PR. It surfaced because the loop's own open-issue sweep listed twelve\nissues and #311 was not among them. That is the same sweep that found #109 and\n#115 stale (decision/0109), and it is now the second distinct defect class it\nhas caught. Reading the open-issue list AS A LIST, rather than as a set of\nthings already accounted for, keeps paying.\n\nLOOP.md step 1 gains the rule in the same commit, per step 7.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [],
+      "supersedes": null
     }
   ],
   "mutations": [
