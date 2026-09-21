@@ -64,6 +64,12 @@ function env(name, fallback) {
 const BASE_URL = env('BASE_URL', 'http://127.0.0.1:8080');
 const CONTAINER_NAME = env('CONTAINER_NAME', 'doccum-smoke');
 
+// issue #339. NOT env-gated with a skip: a check that quietly does nothing when
+// a variable is unset is decision/0113's defeated-by-a-pipe shape -- the
+// workflow would forget the variable one day and the step would keep printing
+// success. It always captures, to a path the workflow overrides.
+const README_SCREENSHOT_PATH = env('SMOKE_SCREENSHOT_PATH', 'smoke-artifacts/readme-screenshot.png');
+
 const INSTANCE_NAME = env('SMOKE_INSTANCE_NAME');
 const ADMIN_NAME = env('SMOKE_ADMIN_NAME');
 const ADMIN_USERNAME = env('SMOKE_ADMIN_USERNAME');
@@ -4114,6 +4120,162 @@ function instrumentUploadPath(page) {
   });
 }
 
+/**
+ * Captures the README screenshot from the real, running container (issue #339).
+ *
+ * WHY THIS LIVES IN THE SMOKE AND NOT IN A DESIGNER'S FOLDER. docs/v1-audit.md
+ * filed the missing README screenshot under the owner-blocked work, reasoning
+ * that it "needs a running instance to produce". A running instance is the one
+ * thing this project is never short of: the `image` job builds the container,
+ * boots it and drives Playwright against it on every push, which is how this
+ * file works at all. So the screenshot needs no tag, no registry and nobody's
+ * permission -- it needs a page.screenshot() call at a point where the UI has
+ * real content in it.
+ *
+ * WHICH SURFACE, decided rather than defaulted: the files three-pane browser.
+ * The home dashboard is the first page a user lands on, but on a fresh instance
+ * it is mostly empty chrome; the three-pane directory tree / file list / actions
+ * view is the thing that distinguishes doccum from a file drop, and by this
+ * point in the run it holds a directory, a real uploaded file and an extracted
+ * document. An empty shell is a worse advertisement than no screenshot at all.
+ *
+ * WHY IT ASSERTS BEFORE IT CAPTURES, which is the part that matters here. A
+ * screenshot step that only calls page.screenshot() is green against a blank
+ * page, a 500, or a Flux component the image failed to resolve -- it would
+ * produce a file, and the file would be the evidence that something went
+ * wrong, seen by nobody until a human opened the artifact. So this waits for
+ * the directory tree, the files table and the uploaded file's own row to be
+ * visible first, and fails loudly naming which one was missing. Then it checks
+ * the PNG actually landed on disk with a plausible size, because a capture that
+ * silently wrote nothing would otherwise leave the previous committed image in
+ * place and look like success.
+ *
+ * It runs in a context of its OWN, carrying this session's cookies through
+ * storageState, so that neither the fixed 1440x900 viewport a README image
+ * wants nor the navigation to /files can reach the page the rest of the run is
+ * asserting against. See the comment at the newContext() call for why both of
+ * those matter and why the obvious two alternatives do not work.
+ */
+async function captureReadmeScreenshot(page, phase) {
+  const target = path.resolve(README_SCREENSHOT_PATH);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+
+  // A SEPARATE CONTEXT, CARRYING THIS SESSION'S COOKIES, and both halves of
+  // that are load-bearing.
+  //
+  // Not the caller's own `page`: the very next check,
+  // checkSearchFilterExcludesByPeriod(), does NOT navigate -- its comment says
+  // "FILE_NAME is already ON the page from searchUntilFound() above" -- so it
+  // inherits both the URL and the filled search field. Navigating `page` to
+  // /files here and back would hand it a reset search form and break a check
+  // this one has nothing to do with.
+  //
+  // Not page.context().newPage() either, which is what the first version did
+  // and what CI rejected: the main flow creates its page with
+  // browser.newPage(), so that context is owned by that page and Playwright
+  // answers newPage() on it with "Please use browser.newContext()".
+  //
+  // storageState carries the logged-in session across, so this does not have
+  // to log in again -- and a context of its own means the fixed 1440x900
+  // viewport a README image wants cannot reach the viewport checkTopbar and
+  // the command-palette check assert against.
+  const shotContext = await page
+    .context()
+    .browser()
+    .newContext({
+      storageState: await page.context().storageState(),
+      // 1440x420, and the HEIGHT is the considered half. The first capture
+      // came back 1440x900 and correct -- tree, listing, properties pane, a
+      // real directory and a real file -- and about two thirds of the frame
+      // was empty space below two rows. Issue #339's own warning is that an
+      // empty shell is a worse advertisement than no screenshot, and a
+      // mostly-blank frame is that failure in a milder form. 560 was a first
+      // trim and still left over half the frame blank; this height is measured
+      // off the captured image rather than guessed again -- content ends at
+      // roughly y=205 (the tree's last node, the second table row), so 420
+      // reads as padding rather than as an empty page.
+      //
+      // Fixed rather than computed from a bounding box on purpose: a clip
+      // derived from content would change size run to run, and this file is
+      // committed to the repository, so every refresh would churn its
+      // dimensions for no reason.
+      //
+      // The alternative was to upload more files so the listing looked fuller.
+      // Rejected: that adds fixtures to a shared smoke run for a cosmetic
+      // reason, and checks here already assert on row counts
+      // (checkBulkTrashLeavesUnselectedFilesAlone, the sort checks), so the
+      // cost lands on tests that have nothing to do with this.
+      viewport: { width: 1440, height: 420 },
+    });
+  const shotPage = await shotContext.newPage();
+  try {
+    await shotPage.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
+
+    // /files IS THE ROOT, AND THE UPLOAD IS NOT IN IT. The first run of this
+    // check waited for the file's row straight after this goto and timed out
+    // at 15s: uploadAndProveStored() puts its file inside the directory named
+    // for the admin, so the root listing shows that DIRECTORY and no files at
+    // all. runVerify() already knew this -- it clicks the same link before
+    // downloadAndCompareBytes() for the same reason, and its comment records
+    // a reorder that dropped the click and produced the identical timeout.
+    // This is that lesson arriving a third time, so it is written at the call
+    // rather than left to be rediscovered.
+    //
+    // It also makes the better picture: inside the directory the middle pane
+    // has a real file in it, which is the whole point of shooting a populated
+    // instance rather than an empty shell.
+    await shotPage
+      .locator('[data-test="directories-list"]')
+      .getByRole('link', { name: ADMIN_USERNAME, exact: true })
+      .click();
+
+    // Named one at a time so a failure says WHICH pane was missing. A single
+    // combined wait would report a timeout on the first selector and leave the
+    // reader guessing whether the others were fine.
+    //
+    // The row locator is the one every other check in this file uses --
+    // tr[data-test="file-row"] filtered by text -- rather than a bare
+    // getByText: the name also appears in the breadcrumb and in the tree, so
+    // getByText can be satisfied by a page whose file LISTING is empty.
+    for (const [label, locator] of [
+      ['the directory tree', shotPage.locator('[data-test="directory-tree"]')],
+      ['the files table', shotPage.locator('[data-test="files-table"]')],
+      ['the uploaded file\'s row', shotPage.locator('tr[data-test="file-row"]').filter({ hasText: FILE_NAME })],
+    ]) {
+      try {
+        await locator.first().waitFor({ state: 'visible', timeout: 15000 });
+      } catch (e) {
+        dumpContainerState(`[${phase}] ${label} was not visible in the ${ADMIN_USERNAME} directory, so the README screenshot would have shown a broken or empty UI -- ${e.message}`);
+        throw Object.assign(new Error(`README screenshot aborted: ${label} was not visible`), { dumped: true });
+      }
+    }
+    console.log(`[${phase}] the ${ADMIN_USERNAME} directory shows the tree, the table and ${FILE_NAME} -- capturing`);
+
+    await shotPage.screenshot({ path: target, fullPage: false });
+  } finally {
+    await shotContext.close();
+  }
+
+  // A capture that wrote nothing, or wrote a truncated file, must not pass as
+  // success: the committed image would stay as it was and the artifact would
+  // be junk. 20000 bytes is far below any real 1440x900 PNG of this UI and far
+  // above an empty or header-only file, so it separates "wrote something real"
+  // from "wrote nothing" without asserting a byte count that legitimate UI
+  // changes would move.
+  let size = 0;
+  try {
+    size = fs.statSync(target).size;
+  } catch (e) {
+    dumpContainerState(`[${phase}] page.screenshot() reported no error but ${target} does not exist -- ${e.message}`);
+    throw Object.assign(new Error('README screenshot was never written'), { dumped: true });
+  }
+  if (size < 20000) {
+    dumpContainerState(`[${phase}] ${target} is only ${size} bytes -- too small to be a screenshot of a populated files view`);
+    throw Object.assign(new Error(`README screenshot is implausibly small (${size} bytes)`), { dumped: true });
+  }
+  console.log(`[${phase}] README screenshot written to ${target} (${size} bytes) -- OK`);
+}
+
 async function runSetup() {
   const browser = await chromium.launch();
   try {
@@ -4235,6 +4397,9 @@ async function runSetup() {
     await page.goto(`${BASE_URL}/search`, { waitUntil: 'domcontentloaded' });
     await searchUntilFound(page, 'setup');
     console.log('[setup] search found the uploaded document -- OK');
+
+    console.log('[setup] capturing the README screenshot from the running container (issue #339)');
+    await captureReadmeScreenshot(page, 'setup');
 
     console.log('[setup] checking the search page\'s period filter actually narrows results (issue #17)');
     await checkSearchFilterExcludesByPeriod(page, 'setup');

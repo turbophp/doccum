@@ -849,7 +849,41 @@ jobs:
           # password-reset URL check added for item/reverse-proxy-ready)
           # depends on it.
           SMOKE_FORWARDED_HOST: ${{ env.SMOKE_FORWARDED_HOST }}
+          # issue #339. The README screenshot is produced HERE, by the same
+          # browser driving the same container the rest of this step asserts
+          # against -- there is no second pipeline, and no hand-taken image.
+          # captureReadmeScreenshot() refuses to capture a files view that is
+          # missing its tree, its table or the file this step just uploaded,
+          # so a broken UI fails this step rather than quietly producing a
+          # screenshot of the breakage.
+          SMOKE_SCREENSHOT_PATH: ${{ github.workspace }}/smoke-artifacts/readme-screenshot.png
         run: node .github/scripts/container-smoke.mjs setup
+
+      # Uploaded on every run, including a red one: when the smoke fails
+      # somewhere AFTER the capture, the image is the fastest way to see what
+      # the UI actually looked like. `if: always()` rather than success().
+      #
+      # if-no-files-found: ignore, and this step GUARDS NOTHING -- said plainly
+      # because the first version of this comment read as though it did. When
+      # the smoke dies before the capture the PNG legitimately does not exist,
+      # and a second red step there would be noise on an already-red job. The
+      # refusal that matters lives in captureReadmeScreenshot(), which fails
+      # the smoke itself if the file is missing or implausibly small.
+      #
+      # The committed docs/images/readme-files-view.png is refreshed FROM this
+      # artifact, deliberately as a manual step. See README.md's note and the
+      # PR for issue #339: a byte-comparison gate on a browser screenshot
+      # reddens main for font-rendering and timing differences that say
+      # nothing about the product, and this repository does not have a way to
+      # go red for a non-reason without teaching itself to ignore red.
+      - name: Upload the README screenshot this run produced
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: readme-screenshot
+          path: smoke-artifacts/readme-screenshot.png
+          if-no-files-found: ignore
+          retention-days: 7
 
       # item/reverse-proxy-ready (issue #58): TRUSTED_PROXIES and the
       # APP_URL-unset fallback (bootstrap/app.php, ForceRootUrlFromRequest)
