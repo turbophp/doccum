@@ -28,18 +28,33 @@ class DirectoryArchiveDownloadController extends Controller
      * that were legitimately theirs when they asked.
      *
      * So: the requester, or nobody.
+     *
+     * AND "NOBODY" NOW ANSWERS 404, NOT 403 -- item/reach-oracle-route-binding.
+     * {archive} used to be an implicit model binding, so another user's
+     * archive was resolved and then 403'd here while a nonexistent id 404'd
+     * from the binding: an existence oracle over every archive id in the
+     * instance, leaking how many archive jobs other people have and when.
+     * The id is now an int, scoped to the requester INSIDE the query, so
+     * both cases answer 404.
+     *
+     * The authorisation rule itself is unchanged -- requested_by, still not
+     * the directory's policy, for every reason the paragraphs above give.
+     * Only where it is enforced moved: from a refusal after the lookup into
+     * the lookup itself.
      */
-    public function __invoke(DirectoryArchive $archive): Response|StreamedResponse
+    public function __invoke(int $archive): Response|StreamedResponse
     {
-        abort_unless($archive->requested_by === auth()->id(), 403);
+        $model = DirectoryArchive::query()
+            ->where('requested_by', auth()->id())
+            ->findOrFail($archive);
 
-        abort_unless($archive->status === ArchiveStatus::Ready, 404);
-        abort_if($archive->object_key === null, 404);
-        abort_if($archive->hasExpired(), 410);
+        abort_unless($model->status === ArchiveStatus::Ready, 404);
+        abort_if($model->object_key === null, 404);
+        abort_if($model->hasExpired(), 410);
 
-        abort_unless($this->storage->exists($archive->object_key), 404);
+        abort_unless($this->storage->exists($model->object_key), 404);
 
-        $stream = $this->storage->disk()->readStream($archive->object_key);
+        $stream = $this->storage->disk()->readStream($model->object_key);
 
         abort_if($stream === null, 404);
 
@@ -48,7 +63,7 @@ class DirectoryArchiveDownloadController extends Controller
                 fpassthru($stream);
                 fclose($stream);
             },
-            $archive->directory->name.'.zip',
+            $model->directory->name.'.zip',
             ['Content-Type' => 'application/zip'],
         );
     }

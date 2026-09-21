@@ -329,10 +329,10 @@
     "expectFailing": "refuses to persist a username containing an at sign, whatever wrote it"
   },
   {
-    "id": "a-directory-archive-reaches-only-its-requester",
-    "why": "A zip of a directory is the one download that hands over many files at once, and it holds exactly what ONE viewer could reach at the moment the job ran. The download controller therefore authorises on requested_by rather than on the directory's policy, and the two are genuinely different questions: the test gives the other user Manage on the very directory that was archived, so a policy check would let them straight through. Remove the requested_by guard and that test fails -- someone with access to the directory downloads an archive assembled under somebody else's reach.",
+    "id": "a-directory-archive-is-found-only-by-its-requester",
+    "why": "item/reach-oracle-route-binding, the fifth site -- and this entry REPLACES `a-directory-archive-reaches-only-its-requester`, which removed `abort_unless($archive->requested_by === auth()->id(), 403);`. Recorded as a replacement rather than silently rewritten, per decision/0111. WHY THE OLD ENTRY COULD NOT SURVIVE. Its witness was the same test named below, which asserted 403 for another user's archive. {archive} was an implicit model binding, so someone else's archive was resolved and then refused here while a nonexistent id 404'd from the binding: an existence oracle over every archive id in the instance. Scoping the lookup to requested_by moves that refusal into the query, and the abort_unless it removed is now not merely unwitnessed but UNREACHABLE -- nothing the lookup returns can fail it. decision/0111 says to find the test that still reaches a guard and repoint the entry at it; here no such test can exist, so the guard itself is gone and this entry guards what replaced it. Nothing about the rule weakened: it is still requested_by and still not the directory's policy, for all the reasons the controller's docblock gives. Only where it is enforced moved. Removing this where() leaves DirectoryArchive::query()->findOrFail($archive) -- loadable code that finds ANYONE's archive, so $other gets the bytes and the 404 assertion fails. WHICH HALF OF THE PAIR THIS PROVES: only the someone-else's-archive half flips; the nonexistent id 404s either way.",
     "file": "app/Http/Controllers/DirectoryArchiveDownloadController.php",
-    "remove": "        abort_unless($archive->requested_by === auth()->id(), 403);\n",
+    "remove": "\n            ->where('requested_by', auth()->id())",
     "expectFailing": "hands a built archive only to the person who asked for it"
   },
   {
@@ -698,5 +698,12 @@
     "file": "app/Livewire/Files/Browser.php",
     "remove": "\n            ->whereIn('id', $access->reachRootIds(auth()->user()))",
     "expectFailing": "refuses to select a directory the viewer cannot view"
+  },
+  {
+    "id": "files-page-directory-scoped-to-reach",
+    "why": "item/reach-oracle-route-binding, the /files/{directory?} site. Browser::mount() takes a Directory resolved by IMPLICIT BINDING, so before this guard an existing directory outside the viewer's reach was found and refused by the authorize() below with 403, while an id no row carries 404'd from the binding -- an existence oracle over every directory id. Removing this abort_if leaves the authorize() as the only refusal and reopens it. A REACH CHECK RATHER THAN A SCOPED LOOKUP, unlike every other entry in this family, and for a stated reason: the router resolves the model before any of our code runs, and taking ?int instead would change a signature ~105 Livewire::test(Browser::class, ['directory' => $model]) call sites pass a MODEL to. That churn buys nothing observable -- the caller sees a status, and both cases answer 404 either way. WHICH HALF OF THE PAIR THIS PROVES: only the unreachable half flips. The nonexistent half 404s with or without this line, because the binding never resolves it (decision/0111). THE WITNESS IS AN HTTP TEST, not a Livewire::test() one, because Livewire::test() passes a resolved model straight to mount() and so cannot express the nonexistent half at all.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "\n            abort_if(! in_array((int) $directory->getKey(), array_map('intval', $reachableForMount), true), 404);\n",
+    "expectFailing": "answers an unreachable directory the same as a nonexistent one, for the files page"
   }
 ]

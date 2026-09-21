@@ -187,6 +187,33 @@ class Browser extends Component
     public function mount(?Directory $directory = null): void
     {
         if ($directory !== null) {
+            // item/reach-oracle-route-binding. /files/{directory?} resolves
+            // {directory} by IMPLICIT BINDING, before this method runs, so a
+            // directory outside the viewer's reach used to be found and then
+            // 403'd by the authorize() below while a nonexistent id 404'd
+            // from the binding -- an existence oracle over every directory id
+            // in the instance.
+            //
+            // A REACH CHECK RATHER THAN A SCOPED LOOKUP, unlike the seven
+            // sites in this class and the three File controllers, and the
+            // reason is not taste. Those resolve an int themselves, so the
+            // scoping goes in the query. Here the model is already resolved
+            // by the router before any of our code runs, and taking
+            // `?int $directory` instead would change the signature that ~105
+            // Livewire::test(Browser::class, ['directory' => $model]) call
+            // sites pass a MODEL to. That churn buys no security: what the
+            // caller observes is the status, and both cases answer 404 either
+            // way. The row being loaded server-side leaks nothing.
+            //
+            // (int) on both sides deliberately: viewableDirectoryIds() is
+            // pluck('id')->all(), whose element type is the driver's, and a
+            // driver returning strings would make a strict in_array() 404
+            // every legitimate directory while the SQLite suite stayed green.
+            // Same reasoning as FileVersionDownloadController's file_id cast.
+            $reachableForMount = app(DirectoryAccess::class)->viewableDirectoryIds(auth()->user());
+
+            abort_if(! in_array((int) $directory->getKey(), array_map('intval', $reachableForMount), true), 404);
+
             $this->authorize('view', $directory);
         }
 
