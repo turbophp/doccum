@@ -152,6 +152,25 @@ doccum must stay on stock Laravel's upgrade path.
   something over one that observes a resting state, and never cite an
   unmutated assertion as evidence.
 
+- **A guard that reports by printing is defeated by a pipe.** If a checking
+  tool signals its own scope in prose -- "Compared 18 commits", "skipping the
+  X check" -- that defence needs three things to hold: the line is emitted,
+  the reader sees it, and the reader notices when it is *missing*. The third
+  is the weak one. A wrong value is a signal; an absent line is a non-event,
+  indistinguishable from not having looked. And the second fails routinely
+  for reasons unrelated to care: these runs get invoked as `| tail -4`,
+  because the verdict is at the end, and the scope line is at the top. So
+  when a tool can be invoked in a way that checks nothing, make it REFUSE,
+  not announce. `validate-ledger.php` takes `<main-sha>` positionally, so
+  `MAIN_SHA=<sha> php .github/scripts/validate-ledger.php` set a variable it
+  never read, skipped the whole main-push-history check, and printed the same
+  "Ledger is sound"; its own comment had anticipated exactly that and chosen
+  a printed count as the defence. It cost two incidents -- a tree CI refused
+  being called sound, and a commit message citing a "Compared 19 commits"
+  line that was never emitted. This is not `decision/0080`: that rule is
+  about the reader's discipline in checking a citation, this is about the
+  tool's, and a guard delegated to a reader is not a guard (`decision/0113`).
+
 ## Docker
 
 - Base image `serversideup/php:8.5-frankenphp-bookworm` — no s6, so `supervisor`
