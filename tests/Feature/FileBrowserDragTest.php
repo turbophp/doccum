@@ -132,9 +132,62 @@ it('refuses a drop of a file the viewer cannot reach', function () {
     Livewire::actingAs($this->user)
         ->test(Browser::class, ['directory' => $this->source])
         ->call('dropMove', 'file', $file->id, $this->target->id)
-        ->assertForbidden();
+        ->assertNotFound();
 
     expect($file->fresh()->directory_id)->toBe($strangersDirectory->id);
+});
+
+it('answers a dropped file id that does not exist the same way as one out of reach', function () {
+    $nonexistent = ((int) File::query()->max('id')) + 1;
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'file', $nonexistent, $this->target->id)
+        ->assertNotFound();
+});
+
+/**
+ * The witness for dropMove()'s DIRECTORY-subject scoping, and it had to be
+ * built rather than found: no test dropped an unreachable FOLDER.
+ *
+ * The admin cannot demonstrate it -- directories.view-all resolves Manage on
+ * every directory, so nothing is ever out of reach for them -- and the member
+ * cannot either, because DirectoryPolicy::move() wants the directories.manage
+ * permission and a refusal for lacking THAT would prove nothing about reach.
+ * So: a member granted directories.manage directly, holding Manage on both
+ * ends and nothing at all on the folder being dragged.
+ */
+it('refuses a drop of a folder the viewer cannot reach', function () {
+    $mover = User::factory()->create();
+    $mover->assignRole('member');
+    $mover->givePermissionTo('directories.manage');
+    grant($this->source, $mover, AccessLevel::Manage);
+    grant($this->target, $mover, AccessLevel::Manage);
+
+    $strangers = Directory::factory()->create(['name' => 'Theirs']);
+    $folder = Directory::factory()->for($strangers, 'parent')->create(['name' => 'Secret']);
+
+    Livewire::actingAs($mover)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'directory', $folder->id, $this->target->id)
+        ->assertNotFound();
+
+    expect($folder->fresh()->parent_id)->toBe($strangers->id);
+});
+
+it('answers a dropped folder id that does not exist the same way as one out of reach', function () {
+    $mover = User::factory()->create();
+    $mover->assignRole('member');
+    $mover->givePermissionTo('directories.manage');
+    grant($this->source, $mover, AccessLevel::Manage);
+    grant($this->target, $mover, AccessLevel::Manage);
+
+    $nonexistent = ((int) Directory::query()->max('id')) + 1;
+
+    Livewire::actingAs($mover)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'directory', $nonexistent, $this->target->id)
+        ->assertNotFound();
 });
 
 it('reports a folder dropped into itself as a refusal rather than an exception', function () {

@@ -48,7 +48,16 @@ it('refuses to preview a file the viewer cannot reach', function () {
     Livewire::actingAs($this->member)
         ->test(Browser::class, ['directory' => $this->dir])
         ->call('preview', $file->id)
-        ->assertForbidden();
+        ->assertNotFound();
+});
+
+it('answers a previewed file id that does not exist the same way as one out of reach', function () {
+    $nonexistent = ((int) File::query()->max('id')) + 1;
+
+    Livewire::actingAs($this->member)
+        ->test(Browser::class, ['directory' => $this->dir])
+        ->call('preview', $nonexistent)
+        ->assertNotFound();
 });
 
 it('stops showing a preview once access is revoked, without being closed', function () {
@@ -89,16 +98,35 @@ it('trashes a file from its row', function () {
     expect($file->fresh()->trashed())->toBeTrue();
 });
 
-it('refuses to trash a file from a row when the viewer may not delete it', function () {
+/**
+ * Renamed under item/reach-existence-oracle clause 2, because the old name
+ * described a case this test never set up. It was "refuses to trash a file
+ * from a row when the viewer may not delete it", which reads as a permission
+ * refusal -- but $elsewhere carries no grant for $this->member at all, so the
+ * file is out of REACH, not merely undeletable. The distinction did not
+ * matter while both answered 403. It matters now: reach answers 404 and an
+ * insufficient level answers 403, and a test whose name says one while its
+ * fixture builds the other is how the next reader picks the wrong witness.
+ */
+it('refuses to trash a file from a row when the viewer cannot reach it', function () {
     $elsewhere = Directory::factory()->create(['name' => 'Theirs']);
     $file = File::factory()->for($elsewhere, 'directory')->create(['name' => 'theirs.txt']);
 
     Livewire::actingAs($this->member)
         ->test(Browser::class, ['directory' => $this->dir])
         ->call('trashFileRow', $file->id)
-        ->assertForbidden();
+        ->assertNotFound();
 
     expect($file->fresh()->trashed())->toBeFalse();
+});
+
+it('answers a trashed-row file id that does not exist the same way as one out of reach', function () {
+    $nonexistent = ((int) File::query()->max('id')) + 1;
+
+    Livewire::actingAs($this->member)
+        ->test(Browser::class, ['directory' => $this->dir])
+        ->call('trashFileRow', $nonexistent)
+        ->assertNotFound();
 });
 
 it('trashes a folder from its row', function () {
@@ -193,7 +221,7 @@ it('refuses to step into a file the viewer cannot reach', function () {
         ->test(Browser::class, ['directory' => $this->dir])
         ->call('preview', $mine->id)
         ->call('preview', $theirs->id)
-        ->assertForbidden();
+        ->assertNotFound();
 });
 
 // --- a preview is a place, not a dialog -------------------------------------

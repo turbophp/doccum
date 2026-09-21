@@ -428,7 +428,18 @@ class Browser extends Component
      */
     public function trashFileRow(int $fileId, TrashFile $action): void
     {
-        $file = File::query()->findOrFail($fileId);
+        // Scoped to the viewer's reach inside the query, the shape
+        // downloadDirectoryZip() already uses in this component. A file in a
+        // directory the viewer cannot reach and a file id that does not exist
+        // both resolve to null here, so both answer 404 and neither tells the
+        // caller which file ids exist (issue #109).
+        $reachableForRowTrash = app(DirectoryAccess::class)->viewableDirectoryIds(auth()->user());
+
+        $file = File::query()
+            ->whereIn('directory_id', $reachableForRowTrash)
+            ->find($fileId);
+
+        abort_if($file === null, 404);
 
         $this->authorize('delete', $file);
 
@@ -470,10 +481,29 @@ class Browser extends Component
      * download anyway, in a frame instead of a save dialog. The id is
      * re-resolved against the viewer's reach rather than trusted, because it
      * arrives from the client like any other.
+     *
+     * THAT SENTENCE WAS FALSE UNTIL item/reach-existence-oracle clause 2.
+     * The lookup was File::query()->findOrFail($fileId) -- no reach scoping
+     * whatever -- and authorize('view') below was doing all the refusing. The
+     * behaviour was safe and the comment was not, which is the kind of claim
+     * CLAUDE.md says gets checked like any other. It is true now, and the
+     * clause that made it true is the reason: an unreachable file and a
+     * nonexistent id must answer the SAME, or the status code tells the
+     * caller which file ids exist. findOrFail() answered 404 for one and
+     * 403 for the other.
      */
     public function preview(int $fileId): void
     {
-        $file = File::query()->findOrFail($fileId);
+        // Resolved through app() rather than an injected parameter because
+        // previewStep() calls this method directly in PHP, not through
+        // Livewire -- the same reason downloadDirectoryZip() does it this way.
+        $reachableForPreview = app(DirectoryAccess::class)->viewableDirectoryIds(auth()->user());
+
+        $file = File::query()
+            ->whereIn('directory_id', $reachableForPreview)
+            ->find($fileId);
+
+        abort_if($file === null, 404);
 
         $this->authorize('view', $file);
 
@@ -610,7 +640,14 @@ class Browser extends Component
         abort_if($destination === null, 404);
 
         if ($subjectType === 'file') {
-            $file = File::query()->findOrFail($subjectId);
+            // Scoped like the destination above: a file whose directory is
+            // outside the viewer's reach must answer the same as a file id
+            // that does not exist, or the status code is an oracle.
+            $file = File::query()
+                ->whereIn('directory_id', $reachableForDrop)
+                ->find($subjectId);
+
+            abort_if($file === null, 404);
 
             $this->authorize('move', [$file, $destination]);
 
@@ -624,7 +661,12 @@ class Browser extends Component
         }
 
         if ($subjectType === 'directory') {
-            $subject = Directory::query()->findOrFail($subjectId);
+            // The same scoping as the file branch, on the directory's own id.
+            $subject = Directory::query()
+                ->whereIn('id', $reachableForDrop)
+                ->find($subjectId);
+
+            abort_if($subject === null, 404);
 
             $this->authorize('move', [$subject, $destination]);
 
