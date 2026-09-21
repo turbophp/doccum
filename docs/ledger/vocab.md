@@ -1,10 +1,16 @@
 # Ledger vocabulary
 
 `docs/ledger/context.jsonld` declares `@vocab` as
-`https://github.com/turbophp/doccum/tree/main/docs/ledger/vocab#`. Every term
-context.jsonld defines without an explicit `@id` resolves against that base --
-which, until this file existed, pointed at nothing. This is what those terms
-resolve into.
+`https://github.com/turbophp/doccum/blob/main/docs/ledger/vocab.md#`. Every
+term context.jsonld defines without an explicit `@id` resolves against that
+base -- which, until this file existed, pointed at nothing. This is what those
+terms resolve into. The IRI is quoted here from context.jsonld line 4 as it
+stands. This paragraph previously quoted `tree/main/docs/ledger/vocab#`, which
+context.jsonld really did carry until `item/vocab-resolves` repointed it at
+this file (PR #332) -- so the quotation was right when written and went stale
+in the commit that made the rest of it true. A document that restates a value
+acquires that risk; this note is here so the next reader checks line 4 rather
+than trusting the restatement.
 
 Each entry says what the term means in this ledger, then cites the code that
 actually holds it to that meaning. `app/Support/LedgerValidator.php` is
@@ -369,47 +375,107 @@ describes, embedded directly rather than referenced (it is the one term
 `shapeErrors()` exempts from the usual "must be a string @id" check, because
 it legitimately carries a full node). context.jsonld maps `version` in
 general to `schema:version`, and that is the mapping `about.version` uses:
-there is no `about`-specific override. `LedgerValidator` requires `version`
-to be present on it (`REQUIRED_KEYS['SoftwareApplication']`) but checks
-nothing else about its value -- no pattern, no relationship to any tag or
-build.
+there is no `about`-specific override.
 
-`about.version` is **not** the version the working tree would build right
-now. That is a separate value, `config('doccum.version')` in
-`config/doccum.php`, which reads `env('DOCCUM_VERSION', '0.1.0-dev')` --
-falling back to the literal string `0.1.0-dev` when that environment
-variable is unset. `DOCCUM_VERSION` is set exactly once, as a Docker build
-arg, by `.github/workflows/release.yml`'s `image` job, from
-`steps.meta.outputs.version` -- `docker/metadata-action`'s reading of the git
-tag that triggered the run (`type=semver,pattern={{version}}`). Outside a
-tagged release build, nothing sets `DOCCUM_VERSION`, so the tree builds
-`0.1.0-dev`.
+**`about.version` is the ledger's record of the latest git tag pushed to this
+repository, written without its leading `v` -- not the version the working
+tree would build (that is `config('doccum.version')`, `0.1.0-dev` outside a
+release build) and not a prediction of the next tag, and `null` while no tag
+exists at all.**
 
-As of this writing, `about.version` in `docs/ledger/ledger.jsonld` reads
-`0.1.0`, while `git tag` on this repository lists nothing: no tag has been
-pushed, so `release.yml` has never run to completion, no image carrying a
-`DOCCUM_VERSION` build arg has ever been pushed to `ghcr.io`, and no GitHub
-Release exists. So under any reading that requires a release to have
-actually happened -- released, published, or built from a real tag --
-`about.version` is currently false. It is a number someone wrote into the
-ledger, not a number any of those three processes produced.
+That is the reading `item/about-version-defined` (issue #289) chose, and the
+rest of this section is why, what it costs, and who keeps it true.
 
-Which of the three readings `about.version` is *supposed* to mean is not
-decided here. `item/about-version-defined` (issue #289) is where that choice
-belongs, and it names candidates rather than picking one:
+### Why this reading and not the other two
 
-- the version this ledger records as **released** -- whatever the loop has
-  decided v1 (or the current milestone) has reached, independent of whether
-  a tag exists yet;
-- the version **published** to `ghcr.io` -- the tag of whatever image a
-  self-hoster's bare `docker pull` would actually receive today;
-- the version the tree **would build** -- `config('doccum.version')`, i.e.
-  `DOCCUM_VERSION` if a release build set it, else `0.1.0-dev`.
+The other two were already spoken for.
 
-These three agree once a release has fully landed and nothing has changed
-since. They diverge precisely *during* a release, because a release is not
-one atomic event: the tag is pushed, then `verify` runs the suite, then
-`image` builds and pushes to `ghcr.io`, then `release` cuts the GitHub
-Release -- and at any point before all of those finish, "released" can be
-ahead of "published," and both can be ahead of what an untagged checkout of
-`main` would build if built right now.
+- **The version the tree would build** is `config('doccum.version')`, which
+  reads `env('DOCCUM_VERSION', '0.1.0-dev')`. `DOCCUM_VERSION` is set exactly
+  once, as a Docker build arg, by `.github/workflows/release.yml`'s `image`
+  job, from `steps.meta.outputs.version`. A value that already has a home does
+  not get a second one here: two readers of one upstream value are one source
+  wearing two hats, and their agreement is not evidence of anything
+  (`decision/0080`). So nothing compares `about.version` against
+  `config('doccum.version')`, and nothing should start: they will read alike
+  after a release has fully landed, and that likeness is a coincidence of
+  timing rather than a check.
+- **A prediction of the next tag** is not a fact about anything, so no process
+  could ever contradict it. A field the repository cannot falsify is a field
+  that cannot be wrong, which is the same as saying it records nothing.
+
+The chosen reading, by contrast, was already presumed by the code. The
+"Deliberately NOT checked here" list in `app/Support/LedgerValidator.php`
+names `that about.version matches the latest published git tag` as a rule the
+validator declines only because it would need git history or the network. A
+rule can be *deliberately* not checked only if someone knew what checking it
+would mean, so that line has assumed this reading since it was written.
+Ratifying it leaves the line correct; overruling it would have made the line
+wrong and required changing it in the same breath, per `decision/0106`.
+
+### It may lag, and it may never lead
+
+`about.version` is a RECORD of the latest tag, not a reader of it, and the
+difference is the whole of its safety. The loop writes it in the ledger pass
+that follows the tag's `release.yml` run concluding `success` -- so between
+the tag landing and that pass, the field is one release behind. It is never
+ahead.
+
+That direction is deliberate. `item/tag-v1-0-0`'s `doneWhen` reads this field
+-- "the ledger's about.version reads 1.0.0" -- and `docs/LOOP.md`'s stopping
+condition is that item reaching `CompletedActionStatus`, so the loop's own
+termination depends on this value at one remove. (`LOOP.md` does not name
+`about.version` itself; grep it and the only hit is line 224, saying the
+section previously named a release node that never existed. The dependency is
+real and indirect, and saying "LOOP.md reads this field" would be the kind of
+citation `decision/0080` exists to catch.) A field that can only lag cannot
+fire a stopping rule early. A tag whose release run FAILED is the case that makes
+this concrete: the tag exists, so a reader of `git tag` would say `1.0.0`
+while no image and no GitHub Release do -- and this field, written only after
+a successful run, still says what was last actually released. The lag is the
+feature.
+
+### Who sets it, and when
+
+The loop, in the ledger pass after the release run concludes `success`. Not
+the owner: `decision/0117` retracted the premise that a ledger schema change
+is the owner's, and this is the same class of work as the three schema changes
+loop items already made to `context.jsonld` on 2026-09-18. What remains the
+owner's is the tag itself, and for a harder reason than convention:
+`decision/0085` recorded that `git push` of a tag returns HTTP 403 from the
+loop's environment, and `decision/0092` -- which narrowed that wall by finding
+`workflow_dispatch` accepted where the tag push was refused -- left the tag
+push itself still refused. `item/tag-v1-0-0`'s clause (4) asked exactly this question
+and now carries this answer.
+
+### The value was wrong, and is corrected here
+
+`about.version` read `0.1.0` from the ledger's first commit until
+`item/about-version-defined` shipped. `git tag` on this repository lists
+nothing: no tag has ever been pushed, `release.yml` has never run to
+completion, no image carrying a `DOCCUM_VERSION` build arg exists on
+`ghcr.io`, and no GitHub Release exists. So `0.1.0` was false under the
+reading chosen above, and false under the published-to-`ghcr.io` reading too;
+it was a number somebody wrote into the ledger, not a number any release
+process produced. It matched `config/doccum.php`'s `0.1.0-dev` only if you
+ignored the suffix.
+
+It is now `null`, which is this ledger's existing way of saying "the thing
+this field records has not happened yet" -- the same explicit-null convention
+`REQUIRED_KEYS` documents for a Potential Action's `startTime` and a void
+`Mutation`'s `check`, so a field nobody has set is distinguishable from one
+nobody declared. `null` rather than a string like `unreleased`, because a
+string is a value and would eventually be parsed as one.
+
+`LedgerValidator` requires `version` to be PRESENT on the `about` node
+(`REQUIRED_KEYS['SoftwareApplication']`) and checks nothing about its value:
+no pattern, no relationship to a tag. Everything above is therefore a
+convention this document holds, not a rule the validator enforces -- which is
+worth saying plainly rather than leaving a reader to infer enforcement from
+the citation line every other entry here carries.
+
+Enforced: `app/Support/LedgerValidator.php` -- presence only
+(`REQUIRED_KEYS['SoftwareApplication']` via `shapeErrors()`); the value's
+meaning is held by this document and by `item/tag-v1-0-0`'s `doneWhen`, and
+the tag comparison is on the validator's own "Deliberately NOT checked here"
+list because it needs git history the class stays blind to.
