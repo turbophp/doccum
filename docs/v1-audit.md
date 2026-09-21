@@ -338,6 +338,23 @@ report:
    "rather than shipping a manifest nobody has booted", and `item/tag-v1-0-0`
    requires *both* the arm64 boot and the Release. Today those can come apart.
 
+   **Observation 5 is discharged, and its last sentence is now false**
+   (2026-09-21; per this file's rule at the top, the later text says so rather
+   than overwriting the earlier). `release` was gated on `boot-published-image`
+   in PR #344, and PR #366 went further: `release.yml:663` is now
+   `needs: [image, boot-published-image, verify-version-label,
+   verify-latest-resolves-to-the-tag]`, so the announcement waits for **all
+   three** post-image verifications rather than one.
+   `.github/scripts/assert-release-gate.py` asserts every edge statically and
+   additionally refuses if a dependency's `if:` is narrower than its
+   dependent's — a skipped `needs` propagates its skip, so a narrower gate
+   would switch `release` off rather than make it wait.
+
+   The line numbers in the paragraph above (`release.yml:416`, `line 210`) had
+   also rotted before any of that: `#359` inserted a job above them. They are
+   left as written, because correcting a number inside a superseded
+   observation would make it look current. See `decision/0129`.
+
 None of the five is large. That is the point: the draft's error was not
 misjudging a hard call, it was reading at item granularity when blockers live at
 clause granularity — the exact reading LOOP.md step 4 was rewritten to forbid,
