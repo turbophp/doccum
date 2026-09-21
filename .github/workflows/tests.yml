@@ -75,6 +75,37 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
 
+      # issue #377. `undefined/H1-header.png` was tracked at the repo root for
+      # three days and shipped in every image layer -- .dockerignore does not
+      # cover it and the Dockerfile is `COPY . .`. A path segment named
+      # `undefined` is a tool interpolating a JavaScript variable that had no
+      # value; nobody types one. So the CLASS refuses rather than that one
+      # file, and it refuses at the pull request rather than three days and
+      # one published image later.
+      #
+      # Anchored with `-x` on whole path SEGMENTS, not a substring: a real
+      # file called `undefined.test.ts` or a directory `not-undefined/` is
+      # somebody's deliberate name and this has no opinion about it.
+      - name: No tracked path segment is a JavaScript accident
+        run: |
+          set -euo pipefail
+
+          hits="$(git ls-files | awk -F/ '{
+            for (i = 1; i <= NF; i++) {
+              if ($i == "undefined" || $i == "null" || $i == "NaN" || $i == "[object Object]") {
+                print; next
+              }
+            }
+          }')"
+
+          if [ -n "$hits" ]; then
+            echo "::error::a tracked path has a segment named undefined/null/NaN/[object Object] -- that is a tool interpolating a value it did not have, not a name. Delete the file; do not add it to .dockerignore, which would leave it in the repository. See issue #377."
+            echo "$hits"
+            exit 1
+          fi
+
+          echo "no tracked path segment is undefined, null, NaN or [object Object] (checked $(git ls-files | wc -l) tracked paths)"
+
       - name: Pint (format check)
         run: composer lint:check
 
