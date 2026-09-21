@@ -129,10 +129,35 @@ than half-booting.
    `--profile nonexistent` fails), so there is no way to scope a `${VAR:?}` to
    one profile. That cost was accepted deliberately in exchange for a refusal
    CI can prove without booting anything; see decision/0079.
-2. **Tag `v0.1.0`.** `.github/workflows/release.yml` builds multi-arch
+2. **Tag the first release.** `.github/workflows/release.yml` builds multi-arch
    (amd64/arm64) and pushes to `ghcr.io/turbophp/doccum`. The README and the
    self-hosting docs already name that ref; the `OWNER` placeholder is gone
    and a CI check keeps it gone.
+
+   **Which tag is an open question — see issue #302.** This step used to say
+   `v0.1.0` flatly. Under the plan `decision/0083` adopted, the first tag is a
+   throwaway PRE-RELEASE (`v0.1.0-rc1`), and the suffix is mandatory rather
+   than cosmetic: under `docker/metadata-action`'s default `latest=auto`, a
+   bare `v0.1.0` would move the `latest` tag, which a rehearsal must not do.
+   Under the alternative in #302 the first tag is a real release and `v0.1.0`
+   is correct. So the step names neither until that is decided.
+
+   **A PRE-RELEASE IMAGE OUTLIVES ITS TAG, AND REMOVING IT IS MANUAL.**
+   Deleting a tag and its GitHub Release does **not** delete the container
+   image it published: `ghcr.io` package versions are a separate resource, and
+   `GITHUB_TOKEN` has no permission to delete one, so no workflow can clean up
+   after itself. Whatever the rehearsal publishes stays published until a
+   person removes it.
+
+   doccum's position: **the rc image stays.** A version tagged `0.1.0-rc1`
+   sitting in the package list is honest — it was built and it did run — and a
+   bare `docker pull ghcr.io/turbophp/doccum` cannot reach it, because
+   `release.yml` publishes `latest` only for a tag with no `-` in it. So it
+   misleads nobody following the README. If you want it gone anyway, it is
+   **your** step and there is no automation to wait for: GitHub → the
+   repository's Packages → `doccum` → the version → Delete. Do it after the
+   real release, not before, so the rehearsal stays inspectable while it is
+   still the only thing that has run the pipeline.
 3. **Finish purging**, or document that retention is manual.
 4. Consider image size: ~1.34 GB, mostly Debian, PHP extensions, tesseract and
    vendor. Alpine and fewer OCR languages are the levers, both trade-offs.
