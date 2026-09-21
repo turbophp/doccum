@@ -102,28 +102,52 @@ jobs:
         id: meta
         with:
           images: ghcr.io/${{ github.repository }}
-          # `latest` on a non-pre-release TAG, which it was not before.
+          # WHERE `latest` COMES FROM, AND IT IS NOT THE LINE YOU THINK.
           #
           # item/tag-v1-0-0 clause (3) requires `docker pull
           # ghcr.io/turbophp/doccum` with NO tag to resolve to 1.0.0, and
           # README.md:10, docs/self-hosting/quick-start.md:11 and
           # backup-and-restore.md:67 all run the image untagged -- so every
           # quick start in this repository depends on `latest` existing.
-          # It did not: the raw entry below is gated on {{is_default_branch}},
-          # which decision/0103 established is FALSE for every tag push. A
-          # v1.0.0 tag would therefore have published 1.0.0 and 1.0 and no
-          # `latest` at all, leaving clause (3) unsatisfiable and the quick
-          # starts pulling a tag that does not exist. decision/0103 read this
-          # very line and framed it only as rc safety; it did not connect it
-          # to the clause.
           #
-          # The pre-release exclusion is the point, not a detail. `-` is
-          # SemVer's pre-release separator, so v0.1.0-rc1 is excluded and a
-          # throwaway rc cannot move the tag every quick start pulls -- which
-          # is the property decision/0103 established the rc already had for
-          # the versioned tags, now stated rather than inherited. Both halves
-          # are needed: on a branch push github.ref_name is the branch, and
-          # branch names here routinely contain '-'.
+          # It comes from the `flavor` input's `latest` option, which this
+          # workflow never sets and which therefore sits at its documented
+          # default of `auto`. Under auto the action generates `latest` for
+          # `type=semver,pattern=...` among others -- and the first tags entry
+          # below is exactly that. Read from the action's source at the SHA
+          # pinned above rather than from the README alone: src/meta.ts's
+          # procSemver sets latest=true on the non-prerelease branch and leaves
+          # it false on the prerelease branch, and generateTags appends
+          # `:latest` whenever that flag is set. So a stable tag push has
+          # ALWAYS published `latest`.
+          #
+          # THIS COMMENT USED TO SAY THE OPPOSITE, and the correction is kept
+          # here rather than quietly overwritten because the wrong version was
+          # load-bearing prose. It said clause (3) had been unsatisfiable --
+          # that "a v1.0.0 tag would have published 1.0.0 and 1.0 and no
+          # `latest` at all" -- citing decision/0103's conclusion that no tag
+          # push moves `latest`. decision/0103 reached that by reading this
+          # `tags:` list and stopping, without ever looking up `flavor`; it
+          # quoted the README accurately about PRE-RELEASE tags and then
+          # generalised to every tag. See decision/0122 and issue #348.
+          #
+          # SO THE LAST ENTRY IS REDUNDANT. It enables `latest` on exactly the
+          # condition `auto` already enables it. It is KEPT deliberately: the
+          # mechanism that actually does the work is an implicit default that
+          # this file does not mention, which is precisely how the wrong
+          # reading survived, and an explicit entry makes the intent legible to
+          # the next person to edit this list. What it is NOT is the guarantee
+          # -- deleting the `type=semver,pattern={{version}}` entry, not this
+          # one, is what would break the pull-with-no-tag promise. Its one real
+          # effect is a duplicate `latest` in steps.meta.outputs.tags, since
+          # generateTags does not deduplicate; build-push-action does not mind.
+          #
+          # THE rc IS EXCLUDED TWICE OVER, which is the one property here worth
+          # depending on. procSemver's prerelease branch leaves the auto flag
+          # false, and `-` is SemVer's pre-release separator so the entry below
+          # excludes v0.1.0-rc1 independently. Both halves of that entry are
+          # needed: on a branch push github.ref_name is the branch, and branch
+          # names here routinely contain '-'.
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -352,10 +376,16 @@ jobs:
   # and so could never disagree).
   #
   # Guarded more narrowly than its siblings: `latest` is published only on a
-  # non-pre-release tag (the type=raw rule in the image job above), so on an
-  # rc there is no `latest` for this run to check and a bare pull would
-  # resolve to whatever was published before it -- a stale image this run
-  # did not build. Skipped rather than failing, which is the honest answer.
+  # non-pre-release tag, so on an rc there is no `latest` for this run to
+  # check and a bare pull would resolve to whatever was published before it
+  # -- a stale image this run did not build. Skipped rather than failing,
+  # which is the honest answer.
+  #
+  # This used to attribute that exclusion to "the type=raw rule in the image
+  # job above". It is really docker/metadata-action's `flavor: latest=auto`
+  # default acting on `type=semver,pattern={{version}}`, whose prerelease
+  # branch leaves the latest flag false; the raw rule excludes an rc too, but
+  # it is redundant. See that job's comment, decision/0122 and issue #348.
   verify-latest-resolves-to-the-tag:
     name: a bare docker pull resolves to this tag
     needs: image
