@@ -100,6 +100,19 @@ did not cause.
 
 Both work inside the container: `docker exec doccum php artisan ...`
 
+## Where everything else is
+
+This file is the whole of what a first run needs. Everything past that lives in
+the repository rather than here, and until now nothing linked to any of it:
+
+| | |
+|---|---|
+| [`docs/self-hosting/`](docs/self-hosting/) | Nine pages for the person running the container: quick start, upgrading, backup and restore, storage, search, configuration reference, operations runbook, troubleshooting. |
+| [`docs/api/openapi.json`](docs/api/openapi.json) | The REST API — OpenAPI 3.1, 16 paths. A contract test checks it against the routes in both directions, so it describes what ships rather than what was intended. |
+| [`CHANGELOG.md`](CHANGELOG.md) | What changed, per version. A tagged release's GitHub Release body is extracted from it verbatim. |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | What the codebase expects from a patch. `CLAUDE.md` is the long version. |
+| [`SECURITY.md`](SECURITY.md) | How to report a vulnerability, and what is in scope. |
+
 ## Licence
 
 MIT.
