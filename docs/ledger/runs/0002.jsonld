@@ -22,7 +22,9 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35134518523",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35134518432",
-      "ledgerConclusion": "success"
+      "ledgerConclusion": "success",
+      "pagesRun": null,
+      "pagesConclusion": null
     }
   ]
 }

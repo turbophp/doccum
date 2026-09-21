@@ -21,7 +21,9 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35201323887",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35201323702",
-      "ledgerConclusion": "success"
+      "ledgerConclusion": "success",
+      "pagesRun": null,
+      "pagesConclusion": null
     },
     {
       "mergeSha": "3702b8fc27d7da2f9157faddb8fa210315932976",
@@ -30,7 +32,9 @@
       "testsRun": "https://github.com/turbophp/doccum/actions/runs/35211857569",
       "testsConclusion": "success",
       "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/35211857709",
-      "ledgerConclusion": "success"
+      "ledgerConclusion": "success",
+      "pagesRun": null,
+      "pagesConclusion": null
     }
   ]
 }

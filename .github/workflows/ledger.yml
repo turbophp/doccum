@@ -39,6 +39,22 @@ jobs:
           php-version: '8.5'
           coverage: none
 
+      # issue #375. Run.merges names one field pair per workflow and claims to
+      # be a CLOSED set; a closed set cannot under-report only if the set is
+      # right, and for two days it was not -- pages.yml ran on every push to
+      # main with nowhere in the schema to record it. LedgerValidator cannot
+      # catch that itself: it never reads .github/workflows/. This does, and
+      # refuses in both directions.
+      #
+      # Before the PHP, on purpose: if the set is wrong, every rule below is
+      # answering a question about the wrong workflows and its green means
+      # less than it looks.
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet 'PyYAML==6.0.2'
+
+      - name: Run.merges covers every workflow a main push triggers
+        run: python3 .github/scripts/assert-merge-record-covers-main-push.py --verbose
+
       - name: Ledger file exists
         run: |
           if [ ! -f docs/ledger/ledger.jsonld ]; then
