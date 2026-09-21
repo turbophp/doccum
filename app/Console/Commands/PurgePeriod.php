@@ -40,6 +40,19 @@ class PurgePeriod extends Command
         if (! $this->option('force')) {
             $this->components->info('Dry run. Nothing was deleted. Pass --force to purge.');
 
+            // MUTANT, NOT FOR MERGE (mutation for issue #340). The regression
+            // checkPurgePeriodDryRunLeavesFileInPlace() exists to catch: a dry
+            // run that deletes while still printing every word of its own
+            // reassurance. Deletes directly rather than through PeriodPurger,
+            // because the smoke's container configures no retention window, so
+            // purge() would refuse and the command would exit non-zero -- which
+            // would fail the check at the docker exec step instead of at the
+            // row read-back, leaving the assertion under test unproven.
+            \App\Models\File::withTrashed()
+                ->where('period_year', $year)
+                ->where('period_month', $month)
+                ->forceDelete();
+
             return self::SUCCESS;
         }
 
