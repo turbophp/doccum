@@ -1104,9 +1104,6 @@ final class LedgerValidator
     }
 
     /**
-     * @param  list<string>  $errors
-     */
-    /**
      * The workflows a push to `main` triggers, in the order Run.merges names
      * them. Each entry `w` owns the field pair `{w}Run` / `{w}Conclusion`.
      *
@@ -1129,6 +1126,9 @@ final class LedgerValidator
      */
     private const MAIN_PUSH_WORKFLOWS = ['tests', 'ledger', 'pages'];
 
+    /**
+     * @param  list<string>  $errors
+     */
     private static function checkMergeEntry(string $runId, string $index, mixed $entry, array &$errors): void
     {
         if (! is_array($entry)) {
