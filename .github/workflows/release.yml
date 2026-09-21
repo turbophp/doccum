@@ -400,9 +400,46 @@ jobs:
 
   # item/changelog-release-notes (issue #31): a pushed tag is also supposed
   # to produce a GitHub Release, body taken verbatim from that version's
-  # CHANGELOG.md section. Split from the `image` job (needs: image) so a
-  # release is never created ahead of -- or on top of a failed -- image
-  # push, but its own failure never blocks the image from having gone out.
+  # CHANGELOG.md section. Split from the `image` job so a release is never
+  # created ahead of -- or on top of a failed -- image push, but its own
+  # failure never blocks the image from having gone out.
+  #
+  # `needs` ALSO CARRIES boot-published-image, issue #303, and that is the
+  # same argument one step further. A GitHub Release is the user-visible
+  # announcement: it is what a self-hoster reads and trusts, where a ghcr
+  # package version is something they have to go looking for. Announcing a
+  # version whose arm64 image has not been shown to start is worse than
+  # merely having pushed it, and with `needs: image` alone that is exactly
+  # what happened -- `release` and `boot-published-image` both hung off
+  # `image` and ran in PARALLEL, so a red arm64 leg arrived after the
+  # Release was already public.
+  #
+  # This is not a new position. item/release-v0-1-0's own clause says to
+  # DROP linux/arm64 from this workflow "rather than shipping a manifest
+  # nobody has booted", and item/tag-v1-0-0 requires both the arm64 boot and
+  # the Release. A project holding that cannot also be neutral about
+  # announcing before the boot check finishes; the split was inconsistent
+  # with the items, and reconciling code with an item's doneWhen is ordinary
+  # work rather than a question for the owner (decision/0110, decision/0117).
+  #
+  # THE COST, stated because it is real: this serialises the one workflow
+  # that cannot be re-run against the same tag, so a tag's total time grows
+  # by the boot matrix. Accepted -- a slower announcement is recoverable, a
+  # wrong one is not.
+  #
+  # Both jobs carry the same `if: startsWith(github.ref, 'refs/tags/')`, so
+  # on a workflow_dispatch boot-published-image skips, `release` skips on its
+  # own guard, and behaviour there is unchanged.
+  #
+  # NOTHING HERE HAS EVER EXECUTED, and the gate cannot be proven by running
+  # it: release.yml fires on a tag or a dispatch, and a dispatch on main
+  # would publish ghcr `latest` with DOCCUM_VERSION=latest -- the unversioned
+  # publish decision/0090 warned against. So the guard is asserted
+  # STATICALLY instead, by the `release waits for the published image to
+  # boot` job in tests.yml, which parses this file and fails if
+  # boot-published-image leaves this list. A declared dependency nobody can
+  # exercise is worth more with an assertion that it is still declared than
+  # with a comment saying it should be.
   #
   # Guarded to the tag-push trigger only: this workflow also fires on
   # workflow_dispatch, where github.ref is whatever branch was dispatched
@@ -413,7 +450,7 @@ jobs:
   # not appearing.
   release:
     runs-on: ubuntu-latest
-    needs: image
+    needs: [image, boot-published-image]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
