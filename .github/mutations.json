@@ -211,9 +211,9 @@
   },
   {
     "id": "file-version-download-cross-file-404",
-    "why": "A version id that belongs to a different file must 404, never redirect to that file's object. {version} carries no directory_id of its own to check against the viewer's reach, so without this abort_if() anyone who can view ANY file could download the bytes of ANY version in the instance merely by guessing its id -- the cross-file hole authorize('download', $file) alone cannot close, because it only ever asks about $file, never about which file $version actually belongs to.",
+    "why": "A version id that belongs to a different file must 404, never redirect to that file's object. {version} carries no directory_id of its own to check against the viewer's reach, so without this abort_if() anyone who can view ANY file could download the bytes of ANY version in the instance merely by guessing its id -- the cross-file hole authorize('download', $file) alone cannot close, because it only ever asks about $file, never about which file $version actually belongs to. TEXT UPDATED, GUARD UNCHANGED: item/reach-oracle-route-binding renamed this method's $file to $model, because {file} is now an int resolved through viewableFileOrFail() and the model needs a name of its own. The abort_if is the same comparison against the same key; only the variable moved. The mutation sweep caught the stale text itself -- \"matches 0 times\" -- which is the checkable-predicate case decision/0113 asks for: the tool REFUSED rather than reporting a scope nobody read. A rename can silently unregister a guard, and here nothing silent happened.",
     "file": "app/Http/Controllers/FileVersionDownloadController.php",
-    "remove": "        abort_if((int) $fileVersion->file_id !== (int) $file->getKey(), 404);\n",
+    "remove": "        abort_if((int) $fileVersion->file_id !== (int) $model->getKey(), 404);\n",
     "expectFailing": "404s a version id belonging to a different file"
   },
   {
