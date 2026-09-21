@@ -264,16 +264,39 @@ report:
 1. **The README screenshot.** Filed above as clause (c)'s and therefore the
    owner's. It is not: `tests.yml`'s `image` job boots a container and drives
    Playwright on every push, and uploads artifacts at `tests.yml:141`.
-2. **`CHANGELOG.md`'s `[Unreleased]` section is empty while product code has
-   moved.** Lines 14–16 are `## [Unreleased]` immediately followed by
-   `## [0.1.0]`. `git log a5443d3..main -- app resources routes` — `a5443d3`
-   being the last commit to touch `CHANGELOG.md` — returns **9 commits**,
-   including the five reach-oracle ones and `d3eaf07`, which turns a mount-time
-   403 into a 404: a user-visible behaviour change. `item/tag-v1-0-0`'s clause
-   (1) requires a `[1.0.0]` section before the tag is pushed, and `release.yml`
-   builds the Release body from this file verbatim. Whether the entries end up
-   under `[1.0.0]` or a second `[0.1.0]` bullet depends on #302; **writing them
-   does not.**
+2. **`CHANGELOG.md` has no entry for a user-visible change that shipped.**
+   Lines 14–16 are `## [Unreleased]` immediately followed by `## [0.1.0]`.
+   `git log a5443d3..main -- app resources routes` — `a5443d3` being the last
+   commit to touch `CHANGELOG.md` — returns 9 commits, and **five of them are
+   product changes**: `a4452a8`, `1972fa6`, `4fa52d7` (`app/Livewire/Files/Browser.php`),
+   `5b18297` (four `app/Http/Controllers/` files) and `924cb38`
+   (`Browser.php` plus `routes/web.php`). Together they close the existence
+   oracle: an id outside the viewer's reach now answers 404 where it used to
+   answer 403, so the two are no longer distinguishable. That is a disclosure
+   fix and belongs under `### Security`.
+
+   The other four are not product: `f9354ed` and `111bfb7` are
+   `app/Support/Ledger*` (the loop's own tooling), `e5d862e` is `style: apply
+   pint`, and `4f69c4b` is a merge commit. A raw count of commits touching
+   `app/` is not a count of changelog-worthy changes, and this bullet said nine
+   before it said five.
+
+   **A correction, because this bullet is where I broke my own rule.** An
+   earlier draft of it cited `d3eaf07` as "a user-visible behaviour change".
+   `git show --stat d3eaf07` is one file: `tests/Feature/FileBrowserTest.php`.
+   Its *message* describes the 403→404 change; the commit itself updates the
+   test that observes it, and it is not in the `app resources routes` set at
+   all. I took that citation from the review that found this list and did not
+   check it — inside the paragraph asserting that every item here was
+   "re-verified against the tree by the search named beside it, rather than
+   taken on report". Verifying a claim that a wall is false is not different in
+   kind from verifying the wall; `decision/0080` applies to good news.
+
+   Where the entries land — `[0.1.0]`'s `Security` section, or a `[1.0.0]` one
+   — interacts with #302, but `[0.1.0]` has never been released, so adding to it
+   presumes nothing. `item/tag-v1-0-0`'s clause (1) requires a `[1.0.0]` section
+   before the tag, and `release.yml` builds the Release body from this file
+   verbatim.
 3. **`item/release-v0-1-0`'s rc-image disposal sentence is unwritten.** Its
    `doneWhen` ends by requiring that it be written down whether the rc image
    stays published or a human deletes it — "as the manual step it is".
