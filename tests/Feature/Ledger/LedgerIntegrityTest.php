@@ -196,6 +196,15 @@ function removeLedgerCopy(string $dir): void
     foreach ((array) glob($dir.'/*.jsonld') as $path) {
         unlink((string) $path);
     }
+    // vocab.md is not a .jsonld, so the glob above never reached it and
+    // rmdir() failed with "Directory not empty" -- a PHP warning, which Pest
+    // turns into a failure in the finally block AFTER every assertion in the
+    // test body has already passed. Four tests broke this way and all four
+    // looked like validator failures, because the name of a test that dies in
+    // cleanup is the name of the test (item/vocab-resolves).
+    if (is_file($dir.'/vocab.md')) {
+        unlink($dir.'/vocab.md');
+    }
     rmdir($dir);
 }
 
