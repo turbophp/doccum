@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert that release.yml's `release` job waits for `boot-published-image`.
+"""Assert release.yml's `needs:` edges, and that no dependency can skip out from under one.
 
 Issue #303. `release` used to be `needs: image`, and `boot-published-image`
 was ALSO `needs: image` -- so on a tag push the GitHub Release, which is the
@@ -54,7 +54,47 @@ REQUIRED_EDGES = [
         'item/changelog-release-notes exists to prevent, on the one tag that '
         'cannot be retried. See issue #358.',
     ),
+    (
+        'release',
+        'verify-version-label',
+        'The Release would be announced in parallel with the job proving the '
+        'published image\'s org.opencontainers.image.version label equals the '
+        'tag that triggered the run, so a self-hoster could be told v1.0.0 '
+        'exists while `docker inspect` on it says something else. Exactly the '
+        'issue #303 argument, applied to the second of the three post-image '
+        'verifications rather than the first.',
+    ),
+    (
+        'release',
+        'verify-latest-resolves-to-the-tag',
+        'The Release would be announced in parallel with the job proving a '
+        'bare `docker pull ghcr.io/turbophp/doccum` -- the exact command the '
+        'README quick start gives -- resolves to the manifest this tag '
+        'published. Announcing a version the quick start does not hand people '
+        'is the issue #303 failure in its most user-visible form.',
+    ),
 ]
+
+# A dependency that can skip when its dependent would run is not a gate: a
+# SKIPPED `needs` propagates its skip to the dependent, so narrowing a
+# dependency's `if:` silently turns `release` off rather than making it wait.
+# Measured on this repository rather than recalled --
+# https://github.com/turbophp/doccum/actions/runs/35648660548 ran a job with
+# `if: false` and a dependent whose own `if:` named something else; the
+# dependent was SKIPPED, and only a dependent written `!failure() &&
+# !cancelled()` ran.
+#
+# So every edge above must also satisfy: the dependency's `if:` is ABSENT
+# (it always runs, and can never skip the dependent) or STRING-IDENTICAL to
+# the gated job's (it runs exactly when the gated job would). Anything else
+# -- including a gate that is merely equivalent-looking -- is refused, and
+# the fix is to move the extra condition inside the job, as
+# verify-latest-resolves-to-the-tag does for a pre-release tag.
+#
+# String equality on purpose: this file cannot evaluate a GitHub expression,
+# and a check that guessed at what two different expressions mean would be a
+# guard whose answer is a guess. An intentional divergence should fail here
+# and be argued about, which is the point.
 
 # release.yml has had at least this many jobs since the boot jobs landed in
 # PR #287. The floor is a guard on the PARSE, not on the workflow's shape: a
@@ -107,6 +147,31 @@ def main() -> int:
 
         if verbose:
             print(f'{gated}.needs = {needs} -- includes {dependency}')
+
+        gated_if = jobs[gated].get('if')
+        dependency_if = jobs[dependency].get('if')
+
+        if dependency_if is not None and str(dependency_if).strip() != str(gated_if).strip():
+            print(
+                f'::error::{WORKFLOW}\'s `{dependency}` job is gated '
+                f'`if: {dependency_if}` while `{gated}`, which needs it, is '
+                f'gated `if: {gated_if}`. A skipped `needs` dependency skips '
+                f'its dependent (measured: '
+                f'https://github.com/turbophp/doccum/actions/runs/35648660548), '
+                f'so on a ref where `{dependency}` skips and `{gated}` would '
+                f'not, `{gated}` silently does not run either. Move the extra '
+                f'condition inside `{dependency}` and have it succeed with '
+                f'nothing asserted -- the idiom changelog-section uses for a '
+                f'non-tag ref, and verify-latest-resolves-to-the-tag for a '
+                f'pre-release one.'
+            )
+            return 1
+
+        if verbose:
+            print(
+                f'{dependency}.if = {dependency_if!r} -- '
+                f'{"absent, so it never skips" if dependency_if is None else "identical to " + gated}'
+            )
 
     print(
         f'{WORKFLOW}: all {len(REQUIRED_EDGES)} required needs-edges present '
