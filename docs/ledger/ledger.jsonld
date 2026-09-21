@@ -1644,10 +1644,13 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "Route-model binding resolves a subject BEFORE any policy runs, so the router answers \"does this id exist\" and the policy answers \"may you reach it\" -- and they answer differently by construction. A nonexistent id 404s from the binding; one that exists outside the viewer's reach is bound and then 403s from authorize(). That difference is an existence oracle, the same property item/reach-existence-oracle closed across Browser.php, on a surface that item does not cover.\n\nTHE SITES. This enumeration said FOUR and was wrong within a day, which is decision/0112 firing a second time -- on the item that decision created. It is FIVE. The four originally named: /files/{directory?} -> Browser::mount() (routes/web.php); FilePreviewController::__invoke(File $file); FileDownloadController::__invoke(File $file); FileVersionDownloadController::__invoke(File $file, int $version), on its {file} parameter only.\n\nAND THE FIFTH, missed: DirectoryArchiveDownloadController::__invoke(DirectoryArchive $archive), on /directories/archives/{archive}/download. A nonexistent archive id 404s from the binding; one that exists but belongs to someone else is bound and then answers 403 from `abort_unless($archive->requested_by === auth()->id(), 403)`. Same shape, same leak -- whether a given archive id exists, across every user's archive jobs.\n\nHOW IT WAS FOUND, because the method is the point. The original census walked Browser.php and the /api/v1 controllers. This one came from asking a different question -- not \"which lookups look unscoped\" but \"which route parameters are resolved by IMPLICIT MODEL BINDING at all\" -- and answering it by grepping every controller signature and Livewire mount() for a Model type-hint. That enumeration is checkable: implicit binding happens exactly when a route parameter's type-hint is a Model, so the set of signatures IS the set of sites. The earlier one was a list of places someone had looked.\n\nTHE ORACLE HERE IS CONFIRMED FROM THE TEST, not reasoned about: DirectoryArchiveTest's \"hands a built archive only to the person who asked for it\" asserts assertForbidden() for another user's archive, and the model carries no global scope (its booted() only assigns a uuid), so a nonexistent id takes the binding's 404. The two disagree.\n\nAND FIXING IT WILL DISARM A REGISTERED GUARD, which is decision/0111 and must be handled as that decision says rather than by weakening the entry. mutations.json's `a-directory-archive-reaches-only-its-requester` removes exactly that abort_unless line, and its witness is the assertForbidden() test above. Scoping the lookup to requested_by moves the refusal earlier, so removing the abort_unless would stop changing that test's outcome. Unlike decision/0111's case there is no other test that still reaches it -- scoping makes the line unreachable, not merely unwitnessed -- so the entry is to be REPLACED by one on the scoping itself, with its `why` recording which entry it succeeds and why the old guard stopped being reachable. Nothing about the protection weakens; the guard and its proof move together.\n\nTHE API IS NOT A SITE, and this was checked rather than assumed, because it is the obvious next worry. Every /api/v1 route declares `int $file` / `int $directory` and resolves through Api\\V1\\Controller::viewableFileOrFail() / viewableDirectoryOrFail(), which scope by the caller's reach inside the query. Implicit binding never runs there, so the API has neither the oracle nor any exposure to a fix applied here. This also rules out one candidate fix outright: Route::bind() is keyed on parameter NAME, not type, so a global binder for 'file' would substitute a File model into every `int $file` API signature and TypeError the whole API.\n\nONE OF THOSE NEEDS ITS RECORD CORRECTED, and the correction is part of this item because the mistaken claim is what hid the surface. FileVersionDownloadController was described as \"closing the oracle at 403\", and that is true of its VERSION id: with an unviewable file, an existing and a nonexistent version both answer 403, because the refusal happens before the version lookup is reached, and its own test says so. It is FALSE of the FILE id, where the binding/policy split is wide open. The controller closes one oracle and leaves another.\n\nTHE FIX SHAPE IS DIFFERENT FROM THE BROWSER.PHP ONE, which is the substantive reason this is its own item. In-query scoping cannot reach a parameter the router resolved before the controller was entered. The options are a scoped binding (Route::bind or a scoped implicit binding that filters by the viewer's reach) or moving the lookup into the controller body and scoping it there. Which of those, and whether the shared answer is 404 or 403, is for whoever builds it -- the requirement is only that the two cases AGREE, per the property above.\n\nDONE WHEN each of the four sites answers identically for a subject that exists outside the viewer's reach and for an id that does not exist; each carries a TEST PAIR asserting both halves, because one case cannot show that two answers match; and each is registered in .github/mutations.json with an expectFailing that has been shown to flip -- naming which half of the pair the entry actually proves, since removing a scope typically breaks only the out-of-reach half (decision/0111). FileVersionDownloadController's existing VERSION-id coverage stays as it is and is not the witness for its FILE-id guard.\n\nTHIS RAISES THE v1 GAP FROM SEVEN TO EIGHT, said plainly per decision/0105 rather than left for a reader to notice. It is v1 on the same grounds as its sibling: an information disclosure, however small, in a product whose entire premise is per-directory access control, and one item/v1-audit would have to raise anyway. Filed by the loop under decision/0110, which retracted the invented premise that creating an item is the owner's.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-21T09:55:00Z",
+      "endTime": "2026-09-21T11:00:00Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/315",
+        "https://github.com/turbophp/doccum/pull/316"
+      ]
     },
     {
       "@id": "item/vector-index-seam",
@@ -3876,6 +3879,38 @@
       "headSha": "4fa52d779c75a506716300534beb8479fda28cdb",
       "mergedAt": "2026-09-21T09:42:17Z",
       "mergeSha": "44919e0bd91298da13dab98d5d784e5b0c93347b",
+      "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/315",
+      "@type": "PullRequest",
+      "identifier": 315,
+      "name": "The three File controllers stop using implicit binding",
+      "implements": [
+        "item/reach-oracle-route-binding"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T10:35:47Z",
+      "headSha": "8e63ff3b8e13c7c9b523ba70f3747d094262ef22",
+      "mergedAt": "2026-09-21T10:45:12Z",
+      "mergeSha": "41cc82b693426c6022bbd42091169cec34c9285f",
+      "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/316",
+      "@type": "PullRequest",
+      "identifier": 316,
+      "name": "The last two binding sites, and a guard replaced",
+      "implements": [
+        "item/reach-oracle-route-binding"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T10:46:20Z",
+      "headSha": "d3eaf073b72636d5377baa5606ca7bfe18b08f3f",
+      "mergedAt": "2026-09-21T10:57:32Z",
+      "mergeSha": "2867ebf3bb8a9f37b92c93e9438cbdf8de08b75d",
       "mergedIn": "run/0021"
     }
   ],
@@ -6366,6 +6401,76 @@
       "headSha": "4fa52d779c75a506716300534beb8479fda28cdb",
       "mutant": ".github/mutations.json entry `select-directory-root-scoped-to-reach`, a registered guard the CI `guards` job re-runs on every push. Removing the whereIn leaves Directory::query()->find($directoryId) unscoped at the root branch, so an unviewable root is found and answers 403 from authorize('view') while a nonexistent id answers 404.\n\nWHAT THE OLD UNION CONTRIBUTED, which is the finding this entry preserves. The branch used to union whereNull('parent_id') with reachRootIds(), and its comment defended that as \"the lookup only ever widens what can be found\" -- true, and silent about WHAT. reachRootIds() is derived from viewableDirectoryIds(), returning the viewable directories whose parent is null or not viewable, so every root a viewer may legitimately see is already in it, including every root for an admin holding directories.view-all. The disjunct added exactly one class of row: true roots the viewer CANNOT view. It widened the lookup by precisely the set that must be refused.\n\nWHICH HALF OF THE PAIR IT PROVES: only the out-of-reach test flips; the companion asserting a nonexistent id answers the same still passes with the scoping removed (decision/0111).",
       "check": "The `guards` job on PR #308, run https://github.com/turbophp/doccum/actions/runs/35584117401, head 4fa52d7. Verbatim:\n\n  === select-directory-root-scoped-to-reach ===\n      guard present  -> \"refuses to select a directory the viewer cannot view\" passes\n      guard deleted  -> \"refuses to select a directory the viewer cannot view\" fails, as it must\n\nand the closing line, \"All 100 guard(s) are load-bearing.\" The full six-way test matrix was also green, which is where the OTHER risk of this change would have surfaced: dropping a disjunct could have made a legitimately viewable root stop resolving, a functional regression rather than a security one.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0044",
+      "@type": "Mutation",
+      "implements": [
+        "item/reach-oracle-route-binding"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/315",
+      "run": "run/0021",
+      "headSha": "8e63ff3b8e13c7c9b523ba70f3747d094262ef22",
+      "mutant": "FilePreviewController::__invoke() used to take File $file. ONE LINE, THREE ENTRIES. viewableFileOrFail() moved up from Api\\V1\\Controller to the base controller so the three web controllers could stop using implicit model binding, and a single whereIn is the scoping for all of them. Removing it leaves File::query()->findOrFail($id) -- loadable code that finds ANY file, so an unreachable one is resolved and refused later by authorize() with 403 while a nonexistent id 404s: the oracle reopened. Three entries name the same removal with three different witnesses, because one would prove only that ONE of the three surfaces still depends on it. Only the out-of-reach half of each pair flips; the nonexistent half 404s either way (decision/0111).",
+      "check": "The `guards` job on PR #315, run https://github.com/turbophp/doccum/actions/runs/35589994265, head 8e63ff3. Verbatim:\n\n  === preview-file-scoped-to-reach ===\n      guard present  -> \"answers an unreachable file the same as a nonexistent one, for preview\" passes\n      guard deleted  -> \"answers an unreachable file the same as a nonexistent one, for preview\" fails, as it must\n\nand the closing line, \"All 103 guard(s) are load-bearing.\"",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0045",
+      "@type": "Mutation",
+      "implements": [
+        "item/reach-oracle-route-binding"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/315",
+      "run": "run/0021",
+      "headSha": "8e63ff3b8e13c7c9b523ba70f3747d094262ef22",
+      "mutant": "FileDownloadController::__invoke() used to take File $file. ONE LINE, THREE ENTRIES. viewableFileOrFail() moved up from Api\\V1\\Controller to the base controller so the three web controllers could stop using implicit model binding, and a single whereIn is the scoping for all of them. Removing it leaves File::query()->findOrFail($id) -- loadable code that finds ANY file, so an unreachable one is resolved and refused later by authorize() with 403 while a nonexistent id 404s: the oracle reopened. Three entries name the same removal with three different witnesses, because one would prove only that ONE of the three surfaces still depends on it. Only the out-of-reach half of each pair flips; the nonexistent half 404s either way (decision/0111).",
+      "check": "The `guards` job on PR #315, run https://github.com/turbophp/doccum/actions/runs/35589994265, head 8e63ff3. Verbatim:\n\n  === download-file-scoped-to-reach ===\n      guard present  -> \"answers an unreachable file the same as a nonexistent one, for download\" passes\n      guard deleted  -> \"answers an unreachable file the same as a nonexistent one, for download\" fails, as it must\n\nand the closing line, \"All 103 guard(s) are load-bearing.\"",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0046",
+      "@type": "Mutation",
+      "implements": [
+        "item/reach-oracle-route-binding"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/315",
+      "run": "run/0021",
+      "headSha": "8e63ff3b8e13c7c9b523ba70f3747d094262ef22",
+      "mutant": "FileVersionDownloadController::__invoke() used to take File $file alongside its int $version. Its docblock already declined implicit binding for {version} to close the oracle over version ids and left it open over file ids in the same method -- the half-truth decision/0112 records. ONE LINE, THREE ENTRIES. viewableFileOrFail() moved up from Api\\V1\\Controller to the base controller so the three web controllers could stop using implicit model binding, and a single whereIn is the scoping for all of them. Removing it leaves File::query()->findOrFail($id) -- loadable code that finds ANY file, so an unreachable one is resolved and refused later by authorize() with 403 while a nonexistent id 404s: the oracle reopened. Three entries name the same removal with three different witnesses, because one would prove only that ONE of the three surfaces still depends on it. Only the out-of-reach half of each pair flips; the nonexistent half 404s either way (decision/0111).",
+      "check": "The `guards` job on PR #315, run https://github.com/turbophp/doccum/actions/runs/35589994265, head 8e63ff3. Verbatim:\n\n  === version-download-file-scoped-to-reach ===\n      guard present  -> \"answers an unreachable file the same as a nonexistent one, for a version download\" passes\n      guard deleted  -> \"answers an unreachable file the same as a nonexistent one, for a version download\" fails, as it must\n\nand the closing line, \"All 103 guard(s) are load-bearing.\"",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0047",
+      "@type": "Mutation",
+      "implements": [
+        "item/reach-oracle-route-binding"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/316",
+      "run": "run/0021",
+      "headSha": "d3eaf073b72636d5377baa5606ca7bfe18b08f3f",
+      "mutant": "Browser::mount() takes a Directory resolved by IMPLICIT BINDING, so before this guard an existing directory outside the viewer's reach was found and refused by authorize() with 403 while an id no row carries 404'd from the binding. Removing the abort_if leaves authorize() as the only refusal and reopens the oracle. A REACH CHECK RATHER THAN A SCOPED LOOKUP, unlike every other entry in this family: the router resolves the model before any of our code runs, and taking ?int instead would change a signature ~105 Livewire::test() call sites pass a MODEL to, for no observable gain -- the caller sees a status and both cases answer 404 either way. THE WITNESS IS AN HTTP TEST, load-bearingly so: Livewire::test() hands mount() a resolved model, so it cannot express the nonexistent half at all.",
+      "check": "The `guards` job on PR #316, run https://github.com/turbophp/doccum/actions/runs/35590990508, head d3eaf07. Verbatim:\n\n  === files-page-directory-scoped-to-reach ===\n      guard present  -> \"answers an unreachable directory the same as a nonexistent one, for the files page\" passes\n      guard deleted  -> \"answers an unreachable directory the same as a nonexistent one, for the files page\" fails, as it must\n\nand the closing line, \"All 104 guard(s) are load-bearing.\"",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0048",
+      "@type": "Mutation",
+      "implements": [
+        "item/reach-oracle-route-binding"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/316",
+      "run": "run/0021",
+      "headSha": "d3eaf073b72636d5377baa5606ca7bfe18b08f3f",
+      "mutant": "THE FIFTH SITE, the one decision/0114's predicate found after the enumeration had missed it. {archive} was an implicit binding, so another user's archive was resolved and then 403'd by abort_unless($archive->requested_by === auth()->id(), 403) while a nonexistent id 404'd -- an oracle over every archive id, leaking how many archive jobs other people have and when. THIS ENTRY REPLACES `a-directory-archive-reaches-only-its-requester`, which removed that abort_unless. decision/0111 says to repoint an entry at a test that still reaches its guard; here none can exist, because scoping the lookup to requested_by makes the abort_unless not merely unwitnessed but UNREACHABLE -- nothing the query returns can fail it. So the guard went and this entry guards what replaced it. The RULE is unchanged: still requested_by, still not the directory's policy, for every reason the controller's docblock gives. Only where it is enforced moved.",
+      "check": "The `guards` job on PR #316, run https://github.com/turbophp/doccum/actions/runs/35590990508, head d3eaf07. Verbatim:\n\n  === a-directory-archive-is-found-only-by-its-requester ===\n      guard present  -> \"hands a built archive only to the person who asked for it\" passes\n      guard deleted  -> \"hands a built archive only to the person who asked for it\" fails, as it must\n\nand the closing line, \"All 104 guard(s) are load-bearing.\"\n\nThe superseded entry's own witness is this same test, which now asserts 404 for the other user rather than 403, plus a nonexistent-id half that 404s either way.",
       "verdict": "negative",
       "supersedes": null
     }
