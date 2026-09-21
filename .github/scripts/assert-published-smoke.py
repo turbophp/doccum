@@ -125,6 +125,38 @@ def main() -> int:
 
     steps = jobs[JOB].get('steps') or []
 
+    # --- 0. the repository is actually on the runner ------------------------
+    #
+    # ADDED AFTER THE FIRST VERSION SHIPPED WITHOUT IT, and the miss is the
+    # reason this check exists rather than a hypothetical. `boot-published-image`
+    # had no `actions/checkout` at all -- it did not need one, because every
+    # step it had worked from the registry and the git ref alone. The moment
+    # a step ran `node .github/scripts/container-smoke.mjs`, that became a
+    # read of a file the runner does not have, and NOTHING ELSE HERE WOULD
+    # HAVE NOTICED: the container name matched, the port matched, all seven
+    # SMOKE_* variables were supplied. Every assertion below would have
+    # passed while the job failed at tag time on a missing path, in the one
+    # job this project cannot rehearse.
+    #
+    # Checked before the others deliberately: a job with no tree cannot run
+    # the script at all, so reporting "CONTAINER_NAME matches" first would
+    # name a detail while the floor was missing.
+    if any('container-smoke.mjs' in (s.get('run') or '') for s in steps):
+        checkouts = [s for s in steps if 'actions/checkout' in str(s.get('uses') or '')]
+        if not checkouts:
+            print(
+                f'::error::`{JOB}` runs container-smoke.mjs but never checks out '
+                f'the repository -- `node .github/scripts/container-smoke.mjs` and '
+                f'`npm install --prefix .github/scripts` both read files out of the '
+                f'tree, so this job would fail at tag time on a path that does not '
+                f'exist. Every other job in this workflow that runs a repo script '
+                f'(`image`, `release`, `verify-release-notes`) checks out. '
+                f'See issue #340.'
+            )
+            return 1
+        if verbose:
+            print(f'`{JOB}` checks out the repository, so the script it runs is on the runner')
+
     # --- 1. a step invokes container-smoke.mjs -----------------------------
 
     smoke_steps = [s for s in steps if 'container-smoke.mjs' in (s.get('run') or '')]

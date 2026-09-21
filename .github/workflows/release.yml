@@ -337,6 +337,24 @@ jobs:
       # requires with no default are reproduced -- the rest (trash/version/
       # stale-user fixtures) are for `seed-stale`/`verify`, which this job
       # never runs.
+      # THE REPOSITORY IS NOT ON THIS RUNNER UNTIL HERE, and nothing above
+      # needed it: every step before this one works from the registry and
+      # the git ref alone, which is why this job had no checkout at all
+      # until the smoke arrived. `node .github/scripts/container-smoke.mjs`
+      # and `npm install --prefix .github/scripts` both read files out of
+      # the tree, so without this they fail on a path that does not exist --
+      # at tag time, in the one job that cannot be rehearsed. Every other
+      # job in this workflow that runs a repo script (`image`, `release`,
+      # `verify-release-notes`) checks out for the same reason;
+      # assert-published-smoke.py now refuses if this job stops doing so.
+      #
+      # amd64-gated like the steps below it: the arm64 leg runs only the
+      # single-string boot check above and needs no tree.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: matrix.arch == 'amd64'
+        with:
+          persist-credentials: false
+
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: matrix.arch == 'amd64'
         with:
