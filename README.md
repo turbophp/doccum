@@ -4,6 +4,16 @@ Self-hosted document management. Directories, versioned files, governed
 metadata, and search that reaches inside the documents themselves — including
 OCR of scanned pages.
 
+![The doccum files view: a directory tree on the left, the files in the
+selected directory in the middle, and per-file actions on the
+right](docs/images/readme-files-view.png)
+
+That image is taken by CI from the real container, on a run of the same
+container smoke test that proves the UI works — not by hand, and not from a
+mockup. It is a point-in-time picture rather than a guaranteed-current one: a
+fresh capture is attached to every CI run as the `readme-screenshot` artifact,
+and refreshing this file from it is a manual step.
+
 ## Run it
 
 ```bash

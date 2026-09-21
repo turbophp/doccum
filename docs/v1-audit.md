@@ -190,9 +190,24 @@ node read by path at `b8b5026`, not a comparison a script performed. A stronger
 check is not available for "a document exists and says the right thing", and
 saying so is cheaper than implying otherwise.
 
-The fourth, smaller observation from the first pass **stands and is not
-discharged**: §12 asks README for "what it is, screenshot, three-line quick
-start". The first and third are there; there is still no screenshot.
+The fourth, smaller observation from the first pass **is now discharged**: §12
+asks README for "what it is, screenshot, three-line quick start". The first and
+third were already there; the second landed in PR #351 (issue #339).
+
+`captureReadmeScreenshot()` in `container-smoke.mjs` takes it from the running
+container, at the point in the run where the files view holds a directory, a
+real upload and an extracted document, and `docs/images/readme-files-view.png`
+is that capture. It asserts before it captures -- the directory tree, the files
+table and the uploaded file's own row, each named separately -- because a bare
+`page.screenshot()` is green against a blank page or a Flux component the image
+failed to resolve, and would have written the breakage out as a file nobody
+looked at.
+
+**The staleness question is answered rather than left open**, which #339 asked
+for explicitly: the committed image is point-in-time, a fresh one is uploaded as
+an artifact on every run, and a byte-comparison gate was rejected because a
+browser screenshot moves with font rendering and timing, so a pixel diff would
+redden `main` for reasons that say nothing about the product.
 
 **AND THE FIRST PASS FILED IT IN THE WRONG COLUMN.** It wrote that a screenshot
 "needs a running instance to produce, so it sits with the owner-blocked work in
