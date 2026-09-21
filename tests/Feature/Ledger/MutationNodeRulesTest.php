@@ -78,6 +78,11 @@ function makeSmallMutationFixture(array $mutations, string $itemId = 'item/small
     mkdir($dir.'/runs', 0777, true);
 
     copy(base_path('docs/ledger/context.jsonld'), $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(base_path('docs/ledger/vocab.md'), $dir.'/vocab.md');
 
     $prUrl = 'https://github.com/turbophp/doccum/pull/9001';
 
@@ -196,6 +201,11 @@ function makeRunThresholdMutationFixture(array $mutations, ?string $testsConclus
     mkdir($dir.'/runs', 0777, true);
 
     copy(base_path('docs/ledger/context.jsonld'), $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(base_path('docs/ledger/vocab.md'), $dir.'/vocab.md');
 
     $prUrl = 'https://github.com/turbophp/doccum/pull/9002';
     $lastRunNumber = MUTATION_RULES_EFFECTIVE_AFTER_RUN_UNDER_TEST + 1; // run/0019

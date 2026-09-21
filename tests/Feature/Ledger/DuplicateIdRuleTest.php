@@ -75,6 +75,11 @@ function makeDuplicateIdFixture(array $items): string
     mkdir($dir.'/runs', 0777, true);
 
     copy(base_path('docs/ledger/context.jsonld'), $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(base_path('docs/ledger/vocab.md'), $dir.'/vocab.md');
 
     $run0 = [
         '@context' => '../context.jsonld',

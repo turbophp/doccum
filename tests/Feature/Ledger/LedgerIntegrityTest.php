@@ -157,6 +157,11 @@ function ledgerCopyWithExtraRunKey(string $key, mixed $value): string
     mkdir($dir.'/runs', 0777, true);
 
     copy(ledgerDirectoryPath().'/context.jsonld', $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(ledgerDirectoryPath().'/vocab.md', $dir.'/vocab.md');
     copy(ledgerDirectoryPath().'/ledger.jsonld', $dir.'/ledger.jsonld');
 
     foreach ((array) glob(ledgerDirectoryPath().'/runs/*.jsonld') as $path) {
@@ -256,6 +261,11 @@ function ledgerCopyWithNodeFieldOverride(string $collection, string $id, string 
     mkdir($dir.'/runs', 0777, true);
 
     copy(ledgerDirectoryPath().'/context.jsonld', $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(ledgerDirectoryPath().'/vocab.md', $dir.'/vocab.md');
 
     $ledger = json_decode((string) file_get_contents(ledgerDirectoryPath().'/ledger.jsonld'), true);
     $found = false;
@@ -290,6 +300,11 @@ function ledgerCopyWithLastMergeFieldOverride(string $runFilename, string $key, 
     mkdir($dir.'/runs', 0777, true);
 
     copy(ledgerDirectoryPath().'/context.jsonld', $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(ledgerDirectoryPath().'/vocab.md', $dir.'/vocab.md');
     copy(ledgerDirectoryPath().'/ledger.jsonld', $dir.'/ledger.jsonld');
 
     foreach ((array) glob(ledgerDirectoryPath().'/runs/*.jsonld') as $path) {
