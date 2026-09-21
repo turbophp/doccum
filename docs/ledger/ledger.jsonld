@@ -1483,8 +1483,8 @@
         "item/upgrade-smoke"
       ],
       "doneWhen": "A checklist in the PR body walks spec milestones 1 to 11 and this backlog; pint clean, phpstan at or below baseline, smoke green; a manual run of the published image through install, upload, share, search, trash and a purge dry run is recorded.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-21T12:57:00Z",
       "endTime": null,
       "result": []
     },
@@ -5811,6 +5811,36 @@
         "spec:14-testing"
       ],
       "affects": [],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0116",
+      "@type": "Decision",
+      "dateCreated": "2026-09-21T12:55:00Z",
+      "run": "run/0021",
+      "name": "A rule that refutes itself loses to its own operative sentence",
+      "rationale": "LOOP.md step 4 already argued this correctly and then undid it in its last line.\n\nThe paragraph spends four sentences establishing that dependsOn is declared per\nITEM while blockers are per CLAUSE, that \"an item whose dependencies are unmet\nis therefore not evidence that nothing in it can be built\", and that this\nreading \"has now cost four days across three items\" (decision/0107,\ndecision/0110). It then closes: \"Read every clause of every ELIGIBLE item.\"\n\nEligible is defined eleven lines above as an item whose dependencies are all\nCompleted. So the operative instruction re-imposed precisely the restriction the\nparagraph had just removed, and the operative instruction is what gets followed.\n\nTHE COST, CONCRETE. item/v1-audit dependsOn twenty-two items, of which two\n(item/image-size, item/readme-owner) are open. It is therefore never eligible,\nso its clauses were never read. Its FIRST clause is \"a checklist in the PR body\nwalks spec milestones 1 to 11 and this backlog\" -- which needs no tag, no\npublished image and no repository setting. An S-sized audit, and the only\ninstrument that would turn decision/0102's accounting question into a checked\nlist, sat buildable for days behind one word. This is the fourth instance of\ndecision/0107's shape and the largest.\n\nWHY THE WEAKER SENTENCE WON, which is the part worth generalising. A reader\nfollows the imperative, not the argument preceding it. Where a rule reasons its\nway to a conclusion and then states an instruction narrower than that\nconclusion, the instruction IS the rule and the reasoning is decoration. That is\ndecision/0108's warning -- the next reader finds the weaker restatement --\narriving inside a single paragraph rather than across two documents.\n\nTHE VALIDATOR NEVER REQUIRED THIS. It forbids marking an Action Completed while\na dependsOn is not (LedgerValidator.php, \"is Completed but dependsOn ... is\nnot\"); Active is unconstrained. The restriction was LOOP.md's alone.\n\nFOUND BY CONSULTATION, and worth recording as the consultation earning its keep.\nThree previous ones were right on substance and wrong on details. This one was\nchecked claim by claim before anything moved -- the step numbering, the clause\ntext, the dependsOn set, the validator's Completed-only rule -- and every checked\nclaim held. It also corrected two errors in the brief it was given, one of them\nthis loop's own count of how many merges the accounting gap covers.\n\nAND THE STEP NUMBER WAS MIS-CITED THROUGHOUT. Consult is step 8; step 9 is\nRe-arm. This loop has said \"step 9\" for the consultation repeatedly, including in\nrun/0021's description. Corrected here, because decision/0110 is an entire node\nabout a mis-attributed rule number.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/v1-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0117",
+      "@type": "Decision",
+      "dateCreated": "2026-09-21T12:55:00Z",
+      "run": "run/0021",
+      "name": "Retracting the premise that a schema change is the owner's",
+      "rationale": "decision/0105 declines two remedies for its own accounting problem with the\nclause \"because a schema change is the owner's\". That premise has no source, and\nthe practice contradicts it.\n\nNO SOURCE. The phrase appears in 0105 itself and nowhere earlier. Every decision\nbefore it was grepped for \"owner\"; the only ledger-adjacent claim is\ndecision/0092's, that publishing a container image belongs to the owner -- which\nis about a registry, not a vocabulary. decision/0095 says about.version \"needs a\ndefinition in context.jsonld, which is a vocabulary change\" and assigns it to\nnobody at all.\n\nCONTRADICTED BY PRACTICE. git log on docs/ledger/context.jsonld shows three\nschema changes, all on 2026-09-18, all under loop items: 83ac088 added the\nMutation type (item/ledger-mutation-nodes); 1f5f6f8 added Run.merges and removed\ntwo PullRequest fields (item/ledger-main-push-record); 039ac7f deleted\nDecision.evidence and Run.tests (item/ledger-field-audit). Each changed\nLedgerValidator's key sets too. LOOP.md also puts \"whether the ledger vocabulary\nstill fits reality\" inside the loop's own consultation step.\n\nTHIS IS decision/0110's SHAPE, ONE SENTENCE OVER. That node retracted \"creating\nitems is the owner's under decision/0105\" -- a phrase occurring once, in the\ndecision that coined it, then repeated until it read as policy. Same decision,\nsame move. decision/0108's test applies and fails: before recording a decision\nthat prescribes a practice, grep for the existing rule. The existing rule was\nthat schema changes are items.\n\nWHAT IT GATED. Issue #289 (about.version undefined, which blocks\nitem/tag-v1-0-0's fourth clause), issue #294 (@vocab pointing at a path that does\nnot exist), and decision/0102's accounting gap -- three things parked with the\nowner on a premise the loop invented.\n\nWHAT REPLACES IT. Schema changes are the loop's, as an item, restated before any\ncode moves per decision/0068 -- which is exactly what the three 2026-09-18\nchanges did. What remains genuinely the owner's is unchanged: a repository\nsetting, a tag, a registry publication, and any question about what the product\nshould DO.\n\nNOT ACTED ON IN THIS PASS, deliberately. The retraction is the finding; the three\nunblocked questions get items and their own passes. Recording a retraction and\nspending it in the same breath is how 0105's premise got established.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/tag-v1-0-0"
+      ],
       "supersedes": null
     }
   ],
