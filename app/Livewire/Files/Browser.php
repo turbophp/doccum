@@ -582,9 +582,32 @@ class Browser extends Component
         return $file;
     }
 
-    public function dropMove(string $subjectType, int $subjectId, int $targetDirectoryId, MoveFile $moveFile, MoveDirectory $moveDirectory): void
+    public function dropMove(string $subjectType, int $subjectId, int $targetDirectoryId, MoveFile $moveFile, MoveDirectory $moveDirectory, DirectoryAccess $access): void
     {
-        $destination = Directory::query()->findOrFail($targetDirectoryId);
+        // Scoped to the viewer's own reach INSIDE the query, the same shape
+        // moveFile() and moveDirectory() use -- a drag is a gesture, not a
+        // second set of rules, and the destination is the same fact here as
+        // it is there. item/api-content settled that a move destination
+        // outside the viewer's reach answers 404; it swept the two
+        // form-based movers and not this one, so drag-and-drop kept the old
+        // findOrFail()-then-authorize() shape for four days after the
+        // posture was decided (issue #109).
+        //
+        // What that shape costs is an EXISTENCE ORACLE, which is the
+        // property item/reach-existence-oracle is actually about: a bare
+        // findOrFail() answers 404 for an id that does not exist and 403
+        // for one that exists outside the viewer's reach, and the
+        // difference between those two answers is the leak. Scoping makes
+        // both cases resolve to null here, so both abort 404 and the pair
+        // agrees. The companion test asserting a NONEXISTENT destination is
+        // not decoration: a single case cannot show that two answers match.
+        $reachableForDrop = $access->viewableDirectoryIds(auth()->user());
+
+        $destination = Directory::query()
+            ->whereIn('id', $reachableForDrop)
+            ->find($targetDirectoryId);
+
+        abort_if($destination === null, 404);
 
         if ($subjectType === 'file') {
             $file = File::query()->findOrFail($subjectId);

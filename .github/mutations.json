@@ -656,5 +656,12 @@
     "file": "resources/views/livewire/search/palette.blade.php",
     "remove": "\n                                                e",
     "expectFailing": "escapes hostile markup in the palette snippet before swapping the match into a mark element"
+  },
+  {
+    "id": "drop-move-destination-scoped-to-reach",
+    "why": "issue #109 / item/reach-existence-oracle clause 1: dropMove()'s destination lookup must be scoped to DirectoryAccess::viewableDirectoryIds() INSIDE the query, the same shape moveFile() and moveDirectory() use. Removing the whereIn leaves Directory::query()->find($targetDirectoryId), which still parses and still runs -- but a destination that EXISTS outside the viewer's reach is now found, so abort_if($destination === null, 404) does not fire and authorize('move', ...) refuses with 403 instead. That is the existence oracle this clause closes: 403 for a directory that exists and 404 for an id that does not, so the status code tells the caller which ids exist. NOTE WHICH HALF OF THE PAIR THIS PROVES, because reasoning about that is unreliable (CLAUDE.md's account-menu lesson): only the OUT-OF-REACH test flips. The companion test 'answers a destination that does not exist the same way as one out of reach' still passes with the whereIn removed, because find() returns null for a nonexistent id either way and abort_if still fires -- it documents that the two answers agree and is not itself the guard's witness. expectFailing therefore names the out-of-reach test, which is the one this scoping is load-bearing for.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "\n            ->whereIn('id', $reachableForDrop)",
+    "expectFailing": "refuses a drop into a directory the viewer cannot reach, and moves nothing"
   }
 ]
