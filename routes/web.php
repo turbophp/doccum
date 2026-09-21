@@ -51,7 +51,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // post-save redirect, welcome.blade.php) needs no change at all.
     Route::livewire('dashboard', Home::class)->name('dashboard');
 
+    // whereNumber('archive'): {archive} is an int rather than an implicit
+    // model binding (item/reach-oracle-route-binding), so without this a
+    // non-numeric segment reaches an int parameter and raises a TypeError --
+    // a 500 where a 404 belongs, and a differently-shaped response for a
+    // malformed id than for a well-formed one that does not exist.
     Route::get('/directories/archives/{archive}/download', DirectoryArchiveDownloadController::class)
+        ->whereNumber('archive')
         ->name('directories.archives.download');
 
     // Separate from the download route because the two want opposite things

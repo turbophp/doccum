@@ -38,6 +38,32 @@ it('lists only directories the viewer may see', function () {
         ->assertDontSee('Theirs');
 });
 
+it('answers an unreachable directory the same as a nonexistent one, for the files page', function () {
+    // item/reach-oracle-route-binding. /files/{directory?} resolves
+    // {directory} by IMPLICIT BINDING, before Browser::mount() runs, so
+    // $this->theirs -- which exists and which $this->user has no grant on --
+    // used to be found and then 403'd by mount()'s authorize(), while an id
+    // no row carries 404'd from the binding. The status told any logged-in
+    // user which directory ids exist.
+    //
+    // OVER HTTP, not Livewire::test(), deliberately: the property is about
+    // the RESPONSE STATUS a browser sees, and the route is the only place
+    // the binding and the component meet. A Livewire::test() call passes a
+    // resolved model straight to mount() and never exercises the binding at
+    // all -- it would still reach the new guard, but it could not show the
+    // nonexistent half, which has no model to pass.
+    //
+    // TWO HALVES, because one cannot show that two answers match: the
+    // unreachable half alone passed against the old 403 as well.
+    $this->actingAs($this->user)
+        ->get(route('files.browse', $this->theirs))
+        ->assertNotFound();
+
+    $this->actingAs($this->user)
+        ->get(route('files.browse', ((int) Directory::query()->max('id')) + 1))
+        ->assertNotFound();
+});
+
 /**
  * item/files-three-pane (issue #104), closing issue #99 specifically.
  *
@@ -86,9 +112,21 @@ it('lists files in the current directory', function () {
 });
 
 it('refuses to open a directory the viewer cannot see', function () {
+    // 404 SINCE item/reach-oracle-route-binding, where this asserted 403.
+    // mount() now refuses an out-of-reach directory before authorize() is
+    // reached, so that an id no row carries -- which 404s from the route
+    // binding -- cannot be told apart from one that exists out of reach.
+    //
+    // THIS HALF ALONE DOES NOT STATE THE PROPERTY, and cannot: Livewire::test()
+    // hands mount() a resolved model, so there is no way to express "an id
+    // that does not exist" here. The pair lives in the HTTP test above
+    // ("answers an unreachable directory the same as a nonexistent one, for
+    // the files page"), which is also the registered mutation's witness. This
+    // one is kept because it exercises the same refusal through the component
+    // rather than the route, and it would flip too if the guard were removed.
     Livewire::actingAs($this->user)
         ->test(Browser::class, ['directory' => $this->theirs])
-        ->assertForbidden();
+        ->assertNotFound();
 });
 
 it('creates a subdirectory', function () {

@@ -168,9 +168,20 @@ it('hands a built archive only to the person who asked for it', function () {
     // Note what this proves: $other has MANAGE on the very directory that was
     // archived, so a check written against the directory's policy would let
     // them through. The archive is still not theirs.
+    //
+    // 404 RATHER THAN 403 SINCE item/reach-oracle-route-binding. {archive}
+    // used to be an implicit model binding, so someone else's archive was
+    // resolved and then 403'd while a nonexistent id 404'd from the binding
+    // -- an existence oracle over every archive id in the instance. The two
+    // must agree, and the second half below is what says so; the first half
+    // alone passed against the old 403 too.
     $this->actingAs($other)
         ->get(route('directories.archives.download', $archive))
-        ->assertForbidden();
+        ->assertNotFound();
+
+    $this->actingAs($other)
+        ->get(route('directories.archives.download', ((int) DirectoryArchive::query()->max('id')) + 1))
+        ->assertNotFound();
 
     $this->actingAs($this->owner)
         ->get(route('directories.archives.download', $archive))
