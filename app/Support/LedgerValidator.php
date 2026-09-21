@@ -1106,6 +1106,29 @@ final class LedgerValidator
     /**
      * @param  list<string>  $errors
      */
+    /**
+     * The workflows a push to `main` triggers, in the order Run.merges names
+     * them. Each entry `w` owns the field pair `{w}Run` / `{w}Conclusion`.
+     *
+     * A CONSTANT RATHER THAN FOUR HARDCODED PAIRS because the set was wrong
+     * for two days and nothing could notice. item/ledger-main-push-record
+     * chose named fields over a list and said why: "those are the whole of
+     * what a main push triggers, so a closed pair cannot under-report where a
+     * list is only as complete as its caller". The premise was false --
+     * pages.yml is `on: push: branches: [main]` and was never in the
+     * enumeration -- so the schema was a list-of-two wearing the authority of
+     * a complete set, which is worse than a list, because a list at least
+     * admits it is only as complete as its caller (issue #375).
+     *
+     * A closed set cannot under-report ONLY IF THE SET IS RIGHT, and this
+     * class cannot check that: it never reads .github/workflows/. That is
+     * .github/scripts/assert-merge-record-covers-main-push.py's job, which
+     * parses the workflows, computes which trigger on a push to main, and
+     * refuses unless that set equals this one. Change this list and that
+     * script fails until the workflows agree, and vice versa.
+     */
+    private const MAIN_PUSH_WORKFLOWS = ['tests', 'ledger', 'pages'];
+
     private static function checkMergeEntry(string $runId, string $index, mixed $entry, array &$errors): void
     {
         if (! is_array($entry)) {
@@ -1124,14 +1147,14 @@ final class LedgerValidator
             $errors[] = "enum: Run '$runId'.merges[$index].pullRequest = ".self::describe($pullRequest).' is neither a string nor null.';
         }
 
-        foreach (['testsConclusion', 'ledgerConclusion'] as $field) {
+        foreach (array_map(static fn (string $w): string => $w.'Conclusion', self::MAIN_PUSH_WORKFLOWS) as $field) {
             $value = $entry[$field] ?? null;
             if ($value !== null && ! in_array($value, self::WORKFLOW_CONCLUSIONS, true)) {
                 $errors[] = "enum: Run '$runId'.merges[$index].$field = ".self::describe($value).' is not a known GitHub workflow-run conclusion.';
             }
         }
 
-        foreach (['testsRun', 'ledgerRun'] as $field) {
+        foreach (array_map(static fn (string $w): string => $w.'Run', self::MAIN_PUSH_WORKFLOWS) as $field) {
             $value = $entry[$field] ?? null;
             if ($value !== null && ! preg_match(self::WORKFLOW_RUN_URL_PATTERN, (string) $value)) {
                 $errors[] = "enum: Run '$runId'.merges[$index].$field = ".self::describe($value).' is not a turbophp/doccum Actions run URL.';
@@ -1773,13 +1796,51 @@ final class LedgerValidator
                 && ($run['outcome'] ?? null) === 'completed'
                 && $merges !== []) {
                 $last = $merges[count($merges) - 1];
-                $testsOk = ($last['testsConclusion'] ?? null) === 'success';
-                $ledgerOk = ($last['ledgerConclusion'] ?? null) === 'success';
-                if (! $testsOk || ! $ledgerOk) {
+
+                // The message lists every workflow the entry actually
+                // RECORDS, in MAIN_PUSH_WORKFLOWS order, not only the ones
+                // that failed -- a reader deciding whether to believe a
+                // "did not close green" needs to see what the other
+                // workflows said, and the shape predates this constant.
+                // Reporting present keys rather than the whole set also
+                // keeps a fixture that carries only tests and ledger
+                // reading exactly as it did before `pages` joined them.
+                //
+                // The FAILURE condition is narrower than the report: a null
+                // conclusion is not a failure, because that is how a merge
+                // predating a workflow is written down (`pages` is null on
+                // every entry before fa499f5, the first-parent commit at
+                // which pages.yml existed). What stops a null hiding a red
+                // run is that the keys are always present and Rule 4 below
+                // refuses a conclusion with no run -- so "did not run" and
+                // "was not recorded" stay distinguishable.
+                $reported = [];
+                $failed = false;
+                foreach (self::MAIN_PUSH_WORKFLOWS as $workflow) {
+                    $field = $workflow.'Conclusion';
+                    if (! array_key_exists($field, $last)) {
+                        continue;
+                    }
+                    $conclusion = $last[$field];
+                    $reported[] = $field.' = '.self::describe($conclusion);
+                    if ($conclusion !== null && $conclusion !== 'success') {
+                        $failed = true;
+                    }
+                }
+
+                // tests and ledger have run on every main push this project
+                // has ever had, so for those two a null is a gap in the
+                // record rather than a workflow that did not exist.
+                foreach (['tests', 'ledger'] as $workflow) {
+                    if (($last[$workflow.'Conclusion'] ?? null) !== 'success') {
+                        $failed = true;
+                    }
+                }
+
+                if ($failed) {
                     $errors[] = "run: '$expectedId' has outcome completed but its last merge (".
                         self::describe($last['mergeSha'] ?? null).
-                        ') did not close green (testsConclusion = '.self::describe($last['testsConclusion'] ?? null).
-                        ', ledgerConclusion = '.self::describe($last['ledgerConclusion'] ?? null).').';
+                        ') did not close green ('.implode(', ', $reported).').';
                 }
             }
 
@@ -1798,11 +1859,11 @@ final class LedgerValidator
                 if (! is_array($entry)) {
                     continue;
                 }
-                if (($entry['testsConclusion'] ?? null) !== null && ($entry['testsRun'] ?? null) === null) {
-                    $errors[] = "run: '$expectedId'.merges[$index] has testsConclusion ".self::describe($entry['testsConclusion']).' but testsRun is null -- a conclusion with no run to point at.';
-                }
-                if (($entry['ledgerConclusion'] ?? null) !== null && ($entry['ledgerRun'] ?? null) === null) {
-                    $errors[] = "run: '$expectedId'.merges[$index] has ledgerConclusion ".self::describe($entry['ledgerConclusion']).' but ledgerRun is null -- a conclusion with no run to point at.';
+                foreach (self::MAIN_PUSH_WORKFLOWS as $workflow) {
+                    $conclusion = $entry[$workflow.'Conclusion'] ?? null;
+                    if ($conclusion !== null && ($entry[$workflow.'Run'] ?? null) === null) {
+                        $errors[] = "run: '$expectedId'.merges[$index] has {$workflow}Conclusion ".self::describe($conclusion)." but {$workflow}Run is null -- a conclusion with no run to point at.";
+                    }
                 }
             }
         }

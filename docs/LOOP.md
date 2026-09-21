@@ -125,14 +125,24 @@ Every hour, the loop wakes and runs these steps in order.
    ```
    GET /repos/turbophp/doccum/actions/runs?head_sha=<merge sha>
    keep head_branch == "main" and event == "push"
-   require the `tests` and `ledger` runs to both conclude "success"
+   require the `tests`, `ledger` and `pages` runs to all conclude "success"
    ```
 
-   Those two are the whole of what a `main` push triggers — `format` is
+   Those **three** are the whole of what a `main` push triggers — `format` is
    `claude/**` and `ledger/**` only, `phpstan-baseline` is `baseline/**`,
-   `security` is pull requests and a weekly cron, `release` is tags. A run's
+   `security` is pull requests and a weekly cron, `release` is tag pushes
+   (`push: tags: [v*]`, no `branches`, so a merge never produces one). A run's
    own conclusion already aggregates its jobs, so this needs no count of
    checks, and a cancelled run reports `cancelled` rather than looking green.
+
+   **This sentence said "those two" for two days after `pages.yml` started
+   running on `main`, and the ledger's merge schema was built on it** — issue
+   #375. So the set is no longer maintained by hand here: `Run.merges` carries
+   one field pair per workflow, `LedgerValidator::MAIN_PUSH_WORKFLOWS` is the
+   list, and `.github/scripts/assert-merge-record-covers-main-push.py` parses
+   `.github/workflows/` and fails CI unless the two agree in both directions.
+   If a fourth workflow starts running on `main`, that check goes red before
+   this paragraph can go stale again.
 
    Counting check runs on the SHA instead gets both directions wrong, and
    both have happened. **Too few:** merging two PRs minutes apart lets the

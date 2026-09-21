@@ -194,7 +194,21 @@ for the field, and in practice it once drifted from that.
 
 The ordered list of commits a Run's window actually merged to main, each
 entry recording its sha, the PullRequest it came from (or `null` for a
-ledger-only merge), and both workflows' conclusions.
+ledger-only merge), and the conclusion of every workflow a push to main
+triggers -- one `{workflow}Run` / `{workflow}Conclusion` pair each, currently
+`tests`, `ledger` and `pages`.
+
+The set is not maintained here. `LedgerValidator::MAIN_PUSH_WORKFLOWS` holds
+it and `.github/scripts/assert-merge-record-covers-main-push.py` refuses
+unless that list equals the workflows `.github/workflows/` actually triggers
+on a main push. It said "both workflows" while `pages` had been running on
+main for two days (issue #375), which is why the authority moved out of prose.
+
+A pair may be `null`/`null`, and on 189 entries it is: those merges predate
+`fa499f5`, the first-parent commit at which `pages.yml` existed, so there is
+no run to point at. What a null cannot do is hide a red run -- a conclusion
+with no run is its own error, and the keys are always present, so "not
+recorded" and "did not run" stay distinguishable.
 
 Enforced: `app/Support/LedgerValidator.php` -- required on every `Run`, even
 an empty list, so a run that merged nothing is distinguishable from one
