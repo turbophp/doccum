@@ -128,10 +128,20 @@ Every hour, the loop wakes and runs these steps in order.
    here and in two items; it is not 0099's, whose subject is a
    branch-gated job being invisible to the PR that will break main, and
    which contains neither "authorise" nor "buildable"
-   (`decision/0110`). Read every clause of every eligible item, the open issues and
-   `CLAUDE.md`'s defect rules; a ledger-only pull request is permitted only
-   when that sweep comes back empty, and it says in its body what it
-   checked.
+   (`decision/0110`). Read every clause of every item still open --
+   ELIGIBLE OR NOT -- plus the open issues and `CLAUDE.md`'s defect rules;
+   a ledger-only pull request is permitted only when that sweep comes back
+   empty, and it says in its body what it checked.
+
+   That last sentence used to read "every clause of every ELIGIBLE item",
+   which re-imposed at the end of the paragraph exactly what the paragraph
+   spends four sentences removing. The weaker restatement won because it
+   was the operative instruction, and the cost was concrete:
+   `item/v1-audit` is `dependsOn` two open items, so it was never eligible,
+   so its clauses were never read -- and its first clause ("a checklist in
+   the PR body walks spec milestones 1 to 11 and this backlog") needs no
+   tag, no image and no repository setting. An S-sized audit sat buildable
+   for days behind a word (`decision/0116`).
 5. **Execute.** Hand the item to a Sonnet worker with its plan, the relevant
    spec section and `CLAUDE.md`. One item per branch, one branch per PR.
 
