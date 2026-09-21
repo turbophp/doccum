@@ -73,15 +73,31 @@ function viewOnlyMember(Directory $directory): User
 // --- selecting a directory row ---------------------------------------------
 
 it('refuses to select a directory the viewer cannot view', function () {
-    // $this->user holds Manage on $this->mine only, nothing on $this->theirs
-    // -- and mount() lets a null $directory through with no check at all
-    // (browsing the root), so selectDirectory()'s own authorize('view', ...)
-    // call is the only thing standing between a directory id typed straight
-    // into the wire:click and one the viewer has no grant on whatsoever.
+    // $this->user holds Manage on $this->mine only, nothing on $this->theirs,
+    // and mount() lets a null $directory through with no check at all
+    // (browsing the root) -- so a directory id typed straight into the
+    // wire:click reaches selectDirectory() with nothing ahead of it.
+    //
+    // This asserted 403 until item/reach-existence-oracle. The root lookup
+    // used to union whereNull('parent_id') into the candidates, which found
+    // an unviewable root and left authorize('view', ...) to refuse it; it is
+    // now scoped to reachRootIds() alone, so the row is not found and the
+    // answer is 404 -- the same answer an id that does not exist gets. The
+    // companion below is what makes that a claim about the PAIR rather than
+    // about this case alone.
     Livewire::actingAs($this->user)
         ->test(Browser::class)
         ->call('selectDirectory', $this->theirs->id)
-        ->assertForbidden();
+        ->assertNotFound();
+});
+
+it('answers a directory id that does not exist the same way as one out of reach', function () {
+    $nonexistent = ((int) Directory::query()->max('id')) + 1;
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class)
+        ->call('selectDirectory', $nonexistent)
+        ->assertNotFound();
 });
 
 it('opens the property panel on a selected subdirectory', function () {
