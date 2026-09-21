@@ -157,6 +157,11 @@ function ledgerCopyWithExtraRunKey(string $key, mixed $value): string
     mkdir($dir.'/runs', 0777, true);
 
     copy(ledgerDirectoryPath().'/context.jsonld', $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(ledgerDirectoryPath().'/vocab.md', $dir.'/vocab.md');
     copy(ledgerDirectoryPath().'/ledger.jsonld', $dir.'/ledger.jsonld');
 
     foreach ((array) glob(ledgerDirectoryPath().'/runs/*.jsonld') as $path) {
@@ -190,6 +195,15 @@ function removeLedgerCopy(string $dir): void
     rmdir($dir.'/runs');
     foreach ((array) glob($dir.'/*.jsonld') as $path) {
         unlink((string) $path);
+    }
+    // vocab.md is not a .jsonld, so the glob above never reached it and
+    // rmdir() failed with "Directory not empty" -- a PHP warning, which Pest
+    // turns into a failure in the finally block AFTER every assertion in the
+    // test body has already passed. Four tests broke this way and all four
+    // looked like validator failures, because the name of a test that dies in
+    // cleanup is the name of the test (item/vocab-resolves).
+    if (is_file($dir.'/vocab.md')) {
+        unlink($dir.'/vocab.md');
     }
     rmdir($dir);
 }
@@ -256,6 +270,11 @@ function ledgerCopyWithNodeFieldOverride(string $collection, string $id, string 
     mkdir($dir.'/runs', 0777, true);
 
     copy(ledgerDirectoryPath().'/context.jsonld', $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(ledgerDirectoryPath().'/vocab.md', $dir.'/vocab.md');
 
     $ledger = json_decode((string) file_get_contents(ledgerDirectoryPath().'/ledger.jsonld'), true);
     $found = false;
@@ -290,6 +309,11 @@ function ledgerCopyWithLastMergeFieldOverride(string $runFilename, string $key, 
     mkdir($dir.'/runs', 0777, true);
 
     copy(ledgerDirectoryPath().'/context.jsonld', $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(ledgerDirectoryPath().'/vocab.md', $dir.'/vocab.md');
     copy(ledgerDirectoryPath().'/ledger.jsonld', $dir.'/ledger.jsonld');
 
     foreach ((array) glob(ledgerDirectoryPath().'/runs/*.jsonld') as $path) {

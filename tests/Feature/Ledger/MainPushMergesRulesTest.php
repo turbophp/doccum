@@ -104,6 +104,11 @@ function makeSmallMergesFixture(array $run1Merges, string $run1Commit, string $i
     mkdir($dir.'/runs', 0777, true);
 
     copy(base_path('docs/ledger/context.jsonld'), $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(base_path('docs/ledger/vocab.md'), $dir.'/vocab.md');
 
     $prUrl = 'https://github.com/turbophp/doccum/pull/9101';
 
@@ -290,6 +295,11 @@ function makeThresholdMergesFixture(?string $testsConclusion, ?string $ledgerCon
     mkdir($dir.'/runs', 0777, true);
 
     copy(base_path('docs/ledger/context.jsonld'), $dir.'/context.jsonld');
+    // vocab.md travels with context.jsonld: the `vocab` rule reads the
+    // ledger DIRECTORY, so a fixture carrying one without the other is
+    // not a ledger directory and fails for a reason the live tree does
+    // not have (item/vocab-resolves).
+    copy(base_path('docs/ledger/vocab.md'), $dir.'/vocab.md');
 
     $prUrl = 'https://github.com/turbophp/doccum/pull/9102';
     $lastRunNumber ??= MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN_UNDER_TEST + 1;
