@@ -68,9 +68,61 @@ jobs:
     permissions:
       contents: read
 
+  # issue #358. THE TAG'S CHANGELOG SECTION IS CHECKED BEFORE ANYTHING IS
+  # PUBLISHED, and until this job existed it was checked after.
+  #
+  # changelog-section.sh for the REAL tag first ran inside `release`, which
+  # needs [image, boot-published-image]. So a v1.0.0 push with a missing or
+  # typo'd "## [1.0.0]" heading did this: verify passed, `image` built and
+  # PUSHED 1.0.0 and latest to ghcr, boot-published-image ran against them,
+  # and THEN `release` failed at the extraction. Image published, no Release
+  # -- exactly the half-published state item/changelog-release-notes was
+  # built to prevent, produced by its own guard, on the one tag that cannot
+  # be retried.
+  #
+  # item/tag-v1-0-0's clause (1) already named the hazard and asked a HUMAN
+  # to check before pushing. This is that clause enforced instead of asked.
+  #
+  # IT IS NOT `if:`-GATED ON A TAG, and that is the load-bearing detail.
+  # release.yml also fires on workflow_dispatch, where there is no tag and no
+  # version to look up. A job skipped by an `if:` is not a job that succeeded,
+  # and `image` needs this one -- rather than depend on exactly how Actions
+  # propagates a skip to a dependent, this job always RUNS and decides
+  # internally. On a dispatch it prints that there is nothing to check and
+  # exits 0, so the dispatch path mutation/0030 established stays intact.
+  #
+  # Costs seconds and no build, which is the whole point of putting it here
+  # rather than after a multi-arch image push.
+  changelog-section:
+    name: the tag has a changelog section
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: CHANGELOG.md has a section for this tag
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            echo "Not a tag push (ref_type=${GITHUB_REF_TYPE}); there is no version to look up."
+            exit 0
+          fi
+
+          # github.ref_name for a tag push is the tag with refs/tags/ already
+          # stripped; changelog-section.sh strips a leading "v" itself, and
+          # maps X.Y.Z-rc1 to the [X.Y.Z] section (PR #282), so this behaves
+          # for whichever tag shape issue #302 settles on.
+          .github/scripts/changelog-section.sh "${GITHUB_REF_NAME}" CHANGELOG.md > /dev/null
+          echo "CHANGELOG.md has a section for ${GITHUB_REF_NAME} -- safe to build and publish."
+
   image:
     runs-on: ubuntu-latest
-    needs: verify
+    needs: [verify, changelog-section]
     permissions:
       contents: read
       packages: write
