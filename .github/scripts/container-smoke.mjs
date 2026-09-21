@@ -4184,19 +4184,28 @@ async function captureReadmeScreenshot(page, phase) {
     .browser()
     .newContext({
       storageState: await page.context().storageState(),
-      // 1440x560, and the HEIGHT is the considered half. The first capture
+      // 1440x420, and the HEIGHT is the considered half. The first capture
       // came back 1440x900 and correct -- tree, listing, properties pane, a
       // real directory and a real file -- and about two thirds of the frame
       // was empty space below two rows. Issue #339's own warning is that an
       // empty shell is a worse advertisement than no screenshot, and a
-      // mostly-blank frame is that failure in a milder form.
+      // mostly-blank frame is that failure in a milder form. 560 was a first
+      // trim and still left over half the frame blank; this height is measured
+      // off the captured image rather than guessed again -- content ends at
+      // roughly y=205 (the tree's last node, the second table row), so 420
+      // reads as padding rather than as an empty page.
+      //
+      // Fixed rather than computed from a bounding box on purpose: a clip
+      // derived from content would change size run to run, and this file is
+      // committed to the repository, so every refresh would churn its
+      // dimensions for no reason.
       //
       // The alternative was to upload more files so the listing looked fuller.
       // Rejected: that adds fixtures to a shared smoke run for a cosmetic
       // reason, and checks here already assert on row counts
       // (checkBulkTrashLeavesUnselectedFilesAlone, the sort checks), so the
       // cost lands on tests that have nothing to do with this.
-      viewport: { width: 1440, height: 560 },
+      viewport: { width: 1440, height: 420 },
     });
   const shotPage = await shotContext.newPage();
   try {
