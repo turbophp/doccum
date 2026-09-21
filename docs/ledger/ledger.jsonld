@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-21T17:25:00Z",
+  "dateModified": "2026-09-21T18:31:00Z",
   "latestRun": "run/0021",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1482,7 +1482,7 @@
         "item/trash-view",
         "item/upgrade-smoke"
       ],
-      "doneWhen": "A checklist in the PR body walks spec milestones 1 to 11 and this backlog; pint clean, phpstan at or below baseline, smoke green; a manual run of the published image through install, upload, share, search, trash and a purge dry run is recorded.\n\nCLAUSE (b) IS DISCHARGED, 2026-09-21, in PR #336, against main run `tests` 621 at b8b5026 -- a push run on main, not a PR run, per LOOP.md step 3. pint via the `lint` job's \"Pint (format check)\" step, phpstan via its \"PHPStan\" step, smoke via `image`.\n\nAND THE INSTRUCTION FOR SATISFYING (b) WAS UNRUNNABLE AS WRITTEN. docs/v1-audit.md's first pass said (b) was claimable \"by check name: `pint`, `lint` ... and `image`\". There is no `pint` CHECK on a main push: pint is a job of .github/workflows/format.yml, whose on.push.branches is `claude/**` and `ledger/**` and nothing else. A reader following it would hunt a main run for a check that never appears there, or count a `pint` check belonging to another ref pointing at the same commit -- which LOOP.md step 3 records having already happened, on a0cf122. Pint does run on main, as a STEP of `lint`. A plan naming the wrong check is decision/0080's defect class arriving later and more quietly: nothing rejects it until somebody tries to follow it.\n\nCLAUSE (a) WAS RE-WALKED in the same PR because milestone 11 had failed on three gaps, and all three shipped (#321, #322, #323, their issues closed). Milestone 11 now passes.\n\nTHE SAME PR RETRACTED ITS OWN CENTRAL CONCLUSION, which is the part worth carrying forward. A draft said the loop's remaining v1 work was zero. An adversarial read before it merged found FIVE clause fragments needing nobody's permission -- the README screenshot (which the audit itself had moved into the owner's column, though CI boots a container on every push), a missing CHANGELOG Security entry, this item's sibling clause in item/release-v0-1-0, clause (c)'s COVERAGE as distinct from its subject, and issue #303. Filed as issues #338, #339, #340, #341; #338, #341 and #303 have since shipped. That was the fifth instance of reading at ITEM granularity where blockers live at CLAUSE granularity -- the error decision/0116 rewrote LOOP.md step 4 to forbid, committed by the document whose job is to catch it.\n\nCLAUSE (c) REMAINS, and only its SUBJECT is owner-blocked. The published image needs a tag (#302). The EXERCISE does not: issue #340 covers adding the missing purge dry run to the container smoke and pointing the full smoke at the published image, which would make (c) discharge itself when a tag lands rather than needing a person with a terminal.\n\nCLAUSE (c)'S COVERAGE HALF IS BUILT, 2026-09-21, in PR #346, and its load-bearing assertion is proven by mutation/0051. The clause asks for a run through \"install, upload, share, search, trash AND A PURGE DRY RUN\". Five of those six had a check in .github/scripts/container-smoke.mjs; the sixth did not exist. The only \"purge\" in the file was checkTrashViewRestoreAndPurge()'s TRASH purge -- a different command over a different table, which proves nothing about doccum:purge-period. checkPurgePeriodDryRunLeavesFileInPlace() now builds a File in its own period (2019-03, not the existing check's 2020-01, so it cannot depend on that check having run first), closes the period through the real /admin/periods form, runs the real artisan command in the shipped image via docker exec WITHOUT --force, and reads the row back.\n\nTHE THREE STDOUT CHECKS ARE NOT THE PROOF, and the PR said so before the mutation rather than after. A dry run that silently purged for real would print the period label, the file count and the literal 'Dry run. Nothing was deleted. Pass --force to purge.' identically -- that string is a literal in PurgePeriod::handle(), reached or not reached. mutation/0051 confirmed exactly that: under a mutant whose dry-run branch force-deleted the files while printing every word unchanged, the three stdout assertions PASSED and the row read-back failed. CLAUDE.md's rule is that a smoke assertion is worth only what a mutation says it is; this is what it says.\n\nWHAT IS STILL NOT DONE ON (c): its SUBJECT, and the other half of issue #340. The subject needs a tag (#302) -- the exercise is meant to run against the PUBLISHED image, and pointing the full smoke at it in release.yml's boot-published-image is part 2 of #340, deliberately not in #346.\n\nMILESTONE 11'S FOURTH OBSERVATION IS DISCHARGED, 2026-09-21, in PR #351 (issue #339). It was the one gap milestone 11 still carried after its re-walk: spec 12 asks README for \"what it is, screenshot, three-line quick start\" and the screenshot did not exist. docs/images/readme-files-view.png now does, shown between the first and the third as spec 12 orders them.\n\nPRODUCED BY CI FROM THE REAL CONTAINER, which is what made this the loop's work rather than the owner's. The first pass had filed it under clause (c) reasoning that a screenshot \"needs a running instance to produce\"; the image job boots the container and drives Playwright at it on every push. The committed PNG is 1440x420, lifted byte for byte from the readme-screenshot artifact of run 35629541956.\n\nTHE CAPTURE IS A CHECK, NOT A SIDE EFFECT. It waits for the directory tree, the files table and the uploaded file's own row -- each named separately so a failure says which -- then refuses a PNG that is missing or implausibly small. It earned that immediately: the first version captured at /files, which is the ROOT, while uploadAndProveStored() puts its file one directory down, and the check refused to photograph the empty listing rather than shipping a picture of it.\n\nAND IT STILL PASSED SOMETHING UNSHIPPABLE, recorded as decision/0123. The first correct capture was two thirds empty -- a true photograph of a sparse page, and every assertion above is exactly true of it. Only opening the file found that. The staleness question spec 12 leaves open is answered in README.md rather than implied: the committed image is point-in-time, a fresh capture rides every CI run as an artifact, and a pixel-diff gate was rejected because a browser screenshot moves with font rendering and timing.",
+      "doneWhen": "A checklist in the PR body walks spec milestones 1 to 11 and this backlog; pint clean, phpstan at or below baseline, smoke green; a manual run of the published image through install, upload, share, search, trash and a purge dry run is recorded.\n\nCLAUSE (b) IS DISCHARGED, 2026-09-21, in PR #336, against main run `tests` 621 at b8b5026 -- a push run on main, not a PR run, per LOOP.md step 3. pint via the `lint` job's \"Pint (format check)\" step, phpstan via its \"PHPStan\" step, smoke via `image`.\n\nAND THE INSTRUCTION FOR SATISFYING (b) WAS UNRUNNABLE AS WRITTEN. docs/v1-audit.md's first pass said (b) was claimable \"by check name: `pint`, `lint` ... and `image`\". There is no `pint` CHECK on a main push: pint is a job of .github/workflows/format.yml, whose on.push.branches is `claude/**` and `ledger/**` and nothing else. A reader following it would hunt a main run for a check that never appears there, or count a `pint` check belonging to another ref pointing at the same commit -- which LOOP.md step 3 records having already happened, on a0cf122. Pint does run on main, as a STEP of `lint`. A plan naming the wrong check is decision/0080's defect class arriving later and more quietly: nothing rejects it until somebody tries to follow it.\n\nCLAUSE (a) WAS RE-WALKED in the same PR because milestone 11 had failed on three gaps, and all three shipped (#321, #322, #323, their issues closed). Milestone 11 now passes.\n\nTHE SAME PR RETRACTED ITS OWN CENTRAL CONCLUSION, which is the part worth carrying forward. A draft said the loop's remaining v1 work was zero. An adversarial read before it merged found FIVE clause fragments needing nobody's permission -- the README screenshot (which the audit itself had moved into the owner's column, though CI boots a container on every push), a missing CHANGELOG Security entry, this item's sibling clause in item/release-v0-1-0, clause (c)'s COVERAGE as distinct from its subject, and issue #303. Filed as issues #338, #339, #340, #341; #338, #341 and #303 have since shipped. That was the fifth instance of reading at ITEM granularity where blockers live at CLAUSE granularity -- the error decision/0116 rewrote LOOP.md step 4 to forbid, committed by the document whose job is to catch it.\n\nCLAUSE (c) REMAINS, and only its SUBJECT is owner-blocked. The published image needs a tag (#302). The EXERCISE does not: issue #340 covers adding the missing purge dry run to the container smoke and pointing the full smoke at the published image, which would make (c) discharge itself when a tag lands rather than needing a person with a terminal.\n\nCLAUSE (c)'S COVERAGE HALF IS BUILT, 2026-09-21, in PR #346, and its load-bearing assertion is proven by mutation/0051. The clause asks for a run through \"install, upload, share, search, trash AND A PURGE DRY RUN\". Five of those six had a check in .github/scripts/container-smoke.mjs; the sixth did not exist. The only \"purge\" in the file was checkTrashViewRestoreAndPurge()'s TRASH purge -- a different command over a different table, which proves nothing about doccum:purge-period. checkPurgePeriodDryRunLeavesFileInPlace() now builds a File in its own period (2019-03, not the existing check's 2020-01, so it cannot depend on that check having run first), closes the period through the real /admin/periods form, runs the real artisan command in the shipped image via docker exec WITHOUT --force, and reads the row back.\n\nTHE THREE STDOUT CHECKS ARE NOT THE PROOF, and the PR said so before the mutation rather than after. A dry run that silently purged for real would print the period label, the file count and the literal 'Dry run. Nothing was deleted. Pass --force to purge.' identically -- that string is a literal in PurgePeriod::handle(), reached or not reached. mutation/0051 confirmed exactly that: under a mutant whose dry-run branch force-deleted the files while printing every word unchanged, the three stdout assertions PASSED and the row read-back failed. CLAUDE.md's rule is that a smoke assertion is worth only what a mutation says it is; this is what it says.\n\nWHAT IS STILL NOT DONE ON (c): its SUBJECT, and the other half of issue #340. The subject needs a tag (#302) -- the exercise is meant to run against the PUBLISHED image, and pointing the full smoke at it in release.yml's boot-published-image is part 2 of #340, deliberately not in #346.\n\nMILESTONE 11'S FOURTH OBSERVATION IS DISCHARGED, 2026-09-21, in PR #351 (issue #339). It was the one gap milestone 11 still carried after its re-walk: spec 12 asks README for \"what it is, screenshot, three-line quick start\" and the screenshot did not exist. docs/images/readme-files-view.png now does, shown between the first and the third as spec 12 orders them.\n\nPRODUCED BY CI FROM THE REAL CONTAINER, which is what made this the loop's work rather than the owner's. The first pass had filed it under clause (c) reasoning that a screenshot \"needs a running instance to produce\"; the image job boots the container and drives Playwright at it on every push. The committed PNG is 1440x420, lifted byte for byte from the readme-screenshot artifact of run 35629541956.\n\nTHE CAPTURE IS A CHECK, NOT A SIDE EFFECT. It waits for the directory tree, the files table and the uploaded file's own row -- each named separately so a failure says which -- then refuses a PNG that is missing or implausibly small. It earned that immediately: the first version captured at /files, which is the ROOT, while uploadAndProveStored() puts its file one directory down, and the check refused to photograph the empty listing rather than shipping a picture of it.\n\nAND IT STILL PASSED SOMETHING UNSHIPPABLE, recorded as decision/0123. The first correct capture was two thirds empty -- a true photograph of a sparse page, and every assertion above is exactly true of it. Only opening the file found that. The staleness question spec 12 leaves open is answered in README.md rather than implied: the committed image is point-in-time, a fresh capture rides every CI run as an artifact, and a pixel-diff gate was rejected because a browser screenshot moves with font rendering and timing.\n\nCLAUSE (c)'S COVERAGE IS COMPLETE, 2026-09-21, in PRs #353 and #355 (issue #340), and only its SUBJECT is owner-blocked now. The clause asks for a run of the PUBLISHED image through install, upload, share, search, trash and a purge dry run. The sixth step landed with PR #346; PR #353 pointed the whole smoke at the PULLED image in release.yml's boot-published-image, amd64 leg. So all six steps now run against the artifact a self-hoster pulls rather than only against one this repository built, and PR #355 wrote that split into docs/v1-audit.md.\n\nWHAT IS PROVEN IS THE WIRING, NOT THE PASSAGE, and the distinction is recorded rather than blurred. boot-published-image is guarded to a tag push and no tag exists, so the job has still never executed and cannot be made to. assert-published-smoke.py parses release.yml and container-smoke.mjs on every pull request and refuses unless that job checks out, invokes the smoke, binds CONTAINER_NAME to the container its own docker run creates, binds BASE_URL to the port that docker run publishes, and supplies every env('SMOKE_...') the smoke requires with no default -- decision/0120's pattern, and the strongest evidence a tag-gated job admits. Four mutations back it: mutation/0052, 0054 and 0055 negative, mutation/0053 POSITIVE and deliberately so, since a guard that reddens on a meaning-preserving reflow teaches the project to ignore it.\n\nTHE GUARD SHIPPED WITH THE DEFECT IT NOW CATCHES, which is decision/0124: boot-published-image had no actions/checkout at all -- it had never needed one -- and the guard's first version would have passed it while the job died on its first Node step at tag time. Caught by comparing the job against its siblings rather than against the diff.\n\nNOTHING IN CLAUSE (c) IS LEFT FOR THIS LOOP TO BUILD. One tag push remains, and it is the owner's to authorise (#302).",
       "actionStatus": "ActiveActionStatus",
       "startTime": "2026-09-21T12:57:00Z",
       "endTime": null,
@@ -4222,6 +4222,38 @@
       "mergedAt": "2026-09-21T17:18:43Z",
       "mergeSha": "ae810d3b1bcd40d82d9c53a82f3f3703f730cd77",
       "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/353",
+      "@type": "PullRequest",
+      "identifier": 353,
+      "name": "The published image runs the full smoke, not one grep",
+      "implements": [
+        "item/v1-audit"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T17:56:10Z",
+      "headSha": "47237420cebae424de86cd801305f1610fa533fe",
+      "mergedAt": "2026-09-21T18:01:15Z",
+      "mergeSha": "4d6b215cf690b8d6fb1a38ad6bef7a801ed2829b",
+      "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/355",
+      "@type": "PullRequest",
+      "identifier": 355,
+      "name": "audit: clause (c)'s coverage is built; its subject still needs the tag",
+      "implements": [
+        "item/v1-audit"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T18:16:49Z",
+      "headSha": "c20ef67ae3d57c71a395f01f7b66d93a32f4561b",
+      "mergedAt": "2026-09-21T18:21:39Z",
+      "mergeSha": "5add376eba0e63f25ac038dc5fc4524ac78640b1",
+      "mergedIn": "run/0021"
     }
   ],
   "decisions": [
@@ -6245,6 +6277,36 @@
         "item/v1-audit"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0124",
+      "@type": "Decision",
+      "dateCreated": "2026-09-21T18:30:00Z",
+      "run": "run/0021",
+      "name": "A guard written beside a change inherits that change's blind spots",
+      "rationale": "PR #353 added a step to release.yml's boot-published-image and, in the same commit, a static guard asserting that step was wired correctly. The guard checked the container name, the port and every required SMOKE_* variable. It did not check that the job CHECKS OUT THE REPOSITORY, and the job did not -- it never had, because until that commit nothing in it read the tree.\n\nSo the guard would have passed a job that could not run at all. Every relationship it asserted was true; the floor those relationships stand on was missing.\n\nWHY THIS IS NOT decision/0123. That one is about an artifact: the check passes and the THING IT PRODUCES is unfit. This is about a precondition: the check passes and the thing it describes cannot execute. Nor is it decision/0120, which says to assert statically what cannot be exercised -- that was followed, and followed correctly.\n\nTHE MECHANISM, which is what makes it recurrent: a guard written alongside a change encodes the author's model of what the change needs, at the moment they are least able to see past it. The step was new, so its requirements were new, and 'does this job have a tree?' was not a question the change raised -- it was a question the change ANSWERED, silently and wrongly. Reading the diff cannot surface it: the diff is about what was added, and the defect is about what was already absent.\n\nWHAT CAUGHT IT, and the rule that follows: comparing the job against its siblings rather than against the change. Parsing release.yml for every job that runs a repo script showed image, release and verify-release-notes all checking out, and boot-published-image alone not. So when a change gives a job a new KIND of step, do not only check the step -- ask what other jobs doing that kind of thing already have, mechanically, and diff the answer. That is decision/0114's rule in a new place: the sibling comparison asks the question the repository answers, while reading the new step checks the cases its author thought of.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/v1-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0125",
+      "@type": "Decision",
+      "dateCreated": "2026-09-21T18:31:00Z",
+      "run": "run/0021",
+      "name": "A check must synchronise on everything it asserts, not a subset",
+      "rationale": "main went red at 4d6b215 on checkBulkTrashLeavesUnselectedFilesAlone, in code that merge did not touch. The output was SURVIVOR_LIVE:yes V1_TRASHED:yes V2_TRASHED:no, and the loop above the assertion explains it exactly:\n\n  while (Date.now() < deadline && !/V1_TRASHED:yes/.test(output)) {\n\nIt polled until the FIRST victim was trashed, then asserted on BOTH. bulkTrash() writes the two rows in sequence, so a window exists where the first is done and the second is not, and the loop was built to exit inside it. The failure is that window photographed.\n\nTHE RULE: the set a check waits for must equal the set it asserts on. A subset is not a weaker wait, it is a race with a timer attached -- it passes whenever the machine is fast enough and fails whenever it is not, which is indistinguishable from a real regression in the log.\n\nAND THE TEST TO APPLY BEFORE WIDENING ANY WAIT, because widening a wait is how a guard quietly stops guarding: ask what happens under the regression the check exists to catch. Here, if the second checkbox click never registers, V2 is never selected, never trashed, the loop runs to the deadline and falls through to the SAME assertion with the SAME message. The fix separates 'not yet' from 'never'; it does not convert the second into the first. A widened wait that could no longer fail would be worse than the flake it replaced.\n\nNOT CALLED A FLAKE, and not re-run. 'Flake' is not a root cause, and this one has a root cause readable off four lines of source; a re-run would have gone green and taught nothing. The race has presumably been losing rarely since the check was written -- 4d6b215 is simply where it lost.",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "affects": [
+        "item/v1-audit"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -6959,6 +7021,62 @@
       "headSha": "846f232e4751803e88be68b10ada6b8408392530",
       "mutant": "PurgePeriod::handle()'s dry-run branch force-deletes the period's files before returning, while still printing the period label, the file count and the literal 'Dry run. Nothing was deleted. Pass --force to purge.' -- a dry run that purges for real and reassures you it did not.\n\nBranched off PR #346's head e65aa49 AFTER CI saw that head green at 21 of 21, per decision/0088: a differential against an unknown baseline is not a measurement.\n\nIT DELETES DIRECTLY RATHER THAN THROUGH PeriodPurger, AND THAT CHOICE IS THE DESIGN. The smoke's container configures no retention window (purge_after_years defaults to null), so PeriodPurger::blockers() reports \"No retention window is configured\" and 2019-03 is NOT purgeable. Routing the mutant through purge() would have made the command refuse and exit non-zero, failing the check at the docker exec step instead of at the row read-back -- the job would go red and the assertion under test would still be unproven. A mutant that kills the check earlier than intended measures nothing.",
       "check": "checkPurgePeriodDryRunLeavesFileInPlace()'s ROW READ-BACK, in the `image` job on PR #347 (run https://github.com/turbophp/doccum/actions/runs/35624263518, job\nhttps://github.com/turbophp/doccum/actions/runs/35624263518/job/106414617834, head 846f232). Read by grepping the saved job log rather than taken on report:\n\n  ##[error][setup] DoccumSmokePurgeDryRunTarget.txt is gone after a purge-period run WITHOUT\n  --force -- the dry run purged for real -- raw output: EXISTS:no WITH_TRASHED_COUNT:0\n  ##[error]container-smoke (setup) failed: purge-period dry run deleted the file it was only\n  supposed to report on\n\nTHE THREE STDOUT ASSERTIONS BEFORE IT PASSED, which is the load-bearing half of this result and not an incidental detail: their failure messages are absent from the log (grep count 0 for each of 'did not name the 2019-03 period', 'did not report 1 file for 2019-03', 'never said it deleted nothing', and '(dry run) failed'). PR #346 predicted exactly this in advance -- that the stdout checks cannot catch a silent purge because the mutant satisfies them unchanged -- and the run confirmed it rather than being read to fit it.\n\nTHE PREDICTION MISSED ONE JOB, RECORDED AS A MISS RATHER THAN RECLASSIFIED. Predicted: `image` FAIL at the read-back, the six `test` legs FAIL (ArchiveCommandsTest covers this guard twice through the test harness, an independent witness from the smoke's real binary in the shipped --no-dev image), everything else PASS. Actual: all of that, plus `lint` FAIL -- Pint's fully_qualified_strict_types rejected the inline \\App\\Models\\File:: written into the mutant. A defect in how the mutant was written, in a job independent of `image`, so it does not touch the differential; but the prediction was wrong and saying so afterwards is the only version of this record worth anything.\n\nTHE RUN URL IN THIS NODE WAS WRONG WHEN FIRST WRITTEN, and is recorded because decision/0121 is about exactly this. The first draft cited run 35623985069, a number that was not read from anywhere -- the real run is 35624263518. Caught by listing the tests runs for branch mutation/purge-dry-run-deletes before committing, which also confirmed every job conclusion quoted above: `image` failure at step 10, `lint` failure at \"Pint (format check)\", all six `test` legs failure, and `guards`, `build assets`, `release waits for the published image to boot`, `compose requires MINIO_ROOT_PASSWORD`, `docs name the real image, not a placeholder` and `changelog-section.sh extracts release notes` success. Nothing in CI would have rejected the invented number.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0052",
+      "@type": "Mutation",
+      "implements": [
+        "item/v1-audit"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/353",
+      "run": "run/0021",
+      "headSha": "47237420cebae424de86cd801305f1610fa533fe",
+      "mutant": "Deleted the `actions/checkout` step from boot-published-image. Run against a SCRATCH COPY of .github under /tmp, taken from the tree at 4723742, so the tracked tree was never dirtied -- `git status --porcelain` was empty throughout. THE JOB UNDER TEST CANNOT ITSELF BE MUTATED: release.yml's boot-published-image is guarded to a tag push and no tag exists, so it cannot be made to fail because it cannot be made to run. decision/0120's answer applies -- the mutants go against the static guard that asserts its preconditions where the project DOES run.",
+      "check": "The `published image boot runs the full container smoke` check, via .github/scripts/assert-published-smoke.py, exit 1:\n\n  ::error::`boot-published-image` runs container-smoke.mjs but never checks out the repository -- `node .github/scripts/container-smoke.mjs` and `npm install --prefix .github/scripts` both read files out of the tree, so this job would fail at tag time on a path that does not exist.\n\nTHIS MUTANT EXISTS BECAUSE THE DEFECT WAS REAL. The job had no checkout at all, and the guard's first version would have passed it -- name matched, port matched, all seven variables supplied. The mutation is the regression test for a bug that shipped in the commit before it.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0053",
+      "@type": "Mutation",
+      "implements": [
+        "item/v1-audit"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/353",
+      "run": "run/0021",
+      "headSha": "47237420cebae424de86cd801305f1610fa533fe",
+      "mutant": "Reordered boot-published-image's steps, swapped the smoke step's CONTAINER_NAME and BASE_URL env keys, and reordered the `docker run` flags (-p/-v/--name). Every edit meaning-preserving. Run against a SCRATCH COPY of .github under /tmp, taken from the tree at 4723742, so the tracked tree was never dirtied -- `git status --porcelain` was empty throughout. THE JOB UNDER TEST CANNOT ITSELF BE MUTATED: release.yml's boot-published-image is guarded to a tag push and no tag exists, so it cannot be made to fail because it cannot be made to run. decision/0120's answer applies -- the mutants go against the static guard that asserts its preconditions where the project DOES run.",
+      "check": "assert-published-smoke.py exit 0, same verdict as the unmutated tree. THIS IS THE MUTATION THAT DECIDES WHETHER THE CHECK IS SAFE TO LEAVE ON EVERY PR; the three negative ones only prove it can fail. A guard that goes red on a reflow teaches the project to ignore it.",
+      "verdict": "positive",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0054",
+      "@type": "Mutation",
+      "implements": [
+        "item/v1-audit"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/353",
+      "run": "run/0021",
+      "headSha": "47237420cebae424de86cd801305f1610fa533fe",
+      "mutant": "Changed the smoke step's CONTAINER_NAME from `doccum-boot-${{ matrix.arch }}` to `doccum-boot-nothing-here`, a container nothing in the job boots. Run against a SCRATCH COPY of .github under /tmp, taken from the tree at 4723742, so the tracked tree was never dirtied -- `git status --porcelain` was empty throughout. THE JOB UNDER TEST CANNOT ITSELF BE MUTATED: release.yml's boot-published-image is guarded to a tag push and no tag exists, so it cannot be made to fail because it cannot be made to run. decision/0120's answer applies -- the mutants go against the static guard that asserts its preconditions where the project DOES run.",
+      "check": "assert-published-smoke.py exit 1, naming BOTH names rather than only the wrong one:\n\n  ::error::`boot-published-image`'s boot step creates a container named 'doccum-boot-${{ matrix.arch }}' (`docker run --name ...`), but the container-smoke.mjs step sets CONTAINER_NAME='doccum-boot-nothing-here' -- the smoke would be pointed at a container this job never booted.\n\nThis is the failure issue #340 asked for a mutation of: \"break the published-image smoke by pointing it at a container that never booted\".",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0055",
+      "@type": "Mutation",
+      "implements": [
+        "item/v1-audit"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/353",
+      "run": "run/0021",
+      "headSha": "47237420cebae424de86cd801305f1610fa533fe",
+      "mutant": "Added `const NEWTHING = env('SMOKE_NEWTHING');` -- a required variable with no default -- to container-smoke.mjs, without adding it to boot-published-image's fixture step. Run against a SCRATCH COPY of .github under /tmp, taken from the tree at 4723742, so the tracked tree was never dirtied -- `git status --porcelain` was empty throughout. THE JOB UNDER TEST CANNOT ITSELF BE MUTATED: release.yml's boot-published-image is guarded to a tag push and no tag exists, so it cannot be made to fail because it cannot be made to run. decision/0120's answer applies -- the mutants go against the static guard that asserts its preconditions where the project DOES run.",
+      "check": "assert-published-smoke.py exit 1, naming the variable:\n\n  ::error::`boot-published-image` never supplies SMOKE_NEWTHING, which container-smoke.mjs requires with no default and would throw on.\n\nTHIS IS WHAT MAKES THE DUPLICATED FIXTURES SAFE TO LEAVE DUPLICATED. Sharing them would mean a composite action or a reusable workflow, which would refactor the job that runs on every push. Instead the eighth required variable turns CI red on the PR that adds it, rather than silently on the next tag push -- a comment asking two lists to stay in sync is not a guard (decision/0113).",
       "verdict": "negative",
       "supersedes": null
     }
