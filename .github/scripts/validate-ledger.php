@@ -67,6 +67,42 @@ if ($mainSha === '') {
     $mainSha = null;
 }
 
+// issue #311: <main-sha> is POSITIONAL, and the workflow that passes it
+// also sets a MAIN_SHA env var two lines above the call -- so
+// `MAIN_SHA=<sha> php validate-ledger.php` reads like a correct
+// invocation, sets a variable this script never looks at, and skips the
+// whole main-push-history check while printing the same "Ledger is sound"
+// as a run that checked every commit.
+//
+// The count printed below was the existing defence and it is not enough:
+// it defends by printing, so `| tail -4` defeats it, and an ABSENT line
+// is far harder to notice than a wrong one. This has cost twice -- once
+// when "a tree CI refused was called sound" (run/0021), and once when a
+// ledger pass cited a "Compared 19 commits" line that was never emitted.
+//
+// Env var set AND no positional sha has no legitimate meaning: it is only
+// ever this mistake. CI is unaffected -- ledger.yml passes both, and its
+// --witnesses step sets no MAIN_SHA at all.
+$mainShaEnv = getenv('MAIN_SHA');
+if (! $witnessesMode && $mainSha === null && is_string($mainShaEnv) && $mainShaEnv !== '') {
+    fwrite(STDERR, <<<'TXT'
+        MAIN_SHA is set in the environment but no <main-sha> argument was given.
+
+        This script reads <main-sha> as a POSITIONAL argument, not from the
+        environment, so the main-push-history check would have been skipped
+        silently and the output would have looked exactly like a clean pass.
+
+        Pass it positionally, as .github/workflows/ledger.yml does:
+
+          php .github/scripts/validate-ledger.php docs/ledger docs/superpowers/specs/2026-09-15-doccum-design.md "$MAIN_SHA"
+
+        A correct run prints a "Compared N commits on main since ..." line
+        before its verdict. If that line is absent, the check did not run.
+
+        TXT);
+    exit(1);
+}
+
 if ($witnessesMode) {
     require $root.'/app/Support/LedgerRuleWitnesses.php';
 
@@ -198,6 +234,13 @@ function firstParentShasSince(string $root, string $since, string $upTo): ?array
 }
 
 $mainPushShas = null;
+if ($mainSha === null && ! $witnessesMode) {
+    // issue #311: the two skip paths below each say so on STDERR; this one
+    // said nothing at all, so "shape checked, history not checked" and
+    // "everything checked" printed identically. Checking shape alone is a
+    // legitimate use, so this is a notice and not a failure.
+    fwrite(STDERR, "Note: no <main-sha> argument; the main-push-history check did NOT run.\n");
+}
 if ($mainSha !== null) {
     $previousCommit = previousCompletedRunCommit($ledgerDir);
     if ($previousCommit === null) {
