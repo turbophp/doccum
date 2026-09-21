@@ -100,6 +100,31 @@ it('answers a destination that does not exist the same way as one out of reach',
     expect($file->fresh()->directory_id)->toBe($this->source->id);
 });
 
+/**
+ * The witness for dropMove()'s authorize() on the FILE branch.
+ *
+ * It has to be a destination the viewer CAN reach, because clause 1 of
+ * item/reach-existence-oracle scoped the destination lookup and that scoping
+ * aborts 404 before authorize() is ever reached for anything out of reach.
+ * View level is inside viewableDirectoryIds() -- so the lookup finds it and
+ * the 404 does not fire -- while FilePolicy::move() requires Edit on the
+ * destination, so the refusal comes from the policy. Removing the authorize
+ * lets this drop through; nothing else in this file still does.
+ */
+it('refuses a file drop into a directory the viewer may see but not write to', function () {
+    $file = File::factory()->for($this->source, 'directory')->create(['name' => 'a.txt']);
+
+    $viewOnly = Directory::factory()->create(['name' => 'Read only']);
+    grant($viewOnly, $this->user, AccessLevel::View);
+
+    Livewire::actingAs($this->user)
+        ->test(Browser::class, ['directory' => $this->source])
+        ->call('dropMove', 'file', $file->id, $viewOnly->id)
+        ->assertForbidden();
+
+    expect($file->fresh()->directory_id)->toBe($this->source->id);
+});
+
 it('refuses a drop of a file the viewer cannot reach', function () {
     $strangersDirectory = Directory::factory()->create(['name' => 'Theirs']);
     $file = File::factory()->for($strangersDirectory, 'directory')->create(['name' => 'secret.txt']);
