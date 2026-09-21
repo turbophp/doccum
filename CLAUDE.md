@@ -113,6 +113,19 @@ doccum must stay on stock Laravel's upgrade path.
 - **Mutation-check every security test.** Delete the guard, confirm the test
   fails, restore it. A guard whose test passes without it is worse than none,
   because it looks protected.
+- **A witness can stop witnessing, and the change that does it is somewhere
+  else.** A registered entry's `expectFailing` test proves a guard only while
+  that test still *reaches* it. Move a refusal earlier in the same method --
+  scope a lookup so it 404s before an `authorize()` that used to do the
+  refusing -- and deleting the guard stops altering the test's outcome, so the
+  entry silently measures nothing. Nothing weakened; the proof did. This is not
+  the bullet above: there the test never exercised the guard, here it did and
+  then stopped. So when `guards` fails on an entry your diff did not touch,
+  the answer is almost never to weaken the entry. Find the test that still
+  reaches the guard, repoint `expectFailing` at it, and say in the entry's
+  `why` which test it used to name and what moved -- "the guard is not
+  load-bearing" is a claim about a specific test, and which one it was is what
+  the next reader needs (`decision/0111`).
 - Scope assertions to their subject, not the whole table. `Model::count()`
   breaks the moment anything else legitimately writes a row.
 - `RefreshDatabase` resolves `config('database.default')` lazily at **rollback**
