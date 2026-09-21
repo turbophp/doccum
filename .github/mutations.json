@@ -663,5 +663,33 @@
     "file": "app/Livewire/Files/Browser.php",
     "remove": "\n            ->whereIn('id', $reachableForDrop)",
     "expectFailing": "refuses a drop into a directory the viewer cannot reach, and moves nothing"
+  },
+  {
+    "id": "drop-move-file-subject-scoped-to-reach",
+    "why": "issue #109 / item/reach-existence-oracle clause 2: dropMove()'s FILE SUBJECT must be scoped to the viewer's reach by directory_id inside the query, the same way clause 1 scoped the destination. Removing the whereIn leaves File::query()->find($subjectId), which still parses and runs -- but a file in a directory outside the viewer's reach is now found, abort_if does not fire, and authorize('move', ...) refuses with 403 while a nonexistent file id still answers 404. That difference is the existence oracle. WHICH HALF OF THE PAIR THIS PROVES: only the OUT-OF-REACH test flips. Its companion, asserting a NONEXISTENT id answers the same, still passes with the scoping removed -- find() returns null for an id no row carries either way and abort_if still fires. The companion documents that the two answers agree; it is not this guard's witness (decision/0111, CLAUDE.md).",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "\n                ->whereIn('directory_id', $reachableForDrop)",
+    "expectFailing": "refuses a drop of a file the viewer cannot reach"
+  },
+  {
+    "id": "drop-move-directory-subject-scoped-to-reach",
+    "why": "issue #109 / item/reach-existence-oracle clause 2: dropMove()'s DIRECTORY SUBJECT, the sibling of the file-subject guard above, scoped on the directory's own id. Removing the whereIn lets a directory outside the viewer's reach resolve, so authorize('move', ...) answers 403 where a nonexistent id answers 404. WHICH HALF OF THE PAIR THIS PROVES: only the OUT-OF-REACH test flips. Its companion, asserting a NONEXISTENT id answers the same, still passes with the scoping removed -- find() returns null for an id no row carries either way and abort_if still fires. The companion documents that the two answers agree; it is not this guard's witness (decision/0111, CLAUDE.md). THE WITNESS HAD TO BE BUILT. The obvious candidate -- 'refuses a folder drop from someone who may reach both ends but holds no directories.manage' -- would NOT flip: both ends are reachable there and the refusal is the permission, so removing this scoping changes nothing about it. Registering that test would have been an entry measuring nothing, which is decision/0111's failure in its original form rather than its second-order one. The new test uses a member granted directories.manage directly, holding Manage on both ends and nothing on the dragged folder -- neither the admin (directories.view-all reaches everything) nor a plain member (no directories.manage, so the refusal would be the permission) can express that case.",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "\n                ->whereIn('id', $reachableForDrop)",
+    "expectFailing": "refuses a drop of a folder the viewer cannot reach"
+  },
+  {
+    "id": "trash-file-row-scoped-to-reach",
+    "why": "issue #109 / item/reach-existence-oracle clause 2: trashFileRow() resolved its file with a bare findOrFail(), so a file in an unreachable directory answered 403 from authorize('delete') while a nonexistent id answered 404. Removing the whereIn restores exactly that split. Note the test this names was RENAMED in the same change: it used to read 'when the viewer may not delete it', which describes a permission refusal, while its fixture grants nothing at all on the file's directory -- a reach case wearing a permission name, harmless while both answered 403 and misleading now that they do not. WHICH HALF OF THE PAIR THIS PROVES: only the OUT-OF-REACH test flips. Its companion, asserting a NONEXISTENT id answers the same, still passes with the scoping removed -- find() returns null for an id no row carries either way and abort_if still fires. The companion documents that the two answers agree; it is not this guard's witness (decision/0111, CLAUDE.md).",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "\n            ->whereIn('directory_id', $reachableForRowTrash)",
+    "expectFailing": "refuses to trash a file from a row when the viewer cannot reach it"
+  },
+  {
+    "id": "preview-scoped-to-reach",
+    "why": "issue #109 / item/reach-existence-oracle clause 2, and clause 3 with it. preview()'s docblock claimed 'The id is re-resolved against the viewer's reach rather than trusted' while the code was File::query()->findOrFail($fileId) with no reach scoping at all -- authorize('view') did the refusing. The clause made the sentence true rather than deleting it. Removing this whereIn makes it false again and reopens the oracle: 403 for a file that exists out of reach, 404 for an id that does not exist. previewStep() routes through preview(), so the stepping path is covered by the same guard. WHICH HALF OF THE PAIR THIS PROVES: only the OUT-OF-REACH test flips. Its companion, asserting a NONEXISTENT id answers the same, still passes with the scoping removed -- find() returns null for an id no row carries either way and abort_if still fires. The companion documents that the two answers agree; it is not this guard's witness (decision/0111, CLAUDE.md).",
+    "file": "app/Livewire/Files/Browser.php",
+    "remove": "\n            ->whereIn('directory_id', $reachableForPreview)",
+    "expectFailing": "refuses to preview a file the viewer cannot reach"
   }
 ]
