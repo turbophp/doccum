@@ -2014,7 +2014,7 @@ final class LedgerValidator
 
         $vocabPath = $ledgerDir.'/vocab.md';
         if (! is_file($vocabPath)) {
-            return ["vocab: context.jsonld declares an @vocab and ".count($fallThrough).
+            return ['vocab: context.jsonld declares an @vocab and '.count($fallThrough).
                 ' term(s) resolve through it, but there is no vocab.md at '.$vocabPath.
                 ' -- every one of them resolves to nothing.'];
         }
