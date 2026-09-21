@@ -97,9 +97,12 @@ Every hour, the loop wakes and runs these steps in order.
    reported as waiting on the owner had a clause that was buildable that
    day, and every instance was invisible at item granularity
    (`decision/0107`). An item whose dependencies are unmet is therefore not
-   evidence that nothing in it can be built -- that reading is
-   `decision/0099`'s error, and it has now cost four days across three
-   items. Read every clause of every eligible item, the open issues and
+   evidence that nothing in it can be built -- a reading that has now cost
+   four days across three items. This was attributed to `decision/0099`
+   here and in two items; it is not 0099's, whose subject is a
+   branch-gated job being invisible to the PR that will break main, and
+   which contains neither "authorise" nor "buildable"
+   (`decision/0110`). Read every clause of every eligible item, the open issues and
    `CLAUDE.md`'s defect rules; a ledger-only pull request is permitted only
    when that sweep comes back empty, and it says in its body what it
    checked.
