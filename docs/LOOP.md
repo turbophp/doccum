@@ -33,6 +33,24 @@ Every hour, the loop wakes and runs these steps in order.
    mentioned username at all. An issue nobody has disposed of is invisible
    until `item/v1-audit`, which sits one place before the tag with no slack
    to fix anything.
+
+   **Disposing an issue onto a clause is not the end of it.** Folding an
+   issue into an existing item's `doneWhen` records where the work will be
+   done; it does not narrow what the issue asks, and nothing in this loop
+   closes an issue that is not an item's own. So when an item reaches
+   `Completed`, re-read every issue folded into one of its clauses against
+   the issue's OWN text and its comments, never against the clause, and
+   close it only if the issue's whole question is answered -- otherwise say
+   on the issue which part the clause discharged and leave it open. Both
+   failure modes have happened, on the same morning: #115 sat open for a day
+   after the entry point it asks for had shipped, and #109 was then closed on
+   the strength of two of the three call sites that hold the posture it asks
+   about, while `selectDirectory()` deliberately holds the other one
+   (`decision/0109`).
+
+   **Never close an issue with an edit that replaces its body.** The close
+   that got #109 wrong also overwrote the text, and GitHub's edit history was
+   not reachable from the tooling available here.
 2. **Review and merge.** Look at every open PR this loop opened. CI is the
    gate — a PR is mergeable only when every required check is green. Review
    the diff, then merge to `main`. Record the merge in the ledger.
