@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-21T13:58:00Z",
+  "dateModified": "2026-09-21T14:12:00Z",
   "latestRun": "run/0021",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1705,10 +1705,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "RESTATED, because the first version of this clause asserted something false and it reached main in PR #326. It said the CLI wrapper .github/scripts/validate-ledger.php \"has NO test at all\", so both guards added for issue #311 were unwitnessed. That is wrong. ledger.yml carries a job named \"validate-ledger.php refuses a silent skip\" with FOUR steps: the env-var refusal, the not-run notice, a positive control asserting the positional form still prints its Compared line, and a check that --witnesses is unaffected by MAIN_SHA in the environment. I wrote the false premise after reading tests/ and not .github/workflows/ -- decision/0114 exactly, checking the places I thought of rather than asking the question the code answers, and the third instance of it in one session. WHAT WAS ACTUALLY MISSING was not a test but EVIDENCE that the test works. The job's own comment claimed \"delete the guard and this step exits 0 instead\" -- an assertion about a mutation nobody had run, which CLAUDE.md forbids citing. Done when both guards have been mutated and the result recorded: mutation/0049 for the env-var refusal (died at step 1) and mutation/0050 for the not-run notice (died at step 2), two mutants failing two different steps so neither stands in for the other. AND the final clause of issue #311 -- \"registered in .github/mutations.json IF the guard is one the mutation sweep can witness\" -- is answered NO, on a structural fact: mutation-check.php runs `php artisan test --filter=<pattern>` and classifies the JUnit log, so expectFailing must name a PEST test. A guard whose test is a bash step in a workflow can never be matched by --filter; registering it would produce the \"matched no test at all\" manifest error rather than a witness. So this guard pair is witnessed by CI and mutated by hand, and that is the mechanism's shape rather than a gap left open.",
-      "actionStatus": "ActiveActionStatus",
+      "actionStatus": "CompletedActionStatus",
       "startTime": "2026-09-21T13:45:00Z",
-      "endTime": null,
-      "result": []
+      "endTime": "2026-09-21T14:05:05Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/330"
+      ]
     },
     {
       "@id": "item/about-version-defined",
@@ -1721,8 +1723,10 @@
       ],
       "size": "S",
       "release": "v1.0.0",
-      "dependsOn": [],
-      "doneWhen": "context.jsonld maps version to schema:version and says nothing more, so the ledger's about.version -- currently 0.1.0 -- could mean the version this ledger DESCRIBES, the version PUBLISHED to ghcr, or the version the working tree WOULD build. Those three diverge precisely during a release, which is the one moment the field is read, and item/tag-v1-0-0's fourth clause asks who updates it after the tag. decision/0095 flagged this on 2026-09-19 and it sat unowned because decision/0105 had parked it with the owner under the premise that a schema change is the owner's. decision/0117 RETRACTED that premise: three schema changes landed on 2026-09-18 under ordinary loop items, so the practice had already contradicted it. This item is that retraction being spent. Done when context.jsonld defines about.version in one sentence that distinguishes it from the other two readings; item/tag-v1-0-0's fourth clause is restated to name who sets it and when, per decision/0068 -- restated BEFORE the work, not after; and if the chosen reading makes the current 0.1.0 wrong, it is corrected in the same change with a note saying so.",
+      "dependsOn": [
+        "item/vocab-resolves"
+      ],
+      "doneWhen": "RESTATED BEFORE THE WORK, per decision/0068, because attempting the first clause found it unsatisfiable as written. It said \"context.jsonld defines about.version in one sentence that distinguishes it from the other two readings\". It cannot. docs/ledger/context.jsonld is STRICT JSON -- no comment syntax -- and a JSON-LD term definition is an object whose keys are keywords (@id, @type, @container and the rest), not a place prose can live. The attempt is what established this: adding the sentence as a // comment made the file fail json.load on line 15. SO THE DEFINITION NEEDS A HOME, and the home is the vocabulary document item/vocab-resolves builds -- which is the same gap seen from the other side, since #294 is precisely that @vocab points at a docs/ledger/vocab path that does not exist and every project term therefore resolves to nothing. This item now dependsOn that one rather than duplicating it. THE READING IS STILL THIS ITEM'S TO CHOOSE, and the choice is narrowed by a fact found while restating: doccum already has exactly one canonical notion of its own version, config('doccum.version'), which reads DOCCUM_VERSION and falls back to '0.1.0-dev'; release.yml sets it from the tag. So \"the version the working tree would build\" is already named elsewhere and about.version must not become a second reader of it (decision/0080). AND THE CURRENT VALUE IS FALSE UNDER EVERY READING BUT ONE. about.version is '0.1.0' and `git tag` lists NOTHING -- no release, no image, no Release. It cannot name a released version, and it does not match config/doccum.php's '0.1.0-dev' either. Done when: the vocabulary document defines about.version in one sentence that distinguishes released-version from would-build-version from next-tag-prediction; the current value is corrected to match the chosen reading, with a note saying it was wrong and why; and item/tag-v1-0-0's clause (4) -- \"say who updates the ledger's release node after the tag\" -- is restated to name who sets it and when, which decision/0117 has already established is the loop rather than the owner.",
       "actionStatus": "PotentialActionStatus",
       "startTime": null,
       "endTime": null,
@@ -4086,6 +4090,22 @@
       "mergedAt": null,
       "mergeSha": null,
       "mergedIn": null
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/330",
+      "@type": "PullRequest",
+      "identifier": 330,
+      "name": "two mutations on the validator guards, and a false premise corrected",
+      "implements": [
+        "item/validator-skip-guard-tested"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T13:59:30Z",
+      "headSha": "50455801625d4d9cce050241b62319db7048f7ae",
+      "mergedAt": "2026-09-21T14:05:05Z",
+      "mergeSha": "d9196c03d06794666d3a33b2915b948541a63241",
+      "mergedIn": "run/0021"
     }
   ],
   "decisions": [
