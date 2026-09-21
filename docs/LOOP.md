@@ -77,9 +77,42 @@ Every hour, the loop wakes and runs these steps in order.
    and bodies, and issue and comment bodies -- not the contents of files in a
    diff. So the ledger may record the exact string; the commit message that
    carries it there may not (`decision/0115`).
-2. **Review and merge.** Look at every open PR this loop opened. CI is the
-   gate — a PR is mergeable only when every required check is green. Review
-   the diff, then merge to `main`. Record the merge in the ledger.
+2. **Review and merge, ONE AT A TIME.** Look at every open PR this loop
+   opened. CI is the gate — a PR is mergeable only when every required check
+   is green. Review the diff, then merge to `main`. Record the merge in the
+   ledger.
+
+   **Step 3 must finish before this step runs again.** All three workflows a
+   `main` push triggers set `cancel-in-progress: true` on a group keyed by
+   workflow and ref (`tests.yml` and `ledger.yml` use
+   `${{ github.workflow }}-${{ github.ref }}`; `pages.yml` prefixes it with
+   `pages-`, same effect), and every `main` push shares the ref — so a second
+   merge while the first merge's run is still going CANCELS it. The commit is
+   then on `main` having been verified by nothing, permanently, because the
+   run that would have spoken for it no longer exists. A green PR is not a
+   reason to go now: the PR's checks ran against the PR's head, which is the
+   whole reason step 3 exists.
+
+   Which workflow you lose depends only on how long it takes. `e2b9587` kept
+   its `ledger` and `pages` runs — both finished inside the gap — and lost
+   `tests`, the longest of the three and the only one that runs the suite.
+   So the workflow most likely to be cancelled is always the one whose
+   conclusion is worth the most.
+
+   This has now happened twice, and the second time is the instructive one.
+   `ba799a9` is the case step 3 below describes; it taught the loop how to
+   READ the result. `e2b9587` is the same cancellation with the reading
+   already correct — the watcher reported `tests completed cancelled` exactly
+   as designed, because by then the merge that caused it had happened.
+   **Knowing how to detect it is not the same as not doing it**, and only
+   this step can be the fix: the watcher runs after the damage.
+
+   **A cancelled `main` run is re-run, not written off.** `POST
+   /repos/turbophp/doccum/actions/runs/<id>/rerun` re-runs it against the
+   same commit. Wait until no other `main` run is in flight first, or the
+   same concurrency group cancels one of the two. "The next commit is green
+   and contains this one" is an argument about the tree, not a run on this
+   commit, and the ledger records runs.
 3. **Watch `main` after each merge.** A PR's checks ran against the PR's head,
    not against the `main` that merging it produced, so they cannot speak for
    `main`. Wait for the push run on the merge commit and read its conclusion.
