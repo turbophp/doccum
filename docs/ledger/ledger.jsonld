@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-21T20:40:00Z",
-  "latestRun": "run/0021",
+  "dateModified": "2026-09-21T22:00:00Z",
+  "latestRun": "run/0022",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -1833,6 +1833,104 @@
       "result": [
         "https://github.com/turbophp/doccum/pull/369"
       ]
+    },
+    {
+      "@id": "item/runbook-trash-purge",
+      "@type": "Action",
+      "order": 86,
+      "name": "The operations runbook describes trash purging backwards, and a directory purge that does not exist",
+      "url": "https://github.com/turbophp/doccum/issues/373",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "docs/self-hosting/operations-runbook.md's Trash section says what PurgeFile does.\n\nDISCHARGED 2026-09-21 in PR #374. The section was ONE SENTENCE and every clause in it was wrong, on the page the docs site publishes for the operator performing the one irreversible operation in the product.\n\n(1) \"the same purge machinery as archived periods\" -- no; period purge is PeriodPurger from a console command, trash purge is app/Actions/Files/PurgeFile.php, which its own docblock calls \"the per-item complement\".\n\n(2) \"the retention/legal-hold guards above apply identically\" -- the legal-hold one does; the other is INVERTED. A period purge REQUIRES the period archived and past retention; PurgeFile REFUSES when the period is archived and has no retention check at all. So an operator who read this and archived the period first was told to do the exact thing that makes the purge refuse.\n\n(3) \"Soft-deleted DIRECTORIES and files ... permanently purges one item at a time\" -- there is no directory purge. Nine actions under app/Actions/Directories/ and no PurgeDirectory; `grep -rc PurgeDirectory app/` is 0 in every file; Livewire\\Trash\\Index says \"There is no directory purge here on purpose\".\n\nTHE REWRITE TAKES ITS REASONS FROM THE CODE rather than restating the rule, because both reasons are things an operator needs and neither reached them: an archived period is read-only and the sanctioned route is the retention-gated period purge, which a one-off delete would leave with inconsistent counts; and a directory purge is absent because files.directory_id is constrained()->cascadeOnDelete(), so force-deleting a directory row would delete every descendant file row at the database level without the application ever reaching object storage -- a storage leak, not a purge. It also says what to do instead, which the old text could not, because it did not know the operation it described was refused.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-21T20:36:00Z",
+      "endTime": "2026-09-21T20:49:14Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/374"
+      ]
+    },
+    {
+      "@id": "item/merge-record-covers-main-push",
+      "@type": "Action",
+      "order": 87,
+      "name": "Run.merges names two workflows; a main push triggers three",
+      "url": "https://github.com/turbophp/doccum/issues/375",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "Run.merges carries one field pair per workflow a push to main triggers, and something outside the prose refuses if the set drifts.\n\nDISCHARGED 2026-09-21 in PR #376. item/ledger-main-push-record chose named fields over a list and justified it: \"those are the whole of what a main push triggers, so a closed pair cannot under-report where a list is only as complete as its caller\". pages.yml is `on: push: branches: [main]` and was never in that enumeration, so the schema was a list-of-two wearing the authority of a complete set -- strictly worse than a list, which at least admits it is only as complete as its caller. A red pages build on main had nowhere to be recorded and was invisible to the rule that a completed run's last merge closed green. Practice had already diverged: run/0021's own description reads \"verified green per check name (tests 537, ledger 533, pages 27)\".\n\nA CLOSED SET CANNOT UNDER-REPORT ONLY IF THE SET IS RIGHT, and nothing checked that, because the set lived in prose -- LOOP.md, an item's doneWhen, and four hardcoded pairs in LedgerValidator. It is now one constant, MAIN_PUSH_WORKFLOWS, and .github/scripts/assert-merge-record-covers-main-push.py parses .github/workflows/ and refuses unless the two agree IN BOTH DIRECTIONS. LedgerValidator cannot do this itself: it never reads the workflows.\n\nBACKFILLED rather than gated behind an effective-after constant: all 262 entries across 21 run files carry the pair, real on the 73 merges at or after fa499f5 (the first-parent commit at which pages.yml existed), explicit null on the 189 before it. The boundary was computed, and the computation was rewritten once: the first version compared against a3a75c8, which is not on main's first-parent line, so it reported \"none missing\" for the wrong reason -- a guard that finds nothing and passes, which is the failure this project keeps meeting.\n\nTHE TAG-ONLY CASE is written into the script. A first draft read \"a push trigger with no `branches` key\" as \"every branch\" and so counted release.yml (`push: tags: [v*]`) -- precisely the workflow whose runs must never be recorded as a merge's verification, because no merge produces one.\n\nMUTATION. The guard: the constant back to the two it used to name -> exit 1; a new main-push workflow appears -> exit 1; pages stops triggering on main with the constant unchanged -> exit 1; the constant deleted -> exit 1; control -> exit 0. The extended validator rules, against a real fixture: pages red on the closing merge with tests and ledger green -> refused; a pagesConclusion with a null pagesRun -> refused.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-21T20:55:00Z",
+      "endTime": "2026-09-21T21:12:32Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/376"
+      ]
+    },
+    {
+      "@id": "item/no-undefined-path-segment",
+      "@type": "Action",
+      "order": 88,
+      "name": "A directory named `undefined` is tracked at the repo root and ships in the image",
+      "url": "https://github.com/turbophp/doccum/issues/377",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "No tracked path has a segment that is a JavaScript accident, and CI refuses one.\n\nDISCHARGED 2026-09-21 in PR #378. `undefined/H1-header.png` -- 16,681 bytes, referenced by nothing -- was added by 7e78aa1 on 2026-09-18. .dockerignore has 14 entries and none covers it, and the Dockerfile is `COPY . .` three times, so it shipped in every published image layer, inside the bytes the image-size ratchet measures, under a directory whose name is a bug.\n\nTHE CLASS REFUSES, NOT THE FILE: a path segment named undefined, null, NaN or [object Object] is a tool interpolating a value it did not have, and nobody types one. Anchored on whole segments with awk -F/, not a substring, so a deliberate `undefined.test.ts` or a directory `not-undefined/` stays legal -- and THAT is the case that earns the design, because a check which fails legitimate work is a check somebody deletes.\n\nNOT .dockerignore, which was the obvious alternative and the wrong one: excluding the file from the image would leave it in the repository, which is the part that is actually wrong.\n\nMUTATION, four cases: control clean; the file restored -> refused; a nested resources/js/null/deep/a.ts -> refused; resources/js/not-undefined/undefined.test.ts -> clean.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-21T21:14:00Z",
+      "endTime": "2026-09-21T21:23:25Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/378"
+      ]
+    },
+    {
+      "@id": "item/stale-texts-sweep",
+      "@type": "Action",
+      "order": 89,
+      "name": "Four texts that assert something the tree contradicts",
+      "url": "https://github.com/turbophp/doccum/pull/379",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "The four texts the consultation found asserting things the tree contradicts say what the tree says.\n\nDISCHARGED 2026-09-21 in PR #379, and two were worse than reported.\n\nupgrading.md justified \"downgrading is not supported\" with \"no migration in database/migrations/ is written with a working down() beyond what Laravel generates by default\". 24 of the 25 have a down() with a body, several hand-written. THE POLICY IS RIGHT AND THE REASON WAS FALSE, so the reason was replaced rather than the policy: exactly one migration cannot reverse (the email_verified_at backfill, which has no record of which rows it touched), and a down() that works still destroys data, because rolling back a column drop recreates the column empty. See decision/0130.\n\nconfiguration-reference.md contradicted itself on the same published page: a \"## Mail\" section saying the block \"is not optional\" for any instance with more than one person on it, and an \"## Everything else\" section listing \"the MAIL_* block\" among framework defaults the boot never asks you to set. Only four MAIL_* keys are exempt and DOC_AUDIT_ENV_KEY_EXEMPTIONS names them; MAIL_LOG_CHANNEL's own exemption text already said \"a debugging detail of the default that the Mail section tells you to move off\", so the registry knew what the prose did not.\n\nCONTRIBUTING.md listed 8 of 11 tests.yml jobs, and tests.yml's matrix comment said \"8.4 is what the image ships today\" while Dockerfile:12 says 8.5 and PRIMARY_PHP's own comment said it had drifted.\n\nNO GUARD FOR THE CONTRIBUTING LIST, deliberately and stated in the PR: it is the third \"two copies, no agreement check\" in one iteration, and the other two are numbers a self-hoster or the ledger depends on. A contributor-convenience list that names its own authority is not worth a fourth CI job.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-21T21:40:00Z",
+      "endTime": "2026-09-21T21:53:02Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/379"
+      ]
+    },
+    {
+      "@id": "item/citation-addresses-rot",
+      "@type": "Action",
+      "order": 90,
+      "name": "The ledger cites file:line into files that grow, so an insertion above a citation invalidates it silently",
+      "url": "https://github.com/turbophp/doccum/issues/371",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [],
+      "doneWhen": "Citations in the ledger and docs name something that moves WITH the thing it names -- a job, a heading, a function, a quoted fragment -- rather than a line number, or something checks the line numbers that remain.\n\nOPEN, and filed rather than swept, because changing the convention means auditing every existing citation. Found while correcting three ledger fields PR #366 falsified: three of the four rotted texts were behaviour claims, which are the change author's to sweep and were swept in that pass. The fourth is different and nobody was careless -- item/release-v0-1-0 cites \"release.yml:131\" for the `latest` rule, which is now line 207, moved by PR #359 inserting a job above it in a file it never opened. An insertion anywhere above a citation invalidates every citation below it, in files the inserting PR has no reason to read, and there is no moment at which anyone is in a position to notice.\n\nWHY IT MATTERS MORE HERE than in most repositories: decision/0080 makes a citation a claim that gets checked. A rotted line number defeats that at the cheapest step -- the reader opens the line, finds something unrelated, and has to decide whether the claim was wrong, the file moved, or they misread. The likely outcome is that they stop checking citations, which is the whole defence. See decision/0129.",
+      "actionStatus": "PotentialActionStatus",
+      "startTime": null,
+      "endTime": null,
+      "result": []
     },
     {
       "@id": "item/vector-index-seam",
@@ -4446,6 +4544,70 @@
       "mergedAt": "2026-09-21T20:28:55Z",
       "mergeSha": "cc1ded1533188cb2d7fa9742eb05368d51773a30",
       "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/374",
+      "@type": "PullRequest",
+      "identifier": 374,
+      "name": "Trash purging is not period purging, and it is refused for the opposite reason",
+      "implements": [
+        "item/runbook-trash-purge"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-21T20:41:05Z",
+      "headSha": "18e73c70a7ef625646aa5a47852cf6bde3dfdb51",
+      "mergedAt": "2026-09-21T20:49:14Z",
+      "mergeSha": "bc972da9bf1f0e06a748c50b806ee6bc6b0e144c",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/376",
+      "@type": "PullRequest",
+      "identifier": 376,
+      "name": "The merge record names every workflow a main push triggers, and CI refuses if it stops",
+      "implements": [
+        "item/merge-record-covers-main-push"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-21T21:00:13Z",
+      "headSha": "abf54a256f913d31c6349a8ae049627176e6387d",
+      "mergedAt": "2026-09-21T21:12:32Z",
+      "mergeSha": "da7252c42a4e9ba729493924e9e67f106661eb18",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/378",
+      "@type": "PullRequest",
+      "identifier": 378,
+      "name": "Delete undefined/H1-header.png, and refuse the class rather than the file",
+      "implements": [
+        "item/no-undefined-path-segment"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-21T21:18:35Z",
+      "headSha": "d88efb67d06aa5a66faf012e30985be254df0602",
+      "mergedAt": "2026-09-21T21:23:25Z",
+      "mergeSha": "d9d54d6b31fb7fee41700dc130c88da83987c37a",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/379",
+      "@type": "PullRequest",
+      "identifier": 379,
+      "name": "Four texts the tree contradicts, corrected from the tree",
+      "implements": [
+        "item/stale-texts-sweep"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-21T21:47:26Z",
+      "headSha": "3a36f7f7b9acdf678fbacc8253981deeaed9e468",
+      "mergedAt": "2026-09-21T21:53:02Z",
+      "mergeSha": "f064592642d7fcef3260ea62eb22981b0ef8d471",
+      "mergedIn": "run/0022"
     }
   ],
   "decisions": [
@@ -6559,6 +6721,37 @@
         "item/release-announcement-gate",
         "item/tag-v1-0-0",
         "item/readme-owner"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0130",
+      "@type": "Decision",
+      "dateCreated": "2026-09-21T22:00:00Z",
+      "run": "run/0022",
+      "name": "A right conclusion can rest on a false reason, and the reason is the part that gets checked",
+      "rationale": "docs/self-hosting/upgrading.md said downgrading is unsupported because \"no migration in database/migrations/ is written with a working down() beyond what Laravel generates by default\". 24 of the 25 have a down() with a body, several hand-written: the one adding name_key reverses its own index ordering on the way back out, with a comment explaining the constraint. Exactly one is empty -- the email_verified_at backfill, which has no record of which rows it touched.\n\nTHE CONCLUSION WAS NEVER IN DOUBT. Downgrading is unsupported and should be. What was false was the argument, and the argument is the part a careful reader checks -- because it is the only part that can be checked. A policy is a decision; a reason is a claim. So the reason was replaced rather than the policy, with the true one: one migration cannot reverse at all, and a down() that WORKS still destroys data, since rolling back a column drop recreates the column empty. The migration reverses; what was in it does not come back.\n\nWHY THIS IS ITS OWN LESSON and not decision/0129's: there the change was elsewhere and the text went stale behind it. Here nothing moved. The sentence was wrong when it was written, and it survived because it was load-bearing for a conclusion nobody disputed -- which is exactly the shape that does not get re-read. A false premise supporting a correct conclusion is more durable than one supporting a wrong one, because the wrong conclusion is what usually raises the alarm.\n\nTHE COST IS NOT THE ONE SENTENCE. A reader who checks a stated reason and finds it untrue has learned something about the rest of the page, and cannot un-learn it. The correction says so in the document rather than quietly swapping the text, for the same reason.",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "affects": [
+        "item/stale-texts-sweep"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0131",
+      "@type": "Decision",
+      "dateCreated": "2026-09-21T22:00:00Z",
+      "run": "run/0022",
+      "name": "A closed set's whole advantage is that it is closed, so something outside it must check that it is right",
+      "rationale": "Run.merges named `tests` and `ledger` and justified the shape: \"Two NAMED workflow fields rather than a list, because ... those are the whole of what a main push triggers, so a closed pair cannot under-report where a list is only as complete as its caller.\" The argument is sound. Its premise was false, and had been since pages.yml landed on 2026-09-19.\n\nA CLOSED SET IS STRICTLY WORSE THAN A LIST WHEN THE SET IS WRONG. A list is honest about its own incompleteness; a closed set converts an omission into a positive claim that nothing was omitted. So the design choice that bought safety at the schema level moved the whole risk onto one sentence of prose -- and that sentence lived in three places (LOOP.md, an item's doneWhen, four hardcoded pairs in LedgerValidator) with nothing comparing any of them to .github/workflows/.\n\nTHE RULE: whenever a design's correctness rests on an enumeration being COMPLETE, the enumeration must be checked against the thing it enumerates, by something that reads both. Not documented as complete. Not reviewed as complete. Checked. In this case LedgerValidator could not be that something -- it never reads the workflow files -- so the check is a separate script that parses both and refuses in either direction.\n\nRELATED TO decision/0114 AND DISTINCT FROM IT. 0114 is about how an enumeration was PRODUCED: one derived from a predicate can be re-run, one derived from where you happened to look cannot. This is about what an enumeration CLAIMS once it exists. A set produced correctly still rots, because the world it enumerates keeps changing after the enumerating stops.\n\nTHE TELL WAS AVAILABLE FOR TWO DAYS. run/0021's own description reads \"verified green per check name (tests 537, ledger 533, pages 27)\" -- the loop had been reading three workflows while the normative text said two and the schema could record two. When practice quietly exceeds protocol, the protocol is usually the thing that is wrong.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/merge-record-covers-main-push",
+        "item/ledger-main-push-record"
       ],
       "supersedes": null
     }
