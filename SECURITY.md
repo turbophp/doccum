@@ -69,10 +69,16 @@ notification is far more likely than a decision to ignore you.
   than the operation it was issued for, or that can be derived rather than
   requested.
 - **The first-run installer.** `/setup` creates the first administrator, and
-  only while no user exists at all. On a populated instance it must refuse to
-  create anything and send the visitor to login. Any path that gets it to
+  only while no user exists at all. Once one does, the route is **gone**:
+  `App\Http\Middleware\RequireInstanceSetup` answers it with a 404, not a
+  redirect to login, and `tests/Feature/FirstRunSetupTest.php`'s "closes setup
+  once a user exists" asserts exactly that. Any path that gets the installer to
   create or elevate an account on an instance that already has users is
-  critical — it is an unauthenticated route to administrator.
+  critical — it is an unauthenticated route to administrator. So is any path
+  that gets `/setup` to answer as anything but a 404 there, because the
+  installer being merely *inert* rather than *absent* is a weaker guarantee
+  than this one, and reporting a regression to it should not depend on knowing
+  which of the two was intended.
 - **Authentication** — session fixation, the password reset flow, the
   `auth.public_signup` setting being bypassable when off, two-factor
   enrolment.

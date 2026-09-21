@@ -1727,10 +1727,12 @@
         "item/vocab-resolves"
       ],
       "doneWhen": "RESTATED BEFORE THE WORK, per decision/0068, because attempting the first clause found it unsatisfiable as written. It said \"context.jsonld defines about.version in one sentence that distinguishes it from the other two readings\". It cannot. docs/ledger/context.jsonld is STRICT JSON -- no comment syntax -- and a JSON-LD term definition is an object whose keys are keywords (@id, @type, @container and the rest), not a place prose can live. The attempt is what established this: adding the sentence as a // comment made the file fail json.load on line 15. SO THE DEFINITION NEEDS A HOME, and the home is the vocabulary document item/vocab-resolves builds -- which is the same gap seen from the other side, since #294 is precisely that @vocab points at a docs/ledger/vocab path that does not exist and every project term therefore resolves to nothing. This item now dependsOn that one rather than duplicating it. THE READING IS STILL THIS ITEM'S TO CHOOSE, and the choice is narrowed by a fact found while restating: doccum already has exactly one canonical notion of its own version, config('doccum.version'), which reads DOCCUM_VERSION and falls back to '0.1.0-dev'; release.yml sets it from the tag. So \"the version the working tree would build\" is already named elsewhere and about.version must not become a second reader of it (decision/0080). AND THE CURRENT VALUE IS FALSE UNDER EVERY READING BUT ONE. about.version is '0.1.0' and `git tag` lists NOTHING -- no release, no image, no Release. It cannot name a released version, and it does not match config/doccum.php's '0.1.0-dev' either. Done when: the vocabulary document defines about.version in one sentence that distinguishes released-version from would-build-version from next-tag-prediction; the current value is corrected to match the chosen reading, with a note saying it was wrong and why; and item/tag-v1-0-0's clause (4) -- \"say who updates the ledger's release node after the tag\" -- is restated to name who sets it and when, which decision/0117 has already established is the loop rather than the owner.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-21T15:00:00Z",
+      "endTime": "2026-09-21T15:12:02Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/334"
+      ]
     },
     {
       "@id": "item/vocab-resolves",
@@ -4124,6 +4126,22 @@
       "mergedAt": "2026-09-21T14:52:09Z",
       "mergeSha": "8bc3743eec36b8e1a612e43256872a519e8c6f3b",
       "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/334",
+      "@type": "PullRequest",
+      "identifier": 334,
+      "name": "about.version means the latest tag, and the loop is what sets it",
+      "implements": [
+        "item/about-version-defined"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T15:07:17Z",
+      "headSha": "519a457eb3955b6935052acf3f920b037cd5a49c",
+      "mergedAt": "2026-09-21T15:12:02Z",
+      "mergeSha": "b8b5026b792387e6927270fb6fb497237b898834",
+      "mergedIn": "run/0021"
     }
   ],
   "decisions": [
@@ -6067,6 +6085,22 @@
       ],
       "affects": [
         "item/openapi-spec-reconcile"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0119",
+      "@type": "Decision",
+      "dateCreated": "2026-09-21T15:10:00Z",
+      "run": "run/0021",
+      "name": "about.version records the latest tag, and may lag but never lead",
+      "rationale": "about.version had three possible readings and no definition, so item/tag-v1-0-0's clause (4) -- who updates it after the tag -- could not be answered. Chosen: THE LEDGER'S RECORD OF THE LATEST GIT TAG PUSHED TO THIS REPOSITORY, without its leading `v`, and null while no tag exists. Written in docs/ledger/vocab.md's `version on the about node` section, because context.jsonld is strict JSON and a JSON-LD term definition is an object whose keys are keywords, not a place prose can live -- established by attempting it and watching json.load fail, not by reasoning.\\n\\nTHE OTHER TWO WERE ALREADY SPOKEN FOR. \"The version the tree would build\" has a home in config/doccum.php, which reads env('DOCCUM_VERSION', '0.1.0-dev'), set once as a Docker build arg by release.yml's image job. A second reader of one upstream value is one source wearing two hats, and their agreement is not evidence (decision/0080), so nothing compares the two and vocab.md says so explicitly -- they WILL read alike after a release lands, and that likeness is a coincidence of timing rather than a check. \"A prediction of the next tag\" is a value nothing in the repository could ever contradict, which is the same as recording nothing.\\n\\nTHE CHOICE WAS NARROWED BY THE CODE, NOT BY PREFERENCE. LedgerValidator's \"Deliberately NOT checked here\" list names `that about.version matches the latest published git tag`. A rule can be DELIBERATELY unchecked only if someone knew what checking it would mean, so that line has presumed this reading since it was written. Issue #289's own comment made the point and framed the decision as ratify-or-overrule. Ratifying leaves the line correct; overruling would have made it wrong and required changing it in the same breath (decision/0106).\\n\\nIT MAY LAG AND MAY NEVER LEAD, and that asymmetry is the whole of its safety. The loop writes it in the ledger pass AFTER the tag's release.yml run concludes success, so between the tag landing and that pass the field is one release behind. item/tag-v1-0-0's doneWhen reads this field and LOOP.md's stopping condition is that item reaching Completed, so a value written ahead of the release would let the loop stop on its own prediction. A tag whose release run FAILED is the case that makes it concrete: git says 1.0.0, no image and no Release exist, and this field -- written only after a successful run -- still says what was last actually released.\\n\\nTHE VALUE WAS FALSE AND IS NOW null. about.version read 0.1.0 from the ledger's seed commit 244ba02 while `git tag` listed nothing. null rather than a string like \"unreleased\", because REQUIRED_KEYS already documents an explicit-null convention for \"the thing this field records has not happened yet\" -- a Potential Action's startTime, a void Mutation's check -- and because a string is a value that something eventually parses.\\n\\nWHO SETS IT: the loop, not the owner. decision/0117 retracted the premise that a ledger schema change is the owner's. What stays the owner's is the tag push itself, for a harder reason than convention: decision/0085 recorded a 403 on `git push` of a tag from this environment, and decision/0092 narrowed that wall without removing it.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/about-version-defined",
+        "item/tag-v1-0-0"
       ],
       "supersedes": null
     }
