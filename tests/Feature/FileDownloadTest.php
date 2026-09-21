@@ -45,10 +45,25 @@ it('redirects an authorised user to a presigned url', function () {
         ->assertRedirectContains('https://minio.test/'.$this->version->object_key);
 });
 
-it('forbids a user without a grant', function () {
-    $this->actingAs(User::factory()->create())
+it('answers an unreachable file the same as a nonexistent one, for download', function () {
+    // item/reach-oracle-route-binding. This used to assertForbidden(): {file}
+    // was an implicit model binding, so a file outside the viewer's reach was
+    // resolved and then 403'd by authorize(), while a nonexistent id 404'd
+    // from the binding -- which told any caller which file ids exist.
+    //
+    // TWO HALVES ON PURPOSE. The out-of-reach half alone passed against the
+    // old 403 and would pass again if the scoping were removed and the status
+    // merely changed; one case cannot show that two answers MATCH. Only the
+    // pair states the property.
+    $stranger = User::factory()->create();
+
+    $this->actingAs($stranger)
         ->get(route('files.download', $this->file))
-        ->assertForbidden();
+        ->assertNotFound();
+
+    $this->actingAs($stranger)
+        ->get(route('files.download', ((int) File::query()->max('id')) + 1))
+        ->assertNotFound();
 });
 
 it('redirects a guest to login', function () {

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Exceptions\ObjectMissingFromStorage;
-use App\Models\File;
 use App\Models\FileVersion;
 use App\Services\DocumentStorage;
 use Illuminate\Http\RedirectResponse;
@@ -37,16 +36,27 @@ class FileVersionDownloadController extends Controller
      * in the instance. Unauthorised must always answer 403, never let the
      * shape of the response leak whether the id exists. This is the same
      * class of bug as open issue #109; do not reintroduce it here.
+     *
+     * AND {$file} IS NOW AN INT TOO, for the reason the paragraph above
+     * gives about {$version} -- item/reach-oracle-route-binding. The record
+     * used to say this controller "closes the oracle at 403", and that was
+     * true of its VERSION id and false of its FILE id: the version is
+     * resolved after authorize(), but the file was resolved by implicit
+     * binding BEFORE it, so an unreachable file 403'd where a nonexistent
+     * one 404'd. One oracle closed and another left open in the same
+     * method. viewableFileOrFail() closes the second.
      */
-    public function __invoke(File $file, int $version): RedirectResponse|Response|StreamedResponse
+    public function __invoke(int $file, int $version): RedirectResponse|Response|StreamedResponse
     {
-        $this->authorize('download', $file);
+        $model = $this->viewableFileOrFail($file);
+
+        $this->authorize('download', $model);
 
         $fileVersion = FileVersion::query()->findOrFail($version);
 
         // A single, removable statement on purpose (see
         // .github/scripts/mutation-check.php, which only supports removing
-        // an exact substring): $file->versions()->findOrFail(...) reads
+        // an exact substring): $model->versions()->findOrFail(...) reads
         // nicer but folds the cross-file check into the query itself, where
         // a mutation cannot be expressed as a clean removal.
         //
@@ -55,7 +65,7 @@ class FileVersionDownloadController extends Controller
         // strict !== comparison 404 every legitimate download while the
         // SQLite suite stayed green. FileVersion::casts() casts it too --
         // belt and braces on purpose, not redundancy.
-        abort_if((int) $fileVersion->file_id !== (int) $file->getKey(), 404);
+        abort_if((int) $fileVersion->file_id !== (int) $model->getKey(), 404);
 
         if ($this->storage->servesPresignedUrls()) {
             return redirect()->away($this->storage->temporaryUrl($fileVersion));
@@ -81,7 +91,7 @@ class FileVersionDownloadController extends Controller
         } catch (ObjectMissingFromStorage) {
             Log::error(
                 'Download failed: object missing from storage.',
-                ['file_id' => $file->id, 'file_version_id' => $fileVersion->id, 'object_key' => $fileVersion->object_key],
+                ['file_id' => $model->id, 'file_version_id' => $fileVersion->id, 'object_key' => $fileVersion->object_key],
             );
 
             // 502: object storage is genuinely upstream of PHP for the
@@ -105,7 +115,7 @@ class FileVersionDownloadController extends Controller
                 fpassthru($stream);
                 fclose($stream);
             },
-            $file->name,
+            $model->name,
             ['Content-Type' => $fileVersion->mime ?? 'application/octet-stream'],
         );
     }
