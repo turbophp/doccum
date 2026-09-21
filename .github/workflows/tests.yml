@@ -863,6 +863,13 @@ jobs:
       # somewhere AFTER the capture, the image is the fastest way to see what
       # the UI actually looked like. `if: always()` rather than success().
       #
+      # if-no-files-found: ignore, and this step GUARDS NOTHING -- said plainly
+      # because the first version of this comment read as though it did. When
+      # the smoke dies before the capture the PNG legitimately does not exist,
+      # and a second red step there would be noise on an already-red job. The
+      # refusal that matters lives in captureReadmeScreenshot(), which fails
+      # the smoke itself if the file is missing or implausibly small.
+      #
       # The committed docs/images/readme-files-view.png is refreshed FROM this
       # artifact, deliberately as a manual step. See README.md's note and the
       # PR for issue #339: a byte-comparison gate on a browser screenshot

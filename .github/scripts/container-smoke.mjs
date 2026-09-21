@@ -4150,19 +4150,44 @@ function instrumentUploadPath(page) {
  * silently wrote nothing would otherwise leave the previous committed image in
  * place and look like success.
  *
- * It runs in its OWN page inside the same context -- same cookies, same session
- * -- so that setting a fixed 1440x900 viewport for a stable README image cannot
- * change the viewport the rest of the run is asserting against. checkTopbar's
- * account-menu check and the palette check both read layout that depends on
- * viewport width.
+ * It runs in a context of its OWN, carrying this session's cookies through
+ * storageState, so that neither the fixed 1440x900 viewport a README image
+ * wants nor the navigation to /files can reach the page the rest of the run is
+ * asserting against. See the comment at the newContext() call for why both of
+ * those matter and why the obvious two alternatives do not work.
  */
 async function captureReadmeScreenshot(page, phase) {
   const target = path.resolve(README_SCREENSHOT_PATH);
   fs.mkdirSync(path.dirname(target), { recursive: true });
 
-  const shotPage = await page.context().newPage();
+  // A SEPARATE CONTEXT, CARRYING THIS SESSION'S COOKIES, and both halves of
+  // that are load-bearing.
+  //
+  // Not the caller's own `page`: the very next check,
+  // checkSearchFilterExcludesByPeriod(), does NOT navigate -- its comment says
+  // "FILE_NAME is already ON the page from searchUntilFound() above" -- so it
+  // inherits both the URL and the filled search field. Navigating `page` to
+  // /files here and back would hand it a reset search form and break a check
+  // this one has nothing to do with.
+  //
+  // Not page.context().newPage() either, which is what the first version did
+  // and what CI rejected: the main flow creates its page with
+  // browser.newPage(), so that context is owned by that page and Playwright
+  // answers newPage() on it with "Please use browser.newContext()".
+  //
+  // storageState carries the logged-in session across, so this does not have
+  // to log in again -- and a context of its own means the fixed 1440x900
+  // viewport a README image wants cannot reach the viewport checkTopbar and
+  // the command-palette check assert against.
+  const shotContext = await page
+    .context()
+    .browser()
+    .newContext({
+      storageState: await page.context().storageState(),
+      viewport: { width: 1440, height: 900 },
+    });
+  const shotPage = await shotContext.newPage();
   try {
-    await shotPage.setViewportSize({ width: 1440, height: 900 });
     await shotPage.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
 
     // Named one at a time so a failure says WHICH pane was missing. A single
@@ -4184,7 +4209,7 @@ async function captureReadmeScreenshot(page, phase) {
 
     await shotPage.screenshot({ path: target, fullPage: false });
   } finally {
-    await shotPage.close();
+    await shotContext.close();
   }
 
   // A capture that wrote nothing, or wrote a truncated file, must not pass as
