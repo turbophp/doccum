@@ -415,12 +415,47 @@ this pass discharges (b).
   and doing them converts clause (c) from a human errand into a job that runs
   itself when the tag lands.
 
+  **BOTH OF THOSE ARE NOW BUILT, 2026-09-21** (issue #340), so the split above
+  is no longer a plan but a statement of where each half stands:
+
+  - **The coverage is done and in `main`.** The sixth step exists — PR #346 added
+    `checkPurgePeriodDryRunLeavesFileInPlace()`, whose load-bearing assertion is
+    the row read-back rather than the command's own reassuring stdout, proved by
+    `mutation/0051`. And PR #353 pointed the full smoke at the *pulled* image in
+    `release.yml`'s `boot-published-image` (amd64 leg), so all six named steps —
+    install, upload, share, search, trash, purge dry run — now run against the
+    artifact a self-hoster pulls, not only against one this repository built.
+  - **The subject still needs the tag**, unchanged: there is no published image
+    to run against until the owner authorises one (#32, options in #302).
+
+  **WHAT THE COVERAGE HALF DOES NOT PROVE, said here because the distinction is
+  the whole point of splitting the clause.** `boot-published-image` has still
+  never executed — it is guarded to a tag push, and there is no tag. PR #353
+  proves the *wiring*, not the passage: `.github/scripts/assert-published-smoke.py`
+  parses `release.yml` and `container-smoke.mjs` on every PR and refuses unless
+  that job checks out, invokes the smoke, binds `CONTAINER_NAME` to the container
+  its own `docker run` creates, binds `BASE_URL` to the port that `docker run`
+  publishes, and supplies every `env('SMOKE_…')` the smoke requires with no
+  default. That is `decision/0120`'s pattern — assert the precondition where the
+  project does run — and it is the strongest evidence available for a job that
+  cannot be rehearsed. The first tag push remains the first execution.
+
+  That distinction earned itself immediately: `boot-published-image` had no
+  `actions/checkout` at all, and the guard as first written would have passed it
+  — name matched, port matched, all seven variables supplied — while the job died
+  on its first Node step at tag time. The guard now refuses that too.
+
   The README screenshot was assigned to this clause by the first pass and does
   not belong here at all; see milestone 11.
 
 So the audit closes when the owner authorises a tag and clause (c) runs against
 the image it publishes — and the work that makes that run meaningful is the
 loop's, now, rather than something to assemble by hand afterwards.
+
+**That work is finished, as of 2026-09-21.** Nothing is left in clause (c) that
+this loop can build: the six steps exist, they are pointed at the published
+image, and the wiring that points them is guarded by a check that runs on every
+pull request. What remains is one tag push, and it is the owner's to authorise.
 
 ## Corrections this audit makes to existing text
 
