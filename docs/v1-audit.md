@@ -16,7 +16,10 @@ three gaps and filed them as issues #321, #322 and #323. All three have since
 shipped and their issues are closed, so milestone 11 is re-walked below and now
 passes. Clause (b) is discharged in the same pass, against a named `main` run
 -- and the way this file described clause (b) turned out to be unrunnable as
-written; see **The audit's remaining clauses**. Nothing in milestones 1 to 10
+written; see **The audit's remaining clauses**. A draft of this pass also
+concluded that the loop had no v1 work left; an adversarial read before it
+merged found five clause fragments that need nobody's permission, and the
+correction is in **What this means for the gap**. Nothing in milestones 1 to 10
 is re-stated here: they passed and no change since has touched what they
 assert. Where this file now disagrees with itself, the later text says so
 rather than overwriting the earlier.
@@ -189,10 +192,21 @@ saying so is cheaper than implying otherwise.
 
 The fourth, smaller observation from the first pass **stands and is not
 discharged**: §12 asks README for "what it is, screenshot, three-line quick
-start". The first and third are there; there is still no screenshot. It needs a
-running instance to produce, so it sits with the owner-blocked work in clause
-(c) rather than with the three above. Recorded, still not filed — a screenshot
-is a clause of that work, not a defect of its own.
+start". The first and third are there; there is still no screenshot.
+
+**AND THE FIRST PASS FILED IT IN THE WRONG COLUMN.** It wrote that a screenshot
+"needs a running instance to produce, so it sits with the owner-blocked work in
+clause (c)". A running instance is not scarce here: `tests.yml`'s `image` job
+boots the container and drives Playwright against it on **every push**, and the
+workflow already uploads artifacts (`actions/upload-artifact` at
+`tests.yml:141`). `page.screenshot()` in `container-smoke.mjs` plus that
+existing upload produces the file with no tag, no registry and nobody's
+permission.
+
+So this is a clause the loop could have built at any point and assigned to the
+owner instead — `decision/0107`'s error, committed *inside the document whose
+job is to catch it*. Recorded here rather than quietly re-filed, because which
+column a clause was in and who moved it is what the next reader needs.
 
 ## Backlog
 
@@ -233,25 +247,79 @@ alternative search engines, legal holds, the Alpine image) and are not v1 gaps.
 ### What this means for the gap
 
 The first pass put the gap at six items, of which one plus three fresh
-documentation issues belonged to this loop. **All four of those are now done**
-— #321, #322 and #323 shipped and are closed, and clauses (a) and (b) of the
-audit itself are discharged.
+documentation issues belonged to this loop. **All four of those are now done** —
+#321, #322 and #323 shipped and are closed, and clause (b) of the audit itself
+is discharged.
 
-So the honest count of v1 work whose next action belongs to this loop is
-**zero**. Every remaining item terminates at a decision only the repository
-owner can make:
+**AN EARLIER DRAFT OF THIS SECTION SAID THE LOOP'S REMAINING v1 WORK WAS ZERO.
+THAT WAS FALSE, AND IT IS THE MOST IMPORTANT THING IN THIS FILE.** The draft was
+put to an adversarial read before it merged, precisely because `decision/0107`,
+`decision/0110` and `decision/0116` all record the same error — reading *"this
+item ends at something I cannot authorise"* as *"nothing in this item can be
+built"* — at a cost of four days across three items. The read found five clause
+fragments that need nobody's permission. Each was then re-verified here against
+the tree at `44542c0`, by the search named beside it, rather than taken on
+report:
 
-- **Authorise a tag** (#302, options A/B/C). This is the load-bearing one: it
-  unblocks `item/release-v0-1-0`, then `item/image-size`'s last clause, then
-  `item/readme-owner`'s clause 2, then this audit's clause (c), then
-  `item/tag-v1-0-0`.
-- **Enable GitHub Pages** (#27) — Settings → Pages → Source: GitHub Actions,
-  plus a `DOCS_SITE_PAGES_ENABLED` repository variable. `item/docs-site`'s
-  `deploy` job is gated to skip rather than fail until both are set.
+1. **The README screenshot.** Filed above as clause (c)'s and therefore the
+   owner's. It is not: `tests.yml`'s `image` job boots a container and drives
+   Playwright on every push, and uploads artifacts at `tests.yml:141`.
+2. **`CHANGELOG.md`'s `[Unreleased]` section is empty while product code has
+   moved.** Lines 14–16 are `## [Unreleased]` immediately followed by
+   `## [0.1.0]`. `git log a5443d3..main -- app resources routes` — `a5443d3`
+   being the last commit to touch `CHANGELOG.md` — returns **9 commits**,
+   including the five reach-oracle ones and `d3eaf07`, which turns a mount-time
+   403 into a 404: a user-visible behaviour change. `item/tag-v1-0-0`'s clause
+   (1) requires a `[1.0.0]` section before the tag is pushed, and `release.yml`
+   builds the Release body from this file verbatim. Whether the entries end up
+   under `[1.0.0]` or a second `[0.1.0]` bullet depends on #302; **writing them
+   does not.**
+3. **`item/release-v0-1-0`'s rc-image disposal sentence is unwritten.** Its
+   `doneWhen` ends by requiring that it be written down whether the rc image
+   stays published or a human deletes it — "as the manual step it is".
+   `grep -rn -i 'package version|rc image|stays published'` over `README.md`,
+   `HANDOVER.md`, `CONTRIBUTING.md` and `docs/self-hosting/` returns **nothing**.
+   It exists only in issue #302's body.
+4. **Clause (c)'s coverage, as opposed to its subject.** The *published image*
+   needs a tag; the *exercise* does not. `container-smoke.mjs` already drives
+   install, upload, share, search and trash, and already runs artisan commands
+   inside the container (`doccum:user:reset-password`, line 1241) — so a
+   `doccum:purge-period` dry run is an addition to an existing harness, not new
+   machinery. Meanwhile `release.yml`'s `boot-published-image`, the only job
+   that will ever touch the published image, asserts one string:
+   `grep -q 'Set up doccum'` (line 53 of that job). Pointing the full smoke at
+   the pulled image is configuration — it reads `BASE_URL` and `CONTAINER_NAME`
+   — and would make clause (c) automatic the moment a tag lands.
+5. **Issue #303 is the loop's, not the owner's.** It asks whether `release`
+   should be gated on the boot jobs. Verified: `release.yml:416` is
+   `needs: image`, and `boot-published-image` at line 210 is also `needs: image`
+   — so the GitHub Release is published *in parallel with* the job proving the
+   image boots. It was filed as the owner's because "the existing split was a
+   deliberate choice", but that choice was made by this loop, and the items
+   already answer it: `item/release-v0-1-0` requires dropping `linux/arm64`
+   "rather than shipping a manifest nobody has booted", and `item/tag-v1-0-0`
+   requires *both* the arm64 boot and the Release. Today those can come apart.
 
-Two further owner questions are open and block nothing: whether `release`
-should be gated on the boot jobs (#303), and enabling private vulnerability
-reporting, which `SECURITY.md` names as the reporting channel.
+None of the five is large. That is the point: the draft's error was not
+misjudging a hard call, it was reading at item granularity when blockers live at
+clause granularity — the exact reading LOOP.md step 4 was rewritten to forbid,
+in a document written after that rewrite.
+
+### What is genuinely the owner's
+
+Clause by clause, and unchanged by the above:
+
+- **The tag itself.** `decision/0085` recorded a 403 on `git push` of a tag from
+  this environment; `decision/0092` narrowed that wall without removing it. #302
+  states the options.
+- **The Pages source setting and `DOCS_SITE_PAGES_ENABLED`** (#27), which
+  `pages.yml` gates the `deploy` job on.
+- **`item/image-size`'s "printed by the release job"**, which needs a real tag
+  for `release.yml` to reach `image` with a tag rule that matches.
+- **`item/readme-owner` clause 2**, which needs `latest`, which `release.yml`
+  publishes only on a non-pre-release tag.
+- **Private vulnerability reporting**, which `SECURITY.md` names as the
+  reporting channel.
 
 ## The audit's remaining clauses
 
@@ -295,14 +363,26 @@ this pass discharges (b).
   counted at `b8b5026` with `grep -c 'message:'` and by summing `count:`.
 
 - **(c) A manual run of the published image through install, upload, share,
-  search, trash and a purge dry run** — **still blocked, and not by this loop.**
-  There is no published image, because there is no tag, because authorising one
-  is the owner's call (#32, and #302 states the three options). Clause (c)
-  cannot be attempted before that happens. The missing README screenshot from
-  milestone 11 belongs to this clause for the same reason.
+  search, trash and a purge dry run** — **its subject is blocked; its coverage
+  is not**, and an earlier draft of this bullet conflated the two.
 
-So the audit closes when the owner authorises a tag and clause (c) is run
-against the image it publishes. Nothing else remains.
+  Blocked: there is no *published image*, because there is no tag, because
+  authorising one is the owner's call (#32, options in #302).
+
+  Not blocked: everything about what the run would *do*. See item 4 under **What
+  this means for the gap** — the smoke already exercises five of the six named
+  steps and already runs artisan commands inside the container, and the only job
+  that will ever meet the published image asserts a single string. Building the
+  sixth step and pointing the smoke at the pulled image are both available today,
+  and doing them converts clause (c) from a human errand into a job that runs
+  itself when the tag lands.
+
+  The README screenshot was assigned to this clause by the first pass and does
+  not belong here at all; see milestone 11.
+
+So the audit closes when the owner authorises a tag and clause (c) runs against
+the image it publishes — and the work that makes that run meaningful is the
+loop's, now, rather than something to assemble by hand afterwards.
 
 ## Corrections this audit makes to existing text
 
