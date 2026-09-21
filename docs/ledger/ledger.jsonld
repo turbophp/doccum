@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-21T14:12:00Z",
+  "dateModified": "2026-09-21T14:58:00Z",
   "latestRun": "run/0021",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1745,10 +1745,12 @@
       "release": "v1.0.0",
       "dependsOn": [],
       "doneWhen": "context.jsonld's @vocab is https://github.com/turbophp/doccum/tree/main/docs/ledger/vocab# and there is no docs/ledger/vocab in this repository. Terms mapped to schema: resolve; everything project-specific falls through to @vocab and so resolves to nothing -- doneWhen, touched, outcome, size, release, order, mergeSha, testsConclusion, ledgerConclusion, expectFailing, implements, mergedIn, affects, supersedes. Those are the terms carrying this project's actual meaning, and their definitions live in LedgerValidator's enums, LOOP.md's prose, and the accumulated argument inside individual doneWhen strings. A @vocab IRI is a CITATION -- it says the definitions are over there -- and nothing has ever checked it, which is CLAUDE.md's own standard applied to the context file. Unblocked by decision/0117 for the same reason as item/about-version-defined. Done when either docs/ledger/vocab.md exists with one sentence per term and @vocab points at it, OR @vocab is dropped and each project term is mapped explicitly with a note that its definition lives in LedgerValidator; and either way LedgerValidator gains a rule that every non-schema term resolves to something that exists, with a witness entry that trips it, since the current state would fail that rule and that is the point. Explicitly NOT acceptable: repointing @vocab at something that merely returns 200 without writing the definitions, which converts a visible gap into an invisible one.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-21T14:20:00Z",
+      "endTime": "2026-09-21T14:52:09Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/332"
+      ]
     },
     {
       "@id": "item/vector-index-seam",
@@ -4105,6 +4107,22 @@
       "headSha": "50455801625d4d9cce050241b62319db7048f7ae",
       "mergedAt": "2026-09-21T14:05:05Z",
       "mergeSha": "d9196c03d06794666d3a33b2915b948541a63241",
+      "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/332",
+      "@type": "PullRequest",
+      "identifier": 332,
+      "name": "The ledger's @vocab now points at definitions, and a rule refuses a term without one",
+      "implements": [
+        "item/vocab-resolves"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T14:32:00Z",
+      "headSha": "2ac683b369ed37e438de2925e755833c08948450",
+      "mergedAt": "2026-09-21T14:52:09Z",
+      "mergeSha": "8bc3743eec36b8e1a612e43256872a519e8c6f3b",
       "mergedIn": "run/0021"
     }
   ],
