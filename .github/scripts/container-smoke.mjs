@@ -2674,10 +2674,32 @@ async function checkBulkTrashLeavesUnselectedFilesAlone(page, phase) {
   ].join(' ');
 
   // Synchronised on the DATABASE, not on the DOM -- see the docblock above.
+  //
+  // WAITS FOR BOTH VICTIMS, and the previous version waited only for V1
+  // while asserting on both. bulkTrash() writes the two rows in sequence, so
+  // there is a window where V1 is trashed and V2 is not; the loop exited in
+  // that window and the assertion below then read a half-finished state as a
+  // product defect. It is the only explanation that fits the failure it
+  // produced on main at 4d6b215 --
+  //
+  //   bulk trash did not trash both selected files -- raw output:
+  //   SURVIVOR_LIVE:yes V1_TRASHED:yes V2_TRASHED:no
+  //
+  // -- the exact shape of "stopped polling one row too early", and nothing
+  // else in that output is out of place.
+  //
+  // THIS DOES NOT MASK A REAL FAILURE, which is the thing to check before
+  // widening a wait. If the second row's checkbox click never registered,
+  // V2 is not selected, never gets trashed, and this loop runs to the
+  // deadline and falls through to the same assertion with the same message.
+  // The fix distinguishes "not yet" from "never"; it does not turn the
+  // second into the first.
   const deadline = Date.now() + REPLACE_TIMEOUT_MS;
   let output = tinker(php);
 
-  while (Date.now() < deadline && !/V1_TRASHED:yes/.test(output)) {
+  const bothTrashed = (raw) => /V1_TRASHED:yes/.test(raw) && /V2_TRASHED:yes/.test(raw);
+
+  while (Date.now() < deadline && !bothTrashed(output)) {
     await sleep(POLL_INTERVAL_MS);
     output = tinker(php);
   }
