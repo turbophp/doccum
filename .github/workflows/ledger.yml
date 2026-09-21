@@ -76,3 +76,106 @@ jobs:
       # `composer install` (this workflow never runs one at all).
       - name: Run ledger rule-witness sweep
         run: php .github/scripts/validate-ledger.php --witnesses docs/ledger docs/superpowers/specs/2026-09-15-doccum-design.md
+
+  # issue #311. The job above is the one that matters, and for most of its
+  # life it could have been passing while checking nothing: <main-sha> is a
+  # POSITIONAL argument, the step that passes it also sets a MAIN_SHA env
+  # var, and `MAIN_SHA=<sha> php validate-ledger.php` therefore skips the
+  # entire main-push-history check and prints the same "Ledger is sound".
+  #
+  # The old defence was the "Compared N commits" line, which defends by
+  # printing -- so any `| tail -n` hides it, and an ABSENT line reads as
+  # nothing rather than as a skipped check. This job asserts the behaviour
+  # instead of the output, in its own check so a failure names itself.
+  invocation:
+    timeout-minutes: 5
+    name: validate-ledger.php refuses a silent skip
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # fetch-depth 0 for the positive control below, which is the only
+      # step here that needs main's history to produce a "Compared" line.
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.5'
+          coverage: none
+
+      # THE LOAD-BEARING ASSERTION. Delete the guard in validate-ledger.php
+      # and this step exits 0 instead, which is the whole defect: an
+      # invocation that checks nothing, reported as a clean ledger.
+      - name: MAIN_SHA in the environment with no positional argument fails
+        env:
+          MAIN_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+        run: |
+          set +e
+          output="$(php .github/scripts/validate-ledger.php 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::expected the env-var-only invocation to fail, but it exited 0 -- the main-push-history check was skipped and reported as sound. Output: $output"
+            exit 1
+          fi
+
+          # Exiting non-zero is not enough: it must say WHY, or the next
+          # reader re-learns this by losing a CI cycle to it.
+          if ! printf '%s' "$output" | grep -qF 'POSITIONAL'; then
+            echo "::error::expected the failure to explain that <main-sha> is positional, but got: $output"
+            exit 1
+          fi
+
+          echo "env-var-only invocation correctly failed (exit $status):"
+          echo "$output"
+
+      - name: No sha at all still passes, but says the check did not run
+        run: |
+          set +e
+          output="$(php .github/scripts/validate-ledger.php 2>&1)"
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error::checking shape alone is a legitimate use and must still exit 0, but it exited $status: $output"
+            exit 1
+          fi
+
+          if ! printf '%s' "$output" | grep -qF 'did NOT run'; then
+            echo "::error::expected an explicit not-run notice when no <main-sha> is given, but got: $output"
+            exit 1
+          fi
+
+          echo "no-sha invocation correctly passed while saying so:"
+          echo "$output"
+
+      # The positive control. Without it the two steps above are satisfied
+      # by a script that refuses every invocation.
+      - name: The positional form runs the check and says how much it compared
+        env:
+          MAIN_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+        run: |
+          output="$(php .github/scripts/validate-ledger.php docs/ledger docs/superpowers/specs/2026-09-15-doccum-design.md "$MAIN_SHA" 2>&1)"
+
+          if ! printf '%s' "$output" | grep -qE 'Compared [0-9]+ commits? on main since'; then
+            echo "::error::expected the positional form to report how many commits it compared, but got: $output"
+            exit 1
+          fi
+
+          echo "positional form ran the history check:"
+          echo "$output"
+
+      # --witnesses takes no sha, and the workflow step for it sets no
+      # MAIN_SHA -- but a caller with one exported in their shell must not
+      # be refused for a mode that has nothing to pass.
+      - name: --witnesses is unaffected by MAIN_SHA in the environment
+        env:
+          MAIN_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha }}
+        run: |
+          php .github/scripts/validate-ledger.php --witnesses docs/ledger docs/superpowers/specs/2026-09-15-doccum-design.md
