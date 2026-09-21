@@ -21,7 +21,7 @@ use RuntimeException;
  * is reached by at least one witness") "the whole point", because a rule
  * with no witness at all is exactly the dead-`@id`-check shape #185
  * suffered. That is the stronger answer, and it is not the one implemented
- * here. LedgerValidator has 82 `$errors[] = ` call sites behind 16 category
+ * here. LedgerValidator has 84 `$errors[] = ` call sites behind 17 category
  * tags -- as many as 15 sites sharing one tag (`enum:`). Site-level coverage
  * would need:
  *
@@ -61,7 +61,7 @@ use RuntimeException;
  *
  * self::UNWITNESSED_BASELINE lists codes with no witness below; run()
  * requires LedgerValidator::CODES to equal witnessed-codes UNION that list,
- * exactly (missing OR extra either fails). It is empty, because all 16
+ * exactly (missing OR extra either fails). It is empty, because all 17
  * declared codes turned out witnessable.
  *
  * There was a UNWITNESSED_BASELINE_MAX ceiling here, compared against the
@@ -641,7 +641,13 @@ final class LedgerRuleWitnesses
             throw new RuntimeException("witness setup: could not create $dir/runs.");
         }
 
-        foreach (['context.jsonld', 'ledger.jsonld'] as $file) {
+        // vocab.md joined this list with item/vocab-resolves. The `vocab` rule
+        // reads it out of the ledger DIRECTORY, so a copy without it fails the
+        // baseline for a reason the live tree does not have -- which is what
+        // happened the first time this ran, and is why the list is explicit
+        // rather than a glob: a glob would have hidden the coupling instead of
+        // announcing it.
+        foreach (['context.jsonld', 'ledger.jsonld', 'vocab.md'] as $file) {
             if (is_file($sourceDir.'/'.$file)) {
                 copy($sourceDir.'/'.$file, $dir.'/'.$file);
             }
@@ -664,6 +670,9 @@ final class LedgerRuleWitnesses
         }
         foreach ((array) glob($dir.'/*.jsonld') as $path) {
             unlink((string) $path);
+        }
+        if (is_file($dir.'/vocab.md')) {
+            unlink($dir.'/vocab.md');
         }
         if (is_dir($dir)) {
             rmdir($dir);
