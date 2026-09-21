@@ -81,9 +81,44 @@ the one that starts deleting records unattended.
 
 ## Trash
 
-Soft-deleted directories and files go through the same purge machinery as
-archived periods — a Trash page restores or permanently purges one item at
-a time, and the retention/legal-hold guards above apply identically there.
+Trashing is separate from period purging, and the two have deliberately
+different rules. The Trash page lists what you may see of the trash and
+offers Restore on directories and files, and **Purge on files only**.
+
+### Purging a trashed file
+
+Permanent, one file at a time, and it takes every version's object as well
+as the rows. It is refused when either of two things is true:
+
+1. **The file is under a legal hold.** The same rule as a period purge, at
+   the single-file door, so a hold cannot be routed around one file at a
+   time.
+2. **The file's period is already archived.** This is the *opposite* of the
+   period-purge guard above, and reading it as the same rule is the mistake
+   this section exists to prevent. An archived period is read-only, and the
+   sanctioned way to reclaim its storage is the retention-gated period
+   purge — not a one-off manual delete, which would leave that purge's file
+   and byte counts inconsistent with what actually happened.
+
+**There is no retention window at this door.** A trashed file in a period
+that is not archived can be purged as soon as somebody with `files.delete`
+and `manage` on its directory asks. Retention gates the *period* purge; it
+does not gate this one.
+
+### There is no directory purge
+
+Restore works on a trashed directory; Purge does not, and this is a design
+decision rather than a missing button. `files.directory_id` carries an
+`ON DELETE CASCADE` foreign key, so force-deleting a directory row would
+delete every descendant file row at the database level without the
+application ever touching object storage — a storage leak, not a purge.
+Reclaiming a whole subtree safely means visiting every descendant file
+first.
+
+So to empty a trashed directory today: purge its files individually, or let
+the period purge reclaim the whole period once it has been archived and has
+aged out. A purged period leaves its directory structure standing and
+empty, which is the same outcome by a different route.
 
 ## Checking and resetting runtime configuration
 
