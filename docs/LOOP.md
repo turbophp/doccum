@@ -52,15 +52,31 @@ Every hour, the loop wakes and runs these steps in order.
    that got #109 wrong also overwrote the text, and GitHub's edit history was
    not reachable from the tooling available here.
 
-   **A close keyword cannot be qualified, so never write one for a partial
-   fix.** GitHub's linked-issue parser reads `Closes #N` and discards the
-   prose around it: `Closes #311 in part` closed #311 outright when PR #312
-   merged, although that PR's body, its commit message and the merge commit
-   each said the issue stays open for the half it could not discharge. Three
-   statements addressed to a human reader, in a field read by a machine.
-   Where a PR discharges part of an issue, reference it with no keyword --
-   plain `#311`, or "relates to #311" -- and say what remains in prose
-   (`decision/0115`).
+   **A close keyword cannot be qualified, and cannot be quoted either.**
+   GitHub's linked-issue parser reads a keyword adjacent to an issue number
+   and discards everything around it -- the word "in part", backticks, a
+   block quote, a sentence saying it was a mistake. Two rules follow, and
+   the second was learned the hard way:
+
+   1. Where a PR discharges only part of an issue, reference it with NO
+      keyword -- the bare number, or "relates to" -- and say what remains
+      in prose. A partial fix has no partial keyword.
+   2. Never reproduce a keyword-and-number pair anywhere a parser reads: a
+      commit message, a PR body or title, an issue body. To DISCUSS one,
+      break the pair -- name the keyword and the number separately, or use
+      a placeholder number.
+
+   Both were learned on issue #311 within one hour. Rule 1 came from a PR
+   body that used the keyword with "in part" appended. Rule 2 came from the
+   commit that RECORDED rule 1: it quoted the offending string in backticks
+   to explain the error, and closed the issue a second time when it landed
+   on `main`.
+
+   The converse matters too, or the rule gets over-applied: a FILE in the
+   repository is not a parsed field. GitHub scans commit messages, PR titles
+   and bodies, and issue and comment bodies -- not the contents of files in a
+   diff. So the ledger may record the exact string; the commit message that
+   carries it there may not (`decision/0115`).
 2. **Review and merge.** Look at every open PR this loop opened. CI is the
    gate — a PR is mergeable only when every required check is green. Review
    the diff, then merge to `main`. Record the merge in the ledger.
