@@ -4190,13 +4190,36 @@ async function captureReadmeScreenshot(page, phase) {
   try {
     await shotPage.goto(`${BASE_URL}/files`, { waitUntil: 'domcontentloaded' });
 
+    // /files IS THE ROOT, AND THE UPLOAD IS NOT IN IT. The first run of this
+    // check waited for the file's row straight after this goto and timed out
+    // at 15s: uploadAndProveStored() puts its file inside the directory named
+    // for the admin, so the root listing shows that DIRECTORY and no files at
+    // all. runVerify() already knew this -- it clicks the same link before
+    // downloadAndCompareBytes() for the same reason, and its comment records
+    // a reorder that dropped the click and produced the identical timeout.
+    // This is that lesson arriving a third time, so it is written at the call
+    // rather than left to be rediscovered.
+    //
+    // It also makes the better picture: inside the directory the middle pane
+    // has a real file in it, which is the whole point of shooting a populated
+    // instance rather than an empty shell.
+    await shotPage
+      .locator('[data-test="directories-list"]')
+      .getByRole('link', { name: ADMIN_USERNAME, exact: true })
+      .click();
+
     // Named one at a time so a failure says WHICH pane was missing. A single
     // combined wait would report a timeout on the first selector and leave the
     // reader guessing whether the others were fine.
+    //
+    // The row locator is the one every other check in this file uses --
+    // tr[data-test="file-row"] filtered by text -- rather than a bare
+    // getByText: the name also appears in the breadcrumb and in the tree, so
+    // getByText can be satisfied by a page whose file LISTING is empty.
     for (const [label, locator] of [
       ['the directory tree', shotPage.locator('[data-test="directory-tree"]')],
       ['the files table', shotPage.locator('[data-test="files-table"]')],
-      ['the uploaded file\'s row', shotPage.getByText(FILE_NAME, { exact: true })],
+      ['the uploaded file\'s row', shotPage.locator('tr[data-test="file-row"]').filter({ hasText: FILE_NAME })],
     ]) {
       try {
         await locator.first().waitFor({ state: 'visible', timeout: 15000 });
@@ -4205,7 +4228,7 @@ async function captureReadmeScreenshot(page, phase) {
         throw Object.assign(new Error(`README screenshot aborted: ${label} was not visible`), { dumped: true });
       }
     }
-    console.log(`[${phase}] /files shows the tree, the table and ${FILE_NAME} -- capturing`);
+    console.log(`[${phase}] the ${ADMIN_USERNAME} directory shows the tree, the table and ${FILE_NAME} -- capturing`);
 
     await shotPage.screenshot({ path: target, fullPage: false });
   } finally {
