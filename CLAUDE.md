@@ -9,7 +9,7 @@ properties, OCR'd text, permission-filtered search. Ships as one container.
 php artisan test                      # full suite; must be green before any commit
 php artisan test --filter=SomeTest    # focused
 ./vendor/bin/pint                     # format (--test to check)
-./vendor/bin/phpstan analyse          # ~44 pre-existing findings; add none
+./vendor/bin/phpstan analyse          # 37 findings in phpstan-baseline.neon; add none
 docker compose up -d --build          # the real stack
 docker run -d -v doccum:/data -p 8080:8080 doccum:local   # single container
 ```
