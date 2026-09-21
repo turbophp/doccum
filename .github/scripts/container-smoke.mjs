@@ -4184,7 +4184,19 @@ async function captureReadmeScreenshot(page, phase) {
     .browser()
     .newContext({
       storageState: await page.context().storageState(),
-      viewport: { width: 1440, height: 900 },
+      // 1440x560, and the HEIGHT is the considered half. The first capture
+      // came back 1440x900 and correct -- tree, listing, properties pane, a
+      // real directory and a real file -- and about two thirds of the frame
+      // was empty space below two rows. Issue #339's own warning is that an
+      // empty shell is a worse advertisement than no screenshot, and a
+      // mostly-blank frame is that failure in a milder form.
+      //
+      // The alternative was to upload more files so the listing looked fuller.
+      // Rejected: that adds fixtures to a shared smoke run for a cosmetic
+      // reason, and checks here already assert on row counts
+      // (checkBulkTrashLeavesUnselectedFilesAlone, the sort checks), so the
+      // cost lands on tests that have nothing to do with this.
+      viewport: { width: 1440, height: 560 },
     });
   const shotPage = await shotContext.newPage();
   try {
