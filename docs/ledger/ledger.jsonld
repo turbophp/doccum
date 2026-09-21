@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-21T08:10:00Z",
+  "dateModified": "2026-09-21T08:55:00Z",
   "latestRun": "run/0021",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1608,6 +1608,24 @@
       "result": [
         "https://github.com/turbophp/doccum/pull/284"
       ]
+    },
+    {
+      "@id": "item/reach-existence-oracle",
+      "@type": "Action",
+      "order": 75,
+      "name": "A subject outside the viewer's reach answers the same as one that does not exist",
+      "url": "https://github.com/turbophp/doccum/issues/109",
+      "isBasedOn": [
+        "spec:14-testing"
+      ],
+      "size": "M",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "THE QUESTION ISSUE #109 ASKS IS NOT '404 OR 403'. That framing survived four days and is wrong, and the restatement is the point of this item (decision/0068: a clause written after the fact is indistinguishable from having met the original one, so the clause is written BEFORE any code moves). The security property at stake is whether a surface gives the caller an EXISTENCE ORACLE: a surface leaks iff a subject that exists but lies outside the viewer's reach answers DIFFERENTLY from an id that does not exist at all. Whether the shared answer is 404 or 403 is a local choice; that the two agree is the requirement.\n\nWHY THE OLD FRAMING WAS WRONG, established from the code rather than argued. The case for 404 was always anti-enumeration. FileVersionDownloadController achieves anti-enumeration with 403 and says so in its own test: 'A version id that genuinely exists (on a file the caller cannot view) and one that does not exist at all must answer identically: 403 either way ... there is no existence oracle here.' Its sibling test asserts 404 for a cross-file version id when the caller can view both files. That controller is internally coherent and it picks the opposite status from the movers. So the product does not have two postures in conflict; it has some surfaces that close the oracle (either way) and some that leave it open.\n\nWHERE IT IS OPEN, and why. A bare `findOrFail($id)` followed by `authorize()` answers 404 for a nonexistent id (ModelNotFoundException) and 403 for one that exists outside the viewer's reach. Those differ, so the pair is an oracle. A lookup scoped to reach INSIDE the query answers 404 for both. Route-model binding that refuses the parent before the child is looked up answers 403 for both.\n\nCLOSED TODAY (no work): moveFile() 641-647, moveDirectory() 706-714, trashDirectoryRow() 449-453, the 18 /api/v1 routes via Controller.php:56,70, TrashRestoreController 50,67 -- all scoped, both cases 404. FileVersionDownloadController -- both cases 403.\n\nOPEN TODAY, all in app/Livewire/Files/Browser.php, and this is the work: dropMove() destination 587, dropMove() file subject 590, dropMove() directory subject 604, trashFileRow() 431, preview() 476, selectDirectory() 270-291.\n\nCLAUSE 1 -- dropMove()'s DESTINATION, which needs no posture decision and may land alone and first. item/api-content settled that a move destination outside the viewer's reach answers 404, and swept the two form-based movers. Drag-and-drop is the THIRD mover and kept the old shape; the 2026-09-20 comment on issue #109 pointed at line 587 and it was read as a correction to a stale patch rather than as a missed call site. Scope the destination lookup to DirectoryAccess::viewableDirectoryIds() inside the query with abort_if(null, 404), exactly as moveFile() does. FileBrowserDragTest:72 ('refuses a drop into a directory the viewer cannot reach') flips from assertForbidden to assertNotFound. Done when that test asserts 404 and a sibling asserts a NONEXISTENT destination id answers 404 too -- the pair, not the single case, is what proves the oracle closed.\n\nCLAUSE 2 -- THE REMAINING FIVE SITES EACH CLOSE THE ORACLE, by whichever route suits the site, and each carries a TEST PAIR asserting the unreachable-existing and the nonexistent case answer the same. Scoping is the simpler route for the two dropMove() subjects and trashFileRow(); selectDirectory() is the one that needs thought, because its existing comment argues against scoping on the grounds that it would swap a policy decision for an existence check -- an argument about WHICH status, which this clause does not require it to concede. It may close the oracle at 403 instead, the way FileVersionDownloadController does. What it may not do is keep answering 403 and 404 for the two cases.\n\nCLAUSE 3 -- preview()'s DOCBLOCK IS FALSE and is corrected whether or not its code changes. It claims 'The id is re-resolved against the viewer's reach rather than trusted, because it arrives from the client like any other'; line 476 is File::query()->findOrFail($fileId) with no reach scoping, and authorize('view') is what refuses. The behaviour is safe; the sentence is not, and CLAUDE.md treats a claim in a comment like any other claim.\n\nCLAUSE 4 -- MUTATION-CHECKED, because these are security tests and CLAUDE.md is explicit: delete the guard, confirm the test fails, restore it. A test pair that passes with the scoping removed proves nothing, and the failure mode is specific here -- if only the unreachable-existing half is asserted, removing the scoping flips it to 403 and the test still fails for the wrong reason. The nonexistent half is what makes the pair load-bearing.\n\nTHE NINE TESTS THAT HOLD THE CURRENT ANSWERS, so no later reader has to re-derive the set: FileBrowserActionsTest:84, FileBrowserTest:91, FileBrowserDragTest:72, FileBrowserDragTest:84, FileBrowserRowActionsTest:51, FileBrowserRowActionsTest:196, FilePreviewTest:132, PropertyPanelTest:39, FileVersionDownloadTest:120,124. Counted by reading, not grepping: non-API assertForbidden() appears about forty times across eighteen files and the rest concern permission LEVEL (without edit access, manage alone is not enough, admin pages), not reach. DirectoryArchiveTest:173 and FileDownloadTest:51 look close and are not candidates -- the first is requester identity, the second an absent grant.\n\nTHIS ITEM RAISES THE v1 GAP FROM SIX TO SEVEN, and that is said plainly per decision/0105 rather than left for a reader to notice. It is v1 because it is an information disclosure, however small, in a product whose entire premise is per-directory access control, and because item/v1-audit would have to raise it anyway. It exists at all because decision/0110 retracted the invented premise that creating an item is the owner's.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-21T08:55:00Z",
+      "endTime": null,
+      "result": []
     },
     {
       "@id": "item/vector-index-seam",
