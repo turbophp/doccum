@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-21T19:25:00Z",
+  "dateModified": "2026-09-21T20:05:00Z",
   "latestRun": "run/0021",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -1752,6 +1752,26 @@
       "endTime": "2026-09-21T14:52:09Z",
       "result": [
         "https://github.com/turbophp/doccum/pull/332"
+      ]
+    },
+    {
+      "@id": "item/handover-purpose",
+      "@type": "Action",
+      "order": 82,
+      "name": "Nothing links to HANDOVER.md and no item covers it, so it rotted where it was read",
+      "url": "https://github.com/turbophp/doccum/issues/361",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "size": "S",
+      "release": "post-v1",
+      "dependsOn": [],
+      "doneWhen": "HANDOVER.md says only true things, and the question of what the file IS has an answer written into the file itself: the owner's release runbook, or a historical note whose \"Before a public release\" checklist moves somewhere a person cutting a release would look.\n\nCLAUSE (a), THE FALSE STATEMENTS, IS DISCHARGED, 2026-09-21, in PR #363. Four \"What is not built\" rows named things that had shipped -- the three-pane shell (app/Livewire/Files/Browser.php), the admin surface (five screens under app/Livewire/Admin/), the REST API with Sanctum (app/Http/Controllers/Api/V1/, 16 paths in docs/api/openapi.json, contract-tested both directions) and the documentation site (docs/self-hosting/ plus pages.yml, build green and deploy skipping until item/docs-site's two settings). A \"Finish purging, or document that retention is manual\" checklist step was removed rather than corrected, because the same file refutes it two sections up under \"Purging is built\". Two rotted numbers -- \"99 commits, 386 tests\" against 795 and 898, and \"~1.34 GB\" against the README's ratcheted 934.2 MiB -- became pointers to where the numbers live instead of fresh copies that will rot again.\n\nCLAUSE (b), WHAT THE FILE IS FOR, IS OPEN and is the owner's, which is why this item is post-v1 rather than a v1 blocker: after (a) the tag procedure in step 2 is correct, so nothing about cutting v1.0.0 waits on the answer. Issue #361 stays open for it.\n\nTHE SPLIT IS THE POINT, and it is decision/0114's pattern at instance eight: the issue was filed owner-gated as a whole when only half of it was. What a file is FOR needs a decision; whether it says true things does not.",
+      "actionStatus": "ActiveActionStatus",
+      "startTime": "2026-09-21T19:15:12Z",
+      "endTime": null,
+      "result": [
+        "https://github.com/turbophp/doccum/pull/363"
       ]
     },
     {
@@ -4286,6 +4306,22 @@
       "mergedAt": "2026-09-21T19:19:01Z",
       "mergeSha": "59cbd8f84acc5a4917caaea26fe8e5effe1bb392",
       "mergedIn": "run/0021"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/363",
+      "@type": "PullRequest",
+      "identifier": 363,
+      "name": "HANDOVER: stop saying the REST API, admin surface and docs site are not built",
+      "implements": [
+        "item/handover-purpose"
+      ],
+      "run": "run/0021",
+      "state": "merged",
+      "dateCreated": "2026-09-21T19:46:47Z",
+      "headSha": "e1746d02352afdf270d8f0dc030d68982df9a1b6",
+      "mergedAt": "2026-09-21T19:51:33Z",
+      "mergeSha": "29fa9d75ce22a6bea53038e3a16fd8efb1b8ded4",
+      "mergedIn": "run/0021"
     }
   ],
   "decisions": [
@@ -6352,6 +6388,21 @@
       ],
       "affects": [
         "item/v1-audit"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0127",
+      "@type": "Decision",
+      "dateCreated": "2026-09-21T20:05:00Z",
+      "run": "run/0021",
+      "name": "A document no item covers is a document no pass reads",
+      "rationale": "By 6e73ddd, HANDOVER.md was wrong about roughly half of what the project had shipped: four \"What is not built\" rows naming built things, a checklist step the same file refutes 120 lines earlier, and an image size off by 400 MiB against a figure the README ratchets in CI. Every one of those lines dates from c3972f9 (2026-09-16), the commit that created the file, and every one of them was falsified afterwards by a pass that shipped the thing it denied.\n\nWHAT MAKES IT A DECISION rather than a stale document is what the file's history shows: it was edited twice in those five days -- 14f7028 (2026-09-20, the OWNER placeholder) and ea9c908 (2026-09-21, the rc image note) -- and NEITHER pass noticed the false rows it was editing alongside. So the failure is not that nobody opened the file. Two passes opened it, changed lines within it, and read past \"REST API with Sanctum -- not built\" without the sentence registering. What was missing was not exposure but an obligation: the ledger's unit of attention is the item, a run touches items, and no item covered this file. Nothing links to it either, except docs/v1-audit.md:319.\n\nTHE RULE: a document that makes claims about the tree gets an item, or it gets deleted. There is no third state in which a run is responsible for it, and \"it will be noticed when somebody edits it\" is refuted by this file twice over. That matters here specifically because HANDOVER.md is where the tag procedure lives, so its reader is the person cutting a release.\n\nTHE FIVE-DAY CLAIM IN ISSUE #361 IS FALSE and this node states the correction rather than repeating it: the issue says \"HANDOVER.md has not been revised since c3972f9\", and `git log -- HANDOVER.md` returns 14f7028 and ea9c908 after it. I wrote that line in the issue, and I copied it into the first draft of this rationale unchecked -- decision/0121 exactly, caught by running the log the claim was about before committing. The true version is strictly worse for the project and strictly better as evidence, which is the usual shape.\n\nWHAT THIS IS NOT: not decision/0080. That rule is about checking a citation you are shown. The false statements here raised no citation to check -- they were read and not registered. The failure is upstream of verification: it is in what the loop's attention is INDEXED BY.",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "affects": [
+        "item/handover-purpose"
       ],
       "supersedes": null
     }
