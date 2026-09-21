@@ -602,6 +602,43 @@ jobs:
 
           echo "${count} markdown files name ghcr.io/turbophp/doccum"
 
+  # item/image-size (issue #30). README.md's "Image size" table and
+  # .github/image-budget.json hold the SAME three facts -- two byte counts and
+  # the commit they were measured at -- and image-size.sh gates only the
+  # budget file. Its own note says raising a figure "takes a Decision saying
+  # why", so the supported way to raise the ceiling was also a way to leave
+  # the README quoting a size this project no longer builds, silently, in the
+  # file a self-hoster reads before pulling anything. decision/0125: a check
+  # must synchronise on everything it asserts, not a subset.
+  #
+  # No `needs:` on purpose, same reasoning as docs-name-the-real-image above:
+  # this reads two checked-out files and builds nothing. It deliberately does
+  # NOT measure an image -- image-size.sh owns that, against a real build in
+  # the `image` job -- so it stays a second-long text comparison rather than a
+  # slower duplicate of a check that already exists.
+  image-size-docs-agree:
+    timeout-minutes: 5
+    name: the README's image size agrees with the enforced budget
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: README.md and .github/image-budget.json state the same numbers
+        run: python3 .github/scripts/assert-image-size-docs.py
+
+      # Printed, not relied upon: the script REFUSES when it cannot find its
+      # subject (a renamed section, a byte figure that appears zero times), so
+      # this step exists to show a reader what was compared, not to be the
+      # defence. decision/0113 -- a guard that reports by printing is defeated
+      # by a pipe, so the refusal is in the exit code and this is commentary.
+      - name: Show what was compared
+        run: python3 .github/scripts/assert-image-size-docs.py --verbose
+
   changelog-section:
     timeout-minutes: 5
     name: changelog-section.sh extracts release notes
