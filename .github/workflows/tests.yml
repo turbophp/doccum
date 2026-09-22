@@ -449,6 +449,150 @@ jobs:
 
           echo "MINIO_ROOT_PASSWORD set resolves cleanly with no doccum-secret in the rendered config"
 
+  # item/compose-boot-ci (issue #36), FIRST HALF only. CLAUDE.md calls
+  # `docker compose up -d --build` "the real stack", and
+  # docs/self-hosting/quick-start.md presents it as a first-class install
+  # path -- yet nothing in CI has ever run it. Every existing `docker
+  # compose` invocation in this file (compose-secret above) is `config`,
+  # which renders and interpolates the file but starts nothing. This job is
+  # the other half of that: it brings up the DEFAULT compose stack (no
+  # profile) -- app, worker, worker-ingest and scheduler, sharing the `db:`
+  # volume -- waits for it, and asserts the app actually answers.
+  #
+  # DELIBERATELY OUT OF SCOPE: the `storage` profile's sibling MinIO. That
+  # half of item/compose-boot-ci depends on an open product decision (issue
+  # #382) about whether the default stack should even gain a sibling-storage
+  # path, so it is not built here. No AWS_ENDPOINT override, no
+  # DOCCUM_EMBEDDED_STORAGE override, no compose override file, and
+  # compose.yaml itself is untouched by this change.
+  #
+  # MINIO_ROOT_PASSWORD is set below even though this stack starts no minio
+  # service: compose.yaml's own comment above `minio:` says compose
+  # interpolates the WHOLE file regardless of which profiles are selected
+  # (verified on Compose v5.1.1 -- even `--profile nonexistent` fails), so
+  # every compose invocation in this project needs it set, this one
+  # included. Its value is never read by anything the default stack starts.
+  #
+  # No `needs:` on purpose: this builds its own images straight from the
+  # Dockerfile via `docker compose up --build`, the same source the `image`
+  # job builds `doccum:ci` from -- it depends on nothing any other job
+  # produces, and gating it behind them would only make it wait longer for
+  # no reason.
+  compose-boot:
+    timeout-minutes: 20
+    name: compose boots the default stack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      MINIO_ROOT_PASSWORD: ci-compose-boot-unused
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: docker compose up -d --build (default stack -- app, worker, worker-ingest, scheduler)
+        run: docker compose up -d --build
+
+      # Same bounded-polling idiom as the `image` job's "Smoke test the
+      # image" step below: detect a container that exited before it ever
+      # answered, rather than only timing out after 30 tries with no idea
+      # why. `docker compose ps -q` resolves the container id instead of
+      # assuming a naming scheme.
+      - name: Wait for app to answer with the first-run installer screen
+        run: |
+          set -e
+
+          container="$(docker compose ps -q app)"
+          if [ -z "$container" ]; then
+            echo "::error::docker compose up never created a container for the app service"
+            docker compose logs
+            exit 1
+          fi
+
+          ok=false
+          for i in $(seq 1 30); do
+            if ! docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null | grep -q true; then
+              echo "::error::the app service's container exited before it ever answered on http://127.0.0.1:8080"
+              break
+            fi
+            if body=$(curl -sS -L --max-time 5 http://127.0.0.1:8080/ 2>/dev/null); then
+              if echo "$body" | grep -q 'Set up doccum'; then
+                ok=true
+                break
+              fi
+            fi
+            sleep 2
+          done
+
+          if [ "$ok" != true ]; then
+            echo "::error::doccum's app service never served the first-run setup screen on http://127.0.0.1:8080 within the timeout"
+            docker compose logs
+            exit 1
+          fi
+
+          echo "app service is up and serving the installer screen"
+
+      # worker, worker-ingest and scheduler each carry a pgrep-based
+      # healthcheck in compose.yaml, precisely because the base image's own
+      # HTTP healthcheck would report them unhealthy forever -- none of the
+      # three ever serves HTTP. Asserting each one explicitly, and naming
+      # which one failed, is the point: a single combined check would only
+      # say "something" is wrong among three services sharing one volume.
+      - name: Assert worker, worker-ingest and scheduler are healthy (not merely created)
+        run: |
+          set -e
+
+          assert_healthy() {
+            service="$1"
+            container="$(docker compose ps -q "$service")"
+            if [ -z "$container" ]; then
+              echo "::error::${service} has no container -- docker compose up never created one for it"
+              return 1
+            fi
+
+            status=""
+            for i in $(seq 1 60); do
+              if ! docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null | grep -q true; then
+                echo "::error::${service} exited before its healthcheck ever passed"
+                return 1
+              fi
+              status="$(docker inspect -f '{{.State.Health.Status}}' "$container" 2>/dev/null)" || status=""
+              if [ "$status" = "healthy" ]; then
+                echo "${service} is healthy"
+                return 0
+              fi
+              sleep 2
+            done
+
+            echo "::error::${service} never reported healthy within the timeout (its pgrep-based healthcheck in compose.yaml never passed) -- last status was '${status}'"
+            return 1
+          }
+
+          failed=false
+          for service in worker worker-ingest scheduler; do
+            if ! assert_healthy "$service"; then
+              failed=true
+            fi
+          done
+
+          if [ "$failed" = true ]; then
+            exit 1
+          fi
+
+          echo "worker, worker-ingest and scheduler are all healthy"
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose logs
+
+      # Runs even when the steps above failed, so a red run here never
+      # leaves containers or the named `db:` volume behind on the runner.
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
   # issue #303. release.yml's `release` job used to be `needs: image` while
   # `boot-published-image` was ALSO `needs: image`, so the GitHub Release --
   # the user-visible announcement -- was created in parallel with the job
