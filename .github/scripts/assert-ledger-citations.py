@@ -37,21 +37,24 @@ observation with a wrong one. decision/0031 recording `login.blade.php:18` as
 `type="email"` is the worked example -- it was true when written and became
 `type="text"` when login-by-username shipped, and that is history, not rot.
 
-WHAT THIS DOES NOT COVER, counted rather than guessed, because a guard that
-is believed to cover more than it does is worse than one nobody trusts.
-`path:line` is the only form this script sees. A bare "line 131" in prose,
-whose file is named in an earlier clause or an earlier sentence, is invisible
-to it -- and there are MORE of those than of the form it catches: 15 across 9
-items, against 12 across 5. item/readme-owner is the live example. Its
-doneWhen says release.yml "declares `latest` twice: line 130 ... and line
-131", and both entries sit at 206 and 207 today, moved by the same insertion
-that moved item/release-v0-1-0's citation. That item is open, so its doneWhen
-is operative text carrying a rotted address, and nothing here can see it.
+WHAT THIS DOES NOT COVER. `path:line` is the only form this script sees. A
+bare "line 131" in prose, whose file is named in an earlier clause or an
+earlier sentence, is invisible to it. Both counts are PRINTED on every run --
+the bare one plainly labelled as not checked -- rather than written into this
+docblock, and that is a correction rather than a style preference: the first
+version of this file stated both as numbers, and writing the ledger paragraph
+that documents this guard added a citation, so the number was wrong one commit
+later. A count copied into prose is a number that rots; see HANDOVER.md's
+statement of the same rule, and item/citation-addresses-rot.
 
-Extending to the bare form needs the inventory to supply the file, since the
-prose does not, and needs a key that survives editing the sentence around the
-number -- neither of which is solved here. Until it is, this guard covers the
-resolvable half and says so.
+THE BARE FORM IS NOT THE ROT SURFACE THE COUNT SUGGESTS, audited 2026-09-22
+and recorded in item/citation-addresses-rot. Not one bare citation in the
+ledger is a live address: most sit in COMPLETED items, where a doneWhen
+describes the state the item changed, and the rest are quotational -- examples
+of rot, or a quotation held up in order to be refuted. So a guard demanding
+declarations for them would catch nothing today. The convention in vocab.md
+still binds anyone writing a NEW citation; enforcing it mechanically is worth
+less than the count made it look.
 
 NO GLOBBING, ANYWHERE, AND THE REASON IS EMBARRASSING. Python's glob skips
 dot-directories unless include_hidden is set, so a survey written to find rot
@@ -81,6 +84,9 @@ INVENTORY = ROOT / '.github' / 'ledger-citations.json'
 # strings, and a guard that cries wolf gets deleted.
 CITATION = re.compile(r'([\w./-]+\.(?:php|js|mjs|yml|yaml|md|json)):(\d+)')
 
+# Reported, not enforced -- see count_bare_citations().
+BARE_CITATION = re.compile(r'\blines?\s+\d+(?:\s*-\s*\d+)?', re.IGNORECASE)
+
 REQUIRED_KEYS = {'item', 'citation', 'path', 'line', 'expectAtLine', 'why'}
 
 
@@ -104,6 +110,20 @@ def found_in_ledger() -> dict[tuple[str, str], int]:
             key = (item_id, match.group(0))
             found[key] = found.get(key, 0) + 1
     return found
+
+
+def count_bare_citations() -> int:
+    """Bare "line N" / "lines N-M" mentions, with path:line matches masked out
+    first so "Directory.php:113-117" is not counted twice."""
+    ledger = json.loads(LEDGER.read_text())
+    total = 0
+    for item in ledger.get('items', []):
+        done_when = item.get('doneWhen')
+        if not isinstance(done_when, str):
+            continue
+        masked = CITATION.sub(lambda m: '#' * len(m.group(0)), done_when)
+        total += len(BARE_CITATION.findall(masked))
+    return total
 
 
 def main() -> None:
@@ -225,6 +245,15 @@ def main() -> None:
         f'{len(found)} path:line citation(s) across items[].doneWhen, all declared; '
         f'{checked} checked against the line they name, '
         f'{len(declared) - checked} deliberately stale with a stated reason.'
+    )
+    # Printed, never enforced, and labelled so: this script cannot resolve a
+    # bare line number to a file, so it has nothing to check. It is here so
+    # the figure lives in output that is regenerated on every run rather than
+    # in prose that goes stale the next time anyone writes a sentence.
+    print(
+        f'{count_bare_citations()} bare "line N" citation(s) alongside them, '
+        f'NOT CHECKED -- see item/citation-addresses-rot for why none of them '
+        f'is a live address.'
     )
 
 
