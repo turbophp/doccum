@@ -6,11 +6,18 @@ open. Reports are taken seriously and are welcome from anyone.
 
 ## Supported versions
 
-doccum has not reached `v1.0.0`. Until it does, the supported version is
-`main`, and there is no backporting: fixes land on `main` and reach operators
-in the next image.
+The supported version is the most recent published image, and fixes reach
+operators by moving forward rather than by being backported.
 
-Once `v1.0.0` is tagged this section will name the supported release line.
+Before `v1.0.0` that image is built from `main`; after it, it is the latest
+release. Either way the answer to "am I on a supported version?" is "are you on
+the newest one?" — which is why this section carries no version table, and needs
+no edit when a release is cut.
+
+There is no backporting to older release lines. That costs nothing today,
+because there is only one line. If doccum ever maintains two, this paragraph is
+where it will say so — changed because the situation changed, not because
+somebody remembered to.
 
 ## Reporting a vulnerability
 
