@@ -471,7 +471,17 @@ jobs:
   # interpolates the WHOLE file regardless of which profiles are selected
   # (verified on Compose v5.1.1 -- even `--profile nonexistent` fails), so
   # every compose invocation in this project needs it set, this one
-  # included. Its value is never read by anything the default stack starts.
+  # included.
+  #
+  # Its VALUE is read, and saying otherwise would be wrong: x-app's
+  # `AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}` is inherited by all
+  # four default-stack services. What makes the value irrelevant is what
+  # happens next -- `app` runs with DOCCUM_EMBEDDED_STORAGE=true, so
+  # 48-doccum-storage.sh generates a random password into /data/minio.env
+  # and RuntimeConfigServiceProvider::applyEmbeddedStorage() overwrites
+  # documents.key/secret/endpoint from that file at boot, for all four
+  # services, since they share the db:/data volume. So this value is read
+  # and then overridden; it never decides anything.
   #
   # No `needs:` on purpose: this builds its own images straight from the
   # Dockerfile via `docker compose up --build`, the same source the `image`
@@ -511,8 +521,14 @@ jobs:
             exit 1
           fi
 
+          # 60 tries, not the `image` job's 30: there one container boots
+          # alone, here four start together against one SQLite file on a
+          # shared volume, and only `app` carries AUTORUN_ENABLED=true, so
+          # it is migrating while three workers contend for the same disk.
+          # A budget that is merely enough on a quiet runner is how a job
+          # becomes a coin flip.
           ok=false
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             if ! docker inspect -f '{{.State.Running}}' "$container" 2>/dev/null | grep -q true; then
               echo "::error::the app service's container exited before it ever answered on http://127.0.0.1:8080"
               break
@@ -528,7 +544,6 @@ jobs:
 
           if [ "$ok" != true ]; then
             echo "::error::doccum's app service never served the first-run setup screen on http://127.0.0.1:8080 within the timeout"
-            docker compose logs
             exit 1
           fi
 
