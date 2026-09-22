@@ -126,6 +126,12 @@ function makeSmallMutationFixture(array $mutations, string $itemId = 'item/small
             'testsConclusion' => 'success',
             'ledgerRun' => 'https://github.com/turbophp/doccum/actions/runs/12',
             'ledgerConclusion' => 'success',
+            // The pages pair is present and null, not omitted. checkMergeEntry()
+            // requires every MAIN_PUSH_WORKFLOWS field pair to EXIST on an
+            // entry -- null says "pages did not run for this push", an absent
+            // key says nothing at all, and these fixtures used to say nothing.
+            'pagesRun' => null,
+            'pagesConclusion' => null,
         ]],
     ];
     writeMutationFixtureFile($dir.'/runs/0000.jsonld', $run0);
@@ -281,6 +287,12 @@ function makeRunThresholdMutationFixture(array $mutations, ?string $testsConclus
         'testsConclusion' => $testsConclusion,
         'ledgerRun' => 'https://github.com/turbophp/doccum/actions/runs/14',
         'ledgerConclusion' => 'success',
+        // The pages pair is present and null, not omitted. checkMergeEntry()
+        // requires every MAIN_PUSH_WORKFLOWS field pair to EXIST on an
+        // entry -- null says "pages did not run for this push", an absent
+        // key says nothing at all, and these fixtures used to say nothing.
+        'pagesRun' => null,
+        'pagesConclusion' => null,
     ]];
     $lastRun['commit'] = $mergeSha;
     $runsById[$lastRunNumber] = $lastRun;

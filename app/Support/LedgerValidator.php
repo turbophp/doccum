@@ -1260,6 +1260,34 @@ final class LedgerValidator
             $errors[] = "enum: Run '$runId'.merges[$index].pullRequest = ".self::describe($pullRequest).' is neither a string nor null.';
         }
 
+        // PRESENCE, CHECKED SEPARATELY FROM VALUE, and the separation is the
+        // point. vocab.md says of this field pair: "What a null cannot do is
+        // hide a red run -- a conclusion with no run is its own error, and
+        // the keys are always present, so 'not recorded' and 'did not run'
+        // stay distinguishable." That sentence was true of every entry on
+        // the ledger and false of the validator: both loops below read
+        // `$entry[$field] ?? null`, which collapses an ABSENT key and an
+        // explicit `null` into the same value, so an entry that simply
+        // omitted `pagesRun` validated clean and the distinction the vocab
+        // rests on was enforced by nothing but habit.
+        //
+        // That is decision/0080 in the schema rather than in prose: two
+        // readers of one `?? null` agree with each other at a false value.
+        // An explicit null is a recorded answer -- "this workflow did not
+        // run for this push" -- and a missing key is the absence of an
+        // answer. A closed set of field pairs (MAIN_PUSH_WORKFLOWS) only
+        // reports completely if every member is actually there.
+        foreach (self::MAIN_PUSH_WORKFLOWS as $workflow) {
+            foreach ([$workflow.'Run', $workflow.'Conclusion'] as $field) {
+                if (! array_key_exists($field, $entry)) {
+                    $errors[] = "enum: Run '$runId'.merges[$index] has no '$field' key at all. ".
+                        'Write it as null to record that '.$workflow.' did not run for this push -- '.
+                        'an absent key is not an answer, and the pair must be able to say "did not run" '.
+                        'without being mistaken for "nobody wrote it down".';
+                }
+            }
+        }
+
         foreach (array_map(static fn (string $w): string => $w.'Conclusion', self::MAIN_PUSH_WORKFLOWS) as $field) {
             $value = $entry[$field] ?? null;
             if ($value !== null && ! in_array($value, self::WORKFLOW_CONCLUSIONS, true)) {
