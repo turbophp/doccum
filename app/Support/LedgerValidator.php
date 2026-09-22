@@ -59,8 +59,8 @@ final class LedgerValidator
      */
     public const CODES = [
         'canonical', 'decision', 'enum', 'fatal', 'graph', 'history', 'id',
-        'mutation', 'order', 'pr', 'ref', 'run', 'shape', 'spec-anchor',
-        'status', 'structural', 'vocab',
+        'mutation', 'order', 'pr', 'ref', 'run', 'sequence', 'shape',
+        'spec-anchor', 'status', 'structural', 'vocab',
     ];
 
     /** JSON-LD keywords and CURIE namespace prefixes in context.jsonld -- infrastructure, not data terms. */
@@ -75,6 +75,27 @@ final class LedgerValidator
      * skips these rather than reporting the embedded node as "not a string".
      */
     private const SHAPE_EXEMPT_TERMS = ['about'];
+
+    /**
+     * The first number each id sequence issues, per sequenceErrors(). Runs
+     * are 0-based because run/0000 is the backfill of everything that
+     * happened before the loop existed; decisions and mutations are 1-based
+     * because they were only ever written forward.
+     */
+    private const SEQUENCE_FIRST = ['Run' => 0, 'Decision' => 1, 'Mutation' => 1];
+
+    /**
+     * Numbers that were issued and whose node is gone on purpose. Read
+     * sequenceErrors()'s docblock before adding one: a second entry here is
+     * a claim that a deletion was right, and the value is where that claim
+     * is made and has to survive review.
+     */
+    private const KNOWN_ABSENT_IDS = [
+        'mutation/0053' => 'Removed by f382c9b. It recorded disabling the loop trigger and checking the '.
+            'loop stopped -- a survival control, not a mutation of the product, and its presence made '.
+            "item/loop-stops-at-v1's stopping condition unreachable. The removal is the reason this rule ".
+            'exists: it was correct, it was reviewed, and nothing in this file noticed it happening.',
+    ];
 
     private const ITEM_ID_PATTERN = '/^item\/[a-z0-9]+(-[a-z0-9]+)*$/';
 
@@ -388,6 +409,7 @@ final class LedgerValidator
         $errors = array_merge($errors, self::shapeErrors($ledger, $runs, $context));
 
         $errors = array_merge($errors, self::idErrors($nodes));
+        $errors = array_merge($errors, self::sequenceErrors($nodes));
         $errors = array_merge($errors, self::referenceErrors($ledger, $runs, $nodes));
         $errors = array_merge($errors, self::enumerationErrors($nodes));
         $errors = array_merge($errors, self::orderingErrors($ledger));
@@ -906,6 +928,97 @@ final class LedgerValidator
     private static function mutationNumber(string $id): ?int
     {
         return preg_match('#^mutation/(\d{4})$#', $id, $m) === 1 ? (int) $m[1] : null;
+    }
+
+    /**
+     * Run, Decision and Mutation ids are a counter, not a name: the next one
+     * is the last one plus one, and nothing else in the ledger records that
+     * a number was ever issued. So a node that is deleted after the fact
+     * leaves no trace except the hole where its number was, and until this
+     * rule existed nothing looked at the holes.
+     *
+     * mutation/0053 IS THAT HOLE, and it is why this rule exists. It was
+     * added by 37c78a9 and removed by f382c9b ("a survival control is not a
+     * Mutation, and recording one blocked the stopping condition") -- a
+     * deliberate, correct removal, reviewed and merged, which nonetheless
+     * passed every rule in this file and every check in the ledger workflow.
+     * The deletion was right; the silence was not. A ledger whose whole
+     * claim is that it records what happened cannot also be a place where a
+     * record can leave without a word.
+     *
+     * WHY `first..max` AND NOT `min..max`. Anchoring at the minimum PRESENT
+     * makes deleting the lowest-numbered node undetectable, because the
+     * sequence closes up behind it -- the exact failure this rule is for,
+     * moved to the one end where it is invisible. The first number of each
+     * sequence is a fact about the ledger (runs start at 0000, decisions and
+     * mutations at 0001), so it is declared rather than derived.
+     *
+     * PullRequest IS DELIBERATELY NOT HERE. Its numbers come from GitHub,
+     * which shares one counter between issues and pull requests across the
+     * whole repository, and the ledger records only the pull requests the
+     * loop opened. Gaps there are the normal case and carry no information
+     * at all -- a contiguity rule over them would refuse every honest
+     * ledger, which is a rule that has to be switched off, which is no rule.
+     *
+     * KNOWN_ABSENT_IDS is seeded with exactly one entry and may not grow.
+     * Nothing in this file can enforce "may not grow" -- that is a review
+     * property, and the constant is written so that growing it is a diff a
+     * reviewer sees, with the space for a reason right there. An entry is a
+     * statement that a number was issued and its node is gone on purpose;
+     * anything else is the rule firing correctly.
+     *
+     * @param  array<string, array{type: string, node: array<string, mixed>}>  $nodes
+     * @return list<string>
+     */
+    private static function sequenceErrors(array $nodes): array
+    {
+        $errors = [];
+
+        $numberOf = [
+            'Run' => self::runNumber(...),
+            'Decision' => self::decisionNumber(...),
+            'Mutation' => self::mutationNumber(...),
+        ];
+
+        foreach (self::SEQUENCE_FIRST as $type => $first) {
+            $seen = [];
+            foreach ($nodes as $id => $entry) {
+                if ($entry['type'] !== $type) {
+                    continue;
+                }
+                $number = $numberOf[$type]($id);
+                if ($number !== null) {
+                    $seen[$number] = $id;
+                }
+            }
+
+            if ($seen === []) {
+                // Nothing to be contiguous with. An empty ledger section is
+                // not this rule's business; the rules that require a run or
+                // a decision to exist are elsewhere.
+                continue;
+            }
+
+            $prefix = strtolower($type).'/';
+
+            foreach (range($first, max(array_keys($seen))) as $number) {
+                if (isset($seen[$number])) {
+                    continue;
+                }
+
+                $id = $prefix.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
+                if (array_key_exists($id, self::KNOWN_ABSENT_IDS)) {
+                    continue;
+                }
+
+                $errors[] = "sequence: $type number $number is missing -- '$id' sits inside the range $first..".
+                    max(array_keys($seen)).
+                    ' that this ledger issues, so either the node was deleted or a number was skipped. '.
+                    'If it was deleted on purpose, say so in LedgerValidator::KNOWN_ABSENT_IDS.';
+            }
+        }
+
+        return $errors;
     }
 
     // -- Reference resolution --------------------------------------------
