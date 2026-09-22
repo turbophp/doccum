@@ -1,5 +1,46 @@
 {
   "$comment": "item/citation-addresses-rot (issue #371). Every `path:line` citation appearing in an items[].doneWhen is declared here, and .github/scripts/assert-ledger-citations.py refuses one that is not. Scope is items[].doneWhen ONLY, per decision/0132: an item's doneWhen is read for what to do now, so a rotted address in one is a defect, while a Decision's rationale is read for what was true then, so repointing one would replace a correct dated observation with a wrong one. A full path is recorded per entry because the citation text is not resolvable on its own -- `Controller.php` matches two files in this tree -- and because Python's glob skips dot-directories, which reported .github/ paths as not found three separate times in this project. PREFER NOT TO ADD AN ENTRY: name an anchor that moves with the thing (a function, a job, a heading, a quoted fragment) and no entry is needed at all.",
+  "$bareComment": "A RATCHET, not a rule against bare line numbers. item/citation-addresses-rot's audit found none of these is a live address -- most sit in Completed items describing the state the item changed, the rest are quotational -- so declaring each would catch nothing that exists today. Grandfathering them costs nothing and still refuses the next one. Raise a pin only with a reason in the commit; lower it when prose is removed, so no spare slot is left open.",
+  "bareCitations": {
+    "item/about-version-defined": {
+      "line 15": 1
+    },
+    "item/citation-addresses-rot": {
+      "line 130": 1,
+      "line 131": 2,
+      "line 207": 1
+    },
+    "item/directory-policy-trashed-move": {
+      "line 42": 1
+    },
+    "item/reach-existence-oracle": {
+      "line 476": 1,
+      "line 587": 1
+    },
+    "item/readme-owner": {
+      "line 130": 1,
+      "line 131": 1
+    },
+    "item/role-permissions-survive-restart": {
+      "line 98": 1
+    },
+    "item/snippet-escape-order": {
+      "line 167": 1
+    },
+    "item/spec-reconcile": {
+      "line 1025": 1,
+      "line 1135": 1,
+      "line 426": 1,
+      "line 438": 1
+    },
+    "item/tag-v1-0-0": {
+      "line 131": 1,
+      "lines 105-118": 1
+    },
+    "item/version-from-tag": {
+      "line 6": 1
+    }
+  },
   "citations": [
     {
       "item": "item/release-v0-1-0",
@@ -104,6 +145,38 @@
       "line": 56,
       "expectAtLine": "exists, but wholly outside the caller's reach",
       "why": "The item's worked example of why a citation's own text is not resolvable: `Controller.php` matches two files here, and only the fact that app/Http/Controllers/Api/V1/Controller.php is 48 lines long says which one the prose meant. Checked, at the same resolution item/reach-existence-oracle declares -- the guard refused this citation when the sentence was written, which is how it got an entry."
+    },
+    {
+      "item": "item/stale-texts-sweep",
+      "citation": "Dockerfile:12",
+      "path": "Dockerfile",
+      "line": 12,
+      "expectAtLine": "8.5-frankenphp",
+      "why": "The sweep's evidence that tests.yml's matrix comment had drifted: the item says 'Dockerfile:12 says 8.5'. Accurate, so it is checked -- if the FROM line moves, the item's account of what it verified becomes false."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "Dockerfile:12",
+      "path": "Dockerfile",
+      "line": 12,
+      "expectAtLine": "8.5-frankenphp",
+      "why": "Quoted in this item as one of the two citations the first version of the guard could not see, because its pattern required a file extension. Checked at the same resolution item/stale-texts-sweep declares."
+    },
+    {
+      "item": "item/role-permissions-survive-restart",
+      "citation": "Dockerfile:68",
+      "path": "Dockerfile",
+      "line": 68,
+      "expectAtLine": null,
+      "why": "Quoted as history in this item's own correction paragraph, which records that the citation READ '(Dockerfile:68)' until 2026-09-22. `ENV AUTORUN_ENABLED=true` is at line 98 now, moved by PR #388 inserting a thirty-line comment above it; the operative citation was repointed at the ENV line by name. Checking line 68 against anything would contradict the sentence, whose subject is that the address rotted."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "Dockerfile:68",
+      "path": "Dockerfile",
+      "line": 68,
+      "expectAtLine": null,
+      "why": "The same rot, quoted here as this item's sharpest worked example: the guard's own session moved this line and the guard could not see it. Repointing it would delete the example."
     }
   ]
 }
