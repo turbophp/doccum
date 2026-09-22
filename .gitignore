@@ -47,3 +47,7 @@ yarn-error.log
 /boost.json
 /opencode.json
 /opencode.jsonc
+
+# Python bytecode from the .github/scripts guards (py_compile, pytest, a bare run)
+__pycache__/
+*.pyc

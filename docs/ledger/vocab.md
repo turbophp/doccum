@@ -148,8 +148,11 @@ a worker to a scope: a Decision can decide work belongs to an item, only
 `doneWhen` can require it (decision/0083).
 
 Enforced: `app/Support/LedgerValidator.php` -- required on every `Action`
-(`REQUIRED_KEYS`). Its content is free text; nothing here parses or checks
-what it says.
+(`REQUIRED_KEYS`). Its content is free text as far as the validator is
+concerned: nothing in that class parses or checks what it says. One thing
+outside it does, and narrowly -- `.github/scripts/assert-ledger-citations.py`
+reads every `doneWhen` for `path:line` citations. See **Citations in a
+`doneWhen`** at the end of this document.
 
 ## `dependsOn`
 
@@ -493,3 +496,51 @@ Enforced: `app/Support/LedgerValidator.php` -- presence only
 meaning is held by this document and by `item/tag-v1-0-0`'s `doneWhen`, and
 the tag comparison is on the validator's own "Deliberately NOT checked here"
 list because it needs git history the class stays blind to.
+
+
+## Citations in a `doneWhen`
+
+**Name an anchor that moves with the thing, not a line number.** A function, a
+job name, a heading, a quoted fragment -- something that travels with what it
+names when the file around it changes.
+
+A line number does not travel. `decision/0080` makes a citation a claim that
+gets checked, so the reader is expected to open the cited line; an insertion
+anywhere above it invalidates it, in a file the inserting pull request has no
+reason to open, and there is no moment at which anyone is in a position to
+notice. `item/release-v0-1-0` cited `release.yml:131` for the `latest` rule,
+PR #359 inserted a job above it, and the rule moved to line 207 while the
+citation stayed where it was. A reader who opens a cited line and finds
+something unrelated has to decide whether the claim was wrong, the file moved,
+or they misread -- and the likely outcome is that they stop checking
+citations, which is the defence `decision/0080` is made of.
+
+So a `path:line` in a `doneWhen` must be declared in
+`.github/ledger-citations.json`, with a full path (the citation text is not
+resolvable on its own: `Controller.php` matches two files in this tree) and
+either:
+
+- **`expectAtLine`** -- a fragment that sits at that line today. CI refuses
+  when it no longer does, and names both what it expected and what it found.
+- **`null` plus a `why`** -- for a citation kept deliberately stale because
+  the sentence around it is *about* the rot, or because what it asserts (that
+  a line is blank, say) is not something a fragment check can express. The
+  reason is required; the point is that nothing is excused silently.
+
+Declaring one costs an entry, and that friction is deliberate: the cheaper
+path is an anchor, which needs no entry at all.
+
+**This applies to an item's `doneWhen` and to nothing else** (`decision/0132`).
+A `doneWhen` is read for what to do *now*, so a rotted address in one is a
+defect. A `Decision`'s `rationale` is read for what was true *then*, so
+repointing a citation in one would replace a correct dated observation with a
+wrong one -- `decision/0031` records `login.blade.php:18` as `type="email"`,
+which was true when it was written and became `type="text"` when
+login-by-username shipped. That is history, not rot.
+
+Enforced: `.github/scripts/assert-ledger-citations.py`, run by
+`.github/workflows/ledger.yml`'s `validate` job on every pull request and
+every push to main. It refuses rather than reports (`decision/0113`): an
+undeclared citation, a declared one the ledger no longer carries, an entry
+whose path contradicts its own citation text, a fragment that has left the
+line it names, or an unchecked entry with no stated reason.
