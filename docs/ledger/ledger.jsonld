@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-22T08:28:38Z",
+  "dateModified": "2026-09-22T08:41:17Z",
   "latestRun": "run/0022",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -5151,6 +5151,22 @@
       "mergedAt": "2026-09-22T08:15:59Z",
       "mergeSha": "aa3b36f37ec8bfcd9c196ee0412cf69bf415789d",
       "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/418",
+      "@type": "PullRequest",
+      "identifier": 418,
+      "name": "The Dependabot merge, and a vocab gloss narrower than its own data",
+      "implements": [
+        "item/security-supported-versions-standing"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T08:35:40Z",
+      "headSha": "45a14354256688b592e96c70ecfb5922e925ba5a",
+      "mergedAt": "2026-09-22T08:41:17Z",
+      "mergeSha": "c8aad71482755fa09421d5914cda05a3b46c3321",
+      "mergedIn": "run/0022"
     }
   ],
   "decisions": [
@@ -7560,6 +7576,23 @@
       ],
       "affects": [
         "item/security-supported-versions-standing",
+        "item/tag-v1-0-0"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0149",
+      "@type": "Decision",
+      "dateCreated": "2026-09-22T08:50:00Z",
+      "run": "run/0022",
+      "name": "A post-v1 item that changes the shipped product cannot land before the tag, because main is what gets tagged",
+      "rationale": "With every v1 item owner-gated, LOOP step 4 keeps arriving at the post-v1 backlog, and the question \"is this eligible?\" has been answered by dependsOn alone. That is not sufficient, and the missing half is mechanical rather than a matter of taste.\n\nMAIN IS WHAT GETS TAGGED. release.yml builds from the tagged ref, so anything merged to main before v1.0.0 SHIPS IN v1.0.0, whatever its `release` field says. A post-v1 item merged now is not deferred; it is v1 work with a label that disagrees with the artifact. Eight of the sixteen currently-eligible items say \"Deferred until after v1.0.0\" in their own doneWhen and are therefore self-excluding; the rest were relying on a reader noticing.\n\nTHE LINE IS WHETHER THE CHANGE REACHES THE IMAGE, not whether the item is labelled post-v1. item/compose-boot-ci is post-v1 and half of it landed in PR #383 pre-tag, correctly: a CI job that boots the compose stack changes what is VERIFIED and not what is shipped, so tagging with it present ships nothing new. item/directory-share-permission is also post-v1 and must NOT land the same way: a new `directories.share` permission changes the role matrix, the policy and the authorisation surface that self-hosters get. Same label, opposite answer, and the label does not distinguish them.\n\nSO THE TEST IS: would tagging today ship this to a self-hoster? CI, tooling, the ledger, docs about process -- no, and those may land. Product behaviour, permissions, schema, UI -- yes, and those wait.\n\nWHY THIS IS WRITTEN DOWN RATHER THAN JUST OBSERVED. The loop fires hourly and re-derives eligibility each time. Without this, every future iteration facing an empty v1 board has a well-specified size-S item sitting at the top of the post-v1 list with its dependsOn satisfied, and the only thing standing between it and main is somebody re-noticing that a tag builds from main. That is exactly the shape of the reasoning that has been wrong eight times here: true when first worked out, and load-bearing for nobody afterwards.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/directory-share-permission",
+        "item/compose-boot-ci",
         "item/tag-v1-0-0"
       ],
       "supersedes": null
