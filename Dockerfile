@@ -66,7 +66,31 @@ RUN composer dump-autoload --optimize --no-dev --no-interaction
 # vendor/ is required here, not optional: resources/css/app.css imports
 # ../../vendor/livewire/flux/dist/flux.css and @sources vendor stub paths, so a
 # Tailwind build without it fails on the missing import.
-FROM node:26-bookworm-slim AS assets
+#
+# NODE 22, AND THE MAJOR IS LOAD-BEARING (issue #407). Everything else in this
+# repository says 22 -- .nvmrc, package.json's `engines`, and pages.yml, which
+# reads .nvmrc rather than keeping a second copy. CLAUDE.md gives the reason a
+# whole section: npm 10 (Node 22) records `react`, motion's peer, in
+# package-lock.json, and npm 11 (Node 24+) removes it AND rewrites the lockfile
+# as a silent side effect of `npm ci` and `npm run build`. That has already cost
+# four CI cycles, and CONTRIBUTING.md calls getting it wrong "the single most
+# likely way to waste a day here".
+#
+# This line said `node:26-bookworm-slim` until #407. Nobody chose it: Dependabot
+# walked it 24 -> 26 in 81d838d ("build(deps): Bump the docker group with 2
+# updates"), whose group pattern is "*", and no decision records the move. The
+# image job stayed green, so the product was not broken -- the rewrite happens
+# inside this stage and never reaches the repository -- but the assets actually
+# shipped were being built by a toolchain this project's own rules call wrong
+# for this lockfile, and the next bump would have moved it again.
+#
+# .github/scripts/assert-node-major.py now refuses when this tag's major and
+# .nvmrc disagree, so the two cannot drift apart silently again, and
+# dependabot.yml ignores major updates for this image so the bump that would
+# break it is not proposed in the first place. Two guards because they fail at
+# different times: the ignore prevents the pull request, the assertion catches
+# a hand edit or a config that stops working.
+FROM node:22-bookworm-slim AS assets
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
