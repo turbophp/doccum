@@ -67,6 +67,8 @@
     "testsRun": { "@id": "testsRun", "@type": "@id" },
     "testsConclusion": "testsConclusion",
     "ledgerRun": { "@id": "ledgerRun", "@type": "@id" },
-    "ledgerConclusion": "ledgerConclusion"
+    "ledgerConclusion": "ledgerConclusion",
+    "pagesRun": { "@id": "pagesRun", "@type": "@id" },
+    "pagesConclusion": "pagesConclusion"
   }
 }

@@ -181,8 +181,12 @@ How a Run closed.
 Enforced: `app/Support/LedgerValidator.php` -- must be one of completed,
 failed, aborted, active (`RUN_OUTCOMES`); only the newest run may carry
 `active`, so an unfinished record cannot be left behind (`runErrors()`); a
-completed run's last merge must have closed both workflows green, for runs
-past run 8 (`MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN`).
+completed run's last merge must have closed `tests` and `ledger` green and
+`pages` non-failing, for runs past run 8
+(`MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN`). This entry said "both workflows"
+until 2026-09-22, while `merges` two entries down already recorded that the
+same phrase had been wrong since `pages` joined the set -- the correction
+landed in one place and not the other, which is what a restatement does.
 
 ## `commit`
 
@@ -385,6 +389,33 @@ Enforced: `app/Support/LedgerValidator.php` -- must be one of GitHub's own
 workflow-run conclusions; a completed run's last merge entry must have this
 equal to `success`, for runs past run 8 (`runErrors()` rule 3).
 
+## `pagesRun`
+
+The GitHub Actions run URL for the `pages` workflow on one merge entry.
+
+Declared late, and the gap is the point: `pages` joined `MAIN_PUSH_WORKFLOWS`
+in PR #376 and 22 run files carried `pagesRun` keys from the backfill, while
+neither `context.jsonld` nor this document defined the term. With `@vocab` set,
+an undeclared key resolves against a heading that does not exist -- the exact
+failure `item/vocab-resolves` closed, reintroduced by the change that made the
+field necessary. `LedgerValidator::vocabTermErrors()` iterates the terms
+`context.jsonld` DECLARES, so a key used everywhere and declared nowhere is
+invisible to it by construction.
+
+Enforced: `app/Support/LedgerValidator.php` -- must match a turbophp/doccum
+Actions run URL; if that entry's `pagesConclusion` is non-null, `pagesRun` may
+not be null (`runErrors()` rule 4, driven by `MAIN_PUSH_WORKFLOWS`).
+
+## `pagesConclusion`
+
+The `pages` workflow's conclusion on one merge entry.
+
+Enforced: `app/Support/LedgerValidator.php` -- must be one of GitHub's own
+workflow-run conclusions (`WORKFLOW_CONCLUSIONS`, `checkMergeEntry()`). Note
+that rule 3's "must be success" applies to `tests` and `ledger` only: a `pages`
+conclusion is reported and required to be non-failing, not required to exist,
+because `pages` post-dates most of the recorded history.
+
 ## version on the about node
 
 `Ledger.about` is a `SoftwareApplication` node -- the software the ledger
@@ -442,8 +473,12 @@ That direction is deliberate. `item/tag-v1-0-0`'s `doneWhen` reads this field
 -- "the ledger's about.version reads 1.0.0" -- and `docs/LOOP.md`'s stopping
 condition is that item reaching `CompletedActionStatus`, so the loop's own
 termination depends on this value at one remove. (`LOOP.md` does not name
-`about.version` itself; grep it and the only hit is line 224, saying the
-section previously named a release node that never existed. The dependency is
+`about.version` itself; the only mention is the sentence beginning "This
+section previously named a `v1.0.0` release node", which says the section
+previously named a release node that never existed. That sentence was cited
+here as "line 224" until 2026-09-22 and sits at 267 -- a rotted line number in
+the document that lays down the name-an-anchor convention, and outside the
+citation guard's scope, which reads items' `doneWhen` and not this file. The dependency is
 real and indirect, and saying "LOOP.md reads this field" would be the kind of
 citation `decision/0080` exists to catch.) A field that can only lag cannot
 fire a stopping rule early. A tag whose release run FAILED is the case that makes
