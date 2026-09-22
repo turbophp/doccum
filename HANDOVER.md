@@ -173,7 +173,27 @@ than half-booting.
    repository's Packages → `doccum` → the version → Delete. Do it after the
    real release, not before, so the rehearsal stays inspectable while it is
    still the only thing that has run the pipeline.
-3. Consider image size. The numbers live in `README.md`'s "Image size" table and
+3. **Make the ghcr package public. It will not be.** GitHub publishes a new
+   package **private**, and a public repository does not change that: its
+   documentation says a package linked to a repository "automatically inherits
+   the access permissions (but not the visibility) of the linked repository".
+   So the moment step 2's tag publishes, `docker run ghcr.io/turbophp/doccum` —
+   the command `README.md` calls the whole installation — answers `denied` for
+   everyone who is not you.
+
+   **This step cannot be done before step 2.** The package does not exist until
+   something publishes it, which is why this is not grouped with the repository
+   settings a person can set in advance. GitHub → Packages → `doccum` →
+   Package settings → Change visibility → **Public**.
+
+   **CI will tell you, rather than leaving you to remember.** `release.yml`'s
+   `verify-anonymous-pull` job pulls the published image with no credentials at
+   all — every other job that pulls it logs in first, correctly, which is
+   exactly why none of them would notice — and its failure names this step.
+   Expect it red on the rehearsal tag: that is the rehearsal doing its job.
+   `item/tag-v1-0-0` carries a clause requiring it green, so the loop cannot
+   report v1 finished over a README nobody can follow.
+4. Consider image size. The numbers live in `README.md`'s "Image size" table and
    are ratcheted in CI against `.github/image-budget.json`, so they are not
    restated here -- the figure this step used to carry (~1.34 GB) had drifted far
    from the measured one. Alpine and fewer OCR languages remain the levers, both
