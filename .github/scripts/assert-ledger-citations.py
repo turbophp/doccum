@@ -56,6 +56,20 @@ declarations for them would catch nothing today. The convention in vocab.md
 still binds anyone writing a NEW citation; enforcing it mechanically is worth
 less than the count made it look.
 
+EXTENSIONLESS FILENAMES ARE MATCHED TOO, AND THE FIRST VERSION DID NOT MATCH
+THEM. `Dockerfile` has no extension, so the original pattern -- which required
+one -- could not see `Dockerfile:12` or `Dockerfile:68`, and this script's own
+summary line reported 13 citations while the ledger held 15. That was shipped
+alongside a claim that every path:line citation was declared.
+
+The second of those two was ROTTED BY THE PULL REQUEST THAT SHIPPED THIS GUARD'S
+SESSION. `ENV AUTORUN_ENABLED=true` sat at Dockerfile:68 and sits at 98, moved by
+a thirty-line comment inserted above it while fixing an unrelated volume race --
+a pull request with no reason to open the item that cited it. That is the exact
+mechanism this file exists to catch, performed in the one file shape it was
+blind to, which is why the pattern now names Dockerfile explicitly rather than
+trusting that "sources have extensions".
+
 NO GLOBBING, ANYWHERE, AND THE REASON IS EMBARRASSING. Python's glob skips
 dot-directories unless include_hidden is set, so a survey written to find rot
 reported `.github/scripts/build-docs-site.mjs` and `.github/workflows/
@@ -82,7 +96,10 @@ INVENTORY = ROOT / '.github' / 'ledger-citations.json'
 # A path-looking token ending in a known source extension, followed by :N.
 # Deliberately narrow: a wider pattern matches "decision/0113" and version
 # strings, and a guard that cries wolf gets deleted.
-CITATION = re.compile(r'([\w./-]+\.(?:php|js|mjs|yml|yaml|md|json)):(\d+)')
+CITATION = re.compile(
+    r'((?:[\w./-]+\.(?:php|js|mjs|yml|yaml|md|json|sh|neon|lock))'
+    r'|(?:[\w./-]*Dockerfile)):(\d+)'
+)
 
 # Reported, not enforced -- see count_bare_citations().
 BARE_CITATION = re.compile(r'\blines?\s+\d+(?:\s*-\s*\d+)?', re.IGNORECASE)
@@ -112,18 +129,73 @@ def found_in_ledger() -> dict[tuple[str, str], int]:
     return found
 
 
-def count_bare_citations() -> int:
-    """Bare "line N" / "lines N-M" mentions, with path:line matches masked out
-    first so "Directory.php:113-117" is not counted twice."""
+def bare_citations() -> dict[str, dict[str, int]]:
+    """Bare "line N" / "lines N-M" mentions per item, with path:line matches
+    masked out first so "Directory.php:113-117" is not counted twice.
+
+    Returned as a MULTISET rather than a count because that is what the ratchet
+    pins: the count alone would let one bare citation be deleted and another
+    added in the same commit without the guard noticing.
+    """
     ledger = json.loads(LEDGER.read_text())
-    total = 0
+    found: dict[str, dict[str, int]] = {}
     for item in ledger.get('items', []):
+        item_id = item.get('@id')
         done_when = item.get('doneWhen')
-        if not isinstance(done_when, str):
+        if not isinstance(item_id, str) or not isinstance(done_when, str):
             continue
         masked = CITATION.sub(lambda m: '#' * len(m.group(0)), done_when)
-        total += len(BARE_CITATION.findall(masked))
-    return total
+        for text in BARE_CITATION.findall(masked):
+            found.setdefault(item_id, {})
+            found[item_id][text] = found[item_id].get(text, 0) + 1
+    return found
+
+
+def check_bare_ratchet(pinned: object, found: dict[str, dict[str, int]]) -> list[str]:
+    """A RATCHET, not a rule against bare citations.
+
+    The audit in item/citation-addresses-rot found that none of the bare
+    citations in the ledger is a live address -- most sit in Completed items,
+    describing the state the item changed, and the rest are quotational. So
+    demanding a declaration for each would cost nineteen entries and catch
+    nothing that exists today.
+
+    I used that to argue the machinery was not worth building, and that was
+    wrong: it attacks a design nobody proposed. Grandfathering the existing set
+    costs ZERO declarations and still refuses the twentieth -- which is the only
+    one that was ever at issue, and which the guard's first version would have
+    let through in the same file it had already failed to see. Same shape as
+    .github/image-budget.json.
+    """
+    if not isinstance(pinned, dict):
+        return ['bareCitations must be an object mapping item id -> {text: count}']
+
+    errors: list[str] = []
+    for item_id in sorted(set(pinned) | set(found)):
+        want = pinned.get(item_id, {})
+        have = found.get(item_id, {})
+        if not isinstance(want, dict):
+            errors.append(f'bareCitations["{item_id}"] must be an object')
+            continue
+        for text in sorted(set(want) | set(have)):
+            w, h = want.get(text, 0), have.get(text, 0)
+            if w == h:
+                continue
+            if h > w:
+                errors.append(
+                    f'{item_id} now writes "{text}" {h} time(s), pinned at {w}. A bare '
+                    f'line number names no file, so nothing can check it. Repoint it at '
+                    f'an anchor that moves with the thing, or raise the pin in '
+                    f'.github/ledger-citations.json and say in the commit why a bare '
+                    f'number is what that sentence needs.'
+                )
+            else:
+                errors.append(
+                    f'{item_id} now writes "{text}" {h} time(s), pinned at {w}. The pin '
+                    f'is stale -- lower it, so the ratchet keeps refusing what it is '
+                    f'meant to refuse rather than tolerating a spare slot.'
+                )
+    return errors
 
 
 def main() -> None:
@@ -218,6 +290,8 @@ def main() -> None:
                 f'entry if the line merely shifted.'
             )
 
+    errors.extend(check_bare_ratchet(inventory.get('bareCitations'), bare_citations()))
+
     found = found_in_ledger()
 
     for key in sorted(found.keys() - declared.keys()):
@@ -246,14 +320,11 @@ def main() -> None:
         f'{checked} checked against the line they name, '
         f'{len(declared) - checked} deliberately stale with a stated reason.'
     )
-    # Printed, never enforced, and labelled so: this script cannot resolve a
-    # bare line number to a file, so it has nothing to check. It is here so
-    # the figure lives in output that is regenerated on every run rather than
-    # in prose that goes stale the next time anyone writes a sentence.
+    bare = bare_citations()
+    total_bare = sum(sum(v.values()) for v in bare.values())
     print(
-        f'{count_bare_citations()} bare "line N" citation(s) alongside them, '
-        f'NOT CHECKED -- see item/citation-addresses-rot for why none of them '
-        f'is a live address.'
+        f'{total_bare} bare "line N" citation(s) alongside them, none checkable '
+        f'against a file -- ratcheted, so the set cannot grow without a decision.'
     )
 
 
