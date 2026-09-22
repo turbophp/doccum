@@ -93,6 +93,21 @@ jobs:
       - name: Run ledger rule-witness sweep
         run: php .github/scripts/validate-ledger.php --witnesses docs/ledger docs/superpowers/specs/2026-09-15-doccum-design.md
 
+      # item/citation-addresses-rot (issue #371). decision/0080 makes a
+      # citation a claim that gets checked, which means the reader opens the
+      # cited line -- and an insertion ANYWHERE above a citation invalidates
+      # it, in a file the inserting pull request has no reason to open. That
+      # is not hypothetical: item/release-v0-1-0 cited release.yml:131 for the
+      # `latest` rule, PR #359 inserted a job above it, and the rule moved to
+      # 207 while the citation stayed put.
+      #
+      # LAST IN THIS JOB ON PURPOSE. The structural rules above are the ones
+      # that matter; a step fails the job at the first failing step, so
+      # putting citation hygiene ahead of them would let it mask a malformed
+      # ledger.
+      - name: Every path:line citation in an item's doneWhen is declared and checked
+        run: python3 .github/scripts/assert-ledger-citations.py
+
   # issue #311. The job above is the one that matters, and for most of its
   # life it could have been passing while checking nothing: <main-sha> is a
   # POSITIONAL argument, the step that passes it also sets a MAIN_SHA env

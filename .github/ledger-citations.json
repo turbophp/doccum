@@ -1,0 +1,102 @@
+{
+  "$comment": "item/citation-addresses-rot (issue #371). Every `path:line` citation appearing in an items[].doneWhen is declared here, and .github/scripts/assert-ledger-citations.py refuses one that is not. Scope is items[].doneWhen ONLY, per decision/0132: an item's doneWhen is read for what to do now, so a rotted address in one is a defect, while a Decision's rationale is read for what was true then, so repointing one would replace a correct dated observation with a wrong one. A full path is recorded per entry because the citation text is not resolvable on its own -- `Controller.php` matches two files in this tree -- and because Python's glob skips dot-directories, which reported .github/ paths as not found three separate times in this project. PREFER NOT TO ADD AN ENTRY: name an anchor that moves with the thing (a function, a job, a heading, a quoted fragment) and no entry is needed at all.",
+
+  "citations": [
+    {
+      "item": "item/release-v0-1-0",
+      "citation": "release.yml:131",
+      "path": ".github/workflows/release.yml",
+      "line": 131,
+      "expectAtLine": null,
+      "why": "Deliberately stale, and the sentence containing it says so: 'a number quoted as history, not as an address'. It named the `type=raw,value=latest,enable=...` entry in the image job's tags list; PR #359 inserted a job above it and the rule moved to line 207. The paragraph is ABOUT that rot, so repointing it would destroy the example. Line 131 is blank today, which is the point."
+    },
+    {
+      "item": "item/docs-site",
+      "citation": "build-docs-site.mjs:52",
+      "path": ".github/scripts/build-docs-site.mjs",
+      "line": 52,
+      "expectAtLine": "export const INDEX_PAGE = { file: 'README.md', slug: 'index' };",
+      "why": "Operative. It is why docs/self-hosting/README.md's first paragraph being false mattered: this line makes that file the published site's index, so the falsehood would have shipped with the clause the item is waiting on."
+    },
+    {
+      "item": "item/directory-policy-trashed-move",
+      "citation": "Directory.php:113",
+      "path": "app/Models/Directory.php",
+      "line": 113,
+      "expectAtLine": "$parentPath = $this->parent_id",
+      "why": "The evidence for the item's claim that a trashed $newParent makes the lookup return null and the rebuilt path lose its leading segment. The item says 'Verified at Directory.php:113-117 ... not inferred', so the line is load-bearing for that word."
+    },
+    {
+      "item": "item/reach-existence-oracle",
+      "citation": "Controller.php:56",
+      "path": "app/Http/Controllers/Controller.php",
+      "line": 56,
+      "expectAtLine": "exists, but wholly outside the caller's reach",
+      "why": "Names the base controller's scoped lookup helpers, through which the 18 /api/v1 routes answer 404 for both halves of the oracle. NOT app/Http/Controllers/Api/V1/Controller.php, which is 48 lines long -- the ambiguity this inventory exists to resolve."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "release.yml:131",
+      "path": ".github/workflows/release.yml",
+      "line": 131,
+      "expectAtLine": null,
+      "why": "The item's own worked example of an address rotting by seventy-odd lines. Repointing it would delete the example."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "README.md:10",
+      "path": "README.md",
+      "line": 10,
+      "expectAtLine": null,
+      "why": "Quoted as an example of a stale citation: the item says 'README.md:10 is now blank'. A fragment check cannot express blankness, so this is declared rather than checked, and that limit is stated rather than hidden."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "Browser.php:239",
+      "path": "app/Livewire/Files/Browser.php",
+      "line": 239,
+      "expectAtLine": null,
+      "why": "Quoted as an example of a stale citation: the item says it 'is a bare `}`'. A fragment check for `}` would pass on almost any line in the file, so it would be a check in name only -- declared rather than pretended."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "browser.blade.php:223",
+      "path": "resources/views/livewire/files/browser.blade.php",
+      "line": 223,
+      "expectAtLine": null,
+      "why": "Quoted as an example of a stale citation: the item says the line 'is blank'. Same limit as README.md:10 above."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "FirstRun.php:405",
+      "path": "app/Livewire/Setup/FirstRun.php",
+      "line": 405,
+      "expectAtLine": "$user->forceFill(['email_verified_at' => now()])->save();",
+      "why": "Quoted as an example of a citation that is EXACTLY RIGHT -- the item says it 'quotes its line verbatim'. So it is checked: if the line moves, the item's own example of accuracy becomes false."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "config/session.php:130",
+      "path": "config/session.php",
+      "line": 130,
+      "expectAtLine": "'cookie' => env(",
+      "why": "Quoted as an example of an accurate citation -- the item calls it 'the wrapped `env(` call'. Checked for the same reason as FirstRun.php:405."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "login.blade.php:18",
+      "path": "resources/views/livewire/auth/login.blade.php",
+      "line": 18,
+      "expectAtLine": null,
+      "why": "The worked example of history rather than rot, and the reason decision/0132 exists. decision/0031 recorded this line as `type=\"email\"`, which was true when written; login-by-username made it `type=\"text\"`. Checking it against either value would misrepresent one of them."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": ".github/scripts/build-docs-site.mjs:52",
+      "path": ".github/scripts/build-docs-site.mjs",
+      "line": 52,
+      "expectAtLine": "export const INDEX_PAGE = { file: 'README.md', slug: 'index' };",
+      "why": "Quoted as the survey tool's own false negative -- Python's glob skipped the dot-directory and reported FILE NOT FOUND for a citation that is exactly right. Checked, so the item's account of it stays true."
+    }
+  ]
+}
