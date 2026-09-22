@@ -4825,6 +4825,38 @@
       "mergedAt": "2026-09-22T05:07:15Z",
       "mergeSha": "3abb81abcd53db424b0fa46fa96eeaf70cbc81d3",
       "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/398",
+      "@type": "PullRequest",
+      "identifier": 398,
+      "name": "Reopen item/citation-addresses-rot: I completed it on a claim that is false",
+      "implements": [
+        "item/citation-addresses-rot"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T05:13:18Z",
+      "headSha": "3a4e526f23b4db8a1ff990c78bbd94014d258538",
+      "mergedAt": "2026-09-22T05:18:21Z",
+      "mergeSha": "ec43affc93f3d4d751f2b1a40809ebe76deb734f",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/399",
+      "@type": "PullRequest",
+      "identifier": 399,
+      "name": "The guard could not see Dockerfile, and the ratchet I argued against catches the twentieth",
+      "implements": [
+        "item/citation-addresses-rot"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T05:18:45Z",
+      "headSha": "9d5a54515be6b29a7ab54d3d5e0994fd063c715e",
+      "mergedAt": "2026-09-22T05:23:15Z",
+      "mergeSha": "fcda9d1d7d48d360a7f4b964a2d54d5140521ca7",
+      "mergedIn": "run/0022"
     }
   ],
   "decisions": [
