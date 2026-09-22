@@ -51,7 +51,7 @@ RUN install-php-extensions pdo_sqlite pdo_pgsql pdo_mysql intl gd zip bcmath exi
 #
 # tests.yml's "Refuse an image that ships content under /data" step fails the
 # build if anything reintroduces content here.
-RUN rm -rf /data && mkdir -p /data && chown www-data:www-data /data
+RUN mkdir -p /data && chown www-data:www-data /data
 USER www-data
 
 # ---- vendor: dependencies and the optimised autoloader ----
