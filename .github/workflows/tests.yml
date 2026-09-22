@@ -894,6 +894,47 @@ jobs:
           echo "version 0.1.0 extracted correctly:"
           echo "$output"
 
+      # A section is published VERBATIM as its GitHub Release body, so a
+      # sentence that is true while the file sits in the repository can be
+      # false the instant it is published. [0.1.0] opened with "Undated
+      # because it has not been released: no tag and no GitHub Release exist
+      # yet" -- which release.yml would have posted AS the release, and
+      # verify-release-notes would have passed, because it compares the
+      # posted body against a fresh extraction of that same text. Two readers,
+      # one source (decision/0080).
+      #
+      # Every version heading is checked, not just 0.1.0: the next one will be
+      # written by whoever cuts it, and the trap is in the shape of the file
+      # rather than in that one paragraph. The explanation now lives in
+      # CHANGELOG.md's preamble, which the extractor cannot reach.
+      - name: No version section denies its own release
+        run: |
+          set -e
+
+          versions="$(grep -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | tr -d '#[] ' || true)"
+          if [ -z "$versions" ]; then
+            echo "::error::CHANGELOG.md has no '## [x.y.z]' version heading, so this check would pass without checking anything"
+            exit 1
+          fi
+
+          failed=false
+          for version in $versions; do
+            body="$(.github/scripts/changelog-section.sh "$version" CHANGELOG.md)"
+            for phrase in 'has not been released' 'not been released' 'no tag and no GitHub Release' 'no GitHub Release exist'; do
+              if printf '%s' "$body" | grep -qiF "$phrase"; then
+                echo "::error::the [$version] section contains \"$phrase\", and that section is published verbatim as the GitHub Release body -- move the explanation into CHANGELOG.md's preamble, above the first version heading"
+                printf '%s\n' "$body" | head -8
+                failed=true
+              fi
+            done
+          done
+
+          if [ "$failed" = true ]; then
+            exit 1
+          fi
+
+          echo "checked: $versions -- no version section contradicts its own publication"
+
       # This is the load-bearing assertion (see CLAUDE.md and the item's
       # doneWhen): an extractor that returns empty on a missing section lets
       # release.yml publish a Release with a blank body, successfully, and

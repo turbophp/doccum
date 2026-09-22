@@ -11,13 +11,18 @@ from this file verbatim as the body of that version's GitHub Release, so keep
 each entry to what a user of the product would care about, and keep the
 heading format to `## [x.y.z]` or `## [x.y.z] - YYYY-MM-DD`.
 
+An **undated** `## [x.y.z]` heading means that version has not been released
+yet: under Keep a Changelog a date means shipped, so the date is added when
+the tag is cut. That explanation belongs HERE and never inside a version's
+section. A version's section is published verbatim as its GitHub Release, so
+a sentence in it saying no release exists would be the first thing a reader
+of that very Release saw.
+
 ## [Unreleased]
 
 ## [0.1.0]
 
-Initial feature set. Undated because it has not been released: no tag and no
-GitHub Release exist yet, and under Keep a Changelog a dated heading means
-shipped. The date is set when the tag is cut.
+Initial feature set.
 
 ### Added
 
