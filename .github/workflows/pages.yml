@@ -24,13 +24,17 @@ name: pages
 # provided. In the context of a Personal Access Token, the `repo` scope or
 # Pages write permission is required. In the context of a GitHub App, the
 # `administration:write` and `pages:write` permissions are required."
-# GITHUB_TOKEN has no `administration` permission to grant: the sixteen keys a
-# workflow's `permissions:` block accepts are actions, artifact-metadata,
-# attestations, checks, code-quality, contents, deployments, discussions,
-# id-token, issues, packages, pages, pull-requests, security-events, statuses
-# and vulnerability-alerts (workflow-syntax reference, #permissions), and
-# `administration` is not among them. So `pages: write` is not enough for the
-# `enablement` input and cannot be made enough. A PAT in a secret would work and is
+# GITHUB_TOKEN has no `administration` permission to grant -- it is not among
+# the keys a workflow's `permissions:` block accepts (GitHub's workflow-syntax
+# reference, the `permissions` section). So `pages: write` is not enough for
+# the `enablement` input, and no combination of permissions here can be: the
+# one it needs cannot be written down.
+#
+# The exact membership of that key list is not load-bearing and is not
+# reproduced here, because a list copied into a comment rots and the claim
+# does not need it. The action's own manifest already rules GITHUB_TOKEN out
+# by name; the permissions reference is a second, independent source for the
+# same conclusion, not a second reader of the first. A PAT in a secret would work and is
 # strictly worse than the setting: it asks the owner for a credential in order
 # to save them two clicks, and then the repository holds it.
 #
