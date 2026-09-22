@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-22T01:30:00Z",
+  "dateModified": "2026-09-22T03:10:00Z",
   "latestRun": "run/0022",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -2256,7 +2256,7 @@
       "dependsOn": [
         "item/compose-secret"
       ],
-      "doneWhen": "CLAUDE.md calls `docker compose up -d --build` 'the real stack', and nothing in CI has ever started it. tests.yml's image job drives a single `docker run` container, which is the right primary target -- the container IS the product -- but it means every compose-only concern is unverified: the profiles, the healthchecks, the service dependency order, and whether the app container can actually reach a minio in a sibling service rather than the one supervisor runs inside it. item/compose-secret verifies compose statically with `docker compose config`, which proves interpolation and required variables and proves nothing about whether the thing runs. This item is the other half. Done when CI brings up the storage profile, waits for health, and asserts the app answers on its port with object storage served by the SIBLING minio -- and when a mutation shows it failing: point the app at a wrong bucket or drop the minio dependency and the job must go red. Deliberately post-v1: the single-container smoke covers the product, this covers a convenience, and it is not worth delaying a tag for.\n\nSPLIT AND HALF DISCHARGED, 2026-09-22, in PR #383. The clause has two independent halves and only one of them needed anyone's permission.\n\nHALF ONE IS BUILT: the `compose-boot` job brings up the DEFAULT stack (app, worker, worker-ingest, scheduler, sharing db:/data), waits for the app to serve the installer, and asserts the three non-app services reach `healthy` rather than merely `created`. On its first run the app answered 7.6 seconds after the containers started and all three workers reported healthy. PR check count 23 -> 24.\n\nHALF TWO IS NOT, and is not blocked on building: it is blocked on issue #382. The clause asks CI to assert \"object storage served by the SIBLING minio\", and NOTHING in compose.yaml produces that configuration -- AWS_ENDPOINT appears three times, all `http://app:9000`, and `app` keeps DOCCUM_EMBEDDED_STORAGE=true, so `--profile storage` starts a MinIO that no service reads. Asserting it in CI would mean asserting a configuration no documented path produces, which is worth less than it looks. #382 asks whether the profile should wire itself or stay a documented two-step; the answer decides what this half should assert.\n\nWHAT HALF ONE PROVES IS NARROWER THAN ITS NAME, stated here rather than left for a reader to discover. The three workers reported healthy about eight seconds in, before migrations could plausibly have finished -- only `app` carries AUTORUN_ENABLED=true, and the workers start `queue:work` against the same SQLite file without waiting. Their healthchecks are `pgrep`, which proves a PROCESS EXISTS and says nothing about whether it can reach the database. So \"worker is healthy\" is a weaker claim than it reads as, and a worker that started and could not query would satisfy it. That is a limit of compose.yaml's healthchecks, not of the job, and it is recorded because the alternative is a future reader treating a green compose-boot as proof the queue works.\n\nTHE PARAGRAPH ABOVE SAYS \"HALF ONE IS BUILT\" AND THAT IS NO LONGER TRUE OF main, 2026-09-22, within an hour of its being written -- decision/0129 with my own name on it, and corrected here rather than deleted. PR #383 landed the job; PR #386 removed it again from main, because its SECOND run turned main red.\n\nNOT A FLAKE, AND NOT THE JOB. All four default-stack services mount the same db: volume at /data, compose starts them within a millisecond of each other, and two race on `mkdir /data/caddy`; the loser fails to start with `file exists`. The PR run won that race, main's lost it. That is a defect in the compose path a self-hoster is documented to use, on a fresh volume, and it is filed as issue #385 with the log.\n\nWHY REMOVING THE JOB IS NOT QUARANTINING A TEST, which CLAUDE.md forbids: the finding is preserved in #385 rather than dropped, this item stays open rather than being marked done, and the job returns WITH the fix because it is the only thing that will prove the fix works. The alternative was main sitting red while a design question is settled -- the fix is either depends_on for the three workers, which contradicts a documented spec 13 claim in storage.md that they start independently, or making the directory creation idempotent, which lives in the base image's entrypoint rather than in this repository.\n\nAND THE RISK WAS NAMED IN #383'S OWN BODY -- \"this job could be flaky, and a flaky job is worse than no job\" -- with two candidates given: the wait budget and the migration ordering. It was neither. Naming the risks you can think of does not cover the one you cannot, which is an argument for running the thing rather than against it.",
+      "doneWhen": "CLAUDE.md calls `docker compose up -d --build` 'the real stack', and nothing in CI has ever started it. tests.yml's image job drives a single `docker run` container, which is the right primary target -- the container IS the product -- but it means every compose-only concern is unverified: the profiles, the healthchecks, the service dependency order, and whether the app container can actually reach a minio in a sibling service rather than the one supervisor runs inside it. item/compose-secret verifies compose statically with `docker compose config`, which proves interpolation and required variables and proves nothing about whether the thing runs. This item is the other half. Done when CI brings up the storage profile, waits for health, and asserts the app answers on its port with object storage served by the SIBLING minio -- and when a mutation shows it failing: point the app at a wrong bucket or drop the minio dependency and the job must go red. Deliberately post-v1: the single-container smoke covers the product, this covers a convenience, and it is not worth delaying a tag for.\n\nSPLIT AND HALF DISCHARGED, 2026-09-22, in PR #383. The clause has two independent halves and only one of them needed anyone's permission.\n\nHALF ONE IS BUILT: the `compose-boot` job brings up the DEFAULT stack (app, worker, worker-ingest, scheduler, sharing db:/data), waits for the app to serve the installer, and asserts the three non-app services reach `healthy` rather than merely `created`. On its first run the app answered 7.6 seconds after the containers started and all three workers reported healthy. PR check count 23 -> 24.\n\nHALF TWO IS NOT, and is not blocked on building: it is blocked on issue #382. The clause asks CI to assert \"object storage served by the SIBLING minio\", and NOTHING in compose.yaml produces that configuration -- AWS_ENDPOINT appears three times, all `http://app:9000`, and `app` keeps DOCCUM_EMBEDDED_STORAGE=true, so `--profile storage` starts a MinIO that no service reads. Asserting it in CI would mean asserting a configuration no documented path produces, which is worth less than it looks. #382 asks whether the profile should wire itself or stay a documented two-step; the answer decides what this half should assert.\n\nWHAT HALF ONE PROVES IS NARROWER THAN ITS NAME, stated here rather than left for a reader to discover. The three workers reported healthy about eight seconds in, before migrations could plausibly have finished -- only `app` carries AUTORUN_ENABLED=true, and the workers start `queue:work` against the same SQLite file without waiting. Their healthchecks are `pgrep`, which proves a PROCESS EXISTS and says nothing about whether it can reach the database. So \"worker is healthy\" is a weaker claim than it reads as, and a worker that started and could not query would satisfy it. That is a limit of compose.yaml's healthchecks, not of the job, and it is recorded because the alternative is a future reader treating a green compose-boot as proof the queue works.\n\nTHE PARAGRAPH ABOVE SAYS \"HALF ONE IS BUILT\" AND THAT IS NO LONGER TRUE OF main, 2026-09-22, within an hour of its being written -- decision/0129 with my own name on it, and corrected here rather than deleted. PR #383 landed the job; PR #386 removed it again from main, because its SECOND run turned main red.\n\nNOT A FLAKE, AND NOT THE JOB. All four default-stack services mount the same db: volume at /data, compose starts them within a millisecond of each other, and two race on `mkdir /data/caddy`; the loser fails to start with `file exists`. The PR run won that race, main's lost it. That is a defect in the compose path a self-hoster is documented to use, on a fresh volume, and it is filed as issue #385 with the log.\n\nWHY REMOVING THE JOB IS NOT QUARANTINING A TEST, which CLAUDE.md forbids: the finding is preserved in #385 rather than dropped, this item stays open rather than being marked done, and the job returns WITH the fix because it is the only thing that will prove the fix works. The alternative was main sitting red while a design question is settled -- the fix is either depends_on for the three workers, which contradicts a documented spec 13 claim in storage.md that they start independently, or making the directory creation idempotent, which lives in the base image's entrypoint rather than in this repository.\n\nAND THE RISK WAS NAMED IN #383'S OWN BODY -- \"this job could be flaky, and a flaky job is worse than no job\" -- with two candidates given: the wait budget and the migration ordering. It was neither. Naming the risks you can think of does not cover the one you cannot, which is an argument for running the thing rather than against it.\n\nHALF ONE IS BACK ON main, 2026-09-22, in PR #388, together with the fix -- which is what the removal commit promised and is the only condition under which restoring it is not quarantine-in-reverse.\n\nAND THE DIAGNOSIS IN THE TWO PARAGRAPHS ABOVE IS WRONG, corrected here rather than deleted because the wrong version is what three documents said. \"Two race on `mkdir /data/caddy`\" names the wrong actor: that mkdir is the DOCKER DAEMON'S, seeding a fresh named volume by copying the image's content at the mount path. worker, worker-ingest and scheduler all override `command:` in compose.yaml, so they never run the image's CMD and never start Caddy at all -- only `app` does. The configuration has one possible runner of that code and a race needs two. See decision/0133.\n\nSO NEITHER PROPOSED FIX WAS THE FIX. depends_on would have serialised startup to work around a copy, at the cost of the spec 13 claim in storage.md -- which turns out to be CORRECT, with an unstated requirement that PR #388 now states next to it. Idempotent directory creation was already established impossible (there is no script to make idempotent). Relocating XDG_DATA_HOME, which I recommended on #385, would have worked and is strictly more change than the defect requires; it is also the one option that could strand certificates for anyone running SSL_MODE=full. The fix is that the image must ship NOTHING under /data: `rm -rf /data && mkdir -p /data && chown www-data:www-data /data`. It must still exist, so a fresh volume inherits its ownership; empty, there is nothing to copy.\n\nWHAT PROVES IT IS NOT compose-boot, and the job's own comment now says so. A green boot of a racy path is a lucky run, as this job's first two runs demonstrated on identical code. The proof is a deterministic step in the `image` job that refuses an image shipping content under /data -- refuses rather than prints, per decision/0113 -- shown failing by mutation/0060 with the Dockerfile's `rm -rf /data` taken back out. compose-boot returns as the integration witness. See decision/0134.\n\nHALF TWO IS STILL BLOCKED ON #382, and the blocker is now better understood than when it was filed. #382's own proposed command block does not work: Compose does not let the host shell override a literal `environment:` value, so `DOCCUM_EMBEDDED_STORAGE=false AWS_ENDPOINT=http://minio:9000 docker compose --profile storage config` still renders `DOCCUM_EMBEDDED_STORAGE: \"true\"` on app and `AWS_ENDPOINT: http://app:9000` on all three workers (checked on Compose v5.1.1, output in #382's comments). So the choice is not between two documentation edits: making the documented one-liner work requires compose.yaml to interpolate those two values. That is a change to the default stack's rendering and wants its own pull request and its own before/after `docker compose config`.",
       "actionStatus": "ActiveActionStatus",
       "startTime": "2026-09-22T00:45:00Z",
       "endTime": null,
@@ -4640,6 +4640,54 @@
       "mergedAt": "2026-09-22T01:19:46Z",
       "mergeSha": "71cd52805d4fd6e7815c5bd5ca36302ddfbcdaad",
       "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/387",
+      "@type": "PullRequest",
+      "identifier": 387,
+      "name": "ledger: record the compose race, the red main, and a clause my own revert falsified",
+      "implements": [
+        "item/compose-boot-ci"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T01:26:19Z",
+      "headSha": "cfc9ba19d5fdc22bdb6d79df84720606156db65c",
+      "mergedAt": "2026-09-22T01:31:10Z",
+      "mergeSha": "b56f50b0dc875981d1c83f8a11ca411d3c05b1a8",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/388",
+      "@type": "PullRequest",
+      "identifier": 388,
+      "name": "The image must ship an empty /data, and compose-boot returns with the fix",
+      "implements": [
+        "item/compose-boot-ci"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T02:55:41Z",
+      "headSha": "b9c6984ee6bb6b33e201e81cdfcc05cc938b2f4b",
+      "mergedAt": "2026-09-22T03:01:18Z",
+      "mergeSha": "e11d81de1e7b2d3da63303e966a4a72379aa707c",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/389",
+      "@type": "PullRequest",
+      "identifier": 389,
+      "name": "mutation/0060 -- do not merge: /data refusal step with the fix taken back out",
+      "implements": [
+        "item/compose-boot-ci"
+      ],
+      "run": "run/0022",
+      "state": "closed",
+      "dateCreated": "2026-09-22T02:56:06Z",
+      "headSha": "2ae20c8ddf6ece91fcdf971528c947484c5b2d7c",
+      "mergedAt": null,
+      "mergeSha": null,
+      "mergedIn": null
     }
   ],
   "decisions": [
@@ -6803,6 +6851,36 @@
         "item/readme-owner"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0133",
+      "@type": "Decision",
+      "dateCreated": "2026-09-22T03:05:00Z",
+      "run": "run/0022",
+      "name": "An error names an operation and a path; it does not name the actor, and three readings in a row supplied the wrong one",
+      "rationale": "`Error response from daemon: failed to mkdir /var/lib/docker/volumes/doccum_db/_data/caddy: file exists` was read three times as two containers' entrypoints racing: in issue #385's body, in the revert commit e563790 that took compose-boot off main, and in item/compose-boot-ci's own text. All three were mine and all three were wrong. The mkdir is the Docker daemon's, seeding a fresh named volume by copying the image's content at the mount path.\n\nTHE MESSAGE IS NOT AT FAULT AND NEITHER IS CARELESSNESS. `failed to mkdir <path>: file exists` states an operation, an argument and an errno. It does not state a caller, and `Error response from daemon` -- which does -- reads as the transport that relayed the failure rather than the process that performed it. Every subsequent sentence I wrote about it inherited the actor I had supplied in the first one, which is how a diagnosis becomes load-bearing without ever being checked.\n\nWHAT WOULD HAVE CAUGHT IT IS CHEAP AND IS NOT RE-READING THE MESSAGE. Enumerate the actors that could possibly have run. compose.yaml gives `command:` overrides to worker, worker-ingest and scheduler -- `queue:work` twice and `schedule:work` -- so three of the four services never execute the image's CMD at all, and Caddy, whose XDG_DATA_HOME is /data, runs in exactly one container. A race needs two runners and the configuration only ever had one. That is a thirty-second read of a file already open, and it falsifies the diagnosis outright.\n\nSO THE RULE: when a failure names an operation but not an actor, derive the actor set from configuration before assigning one, and treat the first actor that comes to mind as the least reliable candidate rather than the default. The cost of not doing it here was three proposed fixes -- depends_on ordering, idempotent directory creation, and relocating XDG_DATA_HOME -- all aimed at processes that were not involved, one of which (decision recorded in #385's comments) was impossible and one of which would have moved persistent state for no reason.\n\nTHIS IS NOT decision/0080. That rule is about checking a citation someone offers as evidence. This is about a claim nobody cited at all, because it arrived as a paraphrase of an error message and paraphrases do not look like claims.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/compose-boot-ci"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0134",
+      "@type": "Decision",
+      "dateCreated": "2026-09-22T03:06:00Z",
+      "run": "run/0022",
+      "name": "A fix for an intermittent defect is proven by a deterministic guard on the property it depends on, never by the integration test that found it",
+      "rationale": "compose-boot found the /data race by booting the stack, and the obvious move after fixing it was to restore that job and call a green run the proof. It is not the proof, and the job's own two-run history says why: the same code passed on a PR and failed on main eleven minutes later. A test whose outcome is a coin flip cannot certify the coin.\n\nSO THE FIX SHIPPED WITH A SECOND CHECK OF A DIFFERENT KIND. The race exists only because the image ships content under /data for Docker to copy into a fresh volume. `/data` being empty in the image is a property with no timing in it: one `docker run --rm --entrypoint /bin/sh` and an `ls -A` decide it the same way every run. That is what mutation/0060 was run against, and what went red when the fix was taken back out.\n\nTHE GENERAL SHAPE, for the next intermittent defect: separate the symptom from the property it depends on, guard the property deterministically, and keep the integration test as a witness rather than a proof. CLAUDE.md already requires a smoke assertion to be worth what a mutation says it is; a racy assertion cannot be mutated meaningfully at all, because a green run after the mutation is indistinguishable from a lucky one. Mutating the deterministic guard is the only version of that discipline available here.\n\nAND IT DECIDES WHAT THE ENTRY IN tests.yml CLAIMS. compose-boot's header comment now says outright that it is the integration witness and names mutation/0060 as the proof, so a reader who sees it green does not conclude more than that the stack booted once.",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/compose-boot-ci"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -7615,6 +7693,20 @@
       "headSha": "91f71530242380141ecfbd67da3208503ba4a49c",
       "mutant": "Reflowed image.needs from the inline `[verify, changelog-section]` to a block list with the two entries REVERSED. Meaning-preserving: the same dependency graph. Run against a scratch copy of .github under /tmp so the tracked tree was never dirtied. THE JOB UNDER TEST CANNOT BE MUTATED: release.yml fires only on a tag push or a dispatch, no tag exists, so the new changelog-section job cannot be made to fail because it cannot be made to run. Per decision/0120 the mutants go against assert-release-gate.py, which asserts the needs-edge where the project DOES run.",
       "check": "assert-release-gate.py exit 0, unchanged verdict. THE MUTANT THAT HAD TO PASS, and per decision/0126 it is recorded here in prose rather than as a Mutation node of its own -- a guard that reddens on a YAML reflow is withdrawn within a week and the guard goes with it. Recorded inside this node because it is the same run and the same script; splitting it into a node is exactly what decision/0126 forbids.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0060",
+      "@type": "Mutation",
+      "implements": [
+        "item/compose-boot-ci"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/389",
+      "run": "run/0022",
+      "headSha": "2ae20c8ddf6ece91fcdf971528c947484c5b2d7c",
+      "mutant": "Took the Dockerfile's `rm -rf /data` back out -- `RUN rm -rf /data && mkdir -p /data && chown www-data:www-data /data` reverted to `RUN mkdir -p /data && chown www-data:www-data /data` -- so the image ships the base image's /data/caddy again, which is the content Docker copies into a fresh named volume and which four simultaneously-started containers raced over (issue #385). Everything else in PR #388 left in place, including the step under test. Run as a draft PR rather than locally because tests.yml fires on pull_request and a branch push alone executes nothing.",
+      "check": "The `image` job's step \"Refuse an image that ships content under /data\" failed: `##[error]the image ships content under /data, which Docker copies into a fresh named volume while four containers start together (#385)`, then the listing line `caddy`, then exit code 1. Run 35681292633, job 106598599642. The failure is at the step under test and not earlier: the build, the entrypoint-bypassed `test -d /data` and everything before it succeeded, and the job's own failing-path listing named the directory the fix removes. WHAT THIS DOES NOT PROVE, recorded here so a later reader does not overclaim it: that emptying /data removes the race. Nothing short of many `docker compose up` runs on a fresh volume could show that, and compose-boot's own history -- first run green, second red on the same code -- is why. This proves the guard detects the property the race depends on.",
       "verdict": "negative",
       "supersedes": null
     }
