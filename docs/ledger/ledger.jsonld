@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-22T05:42:00Z",
+  "dateModified": "2026-09-22T06:22:19Z",
   "latestRun": "run/0022",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -2270,6 +2270,26 @@
       "startTime": "2026-09-22T00:45:00Z",
       "endTime": null,
       "result": []
+    },
+    {
+      "@id": "item/claims-without-guards",
+      "@type": "Action",
+      "order": 122,
+      "name": "Three documents assert a property of the ledger that nothing enforces",
+      "url": "https://github.com/turbophp/doccum/issues/404",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "size": "M",
+      "release": "post-v1",
+      "dependsOn": [],
+      "doneWhen": "Each of three claims found by an adversarial consultation -- every one verified against the tree before being written here -- is either enforced by a rule with a mutation SHOWN to fire, or restated as what it actually is.\n\n(1) vocab.md's `merges` section: \"a conclusion with no run is its own error, and the keys are always present, so 'not recorded' and 'did not run' stay distinguishable\". True of all 286 entries and enforced by nothing -- checkMergeEntry() read every field as `$entry[$field] ?? null`, which gives an ABSENT key and an explicit null the same value.\n\n(2) Nothing notices a deleted node. mutation/0053 was added by 37c78a9 and removed by f382c9b; the removal was correct and reviewed, and every rule in LedgerValidator passed over the hole without a word. Runs have had a contiguity check all along; decisions and mutations never did.\n\n(3) docs/LOOP.md: \"only item status is mutable\". decision/0106 requires the opposite -- a clause the repository has since contradicted must be corrected IN the clause, because doneWhen is where decision/0083 put the operative wording.\n\nA rule added here is subject to the usual bar: LedgerValidator::CODES plus a LedgerRuleWitnesses entry for a new code, a .github/mutations.json entry for a guard inside an existing one, and in both cases a mutation shown to fail rather than argued to.\n\nDISCHARGED, 2026-09-22, in PR #403, all three plus two smaller rots in the same family.\n\n(1) IS NOW A RULE. checkMergeEntry() requires both halves of every MAIN_PUSH_WORKFLOWS pair to EXIST before it checks either value, and vocab.md says so in words a rule can be held to rather than as a description of the data. mutation/0064. ISOLATING IT TOOK TWO ATTEMPTS and the first is the instructive half: dropping pagesRun from an entry whose pagesConclusion is 'success' fires the pre-existing \"conclusion with no run to point at\" rule as well, so that mutant SURVIVES the new guard's deletion and proves nothing about it. The isolating case is a null/null pair, the shape those older rules accept.\n\nTHE FIXTURES THEMSELVES WERE OMITTING THE PAIR, in all four merge-entry literals across MainPushMergesRulesTest and MutationNodeRulesTest -- the tests that exist to prove Run.merges' rules were writing entries the vocabulary says cannot exist. That is the clearest evidence the rule bites, and it is also where the accommodation lived: rule 3's message reports the keys an entry HAS rather than the whole set, written so a fixture carrying only tests and ledger would read unchanged when `pages` joined them. Equivalent to the whole set now, because every entry must carry every pair.\n\n(2) IS NOW A RULE, `sequence`, with its own LedgerRuleWitnesses entry. ANCHORED AT SEQUENCE_FIRST RATHER THAN AT THE LOWEST NUMBER PRESENT, which is the whole design: a rule anchored at the minimum present closes up silently behind a deletion at the bottom, relocating the failure to the one end where it is invisible. mutation/0063 includes that case for exactly that reason, and the other three mutants in it pass against both designs.\n\nPullRequest IS EXCLUDED, deliberately: GitHub shares one counter between issues and pull requests and the ledger records only the pull requests the loop opened, so gaps there are the normal case and carry no information. A rule that has to be switched off is no rule.\n\nAND THE FIRST DRAFT COVERED Run TOO, WHICH IT SHOULD NOT HAVE. runErrors() has emitted \"run files are not numbered contiguously from 0000 with no gaps\" since long before sequenceErrors() existed, over the same numbers from the same files. One property, two homes, two error codes -- the seam rule in CLAUDE.md, applied to the file being edited. Corrected within the branch, in the commit that found it, rather than after it.\n\n(3) IS RESTATED. LOOP.md now says an item's actionStatus and its doneWhen are both mutable, by APPENDING and never by editing, and names item/release-v0-1-0's clause as the worked example -- a dozen appended paragraphs, several saying a paragraph above is wrong and why, none deleting it. The rule was always about editing, not about writing.\n\nTWO SMALLER ROTS, SAME FAMILY. MUTATION_RULES_EFFECTIVE_AFTER_RUN's docblock and runErrors()' bullet list both described `mainConclusion` -- removed when Run.merges took over (issue #172) -- as a live rule, and both attributed the rule that replaced it to the wrong constant. runErrors() does not read MUTATION_RULES_EFFECTIVE_AFTER_RUN at all; nothing does except itemCompletedAfterMutationRulesEffective().\n\nCI FOUND TWO FAILURES IN THIS WORK AND BOTH WERE MINE, both downstream of (1). Rule 3's message changed shape once the fixture recorded a third pair, which two assertions matched exactly; `guards` failed for that reason alone and named it precisely. The second is recorded as decision/0143 because the cheap fix was the wrong one: DocsSiteBuildTest counts `pages: write` as a substring, the new comment quoting configure-pages' manifest made it read 2, and rewording the comment would have left the file permanently unable to name the permission it is about.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-22T06:05:00Z",
+      "endTime": "2026-09-22T06:22:19Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/403"
+      ]
     }
   ],
   "pullRequests": [
@@ -4889,6 +4909,38 @@
       "mergedAt": "2026-09-22T05:41:12Z",
       "mergeSha": "cc2b4a59d23d9bb4e7803978987c5677f5e21fe0",
       "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/402",
+      "@type": "PullRequest",
+      "identifier": 402,
+      "name": "Record clause (1)'s native half, and the shape of clause that hid it",
+      "implements": [
+        "item/release-v0-1-0"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T05:46:41Z",
+      "headSha": "ac2bf51b85d561630bd8c30af929310c052f723b",
+      "mergedAt": "2026-09-22T05:50:45Z",
+      "mergeSha": "915cc4bdffc505de0b854fff9b2a7120116d1a22",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/403",
+      "@type": "PullRequest",
+      "identifier": 403,
+      "name": "Two ledger rules the vocabulary already claimed, and a Pages answer read from the manifest",
+      "implements": [
+        "item/claims-without-guards"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T06:05:30Z",
+      "headSha": "5e125ce81396e5058608038a0e5563df4e2e54d0",
+      "mergedAt": "2026-09-22T06:22:19Z",
+      "mergeSha": "91da8e3774b26c24eb98662573d395dfaf7cc632",
+      "mergedIn": "run/0022"
     }
   ],
   "decisions": [
@@ -7145,6 +7197,82 @@
         "item/v1-audit"
       ],
       "supersedes": null
+    },
+    {
+      "@id": "decision/0139",
+      "@type": "Decision",
+      "dateCreated": "2026-09-22T06:20:00Z",
+      "run": "run/0022",
+      "name": "A contiguity rule anchored at the lowest number present cannot see a deletion at the bottom, which is the deletion it was written for",
+      "rationale": "Decision and Mutation ids are a counter. Nothing else in the ledger records that a number was ever issued, so when a node is deleted the hole in the sequence is the ONLY evidence it existed. mutation/0053 is the case: added by 37c78a9, removed by f382c9b for a correct reason, reviewed and merged, and every rule in LedgerValidator passed over the gap without a word.\n\nTHE OBVIOUS RULE IS `min..max` AND IT IS THE WRONG ONE. Computing the range from the numbers actually present makes a deletion at the bottom invisible: remove mutation/0001 and the set reads 2..62, contiguous, nothing to report. The rule closes up behind the deletion. It is not that the rule is weaker there -- it is that the failure has been relocated to the one end where the rule cannot look, while reading as full coverage everywhere else.\n\nSo the first number is DECLARED (SEQUENCE_FIRST) rather than derived. It is a fact about the ledger -- decisions and mutations start at 0001 -- and a fact belongs in a constant, not in a computation over data that the fact is supposed to constrain.\n\nTHE GENERAL SHAPE: when a rule derives its own bounds from the data it is checking, ask what the data would have to look like for the bounds to move. If deleting the thing you are guarding against also moves the bound, the rule agrees with the mutation instead of catching it. That is decision/0080's \"agrees with itself at a false value\", in a range rather than in a comparison.\n\nAND THE MUTATION SET HAS TO CONTAIN THAT CASE. M1, M2 and M4 of mutation/0063 all pass against BOTH designs, so a mutation set without M3 would have reported four refusals and distinguished nothing.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/claims-without-guards"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0140",
+      "@type": "Decision",
+      "dateCreated": "2026-09-22T06:22:00Z",
+      "run": "run/0022",
+      "name": "`?? null` makes an absent key and a recorded null the same answer, so a schema that distinguishes them must check presence separately from value",
+      "rationale": "vocab.md's `merges` section rests its design on one sentence: \"a conclusion with no run is its own error, and the keys are always present, so 'not recorded' and 'did not run' stay distinguishable.\" The keys WERE always present, on all 286 entries. Nothing made them be. checkMergeEntry() read every field as `$entry[$field] ?? null`, and that expression cannot tell the two cases apart, so an entry omitting pagesRun validated clean.\n\nA null here is a recorded ANSWER -- this workflow did not run for this push. A missing key is the ABSENCE of an answer. The whole argument for a closed set of field pairs over a list (issue #375) was that a closed set cannot under-report; it can, if its members are optional, and optional is what `?? null` silently makes them.\n\nWHERE ELSE THIS APPLIES: any nullable field whose null carries meaning. The idiom is so natural in PHP that the check reads as complete, and it is complete for the VALUE and silent about the KEY. Presence is a separate assertion and needs a separate line -- array_key_exists, before the value check, not folded into it.\n\nTHE TELL THAT IT HAD BEEN SILENT ALL ALONG: the fixtures in MainPushMergesRulesTest and MutationNodeRulesTest -- the tests written to prove Run.merges' rules -- were themselves constructing entries without the pair, and asserting those entries validate clean.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/claims-without-guards"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0141",
+      "@type": "Decision",
+      "dateCreated": "2026-09-22T06:24:00Z",
+      "run": "run/0022",
+      "name": "A reason that only covers the case in front of you will be read as the general one, and the gap is where somebody rebuilds what cannot work",
+      "rationale": "pages.yml said this loop cannot enable GitHub Pages because \"the Pages API 403s through this environment's proxy\". True, checked, and about the machine the loop runs on. It says nothing about GitHub Actions, and an adversarial consultation duly proposed the gap: actions/configure-pages has an `enablement` input, so perhaps a dispatched workflow could do what the loop cannot. To its credit it marked that INFERRED, NOT VERIFIED and declined to build on it.\n\nIT CANNOT. The action's own action.yml says so in that input's description, verbatim: \"This option requires a token other than `GITHUB_TOKEN` to be provided ... In the context of a GitHub App, the `administration:write` and `pages:write` permissions are required.\" And `administration` is not one of the sixteen keys a workflow's permissions: block accepts, so the permission cannot be granted to GITHUB_TOKEN at all. Two sources, and the second is not a second reader of the first.\n\nNO PROBE WAS NEEDED, which is the cheaper half of the lesson: the manifest of the action under discussion is a primary source and takes one fetch. A dispatched run would have cost a cycle to learn what the file already said.\n\nTHE RULE: when writing down why something cannot be done, write the reason that holds for every caller, not the one that happened to stop you. An environment-specific reason in a repository-wide file is an invitation to rediscover the limit the expensive way.",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "affects": [
+        "item/docs-site"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0142",
+      "@type": "Decision",
+      "dateCreated": "2026-09-22T06:26:00Z",
+      "run": "run/0022",
+      "name": "A mutation cited in a run's prose with no node behind it is exactly the self-sealing citation the ledger exists to prevent",
+      "rationale": "run/0022's own description says, of item/tag-v1-0-0's clause (1): \"Re-run here: dropping boot-published-image still exits 1, and so does dropping image -> changelog-section.\" The re-run happened. No Mutation node records it, so the claim lives only in prose, where nothing resolves it, nothing checks it, and the next reader sees a mutation vouched for and stops looking.\n\nTHAT IS decision/0080 TURNED ON THE LEDGER ITSELF. The rule says a citation of evidence is a claim and is checked like one; a run description is where this project puts its most careful reasoning, which is precisely why an unbacked citation there is more dangerous than one in a commit message. The graph is the part that can be traversed and validated; the prose is the part that cannot.\n\nSO THE FIX IS A NODE, NOT A REWORDING, and the node is re-run first-hand rather than transcribed -- mutation/0065, widened from the two edges the prose named to all four assert-release-gate.py now requires, because PR #366 had widened REQUIRED_EDGES since. Copying the old result forward would have reproduced the original error one level up: an assertion about a script that had changed under it.\n\nWHAT NOTHING ENFORCES YET, stated rather than left implied: no rule connects a run's prose to the graph, and none obviously could without parsing English. The defence remains the pass that writes the run -- which is why this is a Decision and not a validator rule.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/tag-v1-0-0",
+        "item/claims-without-guards"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0143",
+      "@type": "Decision",
+      "dateCreated": "2026-09-22T06:50:00Z",
+      "run": "run/0022",
+      "name": "A test that forces a file to say less about itself is measuring the wrong thing, and writing around it is the tempting fix",
+      "rationale": "DocsSiteBuildTest counts `pages: write` in pages.yml with substr_count and requires exactly 1 -- the deploy job's permission, counted rather than positioned so the assertion does not depend on job order. Sound intent. Then PR #403 added a comment block quoting actions/configure-pages' own manifest on the permissions the `enablement` input needs and does not get, the count read 2, and CI went red.\n\nTHE CHEAP FIX IS TO REWORD THE COMMENT, and it is available, and it is wrong. The assertion would pass, and the file would be permanently forbidden from naming the permission it is about -- in the one comment block whose whole job is to explain which permissions this workflow can and cannot have. A test that can only be satisfied by making the source less clear has stopped measuring the property and started measuring the prose around it.\n\nTHE FILE ALREADY CONTAINED THE ANSWER, ELEVEN LINES ABOVE. The continue-on-error assertion matches `continue-on-error\\s*:` rather than the bare phrase, with a comment saying exactly why: \"this workflow's own comments legitimately discuss the concept in prose\". The same class of problem, solved once, and the neighbouring assertion had not been given the same treatment. Counting YAML KEYS (`/^\\s+pages: write$/m`) is what the assertion always meant: a key sits at the start of its line, a mention inside a `#` does not.\n\nTHE CHANGE IS ITSELF WITNESSED, which is why the comment keeps the verbatim string: 2 by substring, 1 by key. Revert the assertion and the test fails. A hardening that cannot be shown to matter is the thing decision/0067 warns about, and it would have been easy to make this one unfalsifiable by rewording the comment as well.\n\nTHE GENERAL FORM: when a source-text assertion and a comment collide, ask which one is wrong. Sometimes it is the comment. Here the comment was the most useful paragraph in the file.",
+      "isBasedOn": [
+        "spec:12-documentation"
+      ],
+      "affects": [
+        "item/docs-site"
+      ],
+      "supersedes": null
     }
   ],
   "mutations": [
@@ -7999,6 +8127,48 @@
       "headSha": "9d5a54515be6b29a7ab54d3d5e0994fd063c715e",
       "mutant": "Three mutants against the widened .github/scripts/assert-ledger-citations.py, on a sandbox copy holding only the files it reads. M1: add a bare 'line 90' to item/docs-site's doneWhen -- the twentieth bare citation, which is the one the ratchet exists for. M2: replace 'line 15' with 'line 16' in item/about-version-defined, leaving the TOTAL COUNT UNCHANGED. M3: delete the `(?:[\\w./-]*Dockerfile)` alternation from the CITATION pattern, restoring the extension-only regex the guard shipped with.",
       "check": "All three failed, exit 1. M1: \"item/docs-site now writes 'line 90' 1 time(s), pinned at 0\", naming both ways out. M2 FAILED TWICE -- once for the stale pin on 'line 15' and once for the new 'line 16' -- which is the mutant that settles the design: a pinned COUNT would have passed it, letting one bare citation be deleted and another added in the same commit with nothing reported. That is decision/0080's 'agrees with itself at a false value' in a new place, and it is why the pin is a multiset. M3: four declared entries become unreferenced and the guard refuses them, so the widening is load-bearing rather than cosmetic. Baseline green before and after each.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0063",
+      "@type": "Mutation",
+      "implements": [
+        "item/claims-without-guards"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/403",
+      "run": "run/0022",
+      "headSha": "5e125ce81396e5058608038a0e5563df4e2e54d0",
+      "mutant": "Four mutants against LedgerValidator::sequenceErrors(), run through .github/scripts/validate-ledger.php against the LIVE ledger rather than a fixture or a copy of the logic. M1: remove 'mutation/0053' from KNOWN_ABSENT_IDS, leaving the real hole unpinned. M2: delete mid-sequence mutation/0030 from ledger.jsonld, re-serialised through the validator's own canonicalize() so no 'canonical:' noise enters the result. M3: delete mutation/0001 -- THE LOWEST-NUMBERED NODE, which is the mutant the design turns on. M4: delete decision/0070, to exercise the second sequence rather than infer it from the first.",
+      "check": "All four refused. M1: \"sequence: Mutation number 53 is missing -- 'mutation/0053' sits inside the range 1..62\". M2: number 30. M3: number 1. M4: \"sequence: Decision number 70 is missing ... range 1..138\". Each produced that one error and NO OTHER, which is also what LedgerRuleWitnesses asserts for this code -- runOne() fails a witness whose mutant fires a second category.\n\nM3 IS THE ONE THAT PROVES THE ANCHOR AND THE OTHERS DO NOT. A contiguity rule anchored at the lowest number PRESENT passes M3: delete mutation/0001 and the sequence reads 2..62 with no hole in it, so the check closes up behind exactly the deletion it exists to catch, at the one end where that is invisible. M1, M2 and M4 pass against both designs and so distinguish nothing. This is why the registered witness selects the lowest-numbered Mutation rather than a convenient middle one.\n\nM3 ALSO HAS TO BE A NODE NOTHING REFERENCES, or 'ref:' fires alongside 'sequence:' and the witness is rejected for firing two categories. mutation/0001 is unreferenced anywhere in ledger.jsonld or the run files, checked by counting occurrences of its @id string rather than assumed.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0064",
+      "@type": "Mutation",
+      "implements": [
+        "item/claims-without-guards"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/403",
+      "run": "run/0022",
+      "headSha": "5e125ce81396e5058608038a0e5563df4e2e54d0",
+      "mutant": "Two paired runs against checkMergeEntry()'s new field-pair presence check, through validate-ledger.php on the live ledger. Both use run/0000.merges[0], whose pages pair is null/null -- the ONLY shape where presence is the sole thing under test. A: guard present, 'pagesRun' key unset from that entry. B: guard removed from LedgerValidator.php, same mutated ledger.\n\nAN EARLIER ATTEMPT IS RECORDED HERE BECAUSE IT IS THE INSTRUCTIVE ONE. The first mutant unset 'pagesRun' on run/0022.merges[0], whose pagesConclusion is 'success'. That fires the pre-existing \"a conclusion with no run to point at\" rule TOO -- two errors, not one -- so the mutant survives deleting the new guard and measures the old rule instead of the new one.",
+      "check": "A: exactly one error, \"enum: Run 'run/0000'.merges[0] has no 'pagesRun' key at all\", and the error names both ways out -- write it as null, or say the workflow did not run. B: \"Ledger is sound\". The hole, demonstrated rather than argued: an entry that says NOTHING about a workflow validated identically to one that says the workflow did not run, which is the distinction vocab.md's whole field-pair design rests on.\n\nRegistered as merge-entry-workflow-pair-present in .github/mutations.json. The witnessing Pest test asserts the WHOLE error list rather than containment, so another rule firing on that fixture fails the test rather than hiding inside it.",
+      "verdict": "negative",
+      "supersedes": null
+    },
+    {
+      "@id": "mutation/0065",
+      "@type": "Mutation",
+      "implements": [
+        "item/tag-v1-0-0"
+      ],
+      "pullRequest": "https://github.com/turbophp/doccum/pull/403",
+      "run": "run/0022",
+      "headSha": "5e125ce81396e5058608038a0e5563df4e2e54d0",
+      "mutant": "All FOUR needs-edges in .github/scripts/assert-release-gate.py's REQUIRED_EDGES, dropped one at a time from .github/workflows/release.yml and restored between runs: release -> boot-published-image, image -> changelog-section, release -> verify-version-label, release -> verify-latest-resolves-to-the-tag.\n\nTHIS EXISTS BECAUSE run/0022's OWN DESCRIPTION CITED A RE-RUN THAT HAS NO NODE. It says, of item/tag-v1-0-0's clause (1): \"Re-run here: dropping boot-published-image still exits 1, and so does dropping image -> changelog-section.\" That is a citation of evidence in the ledger's prose with nothing in the ledger's graph behind it -- decision/0080's rule applied to the ledger itself, where a reader sees a mutation vouched for and stops looking. Re-run first-hand for this node rather than copied forward, and widened from the two the prose named to all four the script now requires.",
+      "check": "All four refused, exit 1, each naming the specific job and the needs list it actually had: \"`release` job does not depend on `boot-published-image` (needs: ['image', ...])\", and so on. Baseline exits 0 with \"all 4 required needs-edges present\". The tree was restored from a byte copy and re-checked clean after each.\n\nWHAT THIS DOES AND DOES NOT ESTABLISH. It establishes that the gate script still refuses every edge it claims to require, after PR #366 widened the list from two edges to four. It does NOT establish that release.yml behaves correctly on a tag push -- no tag has been pushed, which is the whole of what item/release-v0-1-0 and item/tag-v1-0-0 are still waiting for.",
       "verdict": "negative",
       "supersedes": null
     }
