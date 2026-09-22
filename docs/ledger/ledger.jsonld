@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-22T01:05:00Z",
+  "dateModified": "2026-09-22T01:30:00Z",
   "latestRun": "run/0022",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -2256,13 +2256,11 @@
       "dependsOn": [
         "item/compose-secret"
       ],
-      "doneWhen": "CLAUDE.md calls `docker compose up -d --build` 'the real stack', and nothing in CI has ever started it. tests.yml's image job drives a single `docker run` container, which is the right primary target -- the container IS the product -- but it means every compose-only concern is unverified: the profiles, the healthchecks, the service dependency order, and whether the app container can actually reach a minio in a sibling service rather than the one supervisor runs inside it. item/compose-secret verifies compose statically with `docker compose config`, which proves interpolation and required variables and proves nothing about whether the thing runs. This item is the other half. Done when CI brings up the storage profile, waits for health, and asserts the app answers on its port with object storage served by the SIBLING minio -- and when a mutation shows it failing: point the app at a wrong bucket or drop the minio dependency and the job must go red. Deliberately post-v1: the single-container smoke covers the product, this covers a convenience, and it is not worth delaying a tag for.\n\nSPLIT AND HALF DISCHARGED, 2026-09-22, in PR #383. The clause has two independent halves and only one of them needed anyone's permission.\n\nHALF ONE IS BUILT: the `compose-boot` job brings up the DEFAULT stack (app, worker, worker-ingest, scheduler, sharing db:/data), waits for the app to serve the installer, and asserts the three non-app services reach `healthy` rather than merely `created`. On its first run the app answered 7.6 seconds after the containers started and all three workers reported healthy. PR check count 23 -> 24.\n\nHALF TWO IS NOT, and is not blocked on building: it is blocked on issue #382. The clause asks CI to assert \"object storage served by the SIBLING minio\", and NOTHING in compose.yaml produces that configuration -- AWS_ENDPOINT appears three times, all `http://app:9000`, and `app` keeps DOCCUM_EMBEDDED_STORAGE=true, so `--profile storage` starts a MinIO that no service reads. Asserting it in CI would mean asserting a configuration no documented path produces, which is worth less than it looks. #382 asks whether the profile should wire itself or stay a documented two-step; the answer decides what this half should assert.\n\nWHAT HALF ONE PROVES IS NARROWER THAN ITS NAME, stated here rather than left for a reader to discover. The three workers reported healthy about eight seconds in, before migrations could plausibly have finished -- only `app` carries AUTORUN_ENABLED=true, and the workers start `queue:work` against the same SQLite file without waiting. Their healthchecks are `pgrep`, which proves a PROCESS EXISTS and says nothing about whether it can reach the database. So \"worker is healthy\" is a weaker claim than it reads as, and a worker that started and could not query would satisfy it. That is a limit of compose.yaml's healthchecks, not of the job, and it is recorded because the alternative is a future reader treating a green compose-boot as proof the queue works.",
+      "doneWhen": "CLAUDE.md calls `docker compose up -d --build` 'the real stack', and nothing in CI has ever started it. tests.yml's image job drives a single `docker run` container, which is the right primary target -- the container IS the product -- but it means every compose-only concern is unverified: the profiles, the healthchecks, the service dependency order, and whether the app container can actually reach a minio in a sibling service rather than the one supervisor runs inside it. item/compose-secret verifies compose statically with `docker compose config`, which proves interpolation and required variables and proves nothing about whether the thing runs. This item is the other half. Done when CI brings up the storage profile, waits for health, and asserts the app answers on its port with object storage served by the SIBLING minio -- and when a mutation shows it failing: point the app at a wrong bucket or drop the minio dependency and the job must go red. Deliberately post-v1: the single-container smoke covers the product, this covers a convenience, and it is not worth delaying a tag for.\n\nSPLIT AND HALF DISCHARGED, 2026-09-22, in PR #383. The clause has two independent halves and only one of them needed anyone's permission.\n\nHALF ONE IS BUILT: the `compose-boot` job brings up the DEFAULT stack (app, worker, worker-ingest, scheduler, sharing db:/data), waits for the app to serve the installer, and asserts the three non-app services reach `healthy` rather than merely `created`. On its first run the app answered 7.6 seconds after the containers started and all three workers reported healthy. PR check count 23 -> 24.\n\nHALF TWO IS NOT, and is not blocked on building: it is blocked on issue #382. The clause asks CI to assert \"object storage served by the SIBLING minio\", and NOTHING in compose.yaml produces that configuration -- AWS_ENDPOINT appears three times, all `http://app:9000`, and `app` keeps DOCCUM_EMBEDDED_STORAGE=true, so `--profile storage` starts a MinIO that no service reads. Asserting it in CI would mean asserting a configuration no documented path produces, which is worth less than it looks. #382 asks whether the profile should wire itself or stay a documented two-step; the answer decides what this half should assert.\n\nWHAT HALF ONE PROVES IS NARROWER THAN ITS NAME, stated here rather than left for a reader to discover. The three workers reported healthy about eight seconds in, before migrations could plausibly have finished -- only `app` carries AUTORUN_ENABLED=true, and the workers start `queue:work` against the same SQLite file without waiting. Their healthchecks are `pgrep`, which proves a PROCESS EXISTS and says nothing about whether it can reach the database. So \"worker is healthy\" is a weaker claim than it reads as, and a worker that started and could not query would satisfy it. That is a limit of compose.yaml's healthchecks, not of the job, and it is recorded because the alternative is a future reader treating a green compose-boot as proof the queue works.\n\nTHE PARAGRAPH ABOVE SAYS \"HALF ONE IS BUILT\" AND THAT IS NO LONGER TRUE OF main, 2026-09-22, within an hour of its being written -- decision/0129 with my own name on it, and corrected here rather than deleted. PR #383 landed the job; PR #386 removed it again from main, because its SECOND run turned main red.\n\nNOT A FLAKE, AND NOT THE JOB. All four default-stack services mount the same db: volume at /data, compose starts them within a millisecond of each other, and two race on `mkdir /data/caddy`; the loser fails to start with `file exists`. The PR run won that race, main's lost it. That is a defect in the compose path a self-hoster is documented to use, on a fresh volume, and it is filed as issue #385 with the log.\n\nWHY REMOVING THE JOB IS NOT QUARANTINING A TEST, which CLAUDE.md forbids: the finding is preserved in #385 rather than dropped, this item stays open rather than being marked done, and the job returns WITH the fix because it is the only thing that will prove the fix works. The alternative was main sitting red while a design question is settled -- the fix is either depends_on for the three workers, which contradicts a documented spec 13 claim in storage.md that they start independently, or making the directory creation idempotent, which lives in the base image's entrypoint rather than in this repository.\n\nAND THE RISK WAS NAMED IN #383'S OWN BODY -- \"this job could be flaky, and a flaky job is worse than no job\" -- with two candidates given: the wait budget and the migration ordering. It was neither. Naming the risks you can think of does not cover the one you cannot, which is an argument for running the thing rather than against it.",
       "actionStatus": "ActiveActionStatus",
       "startTime": "2026-09-22T00:45:00Z",
       "endTime": null,
-      "result": [
-        "https://github.com/turbophp/doccum/pull/383"
-      ]
+      "result": []
     }
   ],
   "pullRequests": [
@@ -4625,6 +4623,22 @@
       "headSha": "d9d91b9226e219ededa3bb8e04de33c97ffc4c2a",
       "mergedAt": "2026-09-22T00:57:11Z",
       "mergeSha": "6ee9b68792ce6130f430aaf915051a4d2f44a697",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/386",
+      "@type": "PullRequest",
+      "identifier": 386,
+      "name": "Remove compose-boot from main: it found a real race, and main is red until it goes",
+      "implements": [
+        "item/compose-boot-ci"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T01:14:39Z",
+      "headSha": "e5637903e8049a52cc12b5252df66df4bc15bc5c",
+      "mergedAt": "2026-09-22T01:19:46Z",
+      "mergeSha": "71cd52805d4fd6e7815c5bd5ca36302ddfbcdaad",
       "mergedIn": "run/0022"
     }
   ],
