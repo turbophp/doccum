@@ -323,8 +323,15 @@ sha; on a `PullRequest`, required exactly when `state` is merged
 ## `pullRequest`
 
 A pointer at a `PullRequest` node -- used on `Mutation` (the PR the check ran
-in) and on a Run's merge entries (the PR that produced that commit, or
-`null` for a ledger-only merge).
+in) and on a Run's merge entries (the PR that produced that commit, or `null`
+when no `PullRequest` node exists for it).
+
+`null` DOES NOT MEAN "no pull request"; it means "no node". This gloss used to
+read "`null` for a ledger-only merge", which is narrower than the practice and
+was caught by trying to follow it: Dependabot merges carry `null` too, and they
+plainly came from a pull request. They get no node because a node needs
+`implements`, and a dependency bump discharges no backlog item -- see `#42` at
+`e8b15f9` (run/0003), `#40` at `001eff0` (run/0004) and `#412` at `e8f2790`.
 
 Enforced: `app/Support/LedgerValidator.php` -- on a merge entry, must be a
 string or null (`checkMergeEntry()`); when present anywhere, must resolve to
