@@ -857,6 +857,20 @@ jobs:
       - name: README.md and .github/image-budget.json state the same numbers
         run: python3 .github/scripts/assert-image-size-docs.py
 
+      # issue #407. Lives beside the image-size assertion because both are
+      # cheap, dependency-free statements about what the Dockerfile builds,
+      # and a job of its own would add a check name and a runner for one
+      # script. The step name carries the subject, so a failure is
+      # attributable without opening the job.
+      #
+      # dependabot.yml also ignores major updates for the node image, which
+      # is what stopped this drifting in the first place. Both exist because
+      # they fail at different times: the ignore prevents the pull request,
+      # this refuses a hand edit or a dependabot config that has quietly
+      # stopped matching.
+      - name: The Dockerfile's Node major matches .nvmrc
+        run: python3 .github/scripts/assert-node-major.py
+
       # Printed, not relied upon: the script REFUSES when it cannot find its
       # subject (a renamed section, a byte figure that appears zero times), so
       # this step exists to show a reader what was compared, not to be the

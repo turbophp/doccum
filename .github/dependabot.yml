@@ -24,3 +24,15 @@ updates:
       docker:
         patterns:
           - "*"
+    # issue #407. The group pattern is "*", and it walked the assets stage's
+    # node image 24 -> 26 in 81d838d with no decision recorded. Everything
+    # else in this repository pins Node 22 -- .nvmrc, package.json's engines,
+    # pages.yml reading .nvmrc -- because npm 11 rewrites package-lock.json as
+    # a silent side effect of `npm ci` and `npm run build` (CLAUDE.md gives it
+    # a section; it has cost four CI cycles). A major bump here is therefore
+    # never a routine update, so it is not proposed at all; patch and minor
+    # still are. .github/scripts/assert-node-major.py refuses if the two
+    # drift anyway, because an ignore that stops matching fails silently.
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
