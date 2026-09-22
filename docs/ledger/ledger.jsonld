@@ -4790,6 +4790,38 @@
       "mergedAt": "2026-09-22T04:09:46Z",
       "mergeSha": "b2d25b84c78c68c25f0c490f1b2be238e01de90a",
       "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/396",
+      "@type": "PullRequest",
+      "identifier": 396,
+      "name": "Complete item/citation-addresses-rot, and say what is NOT enforced",
+      "implements": [
+        "item/citation-addresses-rot"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T04:14:55Z",
+      "headSha": "d4cf5b30dc03eaf5a3f8ec4c3eec185b84bbde57",
+      "mergedAt": "2026-09-22T04:18:59Z",
+      "mergeSha": "fe16faba2fd7bf1b72ba9604547243a5ab5dbb62",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/397",
+      "@type": "PullRequest",
+      "identifier": 397,
+      "name": "The [0.1.0] release notes would have announced that no release exists",
+      "implements": [
+        "item/release-v0-1-0"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T05:02:24Z",
+      "headSha": "3099a0f3e402caa251223f0d6e7e5dc360d7a84c",
+      "mergedAt": "2026-09-22T05:07:15Z",
+      "mergeSha": "3abb81abcd53db424b0fa46fa96eeaf70cbc81d3",
+      "mergedIn": "run/0022"
     }
   ],
   "decisions": [
