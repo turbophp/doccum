@@ -164,10 +164,22 @@ it('has a Pages workflow with a build job that runs the generator and stays gree
     expect($workflow)->toMatch("/deploy:.*?if:\s*github\.ref == 'refs\/heads\/main'/s");
 
     // The standard permissions a Pages deployment needs, scoped to the
-    // deploy job specifically (grep count rather than string position, so
+    // deploy job specifically (a count rather than a string position, so
     // this does not depend on the two jobs' declaration order).
-    expect(substr_count($workflow, 'pages: write'))->toBe(1);
-    expect(substr_count($workflow, 'id-token: write'))->toBe(1);
+    //
+    // COUNTED AS YAML KEYS, NOT AS SUBSTRINGS, for the same reason the
+    // continue-on-error assertion above matches `continue-on-error\s*:`
+    // rather than the bare phrase: this workflow's comments legitimately
+    // discuss the permissions in prose. They have to -- the comment block
+    // explaining why no workflow here can enable Pages quotes
+    // actions/configure-pages' own manifest, which names the permissions
+    // it needs and does not get. With substr_count that comment made this
+    // assertion read 2, and the only way to keep it passing was to write
+    // around it: a test that forces the file to be less clear about itself
+    // is measuring the wrong thing. A key sits at the start of its line
+    // under `permissions:`; a mention inside a `#` comment does not.
+    expect(preg_match_all('/^\s+pages: write$/m', $workflow))->toBe(1);
+    expect(preg_match_all('/^\s+id-token: write$/m', $workflow))->toBe(1);
 
     // Node version comes from .nvmrc, not a second hardcoded copy --
     // CLAUDE.md's Node section is explicit that this project tracks one

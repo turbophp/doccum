@@ -444,8 +444,13 @@ it('requires a completed run past the effective threshold to have both conclusio
     try {
         $errors = LedgerValidator::validate($dir, mergesFixtureSpecPath());
         expect($errors)->toContain(
+            // pagesConclusion joins the report now that every merge entry
+            // is required to carry all three pairs. The report lists what an
+            // entry RECORDS, and before this rule a fixture could record two
+            // of three; it cannot any more, so "present keys" and "the whole
+            // set" have become the same list.
             "run: '$lastRunId' has outcome completed but its last merge ('$mergeSha') did not close green".
-            " (testsConclusion = 'failure', ledgerConclusion = 'success')."
+            " (testsConclusion = 'failure', ledgerConclusion = 'success', pagesConclusion = NULL)."
         );
     } finally {
         removeMergesFixture($dir);
@@ -459,7 +464,7 @@ it('requires a completed run past the effective threshold to have both conclusio
         $errors = LedgerValidator::validate($dir, mergesFixtureSpecPath());
         expect($errors)->toContain(
             "run: '$lastRunId' has outcome completed but its last merge ('$mergeSha') did not close green".
-            " (testsConclusion = 'success', ledgerConclusion = 'cancelled')."
+            " (testsConclusion = 'success', ledgerConclusion = 'cancelled', pagesConclusion = NULL)."
         );
     } finally {
         removeMergesFixture($dir);
