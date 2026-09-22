@@ -1014,6 +1014,127 @@ jobs:
           echo "missing pre-release v99.99.99-rc1 correctly failed (exit $status), naming the tag and its release section:"
           echo "$output"
 
+  # item/release-v0-1-0 clause (1), and specifically the contingency the clause
+  # names rather than the happy path. It requires arm64 "booted natively in CI
+  # or the claim is dropped -- never emulated" (decision/0076), and until now
+  # nothing exercised that at all: every `runs-on` in this file is
+  # ubuntu-latest, the `image` job builds linux/amd64 only, and release.yml
+  # builds arm64 under QEMU on a tag that has never been pushed.
+  #
+  # So three questions were all going to be answered for the first time by the
+  # one tag push that cannot be retried: is `ubuntu-24.04-arm` available to
+  # this repository, does the Dockerfile build on arm64 at all, and do
+  # FrankenPHP, MinIO and tesseract boot there. This answers them on every pull
+  # request instead.
+  #
+  # A RED RUN HERE IS THE CLAUSE'S OWN TRIGGER, not a surprise: it says to drop
+  # linux/arm64 from release.yml and strike the claim rather than ship a
+  # manifest nobody has booted. If this job cannot run because the runner is
+  # unavailable to this repository, that is the same answer arriving a
+  # different way.
+  #
+  # NATIVE, NEVER QEMU. Emulation proves the image assembles, not that the
+  # binaries run, and decision/0076 rejected it for exactly that reason. The
+  # minio binary is the likeliest failure: it is copied from a pinned
+  # quay.io/minio/minio image, so this also tests that that tag is multi-arch.
+  #
+  # Its build cache is scoped separately from the `image` job's; sharing one
+  # scope across architectures is how a cache starts serving the wrong layers.
+  image-arm64:
+    timeout-minutes: 45
+    name: image builds and boots natively on arm64
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+
+      - name: Confirm the runner really is arm64
+        run: |
+          set -e
+          arch="$(uname -m)"
+          if [ "$arch" != "aarch64" ]; then
+            echo "::error::expected an aarch64 runner, got '$arch' -- this job proves nothing about arm64 unless it runs on one"
+            exit 1
+          fi
+          echo "runner architecture: $arch"
+
+      - name: Build image natively for linux/arm64
+        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          load: true
+          tags: doccum:ci-arm64
+          cache-from: type=gha,scope=arm64
+          cache-to: type=gha,mode=max,scope=arm64
+
+      # The same bounded-polling idiom the `image` job uses: detect a container
+      # that exited before it ever answered, rather than only timing out with
+      # no idea why.
+      - name: Boot it and wait for the first-run installer screen
+        run: |
+          set -e
+          docker run -d --name doccum-arm64 -v doccum-arm64:/data -p 8080:8080 doccum:ci-arm64
+
+          ok=false
+          for i in $(seq 1 45); do
+            if ! docker inspect -f '{{.State.Running}}' doccum-arm64 2>/dev/null | grep -q true; then
+              echo "::error::the arm64 container exited before it ever answered on http://127.0.0.1:8080"
+              break
+            fi
+            if body=$(curl -sS -L --max-time 5 http://127.0.0.1:8080/ 2>/dev/null); then
+              if echo "$body" | grep -q 'Set up doccum'; then
+                ok=true
+                break
+              fi
+            fi
+            sleep 2
+          done
+
+          if [ "$ok" != true ]; then
+            echo "::error::doccum never served the first-run setup screen on arm64"
+            docker logs doccum-arm64 || true
+            exit 1
+          fi
+
+          echo "arm64 image booted and served the installer screen"
+
+      # Naming the binaries individually, because "the container answered HTTP"
+      # would pass with a MinIO that never started -- and MinIO's binary is the
+      # one copied from another image rather than built here, so it is the most
+      # likely thing to be amd64-only.
+      - name: Assert the copied binaries actually execute on arm64
+        run: |
+          set -e
+          failed=false
+          for probe in "minio --version" "tesseract --version" "pdftotext -v"; do
+            if ! docker exec doccum-arm64 sh -c "$probe" >/dev/null 2>&1; then
+              echo "::error::\`$probe\` failed inside the arm64 container -- that binary is not usable on this architecture"
+              docker exec doccum-arm64 sh -c "$probe" || true
+              failed=true
+            fi
+          done
+          if [ "$failed" = true ]; then
+            exit 1
+          fi
+          echo "minio, tesseract and pdftotext all execute on arm64"
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs doccum-arm64 || true
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f doccum-arm64 >/dev/null 2>&1 || true
+
   image:
     timeout-minutes: 30
     name: image
@@ -1035,11 +1156,17 @@ jobs:
       # No DOCCUM_VERSION build-arg on purpose: this job never builds from a
       # tag, so there is no external version to pass in. The Dockerfile's ARG
       # default (0.1.0-dev) and config/doccum.php's env() default are the
-      # same literal, so the smoke's version-pill check -- pill == the
-      # image's org.opencontainers.image.version label == config('doccum.version')
-      # -- still compares three independently-sourced reads of that one
-      # value, it just happens to be the dev default rather than a release
-      # tag. See item/version-from-tag and container-smoke.mjs's checkTopbar.
+      # same literal.
+      #
+      # THIS COMMENT USED TO SAY the smoke's version-pill check "still compares
+      # three independently-sourced reads of that one value". It does not, and
+      # decision/0080 is the decision that says so by name: the pill, the
+      # org.opencontainers.image.version label and config('doccum.version') all
+      # derive from the one ARG, so the three-way comparison agrees with itself
+      # and would agree just as readily at a false value. Counting readers is
+      # not counting sources (CLAUDE.md). What actually holds the label to an
+      # external truth is release.yml's verify-version-label, on a tag.
+      # See item/version-from-tag and container-smoke.mjs's checkTopbar.
       - name: Build image
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
