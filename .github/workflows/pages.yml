@@ -11,12 +11,34 @@ name: pages
 #
 # `deploy` actually publishes that artifact to the Pages environment, which
 # DOES require the repository setting "Settings -> Pages -> Source: GitHub
-# Actions" to be turned on. This loop cannot set that (the Pages API 403s
-# through this environment's proxy) or observe whether a human already
-# has. Until it is enabled, this job is expected to fail (no `github-pages`
-# environment configured) or be skipped -- that is the known, deliberate
-# state of this workflow, not a bug to work around with continue-on-error.
-# See this item's report for the exact wording.
+# Actions" to be turned on. Until it is enabled, this job is expected to fail
+# (no `github-pages` environment configured) or be skipped -- that is the
+# known, deliberate state of this workflow, not a bug to work around with
+# continue-on-error. See this item's report for the exact wording.
+#
+# NO WORKFLOW IN THIS REPOSITORY CAN TURN THAT SETTING ON, and that is read
+# from the action's own manifest rather than inferred from a failure here.
+# actions/configure-pages takes an `enablement` input that calls the
+# create-Pages-site API, which looks like the way out. Its description says,
+# verbatim: "This option requires a token other than `GITHUB_TOKEN` to be
+# provided. In the context of a Personal Access Token, the `repo` scope or
+# Pages write permission is required. In the context of a GitHub App, the
+# `administration:write` and `pages:write` permissions are required."
+# GITHUB_TOKEN has no `administration` permission to grant: the sixteen keys a
+# workflow's `permissions:` block accepts are actions, artifact-metadata,
+# attestations, checks, code-quality, contents, deployments, discussions,
+# id-token, issues, packages, pages, pull-requests, security-events, statuses
+# and vulnerability-alerts (workflow-syntax reference, #permissions), and
+# `administration` is not among them. So `pages: write` is not enough for the
+# `enablement` input and cannot be made enough. A PAT in a secret would work and is
+# strictly worse than the setting: it asks the owner for a credential in order
+# to save them two clicks, and then the repository holds it.
+#
+# This comment used to give a narrower reason -- "the Pages API 403s through
+# this environment's proxy" -- which is true and is about the machine this
+# loop runs on, not about Actions. It left open the possibility that a
+# dispatched workflow could do what the loop could not. It cannot, and the
+# manifest said so all along.
 on:
   push:
     branches:
