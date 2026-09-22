@@ -19,9 +19,39 @@ RUN apt-get update \
     fi \
  && rm -rf /var/lib/apt/lists/*
 RUN install-php-extensions pdo_sqlite pdo_pgsql pdo_mysql intl gd zip bcmath exif
-# Created here so the named volume inherits this ownership on first use: Docker
-# seeds an empty named volume from the image, permissions included.
-RUN mkdir -p /data && chown www-data:www-data /data
+# /data must EXIST and must be EMPTY in the image. Both halves are load-bearing
+# and the second one is the fix for issue #385.
+#
+# It must exist so a fresh named volume inherits this ownership on first use:
+# Docker seeds a new volume from the image path it is mounted over, permissions
+# included.
+#
+# It must be empty because Docker seeds CONTENT the same way -- by copying the
+# image's files at that path into the volume as the container starts -- and
+# compose.yaml's four services all mount the same `db:` volume at /data and are
+# started simultaneously. The base image ships /data/caddy (its XDG_DATA_HOME is
+# /data), so on a fresh volume the daemon copied that directory for several
+# containers at once and the loser died before it ever ran:
+#
+#   Error response from daemon: failed to mkdir
+#   /var/lib/docker/volumes/doccum_db/_data/caddy: file exists
+#
+# Nothing in doccum's own startup was involved, and it is worth being exact
+# about that because the first diagnosis was not: three of the four services
+# override `command`, so they never start Caddy at all, and the mkdir that
+# failed is the daemon's, not any entrypoint's.
+#
+# Emptying it strands nothing. Caddy recreates $XDG_DATA_HOME/caddy on demand
+# (`InstanceID()` does `os.MkdirAll`; certmagic's FileStorage likewise), and
+# with SSL_MODE=off -- the base image's default, which doccum never overrides
+# and no doc tells anyone to -- the ssl-mode Caddyfile defines one plain `http`
+# site with no `tls` directive and `auto_https off`, so Caddy issues no
+# certificates and the only file it writes there is instance.uuid, which it
+# regenerates when absent.
+#
+# tests.yml's "Refuse an image that ships content under /data" step fails the
+# build if anything reintroduces content here.
+RUN rm -rf /data && mkdir -p /data && chown www-data:www-data /data
 USER www-data
 
 # ---- vendor: dependencies and the optimised autoloader ----

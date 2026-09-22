@@ -92,6 +92,25 @@ starts independently, and detaching storage is simply not starting the
 embedded server, or pointing the app at this profile's `minio` service
 instead via `AWS_ENDPOINT=http://minio:9000`.
 
+That independence has one requirement, and it lives in the `Dockerfile` rather
+than in `compose.yaml`: the image must ship **nothing** under `/data`. All four
+containers mount the same `db:` volume there and are started at the same
+instant, and Docker seeds a fresh named volume by copying whatever the image
+holds at the mount path into it — so a single file shipped under `/data`
+becomes a copy several daemons race to perform. One was: the base image ships
+`/data/caddy`, and `docker compose up` on a fresh volume killed a worker with
+`failed to mkdir …/doccum_db/_data/caddy: file exists`. The `Dockerfile` empties
+`/data` for that reason, and CI refuses an image that reintroduces content
+there.
+
+Caddy still creates `/data/caddy` once the `app` container is running — it is
+the only one of the four that serves HTTP — but that is one process calling
+`MkdirAll`, which succeeds whether or not the directory is already there. The
+failure was Docker's copy, not Caddy's directory. Nothing in it needs backing
+up: with the default `SSL_MODE=off` doccum serves plain HTTP behind your
+reverse proxy, so Caddy issues no certificates and the only file it writes
+there is an instance id it regenerates when absent.
+
 ## What never changes
 
 `use_path_style_endpoint` is forced `true` for embedded/standalone MinIO
