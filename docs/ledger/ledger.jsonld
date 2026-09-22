@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-22T07:38:33Z",
+  "dateModified": "2026-09-22T08:05:25Z",
   "latestRun": "run/0022",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -2343,11 +2343,13 @@
       "size": "S",
       "release": "post-v1",
       "dependsOn": [],
-      "doneWhen": "Found by consultation and verified against main at a55634b. L1143 says \"Healthchecks with `depends_on: condition: service_healthy`\" and L1149 says \"No service declares `depends_on`\" -- six lines apart, and `grep depends_on compose.yaml` returns nothing, so the second is right. The \"Default stack: app + 3 workers + minio + minio-init\" line contradicts compose.yaml, which gives both the `minio` and `minio-init` services `profiles: [\"storage\"]`, so neither is in the default stack at all. L1165 describes compose.override.yml, which does not exist. L1163 says .env.example \"documents the local and remote columns side by side\"; it is the starter kit's file plus one storage block. Section 12 L1084 offers `docker compose up` as the quick start while quick-start.md leads with `docker run`, which the README calls the whole installation.\n\nTHIS IS NOT COSMETIC: section 13 is what item/compose-boot-ci, item/image-size and item/release-v0-1-0 are isBasedOn, and decision/0084 made item/v1-audit depend on reconciliation \"so it measures against a corrected spec\". item/spec-reconcile fixed three named places and item/spec-section8-reconcile fixed section 8; neither touched 13.\n\nDone when each claim above either matches the tree or is marked superseded with what replaced it. Same constraint item/spec-reconcile recorded: headings are load-bearing for LedgerValidator's specAnchorErrors() because items point at them via isBasedOn, so mark superseded rather than delete, and run the validator after.\n\nTHE LINE NUMBERS ABOVE NAME THE SPEC AND ARE NOT path:line CITATIONS, which assert-ledger-citations.py distinguishes: they carry no filename, so nothing resolves them and nothing rots. The first draft of this clause carried one real path-and-line citation into compose.yaml, and the guard refused it -- correctly, and on the very pass that introduced it. Replaced with the profile key it was pointing at, which moves with the service (issue #371, decision/0129).\n\nIT TOOK TWO ATTEMPTS, and the second is a property of the guard worth knowing. The first rewrite removed the citation and then EXPLAINED the removal by quoting it -- and the guard refused again, because its pattern cannot tell a citation from a mention of one. That is the right trade for a checker of this kind: the alternative is a rule about quoting context, which is where a guard starts having exceptions. Say what the citation pointed AT, not what it read.",
-      "actionStatus": "PotentialActionStatus",
-      "startTime": null,
-      "endTime": null,
-      "result": []
+      "doneWhen": "Found by consultation and verified against main at a55634b. L1143 says \"Healthchecks with `depends_on: condition: service_healthy`\" and L1149 says \"No service declares `depends_on`\" -- six lines apart, and `grep depends_on compose.yaml` returns nothing, so the second is right. The \"Default stack: app + 3 workers + minio + minio-init\" line contradicts compose.yaml, which gives both the `minio` and `minio-init` services `profiles: [\"storage\"]`, so neither is in the default stack at all. L1165 describes compose.override.yml, which does not exist. L1163 says .env.example \"documents the local and remote columns side by side\"; it is the starter kit's file plus one storage block. Section 12 L1084 offers `docker compose up` as the quick start while quick-start.md leads with `docker run`, which the README calls the whole installation.\n\nTHIS IS NOT COSMETIC: section 13 is what item/compose-boot-ci, item/image-size and item/release-v0-1-0 are isBasedOn, and decision/0084 made item/v1-audit depend on reconciliation \"so it measures against a corrected spec\". item/spec-reconcile fixed three named places and item/spec-section8-reconcile fixed section 8; neither touched 13.\n\nDone when each claim above either matches the tree or is marked superseded with what replaced it. Same constraint item/spec-reconcile recorded: headings are load-bearing for LedgerValidator's specAnchorErrors() because items point at them via isBasedOn, so mark superseded rather than delete, and run the validator after.\n\nTHE LINE NUMBERS ABOVE NAME THE SPEC AND ARE NOT path:line CITATIONS, which assert-ledger-citations.py distinguishes: they carry no filename, so nothing resolves them and nothing rots. The first draft of this clause carried one real path-and-line citation into compose.yaml, and the guard refused it -- correctly, and on the very pass that introduced it. Replaced with the profile key it was pointing at, which moves with the service (issue #371, decision/0129).\n\nIT TOOK TWO ATTEMPTS, and the second is a property of the guard worth knowing. The first rewrite removed the citation and then EXPLAINED the removal by quoting it -- and the guard refused again, because its pattern cannot tell a citation from a mention of one. That is the right trade for a checker of this kind: the alternative is a rule about quoting context, which is where a guard starts having exceptions. Say what the citation pointed AT, not what it read.\n\nDONE, 2026-09-22, in PR #414 at 990c59c. Each claim marked superseded with what replaced it, and NO HEADING TOUCHED -- 59 before and after. The constraint was then actually VERIFIED rather than assumed: after #413 merged, main was brought into the branch so this item and the edited spec sat on one tree, and the validator resolved spec:13-infrastructure there.\n\nAND A NEW FALSE CLAIM WAS NEARLY SHIPPED WHILE FIXING FALSE CLAIMS. The first draft of the replacement bullet said \"Healthchecks on every service\". compose.yaml declares them on three -- worker, worker-ingest and scheduler, each pgrep-ing for its own command, because the base image's check curls HTTP and a worker never serves any. Caught before commit by parsing compose.yaml rather than trusting the sentence just written, which is this item's own failure mode arriving one level up.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-22T07:44:30Z",
+      "endTime": "2026-09-22T07:55:28Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/414"
+      ]
     },
     {
       "@id": "item/security-contact-live",
@@ -2366,6 +2368,26 @@
       "startTime": null,
       "endTime": null,
       "result": []
+    },
+    {
+      "@id": "item/security-supported-versions-standing",
+      "@type": "Action",
+      "order": 127,
+      "name": "SECURITY.md promised a post-tag edit that the loop's stopping rule guarantees nobody will make",
+      "url": "https://github.com/turbophp/doccum/issues/416",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "size": "S",
+      "release": "v1.0.0",
+      "dependsOn": [],
+      "doneWhen": "SECURITY.md's Supported versions section ended \"Once `v1.0.0` is tagged this section will name the supported release line\". Nothing owned it: item/tag-v1-0-0's clause names exactly one post-tag ledger action, setting about.version, and docs/LOOP.md stops the loop when that item completes. The promise was scheduled to rot on the first day of v1.0.0, by construction, in the file a security researcher reads first.\n\nDone when the section says only true things and stays true across the tag without anyone editing it -- or something owns the edit. Pick one and say which.\n\nDONE, 2026-09-22, in PR #415 at 2dd446b, taking the FIRST option, and the choice is the substance. A clause on item/tag-v1-0-0 would have SCHEDULED the edit; it would not have made the document independent of whether the edit happened. The failure mode is a promise with no owner, and adding an owner is weaker than removing the promise. The section now states the policy in a form true before the tag and after it -- the supported version is the most recent published image, built from main today and the latest release later -- with no version table and nothing to edit when a release is cut.\n\nNO CLAUSE WAS ADDED TO item/tag-v1-0-0, DELIBERATELY. That item is the loop's stopping node, and making stopping depend on an edit the document no longer needs is the wrong direction. Recorded here because the opposite choice is the obvious one and a later reader will wonder why it was not taken.\n\nWHAT THIS DOES NOT DECIDE, because it is not the loop's to decide: whether doccum backports once there are two release lines. The section says there is none today BECAUSE there is only one line, and that a second line is what would change it -- a true statement of the present rather than a commitment about a future the project has not reached.\n\nTHE ISSUE WAS FILED AFTER THE FIX, which is stated rather than hidden: the work was small enough to build directly, and every one of the ledger's items carries a resolvable url, so an item pointing nowhere would have been worse than a retrospective issue. LOOP.md step 1's rule is that an undisposed obligation is invisible; this is the disposal.",
+      "actionStatus": "CompletedActionStatus",
+      "startTime": "2026-09-22T07:57:00Z",
+      "endTime": "2026-09-22T08:05:10Z",
+      "result": [
+        "https://github.com/turbophp/doccum/pull/415"
+      ]
     }
   ],
   "pullRequests": [
@@ -5065,6 +5087,54 @@
       "mergedAt": "2026-09-22T07:38:33Z",
       "mergeSha": "b304d082b7308de9ffaeb1619ca5aa4b9c9422e2",
       "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/413",
+      "@type": "PullRequest",
+      "identifier": 413,
+      "name": "Record the consultation that broke \"nothing left but the owner\"",
+      "implements": [
+        "item/claims-without-guards"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T07:43:40Z",
+      "headSha": "790a1b9df588bb424bed47468ce5f341750b7eb1",
+      "mergedAt": "2026-09-22T07:50:00Z",
+      "mergeSha": "ac0806118799fd9c1a738d6083140ebdf2501055",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/414",
+      "@type": "PullRequest",
+      "identifier": 414,
+      "name": "Spec section 13 contradicted itself six lines apart",
+      "implements": [
+        "item/spec-section13-reconcile"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T07:46:40Z",
+      "headSha": "9a21f990a2591cf3c47582d1aece2749461aba46",
+      "mergedAt": "2026-09-22T07:55:28Z",
+      "mergeSha": "990c59c389a7d50fba1ef1ce806bc01c927d9fdf",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/415",
+      "@type": "PullRequest",
+      "identifier": 415,
+      "name": "SECURITY.md promised an edit the loop guarantees nobody will make",
+      "implements": [
+        "item/security-supported-versions-standing"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T07:59:10Z",
+      "headSha": "1f1ee3ebb2f06c61ede3d5316c65a813df392d9b",
+      "mergedAt": "2026-09-22T08:05:25Z",
+      "mergeSha": "2dd446b26776f5d2890a06974590f69693701b53",
+      "mergedIn": "run/0022"
     }
   ],
   "decisions": [
@@ -7459,6 +7529,22 @@
         "item/security-contact-live",
         "item/anonymous-pull-asserted",
         "item/docs-site"
+      ],
+      "supersedes": null
+    },
+    {
+      "@id": "decision/0148",
+      "@type": "Decision",
+      "dateCreated": "2026-09-22T08:06:00Z",
+      "run": "run/0022",
+      "name": "A promise with no owner is better removed than assigned",
+      "rationale": "SECURITY.md said a section would be rewritten once v1.0.0 was tagged. Nothing owned that: the only post-tag action any item names is setting about.version, and LOOP.md stops the loop when that item completes. Two fixes presented themselves, and the obvious one is the weaker one.\n\nASSIGNING THE PROMISE -- a clause on item/tag-v1-0-0 -- schedules the edit. It does not make the document independent of whether the edit happens: a missed clause leaves the same rotted sentence, now with a paper trail explaining that somebody was supposed to fix it. It also loads the loop's STOPPING NODE with an obligation that has nothing to do with whether v1 shipped.\n\nREMOVING THE PROMISE means writing the document so the situation it describes cannot make it false. \"The supported version is the most recent published image\" is true before the tag and after it; a version table is not. The test is not \"is this sentence true today\" but \"what would have to happen for it to become false, and does anyone watch for that\".\n\nWHERE THIS DOES NOT APPLY: when the future statement is a real decision rather than a mechanical update. Whether doccum backports across release lines is a policy nobody has set, and writing a self-maintaining sentence there would mean inventing the policy to avoid scheduling a conversation. That half stays explicitly open and says why, which is the honest version of the same instinct.\n\nTHE FAMILY THIS BELONGS TO. decision/0141: a reason that covers only the case in front of you reads as a general one. decision/0146: a suite where every participant makes the same reasonable assumption has a blind spot the size of that assumption. Here: a document that describes a moment rather than a rule has a shelf life nobody is watching.",
+      "isBasedOn": [
+        "spec:15-milestones"
+      ],
+      "affects": [
+        "item/security-supported-versions-standing",
+        "item/tag-v1-0-0"
       ],
       "supersedes": null
     }
