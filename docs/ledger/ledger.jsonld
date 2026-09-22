@@ -4690,6 +4690,22 @@
       "mergedIn": null
     },
     {
+      "@id": "https://github.com/turbophp/doccum/pull/390",
+      "@type": "PullRequest",
+      "identifier": 390,
+      "name": "ledger: the race had no entrypoint in it, and three documents said it did",
+      "implements": [
+        "item/compose-boot-ci"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T03:07:02Z",
+      "headSha": "4a06374a87c6597948ec557665ba599e698d01fa",
+      "mergedAt": "2026-09-22T03:11:21Z",
+      "mergeSha": "494d8633ee13f9ec5b84c572a580022ea478dad5",
+      "mergedIn": "run/0022"
+    },
+    {
       "@id": "https://github.com/turbophp/doccum/pull/391",
       "@type": "PullRequest",
       "identifier": 391,
