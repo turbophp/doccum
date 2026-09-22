@@ -713,6 +713,20 @@ jobs:
       - name: boot-published-image runs container-smoke.mjs against the container it boots
         run: python3 .github/scripts/assert-published-smoke.py
 
+      # issue #406. Its own job would be the obvious home, but it belongs
+      # here: this job already installs the pinned PyYAML and already exists
+      # to assert release.yml's shape, and a second job would add a check
+      # name and a runner for one script. The step name says what it proves,
+      # so a failure is attributable without opening the job.
+      #
+      # WHAT IT GUARDS AGAINST is not the pull command breaking -- it is
+      # somebody adding a `docker/login-action` to verify-anonymous-pull
+      # while fixing something else, reasonably, exactly as the four sibling
+      # jobs each reasonably have one. That edit leaves a green check
+      # asserting nothing about the visibility a self-hoster meets.
+      - name: verify-anonymous-pull really does pull without credentials
+        run: python3 .github/scripts/assert-anonymous-pull.py
+
       # Same purpose as release-gate's own "Show what was parsed" step: the
       # assertion above can only fail on a real regression while it is
       # reading files whose shape it understands, and this re-runs it with
