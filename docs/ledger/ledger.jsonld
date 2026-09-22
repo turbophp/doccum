@@ -3,7 +3,7 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-22T08:05:25Z",
+  "dateModified": "2026-09-22T08:28:38Z",
   "latestRun": "run/0022",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
@@ -5134,6 +5134,22 @@
       "headSha": "1f1ee3ebb2f06c61ede3d5316c65a813df392d9b",
       "mergedAt": "2026-09-22T08:05:25Z",
       "mergeSha": "2dd446b26776f5d2890a06974590f69693701b53",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/417",
+      "@type": "PullRequest",
+      "identifier": 417,
+      "name": "Record the last two findings, and the fourth unrecorded ledger merge",
+      "implements": [
+        "item/security-supported-versions-standing"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T08:10:20Z",
+      "headSha": "2445e02492aac20fadac06b8af1f4a45a30c3246",
+      "mergedAt": "2026-09-22T08:15:59Z",
+      "mergeSha": "aa3b36f37ec8bfcd9c196ee0412cf69bf415789d",
       "mergedIn": "run/0022"
     }
   ],
