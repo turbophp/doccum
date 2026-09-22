@@ -250,7 +250,24 @@ Every hour, the loop wakes and runs these steps in order.
 - **Scope stays small.** One backlog item per PR. An item that grows past its
   "done when" line gets split in the ledger, not widened in the branch.
 - **The ledger is append-only for history.** Runs and decisions are never
-  rewritten; only item status is mutable.
+  rewritten. An item's `actionStatus` is mutable, and so is its `doneWhen` --
+  but only by APPENDING, never by editing what is there.
+
+  That second half was missing and the practice had already outrun it. This
+  line used to read "only item status is mutable", while `decision/0106`
+  requires the opposite: a clause whose prose the repository has since
+  contradicted must be corrected IN the clause, because `doneWhen` is where
+  `decision/0083` put the operative wording, and a correction that lives only
+  in a merge commit is a correction the next reader never meets.
+  `item/release-v0-1-0`'s clause is the worked example -- a dozen appended
+  paragraphs, several of them saying a paragraph above is wrong and why, none
+  of them deleting it.
+
+  So the rule is about EDITING, not about writing: strike a sentence and the
+  reasoning that produced it becomes unrecoverable; append one saying it was
+  wrong and both stay legible. Nothing in CI checks this -- the validator
+  checks the ledger's shape and its graph, never whether a clause's prose
+  describes the repository -- which is exactly why it is written here.
 
 ## Stopping
 

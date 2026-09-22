@@ -726,5 +726,12 @@
     "file": "app/Livewire/Files/Browser.php",
     "remove": "\n            abort_if(! in_array((int) $directory->getKey(), array_map('intval', $reachableForMount), true), 404);\n",
     "expectFailing": "answers an unreachable directory the same as a nonexistent one, for the files page"
+  },
+  {
+    "id": "merge-entry-workflow-pair-present",
+    "why": "vocab.md's `merges` section rests the field-pair design on one sentence: \"the keys are always present, so 'not recorded' and 'did not run' stay distinguishable\". That was true of all 286 entries on the ledger and false of the validator -- checkMergeEntry()'s two loops both read `$entry[$field] ?? null`, which gives an ABSENT key and an explicit null the same value, so an entry simply omitting `pagesRun` validated clean. Remove this guard and the distinction the vocabulary rests on is enforced by nothing but habit again: an entry that says nothing about a workflow is indistinguishable from one that says the workflow did not run, which is exactly the under-reporting a closed set of field pairs was chosen to prevent (issue #375). The witnessing test uses a null/null pair on purpose -- drop pagesRun from an entry whose pagesConclusion is 'success' and the pre-existing \"conclusion with no run to point at\" rule fires instead, so that mutation survives this guard's deletion and proves nothing about it.",
+    "file": "app/Support/LedgerValidator.php",
+    "remove": "        foreach (self::MAIN_PUSH_WORKFLOWS as $workflow) {\n            foreach ([$workflow.'Run', $workflow.'Conclusion'] as $field) {\n                if (! array_key_exists($field, $entry)) {\n                    $errors[] = \"enum: Run '$runId'.merges[$index] has no '$field' key at all. \".\n                        'Write it as null to record that '.$workflow.' did not run for this push -- '.\n                        'an absent key is not an answer, and the pair must be able to say \"did not run\" '.\n                        'without being mistaken for \"nobody wrote it down\".';\n                }\n            }\n        }",
+    "expectFailing": "reports a merge entry that omits a workflow field pair rather than recording it as null"
   }
 ]

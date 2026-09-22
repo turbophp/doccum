@@ -214,6 +214,12 @@ function mergesFixtureSoundEntry(): array
         'testsConclusion' => 'success',
         'ledgerRun' => 'https://github.com/turbophp/doccum/actions/runs/2',
         'ledgerConclusion' => 'success',
+        // The pages pair is present and null, not omitted. checkMergeEntry()
+        // requires every MAIN_PUSH_WORKFLOWS field pair to EXIST on an
+        // entry -- null says "pages did not run for this push", an absent
+        // key says nothing at all, and these fixtures used to say nothing.
+        'pagesRun' => null,
+        'pagesConclusion' => null,
     ];
 }
 
@@ -351,6 +357,12 @@ function makeThresholdMergesFixture(?string $testsConclusion, ?string $ledgerCon
         'testsConclusion' => $testsConclusion,
         'ledgerRun' => $ledgerConclusion === null ? null : 'https://github.com/turbophp/doccum/actions/runs/4',
         'ledgerConclusion' => $ledgerConclusion,
+        // The pages pair is present and null, not omitted. checkMergeEntry()
+        // requires every MAIN_PUSH_WORKFLOWS field pair to EXIST on an
+        // entry -- null says "pages did not run for this push", an absent
+        // key says nothing at all, and these fixtures used to say nothing.
+        'pagesRun' => null,
+        'pagesConclusion' => null,
     ]];
     $lastRun['commit'] = $mergeSha;
     $runsById[$lastRunNumber] = $lastRun;
@@ -432,8 +444,13 @@ it('requires a completed run past the effective threshold to have both conclusio
     try {
         $errors = LedgerValidator::validate($dir, mergesFixtureSpecPath());
         expect($errors)->toContain(
+            // pagesConclusion joins the report now that every merge entry
+            // is required to carry all three pairs. The report lists what an
+            // entry RECORDS, and before this rule a fixture could record two
+            // of three; it cannot any more, so "present keys" and "the whole
+            // set" have become the same list.
             "run: '$lastRunId' has outcome completed but its last merge ('$mergeSha') did not close green".
-            " (testsConclusion = 'failure', ledgerConclusion = 'success')."
+            " (testsConclusion = 'failure', ledgerConclusion = 'success', pagesConclusion = NULL)."
         );
     } finally {
         removeMergesFixture($dir);
@@ -447,7 +464,7 @@ it('requires a completed run past the effective threshold to have both conclusio
         $errors = LedgerValidator::validate($dir, mergesFixtureSpecPath());
         expect($errors)->toContain(
             "run: '$lastRunId' has outcome completed but its last merge ('$mergeSha') did not close green".
-            " (testsConclusion = 'success', ledgerConclusion = 'cancelled')."
+            " (testsConclusion = 'success', ledgerConclusion = 'cancelled', pagesConclusion = NULL)."
         );
     } finally {
         removeMergesFixture($dir);
@@ -565,4 +582,56 @@ it('does not report a commit newer than everything the ledger records', function
     );
 
     expect($errors)->toBe([]);
+});
+
+// -- Rule 5: every MAIN_PUSH_WORKFLOWS field pair must EXIST on an entry --
+
+it('reports a merge entry that omits a workflow field pair rather than recording it as null', function () {
+    // vocab.md's `merges` section rests the whole field-pair design on one
+    // sentence: "What a null cannot do is hide a red run -- a conclusion
+    // with no run is its own error, and the keys are always present, so
+    // 'not recorded' and 'did not run' stay distinguishable."
+    //
+    // The keys WERE always present, on all 286 entries the ledger carries.
+    // Nothing made them be. checkMergeEntry() read `$entry[$field] ?? null`
+    // in both of its loops, which gives an absent key and an explicit null
+    // the same value, so the second half of that sentence was true of the
+    // data and false of the validator.
+    //
+    // THE NULL/NULL PAIR IS WHAT MAKES THIS TEST ISOLATE THE RULE. Drop
+    // pagesRun from an entry whose pagesConclusion is 'success' and the
+    // pre-existing "a conclusion with no run to point at" rule fires too --
+    // so that mutation passes with this guard deleted, and proves nothing
+    // about it. null/null is the legal shape those rules accept, and the
+    // only shape where presence is the sole thing being checked.
+    $sound = mergesFixtureSoundEntry();
+    $sound['pagesRun'] = null;
+    $sound['pagesConclusion'] = null;
+
+    $dir = makeSmallMergesFixture([$sound], str_repeat('d', 40));
+    try {
+        expect(LedgerValidator::validate($dir, mergesFixtureSpecPath()))->toBe([]);
+    } finally {
+        removeMergesFixture($dir);
+    }
+
+    $missing = $sound;
+    unset($missing['pagesRun']);
+
+    $dir = makeSmallMergesFixture([$missing], str_repeat('d', 40));
+    try {
+        $errors = LedgerValidator::validate($dir, mergesFixtureSpecPath());
+
+        // Scoped to the subject: exactly one error, and it is this one. If
+        // another rule also fires on this fixture, the mutation stops
+        // isolating the guard and the test stops meaning what it says.
+        expect($errors)->toBe([
+            "enum: Run 'run/0001'.merges[0] has no 'pagesRun' key at all. ".
+            'Write it as null to record that pages did not run for this push -- '.
+            'an absent key is not an answer, and the pair must be able to say "did not run" '.
+            'without being mistaken for "nobody wrote it down".',
+        ]);
+    } finally {
+        removeMergesFixture($dir);
+    }
 });

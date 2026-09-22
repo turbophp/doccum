@@ -356,6 +356,35 @@ final class LedgerRuleWitnesses
                 },
             ],
             [
+                'id' => 'sequence-lowest-mutation-removed',
+                'code' => 'sequence',
+                'select' => 'removing the lowest-numbered Mutation node entirely',
+                /*
+                 * THE LOWEST, NOT A MIDDLE ONE, AND THAT IS THE POINT. A
+                 * contiguity rule anchored at the lowest number PRESENT
+                 * closes up silently behind exactly this deletion -- the
+                 * sequence still reads 2..62 with no hole in it -- so a
+                 * witness that removed a middle node would pass against a
+                 * rule with that hole in it and prove the wrong half.
+                 * sequenceErrors() anchors at LedgerValidator::SEQUENCE_FIRST
+                 * instead, and this is the mutation that says so.
+                 *
+                 * The lowest-numbered Mutation is also referenced by nothing
+                 * else in the ledger, which is what keeps this witness to
+                 * one category: a node with inbound references would fire
+                 * 'ref:' as well and runOne() would reject it.
+                 */
+                /** @return list<string>|null */
+                'mutate' => static function (string $dir): ?array {
+                    $ledger = self::readLedger($dir);
+                    $index = self::indexOfLowestNumbered($ledger['mutations'] ?? [], '/^mutation\/(\d{4})$/');
+                    array_splice($ledger['mutations'], $index, 1);
+                    self::writeLedger($dir, $ledger);
+
+                    return null;
+                },
+            ],
+            [
                 'id' => 'mutation-negative-empty-check',
                 'code' => 'mutation',
                 'select' => 'blanking check on the first negative Mutation with a non-empty check that implements no spec:10 item',

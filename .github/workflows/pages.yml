@@ -11,12 +11,38 @@ name: pages
 #
 # `deploy` actually publishes that artifact to the Pages environment, which
 # DOES require the repository setting "Settings -> Pages -> Source: GitHub
-# Actions" to be turned on. This loop cannot set that (the Pages API 403s
-# through this environment's proxy) or observe whether a human already
-# has. Until it is enabled, this job is expected to fail (no `github-pages`
-# environment configured) or be skipped -- that is the known, deliberate
-# state of this workflow, not a bug to work around with continue-on-error.
-# See this item's report for the exact wording.
+# Actions" to be turned on. Until it is enabled, this job is expected to fail
+# (no `github-pages` environment configured) or be skipped -- that is the
+# known, deliberate state of this workflow, not a bug to work around with
+# continue-on-error. See this item's report for the exact wording.
+#
+# NO WORKFLOW IN THIS REPOSITORY CAN TURN THAT SETTING ON, and that is read
+# from the action's own manifest rather than inferred from a failure here.
+# actions/configure-pages takes an `enablement` input that calls the
+# create-Pages-site API, which looks like the way out. Its description says,
+# verbatim: "This option requires a token other than `GITHUB_TOKEN` to be
+# provided. In the context of a Personal Access Token, the `repo` scope or
+# Pages write permission is required. In the context of a GitHub App, the
+# `administration:write` and `pages:write` permissions are required."
+# GITHUB_TOKEN has no `administration` permission to grant -- it is not among
+# the keys a workflow's `permissions:` block accepts (GitHub's workflow-syntax
+# reference, the `permissions` section). So `pages: write` is not enough for
+# the `enablement` input, and no combination of permissions here can be: the
+# one it needs cannot be written down.
+#
+# The exact membership of that key list is not load-bearing and is not
+# reproduced here, because a list copied into a comment rots and the claim
+# does not need it. The action's own manifest already rules GITHUB_TOKEN out
+# by name; the permissions reference is a second, independent source for the
+# same conclusion, not a second reader of the first. A PAT in a secret would work and is
+# strictly worse than the setting: it asks the owner for a credential in order
+# to save them two clicks, and then the repository holds it.
+#
+# This comment used to give a narrower reason -- "the Pages API 403s through
+# this environment's proxy" -- which is true and is about the machine this
+# loop runs on, not about Actions. It left open the possibility that a
+# dispatched workflow could do what the loop could not. It cannot, and the
+# manifest said so all along.
 on:
   push:
     branches:

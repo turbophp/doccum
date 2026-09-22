@@ -214,15 +214,26 @@ main for two days (issue #375), which is why the authority moved out of prose.
 A pair may be `null`/`null`, and on 189 entries it is: those merges predate
 `fa499f5`, the first-parent commit at which `pages.yml` existed, so there is
 no run to point at. What a null cannot do is hide a red run -- a conclusion
-with no run is its own error, and the keys are always present, so "not
-recorded" and "did not run" stay distinguishable.
+with no run is its own error, and both keys of every pair must be present, so
+"not recorded" and "did not run" stay distinguishable.
+
+That last clause used to read "the keys are always present", which was a
+description of the data rather than a rule about it. It was true of all 286
+entries and enforced by nothing: `checkMergeEntry()` read each field as
+`$entry[$field] ?? null`, which gives an absent key and an explicit `null`
+the same value, so an entry that simply omitted `pagesRun` validated clean
+and the distinction this paragraph rests on held by habit. A guard now
+requires the presence, and `merge-entry-workflow-pair-present` in
+`.github/mutations.json` is what keeps that guard load-bearing.
 
 Enforced: `app/Support/LedgerValidator.php` -- required on every `Run`, even
 an empty list, so a run that merged nothing is distinguishable from one
 nobody recorded (`REQUIRED_KEYS`); each entry is checked by
-`checkMergeEntry()`; the CLI-supplied git history (`mainPushHistoryErrors()`)
-requires every first-parent commit on main, up to the newest one the ledger
-already knows about, to appear in some run's `merges`.
+`checkMergeEntry()`, which refuses an entry missing either half of any
+`MAIN_PUSH_WORKFLOWS` pair before it checks either value; the CLI-supplied
+git history (`mainPushHistoryErrors()`) requires every first-parent commit on
+main, up to the newest one the ledger already knows about, to appear in some
+run's `merges`.
 
 ## `implements`
 
