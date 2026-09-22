@@ -540,12 +540,22 @@ login-by-username shipped. That is history, not rot.
 
 **What it does not cover.** `path:line` is the only form the guard sees. A
 bare "line 131" whose file is named in an earlier clause is invisible to it,
-and there are more of those than of the form it catches: 15 across 9 items,
-against 12 across 5. `item/readme-owner` is the live example -- it says
-`release.yml` "declares `latest` twice: line 130 ... and line 131", and both
-entries sit at 206 and 207 today. So the rule above is the convention for
-*every* citation in a `doneWhen`; the guard enforces it for the half whose
-file is resolvable from the citation itself.
+because nothing in the citation says which file to open. So the rule above is
+the convention for *every* citation in a `doneWhen`; the guard enforces it for
+the half whose file is resolvable from the citation itself.
+
+The guard **prints** both counts on every run, the bare one labelled as not
+checked, and deliberately does not restate either here. An earlier version of
+this section gave them as numbers and was wrong one commit later, because
+writing the ledger paragraph that documents the guard added a citation --
+which is `HANDOVER.md`'s rule about copied numbers, arriving on schedule.
+
+And the bare form turned out not to be the rot surface its count suggested.
+Audited on 2026-09-22 and recorded in `item/citation-addresses-rot`: not one
+bare citation in the ledger is a live address. Most sit in **Completed** items,
+where a `doneWhen` describes the state the item *changed*, so repointing one
+would replace a dated observation with a wrong one; the rest are quotational,
+including quotations held up in order to be refuted.
 
 Enforced: `.github/scripts/assert-ledger-citations.py`, run by
 `.github/workflows/ledger.yml`'s `validate` job on every pull request and
