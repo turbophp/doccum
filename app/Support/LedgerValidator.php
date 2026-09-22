@@ -77,12 +77,17 @@ final class LedgerValidator
     private const SHAPE_EXEMPT_TERMS = ['about'];
 
     /**
-     * The first number each id sequence issues, per sequenceErrors(). Runs
-     * are 0-based because run/0000 is the backfill of everything that
-     * happened before the loop existed; decisions and mutations are 1-based
-     * because they were only ever written forward.
+     * The first number each id sequence issues, per sequenceErrors(). Both
+     * are 1-based: decisions and mutations were only ever written forward.
+     *
+     * RUN IS DELIBERATELY ABSENT, and it was here in the first draft of that
+     * rule. runErrors() has enforced "run files are not numbered contiguously
+     * from 0000 with no gaps" since long before sequenceErrors() existed, over
+     * the same numbers read from the same files, so listing Run here gave one
+     * property two homes and two different error codes. Runs were the one
+     * sequence already covered; decisions and mutations were the hole.
      */
-    private const SEQUENCE_FIRST = ['Run' => 0, 'Decision' => 1, 'Mutation' => 1];
+    private const SEQUENCE_FIRST = ['Decision' => 1, 'Mutation' => 1];
 
     /**
      * Numbers that were issued and whose node is gone on purpose. Read
@@ -163,11 +168,20 @@ final class LedgerValidator
      *
      * Rather than weaken the new rules to tolerate that inconsistency
      * forever, they simply do not look at runs at or before this one: a
-     * Completed item is required to carry mutation evidence, and a merged
-     * PullRequest is required to carry `mainConclusion`, only once its
+     * Completed item is required to carry mutation evidence only once its
      * own run number is strictly greater than this constant. Everything
      * already on the ledger is grandfathered by construction; the rule
      * binds going forward, from the run after the one that introduced it.
+     *
+     * THIS PARAGRAPH USED TO NAME A SECOND RULE -- "a merged PullRequest is
+     * required to carry `mainConclusion`" -- gated on the same constant.
+     * That field was removed when Run.merges took over recording what main
+     * did (item/ledger-main-push-record, issue #172), and its replacement is
+     * gated on MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN, a different constant
+     * with a different value and a different reason. So the sentence named a
+     * field that does not exist AND attributed a live rule to the wrong
+     * threshold. grep for the constant: it is read in exactly one place,
+     * itemCompletedAfterMutationRulesEffective(), and nowhere in runErrors().
      */
     private const MUTATION_RULES_EFFECTIVE_AFTER_RUN = 18;
 
@@ -931,11 +945,13 @@ final class LedgerValidator
     }
 
     /**
-     * Run, Decision and Mutation ids are a counter, not a name: the next one
-     * is the last one plus one, and nothing else in the ledger records that
-     * a number was ever issued. So a node that is deleted after the fact
+     * Decision and Mutation ids are a counter, not a name: the next one is
+     * the last one plus one, and nothing else in the ledger records that a
+     * number was ever issued. So a node that is deleted after the fact
      * leaves no trace except the hole where its number was, and until this
-     * rule existed nothing looked at the holes.
+     * rule existed nothing looked at those two sequences' holes. Run files
+     * have had exactly this check in runErrors() all along, which is why
+     * Run is not in SEQUENCE_FIRST -- see that constant.
      *
      * mutation/0053 IS THAT HOLE, and it is why this rule exists. It was
      * added by 37c78a9 and removed by f382c9b ("a survival control is not a
@@ -975,7 +991,6 @@ final class LedgerValidator
         $errors = [];
 
         $numberOf = [
-            'Run' => self::runNumber(...),
             'Decision' => self::decisionNumber(...),
             'Mutation' => self::mutationNumber(...),
         ];
@@ -1874,9 +1889,14 @@ final class LedgerValidator
      * - touched is non-empty when outcome = completed.
      * - a Decision or PullRequest whose run is X has dateCreated within X's
      *   [startTime, endTime].
-     * - item/ledger-mutation-nodes (issue #150): a run past
-     *   MUTATION_RULES_EFFECTIVE_AFTER_RUN may not carry outcome completed
-     *   while a PullRequest merged in it lacks mainConclusion.
+     * - item/ledger-main-push-record (issue #172), rule 3: a run past
+     *   MERGES_OUTCOME_RULE_EFFECTIVE_AFTER_RUN may not carry outcome
+     *   completed unless its LAST merges entry closed every main-push
+     *   workflow green. This bullet used to read "past
+     *   MUTATION_RULES_EFFECTIVE_AFTER_RUN ... while a PullRequest merged in
+     *   it lacks mainConclusion", which named a removed field and the wrong
+     *   constant for the rule that replaced it; neither this function nor
+     *   any other reads MUTATION_RULES_EFFECTIVE_AFTER_RUN.
      * - item/ledger-shape-from-context (issue #188), clause 4 as amended by
      *   decision/0068: every merge entry, in every run, with a non-null
      *   testsConclusion/ledgerConclusion must carry the matching non-null
