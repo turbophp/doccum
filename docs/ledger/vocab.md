@@ -538,6 +538,15 @@ wrong one -- `decision/0031` records `login.blade.php:18` as `type="email"`,
 which was true when it was written and became `type="text"` when
 login-by-username shipped. That is history, not rot.
 
+**What it does not cover.** `path:line` is the only form the guard sees. A
+bare "line 131" whose file is named in an earlier clause is invisible to it,
+and there are more of those than of the form it catches: 15 across 9 items,
+against 12 across 5. `item/readme-owner` is the live example -- it says
+`release.yml` "declares `latest` twice: line 130 ... and line 131", and both
+entries sit at 206 and 207 today. So the rule above is the convention for
+*every* citation in a `doneWhen`; the guard enforces it for the half whose
+file is resolvable from the citation itself.
+
 Enforced: `.github/scripts/assert-ledger-citations.py`, run by
 `.github/workflows/ledger.yml`'s `validate` job on every pull request and
 every push to main. It refuses rather than reports (`decision/0113`): an

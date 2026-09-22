@@ -37,6 +37,22 @@ observation with a wrong one. decision/0031 recording `login.blade.php:18` as
 `type="email"` is the worked example -- it was true when written and became
 `type="text"` when login-by-username shipped, and that is history, not rot.
 
+WHAT THIS DOES NOT COVER, counted rather than guessed, because a guard that
+is believed to cover more than it does is worse than one nobody trusts.
+`path:line` is the only form this script sees. A bare "line 131" in prose,
+whose file is named in an earlier clause or an earlier sentence, is invisible
+to it -- and there are MORE of those than of the form it catches: 15 across 9
+items, against 12 across 5. item/readme-owner is the live example. Its
+doneWhen says release.yml "declares `latest` twice: line 130 ... and line
+131", and both entries sit at 206 and 207 today, moved by the same insertion
+that moved item/release-v0-1-0's citation. That item is open, so its doneWhen
+is operative text carrying a rotted address, and nothing here can see it.
+
+Extending to the bare form needs the inventory to supply the file, since the
+prose does not, and needs a key that survives editing the sentence around the
+number -- neither of which is solved here. Until it is, this guard covers the
+resolvable half and says so.
+
 NO GLOBBING, ANYWHERE, AND THE REASON IS EMBARRASSING. Python's glob skips
 dot-directories unless include_hidden is set, so a survey written to find rot
 reported `.github/scripts/build-docs-site.mjs` and `.github/workflows/
