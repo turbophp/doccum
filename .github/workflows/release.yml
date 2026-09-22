@@ -608,6 +608,98 @@ jobs:
 
           echo "bare pull of ${BARE_REF} and ${VERSION_REF} both resolve to ${BARE_DIGEST}"
 
+  # issue #406. EVERY OTHER JOB HERE THAT PULLS THE PUBLISHED IMAGE LOGS IN
+  # FIRST, and each of them is right to: `image`, `boot-published-image`,
+  # `verify-version-label` and `verify-latest-resolves-to-the-tag` all carry
+  # docker/login-action before their pull, and boot-published-image's own
+  # comment says why -- "this repo's package visibility is not this job's
+  # business to assume". Individually correct, and collectively a blind spot:
+  # nothing made the OPPOSITE assumption, which is the one every self-hoster
+  # makes.
+  #
+  # GitHub publishes a new package PRIVATE. Its documentation, verbatim:
+  # "When you first publish a package, the default visibility is private and
+  # only you can see the package", and a package linked to a repository
+  # "automatically inherits the access permissions (but not the visibility)
+  # of the linked repository". doccum's repository being public does not make
+  # its package public.
+  #
+  # So without this job, v1.0.0 goes green end to end -- every pull here
+  # authenticates -- item/tag-v1-0-0 completes, LOOP.md's stopping rule ends
+  # the loop on "the tag pushed and ghcr.io carrying the image", and
+  # `docker run ghcr.io/turbophp/doccum` out of README.md answers `denied`
+  # for everyone. The README calls that command the whole installation.
+  #
+  # `docker logout` RATHER THAN MERELY OMITTING THE LOGIN STEP. Omitting it
+  # asserts nothing about ambient credentials: a runner image, a previous
+  # job's leftover config, or a future `docker/login-action` added at
+  # workflow level would all authenticate this pull silently and the check
+  # would pass on a private package. Logging out makes the anonymity an act
+  # rather than an absence, which is the difference between a guard and a
+  # hope (decision/0113).
+  #
+  # `release` DELIBERATELY DOES NOT `needs:` THIS. On the rehearsal tag the
+  # package WILL be private -- that is what the rehearsal is for -- and
+  # blocking `release` would mean no GitHub Release, which also costs
+  # verify-release-notes, one of the three proofs item/release-v0-1-0 exists
+  # to get. A red check beside a green Release surfaces the problem without
+  # destroying the rest of the rc's evidence. What makes it binding is a
+  # clause on item/tag-v1-0-0, not a needs edge.
+  verify-anonymous-pull:
+    name: a self-hoster with no account can pull it
+    needs: image
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    # No `packages: read`. This job must not hold a credential it could
+    # accidentally use; the whole assertion is that none is needed.
+    permissions: {}
+    steps:
+      - name: Drop any ambient registry credentials
+        run: |
+          set -euo pipefail
+
+          # Succeeds whether or not anything was logged in, so this is a
+          # precondition rather than a step that can fail for its own reasons.
+          docker logout ghcr.io
+          echo "logged out of ghcr.io -- every pull below is anonymous"
+
+      - name: Pull the way a self-hoster does, with no account at all
+        run: |
+          set -euo pipefail
+
+          VERSION_REF="ghcr.io/${{ github.repository }}:${GITHUB_REF_NAME#v}"
+
+          # The version ref is published by every tag, pre-release or not,
+          # so it is the one ref that always exists to test. Visibility is a
+          # property of the PACKAGE, not of a tag within it, so an anonymous
+          # pull of any published ref answers the question for all of them.
+          if ! docker pull "$VERSION_REF"; then
+            echo "::error::anonymous 'docker pull ${VERSION_REF}' failed. The ghcr package is almost certainly still PRIVATE -- GitHub publishes a new package private by default, and a public repository does not make its package public. Fix it at https://github.com/users/${{ github.repository_owner }}/packages/container/doccum/settings (or the organization equivalent): Change visibility -> Public. Until then the README's quick start answers 'denied' for every self-hoster."
+            exit 1
+          fi
+
+          echo "anonymous pull of ${VERSION_REF} succeeded"
+
+          # `-` is SemVer's pre-release separator, and the image job's
+          # `flavor: latest=auto` leaves `latest` unpublished for one (see
+          # that job and decision/0122). So the bare ref is only assertable
+          # on a real release -- and on a real release it is exactly the
+          # command README.md tells people to run.
+          case "${GITHUB_REF_NAME}" in
+            *-*)
+              echo "${GITHUB_REF_NAME} is a pre-release, which publishes no 'latest'; the bare ref is not asserted here."
+              ;;
+            *)
+              BARE_REF="ghcr.io/${{ github.repository }}"
+              if ! docker pull "$BARE_REF"; then
+                echo "::error::anonymous 'docker pull ${BARE_REF}' failed -- this is the README's quick start command, run as a self-hoster runs it. See the package visibility note above."
+                exit 1
+              fi
+              echo "anonymous pull of ${BARE_REF} succeeded -- the README's quick start works for a stranger"
+              ;;
+          esac
+
+
   # item/changelog-release-notes (issue #31): a pushed tag is also supposed
   # to produce a GitHub Release, body taken verbatim from that version's
   # CHANGELOG.md section. Split from the `image` job so a release is never
