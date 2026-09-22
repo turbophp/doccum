@@ -1,6 +1,5 @@
 {
   "$comment": "item/citation-addresses-rot (issue #371). Every `path:line` citation appearing in an items[].doneWhen is declared here, and .github/scripts/assert-ledger-citations.py refuses one that is not. Scope is items[].doneWhen ONLY, per decision/0132: an item's doneWhen is read for what to do now, so a rotted address in one is a defect, while a Decision's rationale is read for what was true then, so repointing one would replace a correct dated observation with a wrong one. A full path is recorded per entry because the citation text is not resolvable on its own -- `Controller.php` matches two files in this tree -- and because Python's glob skips dot-directories, which reported .github/ paths as not found three separate times in this project. PREFER NOT TO ADD AN ENTRY: name an anchor that moves with the thing (a function, a job, a heading, a quoted fragment) and no entry is needed at all.",
-
   "citations": [
     {
       "item": "item/release-v0-1-0",
@@ -97,6 +96,14 @@
       "line": 52,
       "expectAtLine": "export const INDEX_PAGE = { file: 'README.md', slug: 'index' };",
       "why": "Quoted as the survey tool's own false negative -- Python's glob skipped the dot-directory and reported FILE NOT FOUND for a citation that is exactly right. Checked, so the item's account of it stays true."
+    },
+    {
+      "item": "item/citation-addresses-rot",
+      "citation": "Controller.php:56",
+      "path": "app/Http/Controllers/Controller.php",
+      "line": 56,
+      "expectAtLine": "exists, but wholly outside the caller's reach",
+      "why": "The item's worked example of why a citation's own text is not resolvable: `Controller.php` matches two files here, and only the fact that app/Http/Controllers/Api/V1/Controller.php is 48 lines long says which one the prose meant. Checked, at the same resolution item/reach-existence-oracle declares -- the guard refused this citation when the sentence was written, which is how it got an entry."
     }
   ]
 }
