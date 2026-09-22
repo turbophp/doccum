@@ -1086,7 +1086,12 @@ repository they installed from.
 
 **Self-hosters** — Markdown under `docs/`:
 
-- Quick start — `docker compose up`, first-run setup screen, first upload.
+- Quick start — the single container with `docker run`, first-run setup screen,
+  first upload; `docker compose up` as the fuller alternative.
+  ~~`docker compose up`~~ alone was **superseded**: `README.md` calls the single
+  `docker run` "the whole installation" and `quick-start.md` leads with it, which
+  is the honest order — the container is the product, and the compose stack is
+  the option for anyone who wants sibling services.
 - Configuration reference — every environment variable, with local and remote
   columns side by side (§13).
 - Storage — MinIO setup, moving to S3 or a remote MinIO.
@@ -1140,11 +1145,22 @@ account:
   container is required at all; `cache` profile opts into Redis when wanted.
 - **MinIO auto-provisions** bucket and policy via a `minio-init` one-shot.
 - **`APP_KEY` self-generates** on first boot when absent; `.env` is optional.
-- **Healthchecks with `depends_on: condition: service_healthy`** so start
-  ordering is the orchestrator's concern, not a README's.
+- **Healthchecks on the three worker services**, so `docker compose ps`
+  distinguishes a container that is running from one that is actually working:
+  `worker`, `worker-ingest` and `scheduler` each `pgrep` for their own command,
+  because the base image's healthcheck curls HTTP and a worker never serves any.
+  `app` keeps the base image's check; the profile services keep their own images'.
+  ~~with `depends_on: condition: service_healthy` so start ordering is the
+  orchestrator's concern, not a README's~~ — **superseded**, and by the very next
+  paragraph, which has always said the opposite. `compose.yaml` declares no
+  `depends_on` anywhere. The healthchecks are real; the ordering clause never was.
 - A **published image** on ghcr.io so self-hosters pull rather than build.
 
-Default stack: `app` + 3 workers + `minio` + `minio-init`.
+Default stack: `app` + 3 workers. ~~`minio` + `minio-init`~~ — **superseded**:
+both carry `profiles: ["storage"]` in `compose.yaml`, so neither starts unless
+that profile is selected. The embedded stack runs MinIO inside the `app`
+container under supervisor instead, which is what makes the default stack
+database-free *and* storage-container-free.
 
 No service declares `depends_on`. Nothing touches storage, cache, or search
 during boot, so each container starts independently and detaching one is simply
@@ -1160,10 +1176,17 @@ its own — it follows `DB_CONNECTION` (§8) — so a hosted engine arrives as a
 new implementation of the seam, not a new environment variable. Moving to
 managed Postgres, real S3, and hosted search is editing `.env` and removing
 profiles from `COMPOSE_PROFILES` — no code change and no rebuild.
-`.env.example` documents the local and remote columns side by side.
+~~`.env.example` documents the local and remote columns side by side.~~
+**Superseded**: `.env.example` is the Laravel starter kit's file plus a storage
+block. The local-and-remote mapping this sentence describes lives in
+`docs/self-hosting/storage.md`, which is where an operator making that change
+actually looks.
 
-`compose.override.yml` adds development conveniences (source bind-mount, Vite dev
-server) without touching the production-shaped base file.
+~~`compose.override.yml` adds development conveniences (source bind-mount, Vite
+dev server) without touching the production-shaped base file.~~ **Superseded**:
+no such file exists, and nothing has needed one — development happens against
+`php artisan serve` and `npm run dev` rather than against the compose stack. If
+it is ever added, this paragraph is the design it should follow.
 
 ## 14. Testing
 
