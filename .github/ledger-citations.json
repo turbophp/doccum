@@ -43,14 +43,6 @@
   },
   "citations": [
     {
-      "item": "item/release-v0-1-0",
-      "citation": "release.yml:131",
-      "path": ".github/workflows/release.yml",
-      "line": 131,
-      "expectAtLine": null,
-      "why": "Deliberately stale, and the sentence containing it says so: 'a number quoted as history, not as an address'. It named the `type=raw,value=latest,enable=...` entry in the image job's tags list; PR #359 inserted a job above it and the rule moved to line 207. The paragraph is ABOUT that rot, so repointing it would destroy the example. Line 131 is blank today, which is the point."
-    },
-    {
       "item": "item/docs-site",
       "citation": "build-docs-site.mjs:52",
       "path": ".github/scripts/build-docs-site.mjs",
