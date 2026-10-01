@@ -6,7 +6,12 @@ namespace App\Support;
 
 /**
  * Reads the root credentials generated on first boot by
- * docker/entrypoint.d/48-doccum-storage.sh into /data/minio.env.
+ * docker/entrypoint.d/48-doccum-storage.sh into /data/storage.env.
+ *
+ * The key names are versitygw's own (ROOT_ACCESS_KEY / ROOT_SECRET_KEY): the
+ * same file is sourced as the server's environment by docker/bin/doccum-storage,
+ * so one file is the single source of the credential rather than two that can
+ * drift apart.
  *
  * A plain class, like RuntimeConfig: it is consumed by
  * RuntimeConfigServiceProvider::boot(), which runs before the container is
@@ -36,8 +41,8 @@ final class EmbeddedStorage
         }
 
         $values = self::parse($raw);
-        $key = $values['MINIO_ROOT_USER'] ?? null;
-        $secret = $values['MINIO_ROOT_PASSWORD'] ?? null;
+        $key = $values['ROOT_ACCESS_KEY'] ?? null;
+        $secret = $values['ROOT_SECRET_KEY'] ?? null;
 
         if ($key === null || $secret === null || $key === '' || $secret === '') {
             return null;

@@ -11,7 +11,8 @@ live route set in both directions) or its design (see
 2. [Configuration reference](configuration-reference.md) — every
    environment variable that matters, local default next to its remote
    value.
-3. [Storage](storage.md) — MinIO by default; moving to S3 or a remote MinIO.
+3. [Storage](storage.md) — embedded versitygw by default; moving to S3 or
+   another remote S3-compatible store.
 4. [Search](search.md) — the default database driver, and the upgrade path
    to a dedicated engine.
 5. [Operations runbook](operations-runbook.md) — archive and purge, legal

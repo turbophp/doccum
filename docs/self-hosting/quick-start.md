@@ -14,11 +14,11 @@ docker run -d --name doccum -v doccum:/data -p 8080:8080 ghcr.io/turbophp/doccum
 The image is published from tagged releases; if none has been cut yet, that
 pull will not resolve. Build your own from a checkout with `docker build -t
 doccum:local .` and run that tag instead. This one container runs the web
-application, both queue workers, the scheduler, and embedded MinIO — see
-`docker/supervisor/doccum.conf`.
+application, both queue workers, the scheduler, and the embedded object store
+(versitygw) — see `docker/supervisor/doccum.conf`.
 The `doccum` volume, mounted at `/data`, is the only thing that has to
-survive a restart: SQLite, uploaded objects, `runtime.json`, and MinIO's
-generated credentials all live there.
+survive a restart: SQLite, uploaded objects, `runtime.json`, and the object
+store's generated credentials all live there.
 
 ## The compose stack
 
@@ -34,7 +34,7 @@ not a different product: the single container above and this stack boot the
 same application the same way.
 
 The default profile needs nothing else: no database container, no Redis, no
-external MinIO. `COMPOSE_PROFILES` opts additional services in — see
+external object store. `COMPOSE_PROFILES` opts additional services in — see
 [Storage](storage.md) for the `storage` profile and the
 [configuration reference](configuration-reference.md) for `db` and `cache`.
 
@@ -48,8 +48,8 @@ installer, in this order:
 1. **Database** — keep the SQLite default, or point at PostgreSQL/MySQL. The
    form probes the connection for real before it lets you continue, so a
    typo in a hostname fails here rather than at first use.
-2. **Storage** — keep embedded MinIO (the default; nothing to fill in), or
-   choose S3, Cloudflare R2, DigitalOcean Spaces, Wasabi, Backblaze B2, Azure
+2. **Storage** — keep the embedded object store (the default; nothing to fill
+   in), or choose S3, Cloudflare R2, DigitalOcean Spaces, Wasabi, Backblaze B2, Azure
    Blob, or a custom S3-compatible endpoint. Same probing: a real `PUT` and
    `DELETE` against the bucket before the step accepts your answer.
 3. **Admin account** — username, email, password, and the instance's display
@@ -79,7 +79,7 @@ have come up in practice.
 - [Configuration reference](configuration-reference.md) — every environment
   variable that actually matters, local default next to its remote/production
   value.
-- [Storage](storage.md) — moving off embedded MinIO.
+- [Storage](storage.md) — moving off the embedded object store.
 - [Search](search.md) — what ships today and the upgrade path to a dedicated
   engine.
 - [Operations runbook](operations-runbook.md) — archive, purge, and legal

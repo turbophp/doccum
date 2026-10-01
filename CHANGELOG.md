@@ -60,6 +60,11 @@ Initial feature set.
 - Settings: personal API tokens, each limited to a fixed set of eight
   coarse abilities.
 - Self-hosting documentation covering install, configuration and upgrade.
+- Object storage is embedded in the single container, so `docker run` with one
+  volume is a complete instance. Objects are kept as ordinary files under
+  `/data`, so a backup of that volume is a backup of your documents. Pointing
+  doccum at S3 or any S3-compatible endpoint instead is configuration, not a
+  code change.
 
 ### Fixed
 
@@ -75,8 +80,10 @@ Initial feature set.
 
 ### Security
 
-- Removed the hard-coded default MinIO password from `compose.yaml`; the
-  storage profile now requires `MINIO_ROOT_PASSWORD` to be set explicitly.
+- Removed the hard-coded default object-store password from `compose.yaml`;
+  the storage profile now requires `MINIO_ROOT_PASSWORD` to be set explicitly.
+- Updated `league/commonmark` to 2.10.3 for GHSA-97jj-33gv-5xf9 and
+  GHSA-3q6v-r5mr-hxv8.
 - A document you cannot reach is no longer distinguishable from one that does
   not exist. Across the files view and the preview, download, version-download
   and directory-archive routes, an id outside your reach and an id that exists
