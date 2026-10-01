@@ -459,15 +459,15 @@ jobs:
   # profile) -- app, worker, worker-ingest and scheduler, sharing the `db:`
   # volume -- waits for it, and asserts the app actually answers.
   #
-  # DELIBERATELY OUT OF SCOPE: the `storage` profile's sibling MinIO. That
+  # DELIBERATELY OUT OF SCOPE: the `storage` profile's sibling object store. That
   # half of item/compose-boot-ci depends on an open product decision (issue
   # #382) about whether the default stack should even gain a sibling-storage
   # path, so it is not built here. No AWS_ENDPOINT override, no
   # DOCCUM_EMBEDDED_STORAGE override, no compose override file, and
   # compose.yaml itself is untouched by this change.
   #
-  # MINIO_ROOT_PASSWORD is set below even though this stack starts no minio
-  # service: compose.yaml's own comment above `minio:` says compose
+  # MINIO_ROOT_PASSWORD is set below even though this stack starts no storage
+  # service: compose.yaml's own comment above `storage:` says compose
   # interpolates the WHOLE file regardless of which profiles are selected
   # (verified on Compose v5.1.1 -- even `--profile nonexistent` fails), so
   # every compose invocation in this project needs it set, this one
@@ -477,7 +477,7 @@ jobs:
   # `AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}` is inherited by all
   # four default-stack services. What makes the value irrelevant is what
   # happens next -- `app` runs with DOCCUM_EMBEDDED_STORAGE=true, so
-  # 48-doccum-storage.sh generates a random password into /data/minio.env
+  # 48-doccum-storage.sh generates a random password into /data/storage.env
   # and RuntimeConfigServiceProvider::applyEmbeddedStorage() overwrites
   # documents.key/secret/endpoint from that file at boot, for all four
   # services, since they share the db:/data volume. So this value is read
@@ -1052,8 +1052,8 @@ jobs:
   # So three questions were all going to be answered for the first time by the
   # one tag push that cannot be retried: is `ubuntu-24.04-arm` available to
   # this repository, does the Dockerfile build on arm64 at all, and do
-  # FrankenPHP, MinIO and tesseract boot there. This answers them on every pull
-  # request instead.
+  # FrankenPHP, versitygw and tesseract boot there. This answers them on every
+  # pull request instead.
   #
   # A RED RUN HERE IS THE CLAUSE'S OWN TRIGGER, not a surprise: it says to drop
   # linux/arm64 from release.yml and strike the claim rather than ship a
@@ -1063,8 +1063,9 @@ jobs:
   #
   # NATIVE, NEVER QEMU. Emulation proves the image assembles, not that the
   # binaries run, and decision/0076 rejected it for exactly that reason. The
-  # minio binary is the likeliest failure: it is copied from a pinned
-  # quay.io/minio/minio image, so this also tests that that tag is multi-arch.
+  # versitygw binary is the likeliest failure: it is copied from a pinned
+  # ghcr.io/versity/versitygw image, so this also tests that that digest is
+  # multi-arch.
   #
   # Its build cache is scoped separately from the `image` job's; sharing one
   # scope across architectures is how a cache starts serving the wrong layers.
@@ -1136,14 +1137,14 @@ jobs:
           echo "arm64 image booted and served the installer screen"
 
       # Naming the binaries individually, because "the container answered HTTP"
-      # would pass with a MinIO that never started -- and MinIO's binary is the
-      # one copied from another image rather than built here, so it is the most
-      # likely thing to be amd64-only.
+      # would pass with an object store that never started -- and versitygw's
+      # binary is the one copied from another image rather than built here, so
+      # it is the most likely thing to be amd64-only.
       - name: Assert the copied binaries actually execute on arm64
         run: |
           set -e
           failed=false
-          for probe in "minio --version" "tesseract --version" "pdftotext -v"; do
+          for probe in "versitygw --version" "tesseract --version" "pdftotext -v"; do
             if ! docker exec doccum-arm64 sh -c "$probe" >/dev/null 2>&1; then
               echo "::error::\`$probe\` failed inside the arm64 container -- that binary is not usable on this architecture"
               docker exec doccum-arm64 sh -c "$probe" || true
@@ -1153,7 +1154,7 @@ jobs:
           if [ "$failed" = true ]; then
             exit 1
           fi
-          echo "minio, tesseract and pdftotext all execute on arm64"
+          echo "versitygw, tesseract and pdftotext all execute on arm64"
 
       - name: Container logs on failure
         if: failure()
