@@ -1,12 +1,20 @@
 # syntax=docker/dockerfile:1
 
-# ---- minio: the binary only, copied into the app stage below ----
-# dl.min.io returns HTTP 410 and the GitHub release carries no assets, so the
-# binary is copied from the official image instead of downloaded. It is
-# statically linked, so it runs in this Debian base unchanged. Pinned to a
-# release tag -- never :latest -- so a rebuild always produces the same
-# binary.
-FROM quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z AS minio
+# ---- objects: the embedded S3 server binary, copied into the app stage below ----
+# Every route to MinIO's binary closed between 2026-09-22 (main's last green
+# build) and 2026-09-29. dl.min.io already answered 410 Gone when this file
+# last named it; what is new is that the two registries went with it --
+# quay.io/minio/minio and docker.io/minio/minio now both answer 401 where a
+# control image on the same registry answers 200. No copy survives to fall
+# back on: tests.yml builds with `push: false` and release.yml has never run
+# on a tag, so doccum has never published an image carrying that binary.
+# See decision/0151 and issue #422.
+#
+# versitygw replaces it. Built CGO_ENABLED=0 upstream, so the binary is
+# static and runs in this Debian base unchanged, exactly as MinIO's did.
+# Pinned by digest -- never a bare tag -- so a rebuild produces the same
+# binary even if the tag is later moved or withdrawn.
+FROM ghcr.io/versity/versitygw:v1.8.0@sha256:30292fc2eeacc67a36993b01f7a7a5e3361a19cced0e80c1d71cfa2a4b0a2499 AS objects
 
 # ---- base: runtime plus the binaries text extraction needs (spec §7) ----
 FROM serversideup/php:8.5-frankenphp-bookworm AS base
@@ -110,12 +118,12 @@ COPY docker/entrypoint.d/ /etc/entrypoint.d/
 RUN chmod +x /etc/entrypoint.d/*.sh
 
 # Embedded object storage: the binary is copied, not downloaded (see the
-# `minio` stage above); `mc` is deliberately not copied -- the AWS SDK already
-# present creates the bucket, and `mc` would add ~30 MB for nothing.
-COPY --from=minio /usr/bin/minio /usr/local/bin/minio
-COPY docker/bin/doccum-minio /usr/local/bin/doccum-minio
+# `objects` stage above). No admin CLI is copied -- the AWS SDK already
+# present creates the bucket, and versitygw needs no cluster bootstrap.
+COPY --from=objects /usr/local/bin/versitygw /usr/local/bin/versitygw
+COPY docker/bin/doccum-storage /usr/local/bin/doccum-storage
 COPY docker/supervisor/doccum.conf /etc/supervisor/conf.d/doccum.conf
-RUN chmod +x /usr/local/bin/doccum-minio
+RUN chmod +x /usr/local/bin/doccum-storage
 
 USER www-data
 

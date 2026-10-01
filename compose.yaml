@@ -108,37 +108,41 @@ services:
       retries: 3
       start_period: 20s
 
-  # Opt-in, standalone MinIO for anyone who wants storage outside the app
+  # Opt-in, standalone object storage for anyone who wants it outside the app
   # container (e.g. pointing multiple installs at one bucket). The default
-  # stack does not start these -- embedded storage runs inside `app` instead.
-  minio:
-    image: quay.io/minio/minio:latest
+  # stack does not start this -- embedded storage runs inside `app` instead.
+  #
+  # Same server the image embeds (see the Dockerfile's `objects` stage), so an
+  # operator who outgrows the embedded store is not also changing object store.
+  # Pinned by digest for the reason decision/0151 records: a tag can be
+  # withdrawn, and this profile is the one place compose pulls a store itself.
+  #
+  # The variable is still named MINIO_ROOT_PASSWORD. That name is load-bearing
+  # today -- tests.yml's `compose requires MINIO_ROOT_PASSWORD` job, its
+  # recorded mutation, and item/compose-secret all name it -- and renaming it
+  # is a docs-and-guard change that does not belong in the swap that unblocks
+  # the build. Renaming it is filed as follow-up.
+  storage:
+    image: ghcr.io/versity/versitygw:v1.8.0@sha256:30292fc2eeacc67a36993b01f7a7a5e3361a19cced0e80c1d71cfa2a4b0a2499
     profiles: ["storage"]
-    command: server /data --console-address ":9001"
+    entrypoint: ["/usr/local/bin/versitygw"]
+    command: ["--port", ":9000", "--region", "us-east-1", "--iam-dir", "/iam", "posix", "/data"]
     environment:
-      MINIO_ROOT_USER: doccum
+      ROOT_ACCESS_KEY: doccum
       # Required, not defaulted: this profile is the only place a known
       # password would otherwise ship in a public repo, so compose refuses
       # to resolve at all until an operator supplies one.
-      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD to the password this MinIO should use -- there is no default on purpose, since this profile stores objects outside the app container and a known password here would be a known password for anyone who runs the storage profile.}"
+      ROOT_SECRET_KEY: "${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD to the password this object store should use -- there is no default on purpose, since this profile stores objects outside the app container and a known password here would be a known password for anyone who runs the storage profile.}"
     volumes:
-      - minio:/data
+      - objects:/data
+      - objects-iam:/iam
     ports:
       - "9000:9000"
-      - "9001:9001"
     restart: unless-stopped
 
-  # Retries until MinIO answers, so it needs no ordering constraint either.
-  minio-init:
-    image: quay.io/minio/mc:latest
-    profiles: ["storage"]
-    entrypoint: >
-      /bin/sh -c "
-      until mc alias set local http://minio:9000 doccum ${MINIO_ROOT_PASSWORD:?Set MINIO_ROOT_PASSWORD to the same password given to the minio service above.}; do sleep 1; done;
-      mc mb --ignore-existing local/doccum;
-      exit 0;
-      "
-    restart: "no"
+  # No bucket-init service: DocumentStorage::ensureBucket() creates the bucket
+  # through the AWS SDK the app already carries, which is the same reason the
+  # image ships no admin CLI (see the Dockerfile's storage COPY block).
 
   postgres:
     image: postgres:17-alpine
@@ -158,6 +162,7 @@ services:
 
 volumes:
   db:
-  minio:
+  objects:
+  objects-iam:
   pg:
   redis:

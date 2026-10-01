@@ -1,0 +1,27 @@
+#!/bin/sh
+set -e
+# Credentials are generated once per install and persisted on the data volume
+# by docker/entrypoint.d/48-doccum-storage.sh. The file sets ROOT_ACCESS_KEY
+# and ROOT_SECRET_KEY, which are the names versitygw itself reads.
+set -a
+. /data/storage.env
+set +a
+
+# Flags are kept to the ones upstream's own usage line attests
+# (`versitygw --port :PORT --iam-dir DIR posix DIR`). The region is left at
+# versitygw's default of us-east-1, which is already what config/doccum.php
+# and compose.yaml set AWS_DEFAULT_REGION to -- naming it again here would be
+# a second place for it to drift.
+#
+# `:9000` binds every interface, exactly as the MinIO this replaced did with
+# `--address ":9000"`. The container publishes 8080 only.
+#
+# `posix` keeps every object as an ordinary file under the data root, so a
+# self-hoster's backup of /data is a backup of their documents -- see
+# docs/self-hosting/backup-and-restore.md. --iam-dir holds versitygw's own
+# account store; doccum only ever uses the root account, but the directory
+# must exist and be writable.
+exec /usr/local/bin/versitygw \
+    --port ":${DOCCUM_STORAGE_PORT:-9000}" \
+    --iam-dir "${DOCCUM_STORAGE_IAM_DIR:-/data/storage-iam}" \
+    posix "${DOCCUM_EMBEDDED_ROOT:-/data/objects}"
