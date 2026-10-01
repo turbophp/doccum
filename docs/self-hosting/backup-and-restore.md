@@ -7,7 +7,7 @@ sets `DB_DATABASE=/data/doccum.sqlite` explicitly for exactly this reason —
 without it, the database would land wherever `config/database.php`'s own
 fallback puts it (inside the image layer), and `docker run -v doccum:/data`
 would lose every user, grant, file row, and search index the moment the
-container is replaced, while objects and `minio.env` survived on the
+container is replaced, while objects and `storage.env` survived on the
 volume untouched. The instance would come back half-alive rather than
 empty, which is worse than either extreme. Nothing under `storage/` needs
 backing up — CLAUDE.md's Docker section is explicit that nothing there
@@ -19,12 +19,20 @@ Concretely, `/data` holds:
 - **`doccum.sqlite`** (or nothing, if you moved to PostgreSQL/MySQL — see
   below) — every directory, file, version row, property, user, role,
   setting, and the `search_documents` projection.
-- **`objects/`** — every uploaded file's actual bytes, when using embedded
-  MinIO.
-- **`minio.env`** — embedded MinIO's generated root credentials. Losing
-  this without losing `objects/` alongside it does not lose data, but does
-  mean the entrypoint script cannot reuse the existing bucket's credentials
-  seamlessly; keep the two together.
+- **`objects/`** — every uploaded file's actual bytes, when using the
+  embedded object store (versitygw). It uses versitygw's `posix` backend, so
+  each object is an ordinary file on disk: a backup of `/data` is a backup of
+  the documents themselves, and you can inspect or spot-check the tree with
+  normal tools (`ls`, `find`, `tar -t`) rather than needing the object store
+  running to see what is in it.
+- **`storage.env`** — the embedded store's generated root credentials
+  (`ROOT_ACCESS_KEY` / `ROOT_SECRET_KEY`). Losing this without losing
+  `objects/` alongside it does not lose data, but does mean the entrypoint
+  script cannot reuse the existing bucket's credentials seamlessly; keep the
+  two together.
+- **`storage-iam/`** — versitygw's own account store. doccum only ever uses
+  the root account, but the directory is part of the embedded store's state
+  and is captured with the rest of `/data`.
 - **`runtime.json`** — the encrypted database-connection override written by
   the first-run installer (spec §10a). Only present if you used the
   installer to point at PostgreSQL/MySQL rather than setting `DB_*` before
@@ -54,7 +62,7 @@ half-working when the key does not match what encrypted the data (spec
 With `DB_CONNECTION=pgsql` or `mysql`, the database itself is external to
 `/data` and needs its own backup — `pg_dump`/`mysqldump` on your own
 schedule, same as any other Postgres/MySQL database. `/data` still matters:
-it holds `objects/` (unless you also moved storage off embedded MinIO),
+it holds `objects/` (unless you also moved storage off the embedded object store),
 `runtime.json` (which is how the container knows to reach that external
 database at all), and `.env`.
 

@@ -94,14 +94,14 @@ whether `APP_URL` is right, since the link is built from it.
 |---|---|---|
 | `FILESYSTEM_DISK` | `documents` | Unchanged — `documents` is doccum's one disk name; what it points *at* changes, not this. |
 | `DOCCUM_DISK` | `documents` | Same disk name, read by `config/doccum.php` for the pieces of the app that go through `Services\Settings` rather than the filesystem manager directly. Keep it identical to `FILESYSTEM_DISK`. |
-| `AWS_ACCESS_KEY_ID` | Generated per install into `/data/minio.env` by `docker/entrypoint.d/48-doccum-storage.sh` | Your S3/R2/Spaces/Wasabi/B2/MinIO access key. |
-| `AWS_SECRET_ACCESS_KEY` | Same, generated | Your secret key. |
-| `AWS_DEFAULT_REGION` | `us-east-1` (MinIO ignores region, but the SDK requires one) | The region your provider expects — R2 forces `auto`, Wasabi/B2 encode it into the endpoint instead. |
+| `AWS_ACCESS_KEY_ID` | Generated per install into `/data/storage.env` (as `ROOT_ACCESS_KEY`) by `docker/entrypoint.d/48-doccum-storage.sh` | Your S3/R2/Spaces/Wasabi/B2/other S3-compatible access key. |
+| `AWS_SECRET_ACCESS_KEY` | Same, generated (as `ROOT_SECRET_KEY`) | Your secret key. |
+| `AWS_DEFAULT_REGION` | `us-east-1` (the embedded store's default region, which the SDK requires you to name) | The region your provider expects — R2 forces `auto`, Wasabi/B2 encode it into the endpoint instead. |
 | `AWS_BUCKET` | `doccum` | Your bucket/container name. |
 | `AWS_ENDPOINT` | `http://127.0.0.1:9000` inside the `app` container; `http://app:9000` from `worker`/`worker-ingest`/`scheduler` | Unset entirely for plain AWS S3, or your provider's endpoint URL. |
 | `AWS_URL` | unset | Only needed if your provider serves public URLs from a different host than `AWS_ENDPOINT` — uncommon; leave unset otherwise. |
-| `AWS_USE_PATH_STYLE_ENDPOINT` | `true` (MinIO requires it) | `false` for virtual-hosted providers (plain S3, R2, Spaces, Wasabi, B2) — see [Storage](storage.md) for which is which. |
-| `DOCCUM_EMBEDDED_ENV` | `/data/minio.env` | Not normally changed; this is where embedded MinIO's generated credentials live, read by `RuntimeConfigServiceProvider::applyEmbeddedStorage()`. |
+| `AWS_USE_PATH_STYLE_ENDPOINT` | `true` (the embedded server is reached at `127.0.0.1`, so it is addressed path-style) | `false` for virtual-hosted providers (plain S3, R2, Spaces, Wasabi, B2) — see [Storage](storage.md) for which is which. |
+| `DOCCUM_EMBEDDED_ENV` | `/data/storage.env` | Not normally changed; this is where the embedded object store's generated credentials live, read by `RuntimeConfigServiceProvider::applyEmbeddedStorage()`. |
 
 **Like the database block above, the installer's storage step writes your
 choice into the `settings` table — encrypted, through `Settings::setSecret()`
@@ -141,10 +141,10 @@ container per role":
 | Variable | Local (default) | Remote / production |
 |---|---|---|
 | `AUTORUN_ENABLED` | `true` on `app` only | `false` on `worker`/`worker-ingest`/`scheduler` — only one container may run migrations, or four containers race to migrate the same SQLite file. |
-| `DOCCUM_EMBEDDED_STORAGE` | `true` on `app` only | `false` everywhere else — only one container may run MinIO against `/data/objects`. |
+| `DOCCUM_EMBEDDED_STORAGE` | `true` on `app` only | `false` everywhere else — only one container may run the embedded object store against `/data/objects`. |
 | `DOCCUM_RUN_WORKERS` | `true` on the single-container image | `false` when `compose.yaml`'s dedicated `worker`/`worker-ingest` containers already run them. |
 | `DOCCUM_RUN_SCHEDULER` | `true` on the single-container image | `false` when a dedicated `scheduler` container already runs it. |
-| `MINIO_ROOT_PASSWORD` | Not read by the default stack at all (embedded storage generates its own into `/data/minio.env`) | **Required**, with no default, for `compose.yaml`'s opt-in `storage` profile — a known password in a public compose file would be a known password in every install that copies it. Compose interpolates the whole file regardless of which profile you select, so this is required for *every* `docker compose` invocation, not only ones that use the profile — see the comment above `minio:` in `compose.yaml` and the README's "Going bigger" section. |
+| `MINIO_ROOT_PASSWORD` | Not read by the default stack at all (embedded storage generates its own into `/data/storage.env`) | **Required**, with no default, for `compose.yaml`'s opt-in `storage` profile — a known password in a public compose file would be a known password in every install that copies it. Compose interpolates the whole file regardless of which profile you select, so this is required for *every* `docker compose` invocation, not only ones that use the profile — see the comment above `storage:` in `compose.yaml` and the README's "Going bigger" section. The name is retained for compatibility and will be renamed separately. |
 
 ## Everything else
 

@@ -125,7 +125,8 @@ we will say so and explain why rather than let the clock run out quietly.
 If you run doccum, two things matter more than anything in this file:
 
 1. **Set `MINIO_ROOT_PASSWORD` before your first `docker compose up`.** The
-   compose file refuses to start without it, deliberately.
+   compose file refuses to start without it, deliberately. (The name is
+   retained for compatibility and will be renamed separately.)
 2. **Keep `auth.public_signup` off** unless you mean it. It is off by default,
    and when it is off the registration route returns 404 rather than a disabled
    form, so the instance does not advertise an entry point it will not honour.

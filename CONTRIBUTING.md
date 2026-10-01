@@ -52,7 +52,8 @@ docker build -t doccum:local .
 docker run -d -v doccum:/data -p 8080:8080 doccum:local
 ```
 
-`compose.yaml` requires `MINIO_ROOT_PASSWORD` to be set before you bring it up.
+`compose.yaml` requires `MINIO_ROOT_PASSWORD` to be set before you bring it up
+(the name is retained for compatibility and will be renamed separately).
 There is a CI check that keeps it that way.
 
 ## What to run before you push

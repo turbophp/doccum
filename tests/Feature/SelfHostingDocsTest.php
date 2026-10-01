@@ -203,7 +203,12 @@ const DOC_AUDIT_PAGES = [
         'DOC_AUDIT_ENV_KEY_EXEMPTIONS',
     ],
     'docs/self-hosting/storage.md' => [
-        'MinIO',
+        // The embedded store by name. This read 'MinIO' until 2026-10-01;
+        // keeping it would have pinned the page to naming a server it no
+        // longer ships, and it was being satisfied by MINIO_ROOT_PASSWORD
+        // (required below in its own right) rather than by any sentence
+        // about the store -- so the clause was redundant as well as wrong.
+        'versitygw',
         'S3',
         'MINIO_ROOT_PASSWORD',
         'servesPresignedUrls',
@@ -227,7 +232,11 @@ const DOC_AUDIT_PAGES = [
         '/data',
         'APP_KEY',
         'runtime.json',
-        'minio.env',
+        // The credentials file on the volume, which a restore has to bring
+        // back with the objects. Read 'minio.env' until 2026-10-01; the
+        // entrypoint writes storage.env now, so the old name would have
+        // required the page to document a file no install has.
+        'storage.env',
         'objects/',
     ],
     'docs/self-hosting/upgrading.md' => [

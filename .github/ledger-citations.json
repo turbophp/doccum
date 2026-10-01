@@ -140,19 +140,19 @@
     },
     {
       "item": "item/stale-texts-sweep",
-      "citation": "Dockerfile:12",
+      "citation": "Dockerfile:20",
       "path": "Dockerfile",
-      "line": 12,
+      "line": 20,
       "expectAtLine": "8.5-frankenphp",
-      "why": "The sweep's evidence that tests.yml's matrix comment had drifted: the item says 'Dockerfile:12 says 8.5'. Accurate, so it is checked -- if the FROM line moves, the item's account of what it verified becomes false."
+      "why": "The sweep's evidence that tests.yml's matrix comment had drifted: the item says the base image FROM line says 8.5. Accurate, so it is checked -- if the FROM line moves, the item's account of what it verified becomes false. It read Dockerfile:12 until 2026-10-01, when replacing the MinIO stage with the versitygw one (decision/0151) put a longer comment above it and moved it to line 20. Repointed rather than struck: the base image line itself did not change, only its address, which is exactly the case the guard's message says to update."
     },
     {
       "item": "item/citation-addresses-rot",
-      "citation": "Dockerfile:12",
+      "citation": "Dockerfile:20",
       "path": "Dockerfile",
-      "line": 12,
+      "line": 20,
       "expectAtLine": "8.5-frankenphp",
-      "why": "Quoted in this item as one of the two citations the first version of the guard could not see, because its pattern required a file extension. Checked at the same resolution item/stale-texts-sweep declares."
+      "why": "Quoted in this item as one of the two citations the first version of the guard could not see, because its pattern required a file extension. Checked at the same resolution item/stale-texts-sweep declares, and moved with it from Dockerfile:12 to Dockerfile:20 on 2026-10-01 (decision/0151). The guard caught this move on the very commit that caused it, which is the behaviour the item was filed to produce."
     },
     {
       "item": "item/role-permissions-survive-restart",

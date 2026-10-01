@@ -55,6 +55,8 @@ stops being enough, nothing needs rewriting:
   separate containers. Use it when you want to scale them independently — not
   to get started. **Set `MINIO_ROOT_PASSWORD` before any `docker compose`
   command** — export it or put it in a `.env` file next to `compose.yaml`.
+  (The variable keeps its old name for compatibility; it will be renamed
+  separately.)
   There is no default, because a known password in a public repository is a
   known password in every install that copies it. The value only actually
   matters if you run the opt-in `storage` profile, which has no way to

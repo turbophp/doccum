@@ -49,8 +49,8 @@ enum StorageProvider: string
      * name in the path) rather than virtual-hosted addressing (the bucket
      * name in the host).
      *
-     * Embedded MinIO requires path style; every hosted provider here is
-     * reached through virtual-hosted addressing.
+     * The embedded server is reached at 127.0.0.1 and so requires path style;
+     * every hosted provider here is reached through virtual-hosted addressing.
      */
     public function usesPathStyle(): bool
     {

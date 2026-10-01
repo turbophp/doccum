@@ -53,7 +53,7 @@ A purge is refused, in dry-run or with `--force`, when either guard fails:
 
 When a purge does run, it cascades `file_versions`, `file_texts`,
 `properties`, and `search_documents` for everything in that period, and
-removes the MinIO/S3 prefix under `files/{YYYY}/{MM}/`. Directories survive
+removes the object-store prefix under `files/{YYYY}/{MM}/`. Directories survive
 — a purged year leaves its folder structure standing and empty, so the tree
 still shows where records used to live.
 

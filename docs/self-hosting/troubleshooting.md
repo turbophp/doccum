@@ -20,19 +20,20 @@ invite reinstalling over live data. Two ways out:
   (even though it cannot be read) and the first-run installer runs again
   on the next request.
 
-## "Set MINIO_ROOT_PASSWORD to the password this MinIO should use"
+## "Set MINIO_ROOT_PASSWORD to the password this object store should use"
 
 Any `docker compose` command against this project fails with this refusal
 unless `MINIO_ROOT_PASSWORD` is set in the environment or a `.env` file next
 to `compose.yaml` — even if you never intend to use the `storage` profile.
 This is because Compose interpolates the entire file regardless of which
-profile is selected, and the `storage` profile's own `minio` service has no
+profile is selected, and the `storage` profile's own `storage` service has no
 default password on purpose (a known password in a public repository is a
 known password everywhere). The default stack (no `storage` profile) never
 actually *uses* this value — embedded storage generates its own random
-credentials into `/data/minio.env` — but Compose still needs it to resolve.
+credentials into `/data/storage.env` — but Compose still needs it to resolve.
 Set any value: `export MINIO_ROOT_PASSWORD=$(openssl rand -hex 24)` before
-running `docker compose up`.
+running `docker compose up`. (The variable keeps its old name for
+compatibility; it will be renamed separately.)
 
 ## A download 500s, or a presigned link is unreachable
 
@@ -106,5 +107,5 @@ failure mode, not a hypothetical one, which is why `compose.yaml` is
 careful about it (see the [configuration reference](configuration-reference.md#container-level-toggles)).
 Beyond that, `docker logs doccum` (or the specific compose service) during
 boot shows each `entrypoint.d` script's own output — they print what they
-generated (an `APP_KEY`, MinIO credentials) or why they skipped, in plain
+generated (an `APP_KEY`, the embedded storage credentials) or why they skipped, in plain
 text, before the application itself starts.
