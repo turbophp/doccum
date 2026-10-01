@@ -3,23 +3,39 @@
 Every object doccum stores — a file version, a staged upload, a built
 directory archive — goes through exactly one seam, `App\Services\DocumentStorage`,
 which addresses whatever disk is configured as an S3 API (spec §6). That is
-true whether the bytes actually land in embedded MinIO, a standalone MinIO,
-or real S3: nothing above `DocumentStorage` knows or cares which.
+true whether the bytes actually land in the embedded versitygw, a standalone
+versitygw, or real S3: nothing above `DocumentStorage` knows or cares which.
 
-## The default: embedded MinIO
+## The default: embedded versitygw
 
 Nothing to configure. On first boot, `docker/entrypoint.d/48-doccum-storage.sh`
-generates a random MinIO root user/password into `/data/minio.env` (mode
-`0600`), and `RuntimeConfigServiceProvider::applyEmbeddedStorage()` reads
-that file at boot and points the `documents` disk at it. MinIO itself runs
-inside the `app` container under `supervisord`
-(`docker/supervisor/doccum.conf`'s `[program:minio]` block) — the `worker`,
-`worker-ingest`, and `scheduler` containers reach it over the Docker network
-at `http://app:9000` rather than each starting their own.
+generates the embedded store's root credentials — access key `doccum`, a
+random secret — into `/data/storage.env` (mode `0600`) as `ROOT_ACCESS_KEY`
+and `ROOT_SECRET_KEY`, and `RuntimeConfigServiceProvider::applyEmbeddedStorage()`
+reads that file at boot and points the `documents` disk at it. The store
+itself, [versitygw](https://github.com/versity/versitygw), runs inside the
+`app` container under `supervisord` (`docker/supervisor/doccum.conf`'s
+`[program:storage]` block, launched through `/usr/local/bin/doccum-storage`)
+— the `worker`, `worker-ingest`, and `scheduler` containers reach it over the
+Docker network at `http://app:9000` rather than each starting their own.
+Inside the `app` container it answers at `http://127.0.0.1:9000`, path-style,
+region `us-east-1`, bucket `doccum`.
+
+versitygw runs with its `posix` backend against `/data/objects`, so every
+object is an ordinary file on disk rather than an entry in an opaque store.
+You can look at the tree with normal tools, and a backup of `/data` is a
+backup of the documents themselves — see [Backup and restore](backup-and-restore.md).
+versitygw also keeps its own account store in `/data/storage-iam`; doccum only
+ever uses the root account, but the directory exists and belongs in a backup
+alongside the rest of `/data`.
 
 Because the credentials live on the same `/data` volume as everything else,
 a restored backup carries working storage credentials with it — there is no
-separate MinIO configuration to restore.
+separate object-store configuration to restore.
+
+A volume created by an older doccum, back when the embedded store was MinIO,
+cannot be read by versitygw; the container refuses to boot on it rather than
+start empty. See [Upgrading](upgrading.md#a-volume-created-with-embedded-minio).
 
 ## Downloads and presigned URLs
 
@@ -35,7 +51,7 @@ storage somewhere the browser can actually reach it. This is one of the
 concrete reasons to move off the embedded default before exposing an
 instance beyond your own machine; see [Troubleshooting](troubleshooting.md).
 
-## Moving to S3, R2, or another remote MinIO
+## Moving to S3, R2, or another remote S3-compatible store
 
 Two ways to change where objects live, both without a rebuild:
 
@@ -58,19 +74,21 @@ precedence over the `AWS_*` environment variables from then on — see spec
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`,
 `AWS_BUCKET`, and `AWS_ENDPOINT` (unset `AWS_ENDPOINT` entirely for plain
 AWS S3), plus `AWS_USE_PATH_STYLE_ENDPOINT=false` for every hosted provider
-— only embedded/standalone MinIO needs path-style addressing. See the
+— only the embedded/standalone store needs path-style addressing. See the
 [configuration reference](configuration-reference.md#object-storage) for
 each variable's local and remote value side by side.
 
 Either way, moving storage is an environment or settings change, never a
 code change or a rebuild — that is the whole point of the seam.
 
-## Running standalone MinIO instead of embedded
+## Running a standalone store instead of embedded
 
-`compose.yaml` ships an opt-in `storage` profile with its own `minio` and
-`minio-init` services, for anyone who wants object storage outside the
+`compose.yaml` ships an opt-in `storage` profile with its own `storage`
+service — the same versitygw the image embeds, from `ghcr.io/versity/versitygw`
+pinned by digest — for anyone who wants object storage outside the
 `app` container — for example, pointing several doccum installs at one
-bucket. Bring it up with:
+bucket. Its data lives in the `objects` volume, with versitygw's account
+store in `objects-iam`. Bring it up with:
 
 ```bash
 MINIO_ROOT_PASSWORD=<a real password> docker compose --profile storage up -d
@@ -82,15 +100,16 @@ copies it, so compose refuses to resolve the `storage` profile's services at
 all until you supply one. Note that Compose interpolates the entire file
 regardless of which profile you actually select, so this variable must be
 set for *every* `docker compose` command against this project, whether or
-not you use the `storage` profile — see the comment above `minio:` in
-`compose.yaml`.
+not you use the `storage` profile — see the comment above `storage:` in
+`compose.yaml`. (The variable keeps its MinIO-era name for compatibility; it
+will be renamed separately.)
 
-`minio-init` is a one-shot `mc` container that retries until MinIO answers
-and then creates the `doccum` bucket — no `depends_on` ordering needed, and
-none of the four application containers declare one either (spec §13): each
-starts independently, and detaching storage is simply not starting the
-embedded server, or pointing the app at this profile's `minio` service
-instead via `AWS_ENDPOINT=http://minio:9000`.
+There is no bucket-init service: the app creates the `doccum` bucket itself
+through the AWS SDK it already carries (`DocumentStorage::ensureBucket()`) —
+no `depends_on` ordering needed, and none of the four application containers
+declare one either (spec §13): each starts independently, and detaching
+storage is simply not starting the embedded server, or pointing the app at
+this profile's `storage` service instead via `AWS_ENDPOINT=http://storage:9000`.
 
 That independence has one requirement, and it lives in the `Dockerfile` rather
 than in `compose.yaml`: the image must ship **nothing** under `/data`. All four
@@ -113,9 +132,9 @@ there is an instance id it regenerates when absent.
 
 ## What never changes
 
-`use_path_style_endpoint` is forced `true` for embedded/standalone MinIO
-because path-style is the only addressing MinIO's default configuration
-accepts; every hosted provider preset in `App\Enums\StorageProvider` sets it
+`use_path_style_endpoint` is forced `true` for embedded/standalone storage
+because the embedded server is reached at `127.0.0.1`, which requires
+path-style addressing (`StorageProvider::usesPathStyle()`); every hosted provider preset in `App\Enums\StorageProvider` sets it
 `false`. Object keys always carry the file's *creation* period
 (`files/{YYYY}/{MM}/{file_uuid}/v{n}/{original-name}`, spec §6) regardless of
 which provider stores them, which is what makes [archive and purge](operations-runbook.md)

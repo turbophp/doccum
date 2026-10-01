@@ -147,7 +147,7 @@ ENV DOCCUM_EMBEDDED_STORAGE=true \
 # Without this the database lands wherever config/database.php's fallback
 # puts it -- database_path('database.sqlite'), inside the image layer -- and
 # `docker run -v doccum:/data` loses every user, grant, file row and search
-# index the moment the container is replaced, while objects and minio.env
+# index the moment the container is replaced, while objects and storage.env
 # survive on the volume. The instance comes back half-alive rather than
 # empty, which is worse. compose.yaml has always set this; the image never
 # did, so the run command documented in CLAUDE.md was the broken one.

@@ -17,9 +17,9 @@ service alone (`AUTORUN_ENABLED=true` there, `false` on `worker`,
 `worker-ingest`, and `scheduler`) — so exactly one container ever runs
 `php artisan migrate` against the shared SQLite file, never four racing
 each other. Nothing else about the upgrade is different from a fresh boot:
-the same entrypoint scripts run, `APP_KEY` and MinIO credentials are read
-from `/data` rather than regenerated, and the application comes back up
-against the same data it had before.
+the same entrypoint scripts run, `APP_KEY` and the embedded storage
+credentials are read from `/data` rather than regenerated, and the
+application comes back up against the same data it had before.
 
 Check `CHANGELOG.md`'s `[Unreleased]`/latest version section before
 upgrading past more than one release — doccum follows
@@ -27,6 +27,46 @@ upgrading past more than one release — doccum follows
 needs a manual step on upgrade (there is nothing that does, as of this
 writing) would be called out there under that version's own heading rather
 than buried in a commit log.
+
+## A volume created with embedded MinIO
+
+The embedded object store used to be MinIO and is now
+[versitygw](https://github.com/versity/versitygw). The two keep objects in
+different on-disk layouts, and versitygw cannot read MinIO's. A `/data` volume
+written by a doccum that embedded MinIO is recognisable by `/data/minio.env`
+(the current release writes `/data/storage.env` instead).
+
+On such a volume the container **refuses to boot**, rather than start with an
+object store that looks empty while every file row in the database points at
+bytes it cannot find. The entrypoint
+(`docker/entrypoint.d/48-doccum-storage.sh`) prints a message pointing here
+and exits non-zero. It deletes and rewrites nothing: `/data/minio.env` and
+everything under `/data/objects` are left exactly as they were found.
+
+doccum does not ship a converter for MinIO's layout. Your options:
+
+- **Start on a fresh volume** (the clean answer). Boot the new image against
+  an empty `/data` and re-import what you need. Until you do, keep the old
+  volume and the image that wrote it, so you can still reach the old
+  documents through the application.
+- **Start with an empty object store on the same volume.** Set
+  `DOCCUM_STORAGE_ALLOW_LEGACY_DATA=true` on the container. The entrypoint
+  then starts versitygw against `/data/objects` without reading MinIO's
+  layout and writes a fresh `/data/storage.env`; the old bytes stay on disk,
+  but they are not served. Files already recorded in the database will report
+  that their object is missing (see
+  [Troubleshooting](troubleshooting.md)), so this suits an instance with no
+  documents worth keeping. Once `/data/storage.env` exists the variable is no
+  longer consulted.
+
+If you ran the compose stack's opt-in `storage` profile, note that its service
+is now called `storage` (it was `minio`) and uses new `objects` and
+`objects-iam` volumes, so the old `minio` volume is not read. Update any
+`AWS_ENDPOINT=http://minio:9000` in your `.env` to `http://storage:9000`.
+
+No tagged release of doccum had been published when this changed, so in
+practice this affects only someone who ran this repository's compose stack
+or built the image from a checkout before the switch.
 
 ## Confirming which version is actually running
 

@@ -21,11 +21,11 @@ x-app: &app
     # No known default -- a known secret in a public repo is a known secret in
     # every install that copies it. `:-` here and NOT `:?`, because the default
     # stack never reads this value: `app` runs with DOCCUM_EMBEDDED_STORAGE=true,
-    # so 48-doccum-storage.sh generates a random password into /data/minio.env,
+    # so 48-doccum-storage.sh generates a random password into /data/storage.env,
     # and RuntimeConfigServiceProvider::applyEmbeddedStorage() overwrites
     # documents.key/secret/endpoint from that file at boot -- for all four
     # services, since they share the db:/data volume. The refusal belongs to the
-    # `storage` profile's own minio service below, which is the only place this
+    # `storage` profile's own storage service below, which is the only place this
     # password actually sets anything, and that is where the `:?` lives.
     #
     # Be aware, before moving either marker: compose interpolates the WHOLE file
@@ -52,9 +52,9 @@ services:
     environment:
       <<: *app-env
       AUTORUN_ENABLED: "true"
-      # This is the only container that runs MinIO -- see docker/supervisor/doccum.conf.
-      # It reaches its own MinIO at the config default (127.0.0.1:9000), so no
-      # AWS_ENDPOINT override is needed here.
+      # This is the only container that runs the embedded object store -- see
+      # docker/supervisor/doccum.conf. It reaches its own store at the config
+      # default (127.0.0.1:9000), so no AWS_ENDPOINT override is needed here.
       DOCCUM_EMBEDDED_STORAGE: "true"
     ports:
       - "8080:8080"
@@ -64,8 +64,8 @@ services:
     environment:
       <<: *app-env
       AUTORUN_ENABLED: "false"
-      # Workers share this image but must never start their own MinIO against
-      # the same data directory -- they reach the app container's instead.
+      # Workers share this image but must never start their own object store
+      # against the same data directory -- they reach the app container's instead.
       DOCCUM_EMBEDDED_STORAGE: "false"
       AWS_ENDPOINT: http://app:9000
     command: ["php", "artisan", "queue:work", "--queue=default", "--tries=3", "--max-time=3600"]
