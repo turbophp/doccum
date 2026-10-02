@@ -1,0 +1,50 @@
+{
+  "@context": "../context.jsonld",
+  "@id": "run/0023",
+  "@type": "Run",
+  "identifier": 23,
+  "agent": "https://claude.ai/code/session_01ADCn2xmXjiP4pnatPFyF5r",
+  "startTime": "2026-09-29T16:30:00Z",
+  "endTime": null,
+  "outcome": "active",
+  "touched": [
+    "item/release-v0-1-0"
+  ],
+  "commit": "d5cc6fca56171ad7779384ce7be65e2ad70f2496",
+  "description": "THE ITERATION THAT LOST ITS OBJECT STORE AND HAD TO REPLACE IT BEFORE ANYTHING ELSE COULD SHIP. run/0022 closed on the owner's call that v0.1.0 is a real release; this run began by dating the [0.1.0] heading for it and then found that doccum could not build an image at all.\n\nWHAT BROKE. Every route to MinIO's binary closed between 2026-09-22 -- main's last green build -- and 2026-09-29. dl.min.io answering 410 Gone was already recorded in the Dockerfile and was not the new fact; what was new is that the two registries went with it. quay.io/minio/minio and docker.io/minio/minio both answer 401 where a control image on the same registry answers 200, each probe paired with that control so the result is a statement about the image rather than about this container's egress. The obvious escape -- pull a previously built doccum image and lift the binary out of it -- does not exist: tests.yml builds with `push: false` and release.yml has never run on a tag, so doccum has never published an image carrying that binary. decision/0151 records the replacement and why it is versitygw rather than Garage.\n\nTWO GUARDS CAUGHT SOMETHING THE SUITE DID NOT. assert-ledger-citations.py refused the swap because the longer Dockerfile comment moved `FROM serversideup/php:8.5-frankenphp-bookworm` from line 12 to line 20 and two citations still said 12 -- the rot this guard was built for, catching itself in the act. And SelfHostingDocsTest went red on `backup-and-restore.md is missing the keyword \"minio.env\"`, which on inspection exposed a dead witness beside it: storage.md's required keyword `MinIO` was satisfied by the separately-required `MINIO_ROOT_PASSWORD` under a case-insensitive match, so that page could have stopped naming its object store entirely and the test would still have passed. Repointed at `versitygw`, which the password variable cannot accidentally spell. That is decision/0111's shape -- a witness that stopped witnessing -- found by a failure in the file next door.\n\nWHAT IS NOT DONE. item/release-v0-1-0 stays Active. The tag is not cut, and the clause that cannot be satisfied from inside the loop is still clause (4)'s neighbour: verify-anonymous-pull is red by design until the owner flips the ghcr package to public (issue #406), which is an owner action, not a loop action.",
+  "merges": [
+    {
+      "mergeSha": "b781fb33ee6d7c06912dd156779b468bbdf90607",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/420",
+      "mergedAt": "2026-10-01T12:51:36Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/36864620781",
+      "testsConclusion": "cancelled",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/36864620848",
+      "ledgerConclusion": "success",
+      "pagesRun": "https://github.com/turbophp/doccum/actions/runs/36864620734",
+      "pagesConclusion": "success"
+    },
+    {
+      "mergeSha": "35cb104d3e05b0ff53882f3a2d207b761aea5e41",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/423",
+      "mergedAt": "2026-10-01T12:52:59Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/36864777495",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/36864777352",
+      "ledgerConclusion": "success",
+      "pagesRun": "https://github.com/turbophp/doccum/actions/runs/36864777217",
+      "pagesConclusion": "success"
+    },
+    {
+      "mergeSha": "d5cc6fca56171ad7779384ce7be65e2ad70f2496",
+      "pullRequest": "https://github.com/turbophp/doccum/pull/421",
+      "mergedAt": "2026-10-02T10:00:34Z",
+      "testsRun": "https://github.com/turbophp/doccum/actions/runs/36993050946",
+      "testsConclusion": "success",
+      "ledgerRun": "https://github.com/turbophp/doccum/actions/runs/36993051129",
+      "ledgerConclusion": "success",
+      "pagesRun": "https://github.com/turbophp/doccum/actions/runs/36993050988",
+      "pagesConclusion": "success"
+    }
+  ]
+}
