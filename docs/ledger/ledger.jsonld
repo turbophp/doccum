@@ -3,8 +3,8 @@
   "@id": "ledger",
   "@type": "Ledger",
   "version": "1",
-  "dateModified": "2026-09-29T16:05:00Z",
-  "latestRun": "run/0022",
+  "dateModified": "2026-10-02T10:30:00Z",
+  "latestRun": "run/0023",
   "about": {
     "@id": "https://github.com/turbophp/doccum",
     "@type": "SoftwareApplication",
@@ -4680,7 +4680,7 @@
       "implements": [
         "item/runbook-trash-purge"
       ],
-      "run": "run/0022",
+      "run": "run/0021",
       "state": "merged",
       "dateCreated": "2026-09-21T20:41:05Z",
       "headSha": "18e73c70a7ef625646aa5a47852cf6bde3dfdb51",
@@ -5167,6 +5167,74 @@
       "mergedAt": "2026-09-22T08:41:17Z",
       "mergeSha": "c8aad71482755fa09421d5914cda05a3b46c3321",
       "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/419",
+      "@type": "PullRequest",
+      "identifier": 419,
+      "name": "Why the post-v1 board is closed, not merely deprioritised",
+      "description": "Records decision/0149: main is what gets tagged, so a post-v1 item merged before v1.0.0 ships in v1.0.0 whatever its `release` field says. Closes the question LOOP step 4 kept re-asking of the post-v1 backlog by making the answer mechanical rather than a matter of taste.",
+      "implements": [
+        "item/tag-v1-0-0"
+      ],
+      "run": "run/0022",
+      "state": "merged",
+      "dateCreated": "2026-09-22T08:47:47Z",
+      "headSha": "2528d0d0bf0dc05aaf073067498f6583c3c2269d",
+      "mergedAt": "2026-09-22T08:54:32Z",
+      "mergeSha": "364e9c20ec6dc337970ce8c7a9f81f6e59b2e98f",
+      "mergedIn": "run/0022"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/420",
+      "@type": "PullRequest",
+      "identifier": 420,
+      "name": "Date the [0.1.0] heading: 0.1.0 is being cut as a real release",
+      "description": "CHANGELOG.md's [0.1.0] heading carried no date because the previous plan was a throwaway pre-release. The owner's call on issue #302 made it a real release, and release.yml's changelog-section job reads that heading, so the date is machinery rather than decoration.",
+      "implements": [
+        "item/release-v0-1-0"
+      ],
+      "run": "run/0023",
+      "state": "merged",
+      "dateCreated": "2026-09-29T16:34:44Z",
+      "headSha": "75a1f08a82154ff98b8f436f3cac2dfea62f03b7",
+      "mergedAt": "2026-10-01T12:51:36Z",
+      "mergeSha": "b781fb33ee6d7c06912dd156779b468bbdf90607",
+      "mergedIn": "run/0023"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/421",
+      "@type": "PullRequest",
+      "identifier": 421,
+      "name": "Record the owner's call on #302: v0.1.0 is a real release (decision/0150)",
+      "description": "The ledger pass that closed run/0022's open question: decision/0150, and the restatement of item/release-v0-1-0's doneWhen around a real tag rather than an rc. Opened 2026-09-29 and merged 2026-10-02, because the image build collapsed in between and PR #423 had to land first.",
+      "implements": [
+        "item/release-v0-1-0"
+      ],
+      "run": "run/0023",
+      "state": "merged",
+      "dateCreated": "2026-09-29T16:37:03Z",
+      "headSha": "0a601d380c0039665bbc3cea8780e1494a8379f4",
+      "mergedAt": "2026-10-02T10:00:34Z",
+      "mergeSha": "d5cc6fca56171ad7779384ce7be65e2ad70f2496",
+      "mergedIn": "run/0023"
+    },
+    {
+      "@id": "https://github.com/turbophp/doccum/pull/423",
+      "@type": "PullRequest",
+      "identifier": 423,
+      "name": "Replace embedded MinIO with versitygw",
+      "description": "The image could not be built at all: every route to MinIO's binary closed between main's last green build and 2026-09-29, and no doccum image carrying it was ever published, so there was nothing to fall back on. Swaps the embedded S3 server for versitygw, pinned by digest, and refuses to boot on a volume a MinIO-era release wrote rather than serving an object store that looks empty. See decision/0151 and issue #422.",
+      "implements": [
+        "item/release-v0-1-0"
+      ],
+      "run": "run/0023",
+      "state": "merged",
+      "dateCreated": "2026-10-01T11:20:22Z",
+      "headSha": "501f514190910305f61d452b6d716b111d6ac883",
+      "mergedAt": "2026-10-01T12:52:59Z",
+      "mergeSha": "35cb104d3e05b0ff53882f3a2d207b761aea5e41",
+      "mergedIn": "run/0023"
     }
   ],
   "decisions": [
@@ -7614,6 +7682,36 @@
       ],
       "supersedes": "decision/0083",
       "rationale": "Issue #302 put three options to the owner and the owner chose (A): a real v0.1.0. This records what that settles and why it was not the loop's call.\n\nWHY IT WAS THE OWNER'S. A tag is irreversible in the ways that matter here -- item/release-v0-1-0's own record already establishes that GITHUB_TOKEN cannot delete a ghcr package version, so even the \"throwaway\" rc would have stayed published -- and it makes a version public under the project's name. LOOP.md's own text says the loop will not cut any tag on its own. The loop's job was to state the consequences precisely enough that the choice could be made, which is what #302 did.\n\nWHAT THE CHOICE TURNS ON, and it is one job. `latest` is published only on a non-pre-release tag: release.yml's two `latest` declarations are `enable={{is_default_branch}}` (false on every tag push) and `enable=${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-') }}` (false for a pre-release). So under (C), rc-only, verify-latest-resolves-to-the-tag would have first executed at v1.0.0 -- against the bare `docker pull ghcr.io/turbophp/doccum` that README.md calls the whole installation, on the one tag that cannot be retried. (A) executes it now, against a version nobody depends on yet.\n\nTHE CIRCULARITY (C) WAS CHOSEN TO BREAK IS BROKEN EQUALLY BY (A). decision/0083 turned this item into a disposable rc on the argument that item/readme-owner clause 2 needs a published image before the tag that publishes it can be cut. A real 0.1.0 publishes an image just as an rc does, and additionally moves `latest`, which is what clause 2 actually resolves. The rc breaks the cycle strictly less well.\n\nAND THE REPOSITORY'S OWN DOCUMENTS ALREADY ASSUMED IT. HANDOVER.md's \"Before a public release\" step 2 says \"Tag v0.1.0\"; CHANGELOG.md carries a [0.1.0] section; the item is literally named \"Tag v0.1.0 to prove the release pipeline\". Only decision/0083 made it an rc. This supersedes that half of decision/0083.\n\nONE THING LANDS BEFORE THE TAG AND IT IS NOT OPTIONAL. CHANGELOG.md's preamble states that an undated `## [x.y.z]` heading means unreleased and \"the date is added when the tag is cut\". [0.1.0] was undated. PR #420 dates it, with all three of tests.yml's changelog guards run against the diff first -- in particular that \"No version section denies its own release\" still ENUMERATES 0.1.0, because a date that hid the heading from its own `grep -oE '^## \\[[0-9]+\\.[0-9]+\\.[0-9]+\\]'` would have disabled the check silently, which is decision/0113's shape.\n\nWHAT WILL GO RED ON THIS TAG, SAID IN ADVANCE SO IT IS NOT READ AS A DEFECT. verify-anonymous-pull fails until the ghcr package is made public, because GitHub publishes a new package private and the package does not exist until this tag creates it. That job deliberately holds no `needs` edge from `release` for exactly this case. Issue #406 is the owner action; the binding clause is on item/tag-v1-0-0."
+    },
+    {
+      "@id": "decision/0151",
+      "@type": "Decision",
+      "dateCreated": "2026-10-01T11:10:00Z",
+      "run": "run/0023",
+      "name": "The embedded object store is versitygw, pinned by digest, and a MinIO-era volume is refused rather than served",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/release-v0-1-0"
+      ],
+      "supersedes": null,
+      "rationale": "WHAT HAPPENED. doccum embedded MinIO, and between 2026-09-22 -- main's last green build -- and 2026-09-29 every route to its binary closed. Three doors, each probed with a control on the same host so the result is a statement about the artifact rather than about this container's egress: dl.min.io answers 410 Gone (already recorded in the Dockerfile before this run, and NOT the new fact); quay.io/minio/minio answers 401 where a control image on quay.io answers 200; docker.io/minio/minio answers 401 where a control image on Docker Hub answers 200.\n\nTHE SHORTCUT THAT DOES NOT EXIST. The obvious escape is to lift the binary out of an image doccum published earlier. There is none. tests.yml builds with `push: false`, and release.yml has never run on a tag -- its only execution was a failed `mutation/*` run -- so no doccum image carrying MinIO's binary was ever published anywhere. This was checked rather than assumed, because the whole question of how urgent the swap is turns on it.\n\nWHY versitygw AND NOT GARAGE. Garage was the first recommendation and was withdrawn on upstream's own words about `replication_factor = 1`, which is the only configuration a single-container product can run: upstream treats it as a degraded mode rather than a supported one, and the embedded store is the default path every self-hoster takes. versitygw is Apache-2.0, builds `CGO_ENABLED=0` so the binary is static and runs unchanged in this Debian base exactly as MinIO's did, offers presigned SigV4 as a first-class path (which the API upload route needs), and its `posix` backend stores objects as plain files under /data -- which is strictly better for a self-hosted document store than an opaque layout, because an operator with a backup and no doccum still has their documents. Each of those four was verified in upstream's source, not recalled.\n\nPINNED BY DIGEST, NOT BY TAG. This incident is the argument: a tag can be withdrawn, and a tag that has been withdrawn gives a rebuild a different binary or no binary at all. The Dockerfile's `objects` stage and compose.yaml's opt-in `storage` service both name `ghcr.io/versity/versitygw:v1.8.0@sha256:30292fc...`, so a rebuild produces the same bytes even if the tag moves.\n\nTHE VOLUME REFUSES RATHER THAN LOOKS EMPTY. versitygw cannot read MinIO's on-disk layout, and doccum ships no converter. A /data volume written by a MinIO-era doccum is recognisable by /data/minio.env, and on one the entrypoint prints where to read about it and exits non-zero. The alternative -- start anyway -- produces an instance whose every file row points at bytes the server cannot find, which looks like data loss and is indistinguishable from it at the point an operator notices. Refusing deletes and rewrites nothing; `DOCCUM_STORAGE_ALLOW_LEGACY_DATA=true` is the documented escape for an instance with nothing worth keeping.\n\nWHAT WAS DELIBERATELY NOT RENAMED. The compose variable is still MINIO_ROOT_PASSWORD. That name is load-bearing today -- tests.yml's `compose requires MINIO_ROOT_PASSWORD` job, its recorded mutation, and item/compose-secret all name it -- so renaming it is a docs-and-guard change that does not belong in the swap that unblocks the build. Filed as follow-up rather than done quietly here."
+    },
+    {
+      "@id": "decision/0152",
+      "@type": "Decision",
+      "dateCreated": "2026-10-02T10:25:00Z",
+      "run": "run/0023",
+      "name": "A rule that only fires once a run is closed is a rule that does not fire, and the ledger left two runs open to find out",
+      "isBasedOn": [
+        "spec:13-infrastructure"
+      ],
+      "affects": [
+        "item/ledger-main-push-record"
+      ],
+      "supersedes": null,
+      "rationale": "WHAT SURFACED. Closing run/0022 in this pass made `validate ledger` fail on a node nothing in this run touched: PullRequest #374's dateCreated (2026-09-21T20:41:05Z) is outside run/0022's window. The PR was OPENED during run/0021 and MERGED during run/0022, and its node recorded the merge run in both fields. `run` and `mergedIn` exist precisely to tell those apart, so the fix is `run: run/0021`, `mergedIn: run/0022`, plus the item added to run/0021's touched list -- the run did open a PR for item/runbook-trash-purge, and the list simply did not say so because the pass that wrote it landed three minutes after the PR did.\n\nWHY IT TOOK ELEVEN DAYS. withinRunWindow() returns early unless BOTH startTime and endTime are strings. That early return is correct in itself -- an open run has no end to compare against -- but it means the rule is dormant for exactly as long as a run stays open, and run/0022 stayed open for eleven days because every remaining v1 item was owner-gated and there was nothing to merge. So the window rule covered zero of that run's nodes while they were being written, and all of them at once, retroactively, the moment somebody closed it. A rule whose coverage is a function of someone else's bookkeeping habit is not the rule its name suggests.\n\nTHE SHAPE THIS SHARES WITH decision/0111. There the witness stopped reaching the guard; here the guard never reached the node. Both are the same failure to notice: a check that reports success while measuring nothing, and in both cases the thing that revealed it was an unrelated change making the check start to bite. The difference worth naming is that this one is not a defect in the validator to be patched away -- an open run genuinely has no window -- but a cost of leaving runs open, which is a habit rather than a design. The remedy is the habit: close a run when its work ends, so its nodes are checked while the context to fix them is still in somebody's head.\n\nWHAT IS NOT CLAIMED. This was found by closing one run, not by a search. Any other run that sat open while nodes were written to it carries the same unchecked window, and nothing here proves there are none -- the one check that would say so is the validator itself, now that run/0022 is closed and run/0021's own window is intact."
     }
   ],
   "mutations": [
