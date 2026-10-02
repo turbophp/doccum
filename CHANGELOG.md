@@ -20,7 +20,7 @@ of that very Release saw.
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-09-29
+## [0.1.0] - 2026-10-02
 
 Initial feature set.
 
