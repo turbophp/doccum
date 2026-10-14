@@ -14,7 +14,7 @@
 # static and runs in this Debian base unchanged, exactly as MinIO's did.
 # Pinned by digest -- never a bare tag -- so a rebuild produces the same
 # binary even if the tag is later moved or withdrawn.
-FROM ghcr.io/versity/versitygw:v1.8.0@sha256:30292fc2eeacc67a36993b01f7a7a5e3361a19cced0e80c1d71cfa2a4b0a2499 AS objects
+FROM ghcr.io/versity/versitygw:v1.9.0@sha256:eb7f786fcd91e72194e48fcf1ac16302d686bf8e3a71434bdbc067a6efd3fdc7 AS objects
 
 # ---- base: runtime plus the binaries text extraction needs (spec §7) ----
 FROM serversideup/php:8.5-frankenphp-bookworm AS base
